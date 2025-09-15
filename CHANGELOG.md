@@ -8,6 +8,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - SSAO pass fine-tuning and blur radius options.
 - Additional end-to-end tests and CI matrix.
 - Expanded documentation for shader stages and resource bindings.
+- Added `docs/SHADERS.md` and expanded README with platform notes.
 
 ## [0.1.0] - 2025-09-15
 ### Added
@@ -35,4 +36,3 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 <!-- Links -->
 [Unreleased]: https://github.com/indie-hub/vulkano/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/indie-hub/vulkano/releases/tag/v0.1.0
-
