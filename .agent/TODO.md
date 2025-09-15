@@ -17,6 +17,7 @@ Status
 - Done: Robust shader lookup and glslc compile step.
 - Done: Build succeeds on macOS toolchain; tests pass (Catch2).
 - Done: App launches; packaging script produces runnable folder under app/Release.
+ - Done: Verified full configure+build+ctest locally; packaged Release binary and SPIR-V shaders into app/Release.
 - Todo/Nice: SSAO compute variant, kernel randomization per frame, AO debug visualize.
 
 Next Steps
@@ -25,6 +26,7 @@ Next Steps
 - Add wireframe overlay toggle and optional pipeline state.
 - Add optional HDR tonemapping in compose.
 - Done: additional unit tests (camera projection/view invariants).
+ - Verify runtime on Windows/Linux; document MoltenVK specifics tested on macOS.
 
 Fix Log
 
