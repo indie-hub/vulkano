@@ -1,7 +1,7 @@
 # Vulkano Codex – TODO
 
 Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
-Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+Update: SSAO controls added and AO hook in forward shader. G-buffer prepass (normals+depth to RGBA16F) and SSAO fullscreen pass (AO to R8) are scaffolded and integrated. Blur pass and robust swapchain‑recreation paths remain.
 
 ## High-level Plan
 - Scaffold CMake project and folders
@@ -40,6 +40,16 @@ Update: SSAO controls added and AO hook in forward shader. Adding scaffolding fo
 - [ ] Blur: separable pass into AO_blur
 - [x] Integrate: forward shading samples AO_blur (already wired)
 - [ ] Resize-safe swapchain recreation for multi-pass images
+
+## Session Summary (current)
+- Built Debug successfully on macOS; headless run OK (`HEADLESS_RUN_MS=500`).
+- All unit tests pass (`ctest` Debug).
+- Could not push to remote: `GITHUB_TOKEN` is unset; local commits are present on branch `personal/codex/second_try`.
+
+## Immediate TODOs
+- Add CI workflow to configure, build, run unit tests, and attempt headless app run on Linux and macOS (MoltenVK notes).
+- Add SSAO blur pass (separable Gaussian) and wire UI strength parameter in composition.
+- Harden swapchain/image recreation paths (destroy/recreate offscreen images, pipelines, and descriptor sets on resize).
 
 ## Session Plan (short)
 - Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
