@@ -12,7 +12,13 @@ struct SsaoParams;
 
 class ImGuiLayer final {
 public:
-    ImGuiLayer(GLFWwindow* window, VkInstance instance, VkDevice device, VkPhysicalDevice gpu, VkQueue graphicsQueue, std::uint32_t graphicsQueueFamily, VkRenderPass renderPass);
+    ImGuiLayer(GLFWwindow* window,
+               VkInstance instance,
+               VkDevice device,
+               VkPhysicalDevice gpu,
+               VkQueue graphicsQueue,
+               std::uint32_t graphicsQueueFamily,
+               VkRenderPass renderPass);
     ~ImGuiLayer() noexcept;
     ImGuiLayer(const ImGuiLayer&) = delete;
     ImGuiLayer& operator=(const ImGuiLayer&) = delete;
@@ -27,4 +33,3 @@ private:
 };
 
 } // namespace vulkan_app
-
