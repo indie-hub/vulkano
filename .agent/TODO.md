@@ -1,6 +1,7 @@
 # Vulkano Codex – TODO
 
 Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
 
 ## High-level Plan
 - Scaffold CMake project and folders
@@ -34,9 +35,11 @@ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wi
 - [x] Camera + MVP matrices and per-pixel Phong shading
 - [x] Tangent-space normal mapping with procedural textures
 - [x] ImGui controls: light/material (normal strength, color, intensity, shininess)
-- [ ] G-buffer pass (albedo, normal, depth)
-- [ ] SSAO kernel + noise texture + blur + composite
-- [ ] Resize-safe swapchain recreation for multi-pass
+- [ ] Prepass: view-space normal + depth offscreen (sampleable)
+- [ ] SSAO: kernel + 4x4 noise texture, write AO (R8)
+- [ ] Blur: separable pass into AO_blur
+- [ ] Integrate: forward shading samples AO_blur (already wired)
+- [ ] Resize-safe swapchain recreation for multi-pass images
 
 ## Notes
 - All includes must use angle brackets.
