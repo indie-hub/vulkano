@@ -39,3 +39,5 @@ Session 2025-09-15
 Fix Log
 
 - 2025-09-15: Fixed VK_NULL_HANDLE command pool usage causing vkAllocateCommandBuffers validation error by creating the command pool before AO noise/texture uploads in Renderer constructor.
+
+- Session 2025-09-15 16:19:27: Built Release, tests green, packaged app; no code changes needed.
