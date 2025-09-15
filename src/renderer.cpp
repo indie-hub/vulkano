@@ -503,6 +503,10 @@ void Renderer::draw_frame(const CameraUBO& camera, const Light& light, const Mat
         vkCmdPushConstants(cmd, pipeline_layout_, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &model);
         vkCmdDrawIndexed(cmd, index_count_, 1, 0, 0, 0);
     }
+    // ImGui overlay (if attached)
+    if (imgui_layer_ != nullptr) {
+        imgui_layer_->render(cmd);
+    }
     vkCmdEndRenderPass(cmd);
     vkEndCommandBuffer(cmd);
 
