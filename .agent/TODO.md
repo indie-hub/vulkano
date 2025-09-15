@@ -24,9 +24,10 @@ Status: Initial scaffolding (CMake + GLFW window) – DONE
 - [x] Basic unit test scaffold builds
 
 ## Next Iteration
-- [ ] Vulkan instance/device/swapchain, debug utils
+- [x] Icosphere mesh generation with tangents/bitangents
+- [x] Unit tests for icosphere counts and normals
+- [ ] Vulkan instance/device/swapchain, debug utils (basic clear)
 - [ ] ImGui integration (imgui_impl_glfw + imgui_impl_vulkan)
-- [ ] Icosphere mesh generation with tangents/bitangents
 
 ## Notes
 - All includes must use angle brackets.
