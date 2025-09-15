@@ -61,6 +61,7 @@ add_library(vulkan_app STATIC
     src/application.cpp
     src/renderer.cpp
     src/camera.cpp
+    src/imgui_layer.cpp
 )
 
 target_sources(vulkan_app
@@ -73,6 +74,7 @@ target_sources(vulkan_app
             include/vulkan_app/renderer.hpp
             include/vulkan_app/camera.hpp
             include/vulkan_app/types.hpp
+            include/vulkan_app/imgui_layer.hpp
 )
 
 target_include_directories(vulkan_app PUBLIC include)
