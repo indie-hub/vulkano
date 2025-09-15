@@ -42,6 +42,7 @@
 
 # CMake build directories
 build/
+build_cli/
 cmake-build-*/
 ci_build/
 
