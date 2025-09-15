@@ -9,7 +9,7 @@ Current stage
   - On platforms without Vulkan/MoltenVK, the app still builds and runs the window loop.
 - ImGui integration (GLFW + Vulkan). UI shows subdivision slider and lighting/material controls.
 - Forward Phong shading with tangent-space normal mapping (procedural checkerboard albedo + flat normal map). MVP via push constants; per-frame UBO for camera/light/material.
-- SSAO: G-buffer prepass (view-space normals + linear depth packed into RGBA16F), SSAO fullscreen pass writing AO (R8), forward shading multiplies AO. Basic kernel-based AO implemented; blur/TAA pending.
+- SSAO: G-buffer prepass (view-space normals + linear depth packed into RGBA16F), SSAO fullscreen pass writing AO (R8), optional isotropic blur pass into AO_blur (R8), forward shading multiplies AO/AO_blur. Basic kernel-based AO implemented.
 
 Shaders:
 - Forward shaders: `shaders/forward.vert`, `shaders/forward.frag` (+ compiled `.spv` included). These implement Phong + normal mapping.
@@ -25,11 +25,12 @@ glslc shaders/forward.frag -o shaders/forward.frag.spv
 glslc shaders/simple.vert -o shaders/simple.vert.spv
 glslc shaders/simple.frag -o shaders/simple.frag.spv
 
-# G-buffer + SSAO
+# G-buffer + SSAO + Blur
 glslc shaders/gbuffer.vert -o shaders/gbuffer.vert.spv
 glslc shaders/gbuffer.frag -o shaders/gbuffer.frag.spv
 glslc shaders/fullscreen.vert -o shaders/fullscreen.vert.spv
 glslc shaders/ssao.frag -o shaders/ssao.frag.spv
+glslc shaders/blur.frag -o shaders/blur.frag.spv
 ```
 
 ## Build
