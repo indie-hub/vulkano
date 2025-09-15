@@ -43,10 +43,19 @@ Update: SSAO controls added and AO hook in forward shader. Adding scaffolding fo
 
 ## Session Plan (short)
 - Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
-- Add offscreen images + render passes + pipelines (guarded by VULKAN)
-- Record command buffers: G-buffer -> SSAO -> forward
+- Add offscreen images + render passes + pipelines (guarded by VULKAN) — DONE
+- Record command buffers: G-buffer -> SSAO -> forward — DONE
 - Keep non-Vulkan build working; run headless app to verify
 - Commit often; push at end
+
+## Progress Log
+- Implemented G-buffer (RGBA16F) and SSAO (R8) offscreen resources and pipelines.
+- Wired descriptor sets: forward (albedo, normal, AO), SSAO (UBO + ND texture).
+- Updated UBO to carry AO radius in screen.w; AO power uses screen.z.
+- Recorded command buffers to render: G-buffer -> SSAO -> forward -> ImGui.
+- Added GLSL shaders and compiled SPIR-V binaries to repo.
+- Built and ran headless on macOS (no Vulkan): OK. Unit tests: OK.
+- Push blocked: GITHUB_TOKEN not set in environment; local commits are in place.
 
 ## Notes
 - All includes must use angle brackets.
