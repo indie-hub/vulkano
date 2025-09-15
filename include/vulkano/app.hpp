@@ -7,6 +7,7 @@
 namespace vulkano {
 
 class Window;
+class ImGuiLayer;
 
 struct AppConfig {
     std::string title;
@@ -36,6 +37,8 @@ private:
 private:
     std::unique_ptr<Window> window;
     bool enable_vulkan {false};
+    std::unique_ptr<ImGuiLayer> imgui;
+    std::uint32_t ui_subdivisions {2U};
 };
 
 } // namespace vulkano

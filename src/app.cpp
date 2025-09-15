@@ -1,6 +1,7 @@
 #include <vulkano/app.hpp>
 #include <vulkano/window.hpp>
 #include <vulkano/vulkan_context.hpp>
+#include <vulkano/imgui_layer.hpp>
 
 #include <chrono>
 #include <thread>
@@ -29,14 +30,24 @@ void Application::run() {
 void Application::main_loop() {
     // Optional Vulkan context; created lazily if available and enabled
     std::unique_ptr<VulkanContext> vk { };
-    (void)vk;
     while (!window->should_close()) {
         window->poll_events();
 #if VULKANO_HAS_VULKAN
         if (!vk && enable_vulkan) {
             vk = std::make_unique<VulkanContext>(*window);
+            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
+            // Renderer callback records ImGui draw data
+            vk->set_ui_renderer([this](void* cmd) {
+                if (imgui) {
+                    imgui->render(cmd);
+                }
+            });
         }
         if (vk) {
+            if (imgui) {
+                imgui->begin_frame();
+                imgui->build_ui(ui_subdivisions);
+            }
             vk->draw_frame();
         }
 #endif

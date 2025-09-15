@@ -2,6 +2,7 @@ add_library(vulkano STATIC
     app.cpp
     window.cpp
     icosphere.cpp
+    imgui_layer.cpp
 )
 
 target_link_libraries(vulkano
@@ -17,6 +18,16 @@ if (Vulkan_FOUND)
     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
     target_sources(vulkano PRIVATE vulkan_context.cpp)
+    # ImGui files and backends
+    target_sources(vulkano PRIVATE
+        ${imgui_SOURCE_DIR}/imgui.cpp
+        ${imgui_SOURCE_DIR}/imgui_draw.cpp
+        ${imgui_SOURCE_DIR}/imgui_tables.cpp
+        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
+        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
+    )
+    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
 else()
     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
 endif()

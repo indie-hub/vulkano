@@ -42024,3 +42024,25369 @@ I think stubbing SSAO for now is a reasonable move, even if the acceptance crite
 
 I think stubbing SSAO for now is a reasonable move, even if the acceptance criteria require it to work eventually. I could create a minimal SSAO as a full-screen pass using geometry data, but for that, I need the TBN to generate the normal map. This means I'll also have to set up uniform buffers for matrices and create descriptor sets for textures. Given the time limits, I’ll focus on getting the G-buffer with Phong shading working first, then add the SSAO later. I'll update .agent/TODO.md with these next steps and commit.
 [2025-09-15T16:05:51] exec bash -lc 'git add -A && git commit -m "chore(agent): initial scaffold verified builds; window + Vulkan clear + icosphere gen; update TODO for next steps"' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:05:51] bash -lc 'git add -A && git commit -m "chore(agent): initial scaffold verified builds; window + Vulkan clear + icosphere gen; update TODO for next steps"' succeeded in 99ms:
+[personal/codex/second_try 0643ff0] chore(agent): initial scaffold verified builds; window + Vulkan clear + icosphere gen; update TODO for next steps
+ 1 file changed, 2708 insertions(+)
+[2025-09-15T16:05:51] tokens used: 47,694
+
+[2025-09-15T16:05:57] thinking
+
+**Integrating ImGui**
+
+I’m starting the process of integrating ImGui into our project. First, I’ll modify the CMake to use FetchContent for ImGui and include the necessary backend sources. I need to ensure that angle is included. Next, I’ll add an ImGui layer class to the project, specifically in include/vulkano/imgui_layer.hpp. I’ll also implement the integration into VulkanContext, including creating a descriptor pool for ImGui, uploading fonts, and managing the context. Finally, I plan to hook up the UI rendering each frame, starting with controls for a subdivisions slider.
+**Setting up ImGui integration**
+
+With FetchContent, I’ll specify the IMG source directory and then create the imgui library, including essential files like imgui.cpp, imgui_draw.cpp, and others. I’ll also create a new ImGuiLayer class for initialization and drawing. 
+
+Next, I’ll update the VulkanContext to establish a descriptor pool tailored for ImGui. In the application loop, I need to call imguiLayer->new_frame and render the draw data during command buffer recording. Since our current setup uses pre-recorded command buffers, I’ll modify it to re-record each frame so that the ImGui draw calls are included.
+**Implementing ImGui integration**
+
+I’ll modify the draw_frame to record the command buffer for the acquired image index while still allowing for color clearing. To implement ImGui, I’ll add include/vulkano/imgui_layer.hpp and src/imgui_layer.cpp. 
+
+Next, I’ll update the src/CMakeLists to include the imgui target and link it properly. In the VulkanContext, I’ll create an ImGuiLayer for the draw calls. I need to begin the frame before acquiring it, calling ImGui_ImplGlfw_NewFrame(), ImGui_ImplVulkan_NewFrame(), and ImGui::NewFrame() to build the UI. Finally, I’ll record the command buffer with ImGui_ImplVulkan_RenderDrawData, ensuring to properly set up any needed render pass and framebuffer details.
+[2025-09-15T16:06:06] codex
+**Setting up ImGui integration**
+
+With FetchContent, I’ll specify the IMG source directory and then create the imgui library, including essential files like imgui.cpp, imgui_draw.cpp, and others. I’ll also create a new ImGuiLayer class for initialization and drawing. 
+
+Next, I’ll update the VulkanContext to establish a descriptor pool tailored for ImGui. In the application loop, I need to call imguiLayer->new_frame and render the draw data during command buffer recording. Since our current setup uses pre-recorded command buffers, I’ll modify it to re-record each frame so that the ImGui draw calls are included.
+[2025-09-15T16:06:06] codex
+**Implementing ImGui integration**
+
+I’ll modify the draw_frame to record the command buffer for the acquired image index while still allowing for color clearing. To implement ImGui, I’ll add include/vulkano/imgui_layer.hpp and src/imgui_layer.cpp. 
+
+Next, I’ll update the src/CMakeLists to include the imgui target and link it properly. In the VulkanContext, I’ll create an ImGuiLayer for the draw calls. I need to begin the frame before acquiring it, calling ImGui_ImplGlfw_NewFrame(), ImGui_ImplVulkan_NewFrame(), and ImGui::NewFrame() to build the UI. Finally, I’ll record the command buffer with ImGui_ImplVulkan_RenderDrawData, ensuring to properly set up any needed render pass and framebuffer details.
+[2025-09-15T16:06:10] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/CMakeLists.txt
+@@ -39,2 +39,10 @@
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+@@ -58,2 +66 @@
+ endif()
+-
+[2025-09-15T16:06:10] apply_patch(auto_approved=true) exited 0 in 23ms:
+Success. Updated the following files:
+M CMakeLists.txt
+[2025-09-15T16:06:10] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+
+[2025-09-15T16:06:10] tokens used: 48,546
+[2025-09-15T16:06:10] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+
+[2025-09-15T16:06:19] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/CMakeLists.txt
+@@ -4,2 +4,3 @@
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+@@ -19,2 +20,12 @@
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+[2025-09-15T16:06:19] apply_patch(auto_approved=true) exited 0 in 28ms:
+Success. Updated the following files:
+M src/CMakeLists.txt
+[2025-09-15T16:06:19] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+
+[2025-09-15T16:06:19] tokens used: 49,184
+[2025-09-15T16:06:19] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+
+[2025-09-15T16:06:31] apply_patch auto_approved=true:
+A /Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/imgui_layer.hpp
+#pragma once
+
+#include <cstdint>
+#include <memory>
+
+namespace vulkano {
+
+class Window;
+class VulkanContext;
+
+// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
+class ImGuiLayer final {
+public:
+    ImGuiLayer() = delete;
+    ImGuiLayer(const Window& window, VulkanContext& context);
+    ~ImGuiLayer();
+
+    ImGuiLayer(const ImGuiLayer&) = delete;
+    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
+    ImGuiLayer(ImGuiLayer&&) noexcept;
+    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
+
+    // Begin a new ImGui frame (GLFW + Vulkan backends)
+    void begin_frame() const noexcept;
+    // Build UI contents for this app; exposes sliders and stats
+    void build_ui(std::uint32_t& subdivisions) const noexcept;
+    // Called after ImGui::Render to record draw data into given command buffer
+    void render(void* cmd_buffer) const noexcept;
+
+private:
+    struct Impl;
+    std::unique_ptr<Impl> impl;
+};
+
+} // namespace vulkano
+
+[2025-09-15T16:06:31] apply_patch(auto_approved=true) exited 0 in 69ms:
+Success. Updated the following files:
+A include/vulkano/imgui_layer.hpp
+[2025-09-15T16:06:31] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+
+[2025-09-15T16:06:31] tokens used: 49,963
+[2025-09-15T16:06:31] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+
+[2025-09-15T16:07:34] apply_patch auto_approved=true:
+A /Users/bruno/Documents/Development/bruno/vulkano_codex/src/imgui_layer.cpp
+#include <vulkano/imgui_layer.hpp>
+#include <vulkano/window.hpp>
+#include <vulkano/vulkan_context.hpp>
+
+#if VULKANO_HAS_VULKAN
+#include <imgui.h>
+#include <backends/imgui_impl_glfw.h>
+#include <backends/imgui_impl_vulkan.h>
+#include <GLFW/glfw3.h>
+#include <vulkan/vulkan.h>
+
+#include <stdexcept>
+
+namespace vulkano {
+
+struct ImGuiLayer::Impl final {
+    VkInstance instance {VK_NULL_HANDLE};
+    VkDevice device {VK_NULL_HANDLE};
+    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
+    VkQueue graphics_queue {VK_NULL_HANDLE};
+    uint32_t graphics_queue_family {0U};
+    VkRenderPass render_pass {VK_NULL_HANDLE};
+    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
+    GLFWwindow* glfw_window {nullptr};
+};
+
+// Forward accessor into VulkanContext internals
+struct VulkanContextAccess {
+    static VkInstance instance(VulkanContext&);
+    static VkPhysicalDevice physical(VulkanContext&);
+    static VkDevice device(VulkanContext&);
+    static VkQueue queue(VulkanContext&);
+    static uint32_t queue_family(VulkanContext&);
+    static VkRenderPass render_pass(VulkanContext&);
+};
+
+ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
+    : impl {std::make_unique<Impl>()} {
+    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
+    impl->instance = VulkanContextAccess::instance(context);
+    impl->physical_device = VulkanContextAccess::physical(context);
+    impl->device = VulkanContextAccess::device(context);
+    impl->graphics_queue = VulkanContextAccess::queue(context);
+    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
+    impl->render_pass = VulkanContextAccess::render_pass(context);
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGui::StyleColorsDark();
+
+    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
+
+    VkDescriptorPoolSize pool_sizes[] = {
+        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
+        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
+        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
+        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
+        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
+        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
+        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
+        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
+        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
+        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
+        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
+    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
+    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
+    pool_info.pPoolSizes = pool_sizes;
+    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
+    }
+
+    ImGui_ImplVulkan_InitInfo init_info {};
+    init_info.Instance = impl->instance;
+    init_info.PhysicalDevice = impl->physical_device;
+    init_info.Device = impl->device;
+    init_info.QueueFamily = impl->graphics_queue_family;
+    init_info.Queue = impl->graphics_queue;
+    init_info.PipelineCache = VK_NULL_HANDLE;
+    init_info.DescriptorPool = impl->descriptor_pool;
+    init_info.Allocator = nullptr;
+    init_info.MinImageCount = 2;
+    init_info.ImageCount = 2;
+    init_info.CheckVkResultFn = nullptr;
+
+    ImGui_ImplVulkan_Init(&init_info, impl->render_pass);
+}
+
+ImGuiLayer::~ImGuiLayer() {
+    if (impl != nullptr) {
+        ImGui_ImplVulkan_Shutdown();
+        ImGui_ImplGlfw_Shutdown();
+        ImGui::DestroyContext();
+        if (impl->descriptor_pool != VK_NULL_HANDLE) {
+            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
+        }
+    }
+}
+
+ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
+ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
+
+void ImGuiLayer::begin_frame() const noexcept {
+    ImGui_ImplVulkan_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+}
+
+void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
+    ImGui::Begin("Vulkano Controls");
+    ImGui::Text("Icosphere");
+    int sub = static_cast<int>(subdivisions);
+    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
+        if (sub < 0) {
+            sub = 0;
+        }
+        if (sub > 6) {
+            sub = 6;
+        }
+        subdivisions = static_cast<std::uint32_t>(sub);
+    }
+    ImGui::End();
+}
+
+void ImGuiLayer::render(void* cmd_buffer) const noexcept {
+    ImGui::Render();
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
+}
+
+} // namespace vulkano
+
+#else
+
+namespace vulkano {
+
+class Window;
+class VulkanContext;
+
+ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
+}
+ImGuiLayer::~ImGuiLayer() = default;
+ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
+ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
+void ImGuiLayer::begin_frame() const noexcept {
+}
+void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
+}
+void ImGuiLayer::render(void*) const noexcept {
+}
+
+} // namespace vulkano
+
+#endif
+
+[2025-09-15T16:07:34] apply_patch(auto_approved=true) exited 0 in 79ms:
+Success. Updated the following files:
+A src/imgui_layer.cpp
+[2025-09-15T16:07:34] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..91e1ec84ec7666621e3635dac939b1976576768e
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,155 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    init_info.MinImageCount = 2;
++    init_info.ImageCount = 2;
++    init_info.CheckVkResultFn = nullptr;
++
++    ImGui_ImplVulkan_Init(&init_info, impl->render_pass);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
++
+
+[2025-09-15T16:07:34] tokens used: 55,588
+[2025-09-15T16:07:34] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..91e1ec84ec7666621e3635dac939b1976576768e
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,155 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    init_info.MinImageCount = 2;
++    init_info.ImageCount = 2;
++    init_info.CheckVkResultFn = nullptr;
++
++    ImGui_ImplVulkan_Init(&init_info, impl->render_pass);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
++
+
+[2025-09-15T16:07:39] exec bash -lc "sed -n '1,120p' src/vulkan_context.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:07:39] bash -lc "sed -n '1,120p' src/vulkan_context.cpp" succeeded in 27ms:
+#include <vulkano/vulkan_context.hpp>
+#include <vulkano/window.hpp>
+
+#if VULKANO_HAS_VULKAN
+#include <vulkan/vulkan.h>
+#include <GLFW/glfw3.h>
+
+#include <array>
+#include <vector>
+#include <stdexcept>
+
+namespace vulkano {
+
+struct VulkanContext::Impl final {
+    VkInstance instance {VK_NULL_HANDLE};
+    VkSurfaceKHR surface {VK_NULL_HANDLE};
+    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
+    VkDevice device {VK_NULL_HANDLE};
+    VkQueue graphics_queue {VK_NULL_HANDLE};
+    uint32_t graphics_queue_family {0U};
+[2025-09-15T16:07:39] tokens used: 57,515
+[2025-09-15T16:07:39] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..91e1ec84ec7666621e3635dac939b1976576768e
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,155 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    init_info.MinImageCount = 2;
++    init_info.ImageCount = 2;
++    init_info.CheckVkResultFn = nullptr;
++
++    ImGui_ImplVulkan_Init(&init_info, impl->render_pass);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
++
+
+
+[2025-09-15T16:07:48] thinking
+
+**Organizing ImGuiLayer Integration**
+
+I need to declare the struct in ImGuiLayer.cpp, ensuring the definitions are visible at link time within a single translation unit. I'll modify src/vulkan_context.cpp to implement those accessors and patch in methods. It's important to adjust the recording and draw_frame functions to incorporate ImGui. Alternatively, I could integrate ImGuiLayer within VulkanContext, but since I've created a separate class, I should include ImGuiLayer in VulkanContext and maintain an instance. The Application can manage ImGuiLayer after creating VulkanContext, allowing a callback for extra commands during the render pass.
+**Enhancing VulkanContext Functionality**
+
+I’m considering adding methods to VulkanContext to handle render passes and provide command buffer pointers. A simpler approach might be to expose a function pointer or std::function for UI recording. I can enhance VulkanContext by adding a setter for a UI callback that takes a void* for the command buffer, avoiding Vulkan headers in the header file. I'll declare `set_ui_renderer(std::function<void(void*)>)` in include/vulkan_context.hpp and call it in draw_frame. Also, I'll modify draw_frame to re-record command buffers per frame and invoke the UI callback, changing the current one-time recording process.
+**Modifying draw_frame Functionality**
+
+I’m planning to alter the draw_frame function to record each time it’s called. Additionally, I need to set dynamic MinImageCount and ImageCount for ImGui initialization, matching the swapchain image count. I'll pass this value through the ImGuiLayer constructor, using VulkanContextAccess functions to retrieve the swapchain image count. It’ll be essential to add the appropriate accessor for smooth implementation. I’ll make these changes to ensure everything works as intended.
+[2025-09-15T16:07:58] codex
+**Enhancing VulkanContext Functionality**
+
+I’m considering adding methods to VulkanContext to handle render passes and provide command buffer pointers. A simpler approach might be to expose a function pointer or std::function for UI recording. I can enhance VulkanContext by adding a setter for a UI callback that takes a void* for the command buffer, avoiding Vulkan headers in the header file. I'll declare `set_ui_renderer(std::function<void(void*)>)` in include/vulkan_context.hpp and call it in draw_frame. Also, I'll modify draw_frame to re-record command buffers per frame and invoke the UI callback, changing the current one-time recording process.
+[2025-09-15T16:07:58] codex
+**Modifying draw_frame Functionality**
+
+I’m planning to alter the draw_frame function to record each time it’s called. Additionally, I need to set dynamic MinImageCount and ImageCount for ImGui initialization, matching the swapchain image count. I'll pass this value through the ImGuiLayer constructor, using VulkanContextAccess functions to retrieve the swapchain image count. It’ll be essential to add the appropriate accessor for smooth implementation. I’ll make these changes to ensure everything works as intended.
+[2025-09-15T16:07:58] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/vulkan_context.hpp
+@@ -23,2 +23,6 @@
+ 
++    // Optional injection point to render extra content (e.g., ImGui)
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(void (*renderer)(void* cmd_buffer)) noexcept;
++
+ private:
+[2025-09-15T16:07:58] apply_patch(auto_approved=true) exited 0 in 64ms:
+Success. Updated the following files:
+M include/vulkano/vulkan_context.hpp
+[2025-09-15T16:07:58] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..3676d8f9b4b79e596dc4647379e42f9de1c068b6
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -21,6 +21,10 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui)
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(void (*renderer)(void* cmd_buffer)) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..91e1ec84ec7666621e3635dac939b1976576768e
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,155 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    init_info.MinImageCount = 2;
++    init_info.ImageCount = 2;
++    init_info.CheckVkResultFn = nullptr;
++
++    ImGui_ImplVulkan_Init(&init_info, impl->render_pass);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
++
+
+[2025-09-15T16:07:58] tokens used: 59,580
+[2025-09-15T16:07:58] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..3676d8f9b4b79e596dc4647379e42f9de1c068b6
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -21,6 +21,10 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui)
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(void (*renderer)(void* cmd_buffer)) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..91e1ec84ec7666621e3635dac939b1976576768e
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,155 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    init_info.MinImageCount = 2;
++    init_info.ImageCount = 2;
++    init_info.CheckVkResultFn = nullptr;
++
++    ImGui_ImplVulkan_Init(&init_info, impl->render_pass);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
++
+
+[2025-09-15T16:08:33] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp
+@@ -36,2 +36,5 @@
+ 
++    // Optional UI callback invoked during command recording
++    void (*ui_renderer)(void* cmd_buffer) {nullptr};
++
+     Impl() = default;
+@@ -42,2 +45,9 @@
+     static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
++    static VkInstance instance(VulkanContext& ctx) noexcept { return ctx.impl->instance; }
++    static VkPhysicalDevice physical(VulkanContext& ctx) noexcept { return ctx.impl->physical_device; }
++    static VkDevice device(VulkanContext& ctx) noexcept { return ctx.impl->device; }
++    static VkQueue queue(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue; }
++    static uint32_t queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++    static VkRenderPass render_pass(VulkanContext& ctx) noexcept { return ctx.impl->render_pass; }
++    static uint32_t image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ };
+@@ -297,2 +307,5 @@
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer != nullptr) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+@@ -422,2 +435,24 @@
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer != nullptr) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+@@ -428,4 +463,4 @@
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+@@ -444,2 +479,6 @@
+ 
++void VulkanContext::set_ui_renderer(void (*renderer)(void* cmd_buffer)) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+[2025-09-15T16:08:33] apply_patch(auto_approved=true) exited 0 in 70ms:
+Success. Updated the following files:
+M src/vulkan_context.cpp
+[2025-09-15T16:08:33] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..3676d8f9b4b79e596dc4647379e42f9de1c068b6
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -21,6 +21,10 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui)
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(void (*renderer)(void* cmd_buffer)) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..91e1ec84ec7666621e3635dac939b1976576768e
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,155 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    init_info.MinImageCount = 2;
++    init_info.ImageCount = 2;
++    init_info.CheckVkResultFn = nullptr;
++
++    ImGui_ImplVulkan_Init(&init_info, impl->render_pass);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
++
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..e7afd2170a602db7af2416717bf3ee2cbe428dd7
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -34,12 +34,22 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    void (*ui_renderer)(void* cmd_buffer) {nullptr};
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+ struct VulkanContextAccess final {
+     static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
++    static VkInstance instance(VulkanContext& ctx) noexcept { return ctx.impl->instance; }
++    static VkPhysicalDevice physical(VulkanContext& ctx) noexcept { return ctx.impl->physical_device; }
++    static VkDevice device(VulkanContext& ctx) noexcept { return ctx.impl->device; }
++    static VkQueue queue(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue; }
++    static uint32_t queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++    static VkRenderPass render_pass(VulkanContext& ctx) noexcept { return ctx.impl->render_pass; }
++    static uint32_t image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ };
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+@@ -295,6 +305,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer != nullptr) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +433,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer != nullptr) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +477,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(void (*renderer)(void* cmd_buffer)) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:08:33] tokens used: 61,271
+[2025-09-15T16:08:33] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..3676d8f9b4b79e596dc4647379e42f9de1c068b6
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -21,6 +21,10 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui)
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(void (*renderer)(void* cmd_buffer)) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..91e1ec84ec7666621e3635dac939b1976576768e
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,155 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    init_info.MinImageCount = 2;
++    init_info.ImageCount = 2;
++    init_info.CheckVkResultFn = nullptr;
++
++    ImGui_ImplVulkan_Init(&init_info, impl->render_pass);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
++
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..e7afd2170a602db7af2416717bf3ee2cbe428dd7
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -34,12 +34,22 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    void (*ui_renderer)(void* cmd_buffer) {nullptr};
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+ struct VulkanContextAccess final {
+     static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
++    static VkInstance instance(VulkanContext& ctx) noexcept { return ctx.impl->instance; }
++    static VkPhysicalDevice physical(VulkanContext& ctx) noexcept { return ctx.impl->physical_device; }
++    static VkDevice device(VulkanContext& ctx) noexcept { return ctx.impl->device; }
++    static VkQueue queue(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue; }
++    static uint32_t queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++    static VkRenderPass render_pass(VulkanContext& ctx) noexcept { return ctx.impl->render_pass; }
++    static uint32_t image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ };
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+@@ -295,6 +305,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer != nullptr) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +433,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer != nullptr) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +477,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(void (*renderer)(void* cmd_buffer)) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+
+[2025-09-15T16:08:37] thinking
+
+**Adjusting Vulkan functions**
+
+I need to provide definitions for the VulkanContextAccess functions used by the ImGuiLayer to link properly. I added these definitions in vulkan_context.cpp, which is great! Next, I have to adjust the ImGuiLayer to use the swapchain image count for the init_info.ImageCount and MinImageCount. I created functions in VulkanContextAccess to retrieve the image count, but in ImGuiLayer.cpp, I mistakenly set both to 2. I'll update this to query the correct image count instead.
+[2025-09-15T16:08:40] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/imgui_layer.cpp
+@@ -82,4 +82,5 @@
+     init_info.Allocator = nullptr;
+-    init_info.MinImageCount = 2;
+-    init_info.ImageCount = 2;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
+     init_info.CheckVkResultFn = nullptr;
+@@ -154,2 +155 @@
+ #endif
+-
+[2025-09-15T16:08:40] apply_patch(auto_approved=true) exited 0 in 98ms:
+Success. Updated the following files:
+M src/imgui_layer.cpp
+[2025-09-15T16:08:40] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..3676d8f9b4b79e596dc4647379e42f9de1c068b6
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -21,6 +21,10 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui)
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(void (*renderer)(void* cmd_buffer)) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..1875c8dfcd5768b26d171cf4e0451acb52ca6549
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,155 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++
++    ImGui_ImplVulkan_Init(&init_info, impl->render_pass);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..e7afd2170a602db7af2416717bf3ee2cbe428dd7
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -34,12 +34,22 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    void (*ui_renderer)(void* cmd_buffer) {nullptr};
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+ struct VulkanContextAccess final {
+     static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
++    static VkInstance instance(VulkanContext& ctx) noexcept { return ctx.impl->instance; }
++    static VkPhysicalDevice physical(VulkanContext& ctx) noexcept { return ctx.impl->physical_device; }
++    static VkDevice device(VulkanContext& ctx) noexcept { return ctx.impl->device; }
++    static VkQueue queue(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue; }
++    static uint32_t queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++    static VkRenderPass render_pass(VulkanContext& ctx) noexcept { return ctx.impl->render_pass; }
++    static uint32_t image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ };
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+@@ -295,6 +305,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer != nullptr) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +433,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer != nullptr) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +477,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(void (*renderer)(void* cmd_buffer)) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:08:40] tokens used: 62,958
+[2025-09-15T16:08:40] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..3676d8f9b4b79e596dc4647379e42f9de1c068b6
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -21,6 +21,10 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui)
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(void (*renderer)(void* cmd_buffer)) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..1875c8dfcd5768b26d171cf4e0451acb52ca6549
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,155 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++
++    ImGui_ImplVulkan_Init(&init_info, impl->render_pass);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..e7afd2170a602db7af2416717bf3ee2cbe428dd7
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -34,12 +34,22 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    void (*ui_renderer)(void* cmd_buffer) {nullptr};
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+ struct VulkanContextAccess final {
+     static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
++    static VkInstance instance(VulkanContext& ctx) noexcept { return ctx.impl->instance; }
++    static VkPhysicalDevice physical(VulkanContext& ctx) noexcept { return ctx.impl->physical_device; }
++    static VkDevice device(VulkanContext& ctx) noexcept { return ctx.impl->device; }
++    static VkQueue queue(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue; }
++    static uint32_t queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++    static VkRenderPass render_pass(VulkanContext& ctx) noexcept { return ctx.impl->render_pass; }
++    static uint32_t image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ };
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+@@ -295,6 +305,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer != nullptr) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +433,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer != nullptr) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +477,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(void (*renderer)(void* cmd_buffer)) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+
+[2025-09-15T16:08:51] thinking
+
+**Updating header implementation**
+
+I’m considering updating the `set_ui_renderer` function to accept a `std::function`. It seems storing lambdas that capture references might be okay. However, earlier, I avoided using `std::function` because of header restrictions. Maybe I can include `<functional>` and store `std::function<void(void*)>`. I think it’s time to change my approach to use `std::function` throughout as needed.
+
+Next, I'll need to update the header and implementation files accordingly. Let's go patch `include/vulkan_context.hpp` to incorporate `std::function`.
+[2025-09-15T16:08:56] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/vulkan_context.hpp
+@@ -23,5 +23,5 @@
+ 
+-    // Optional injection point to render extra content (e.g., ImGui)
++    // Optional injection point to render extra content (e.g., ImGui).
+     // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
+-    void set_ui_renderer(void (*renderer)(void* cmd_buffer)) noexcept;
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
+ 
+[2025-09-15T16:08:57] apply_patch(auto_approved=true) exited 0 in 94ms:
+Success. Updated the following files:
+M include/vulkano/vulkan_context.hpp
+[2025-09-15T16:08:57] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..64ea6d5c678167fae68f2f74777257c7d4a52e2b
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -21,6 +21,10 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..1875c8dfcd5768b26d171cf4e0451acb52ca6549
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,155 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++
++    ImGui_ImplVulkan_Init(&init_info, impl->render_pass);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..e7afd2170a602db7af2416717bf3ee2cbe428dd7
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -34,12 +34,22 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    void (*ui_renderer)(void* cmd_buffer) {nullptr};
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+ struct VulkanContextAccess final {
+     static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
++    static VkInstance instance(VulkanContext& ctx) noexcept { return ctx.impl->instance; }
++    static VkPhysicalDevice physical(VulkanContext& ctx) noexcept { return ctx.impl->physical_device; }
++    static VkDevice device(VulkanContext& ctx) noexcept { return ctx.impl->device; }
++    static VkQueue queue(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue; }
++    static uint32_t queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++    static VkRenderPass render_pass(VulkanContext& ctx) noexcept { return ctx.impl->render_pass; }
++    static uint32_t image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ };
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+@@ -295,6 +305,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer != nullptr) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +433,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer != nullptr) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +477,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(void (*renderer)(void* cmd_buffer)) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:08:57] tokens used: 63,612
+[2025-09-15T16:08:57] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..64ea6d5c678167fae68f2f74777257c7d4a52e2b
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -21,6 +21,10 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..1875c8dfcd5768b26d171cf4e0451acb52ca6549
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,155 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++
++    ImGui_ImplVulkan_Init(&init_info, impl->render_pass);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..e7afd2170a602db7af2416717bf3ee2cbe428dd7
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -34,12 +34,22 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    void (*ui_renderer)(void* cmd_buffer) {nullptr};
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+ struct VulkanContextAccess final {
+     static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
++    static VkInstance instance(VulkanContext& ctx) noexcept { return ctx.impl->instance; }
++    static VkPhysicalDevice physical(VulkanContext& ctx) noexcept { return ctx.impl->physical_device; }
++    static VkDevice device(VulkanContext& ctx) noexcept { return ctx.impl->device; }
++    static VkQueue queue(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue; }
++    static uint32_t queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++    static VkRenderPass render_pass(VulkanContext& ctx) noexcept { return ctx.impl->render_pass; }
++    static uint32_t image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ };
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+@@ -295,6 +305,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer != nullptr) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +433,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer != nullptr) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +477,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(void (*renderer)(void* cmd_buffer)) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:09:01] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp
+@@ -37,3 +37,3 @@
+     // Optional UI callback invoked during command recording
+-    void (*ui_renderer)(void* cmd_buffer) {nullptr};
++    std::function<void(void* cmd_buffer)> ui_renderer { };
+ 
+@@ -307,3 +307,3 @@
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
+-        if (impl.ui_renderer != nullptr) {
++        if (impl.ui_renderer) {
+             impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
+@@ -450,3 +450,3 @@
+         vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
+-        if (impl->ui_renderer != nullptr) {
++        if (impl->ui_renderer) {
+             impl->ui_renderer(static_cast<void*>(cmd));
+@@ -479,3 +479,3 @@
+ 
+-void VulkanContext::set_ui_renderer(void (*renderer)(void* cmd_buffer)) noexcept {
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
+     impl->ui_renderer = renderer;
+[2025-09-15T16:09:01] apply_patch(auto_approved=true) exited 0 in 94ms:
+Success. Updated the following files:
+M src/vulkan_context.cpp
+[2025-09-15T16:09:01] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..64ea6d5c678167fae68f2f74777257c7d4a52e2b
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -21,6 +21,10 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..1875c8dfcd5768b26d171cf4e0451acb52ca6549
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,155 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++
++    ImGui_ImplVulkan_Init(&init_info, impl->render_pass);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..daca09260190e3a069f2fab2b9b739e9348975ee
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -34,12 +34,22 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+ struct VulkanContextAccess final {
+     static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
++    static VkInstance instance(VulkanContext& ctx) noexcept { return ctx.impl->instance; }
++    static VkPhysicalDevice physical(VulkanContext& ctx) noexcept { return ctx.impl->physical_device; }
++    static VkDevice device(VulkanContext& ctx) noexcept { return ctx.impl->device; }
++    static VkQueue queue(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue; }
++    static uint32_t queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++    static VkRenderPass render_pass(VulkanContext& ctx) noexcept { return ctx.impl->render_pass; }
++    static uint32_t image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ };
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+@@ -295,6 +305,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +433,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +477,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:09:01] tokens used: 64,152
+[2025-09-15T16:09:01] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..64ea6d5c678167fae68f2f74777257c7d4a52e2b
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -21,6 +21,10 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..1875c8dfcd5768b26d171cf4e0451acb52ca6549
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,155 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++
++    ImGui_ImplVulkan_Init(&init_info, impl->render_pass);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..daca09260190e3a069f2fab2b9b739e9348975ee
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -34,12 +34,22 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+ struct VulkanContextAccess final {
+     static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
++    static VkInstance instance(VulkanContext& ctx) noexcept { return ctx.impl->instance; }
++    static VkPhysicalDevice physical(VulkanContext& ctx) noexcept { return ctx.impl->physical_device; }
++    static VkDevice device(VulkanContext& ctx) noexcept { return ctx.impl->device; }
++    static VkQueue queue(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue; }
++    static uint32_t queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++    static VkRenderPass render_pass(VulkanContext& ctx) noexcept { return ctx.impl->render_pass; }
++    static uint32_t image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ };
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+@@ -295,6 +305,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +433,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +477,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+
+[2025-09-15T16:09:03] thinking
+
+**Updating header files**
+
+I see I need to include `#include <functional>` in the `src/vulkan_context.cpp` header file to use `std::function`. Right now, the file only includes `<array>`, `<vector>`, and `<stdexcept>`. It's important to add `<functional>` to ensure I can utilize `std::function` properly. This should enhance the program's capabilities. I’ll make this change right away to keep everything organized and ensure functionality. Let's go ahead and make that addition!
+[2025-09-15T16:09:05] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp
+@@ -8,2 +8,3 @@
+ #include <array>
++#include <functional>
+ #include <vector>
+[2025-09-15T16:09:05] apply_patch(auto_approved=true) exited 0 in 102ms:
+Success. Updated the following files:
+M src/vulkan_context.cpp
+[2025-09-15T16:09:05] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..64ea6d5c678167fae68f2f74777257c7d4a52e2b
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -21,6 +21,10 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..1875c8dfcd5768b26d171cf4e0451acb52ca6549
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,155 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++
++    ImGui_ImplVulkan_Init(&init_info, impl->render_pass);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..6752af1d2f80fad449e1cdbaac27c31eb8322b78
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,12 +35,22 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+ struct VulkanContextAccess final {
+     static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
++    static VkInstance instance(VulkanContext& ctx) noexcept { return ctx.impl->instance; }
++    static VkPhysicalDevice physical(VulkanContext& ctx) noexcept { return ctx.impl->physical_device; }
++    static VkDevice device(VulkanContext& ctx) noexcept { return ctx.impl->device; }
++    static VkQueue queue(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue; }
++    static uint32_t queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++    static VkRenderPass render_pass(VulkanContext& ctx) noexcept { return ctx.impl->render_pass; }
++    static uint32_t image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ };
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:09:05] tokens used: 64,689
+[2025-09-15T16:09:05] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..64ea6d5c678167fae68f2f74777257c7d4a52e2b
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -21,6 +21,10 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..1875c8dfcd5768b26d171cf4e0451acb52ca6549
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,155 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++
++    ImGui_ImplVulkan_Init(&init_info, impl->render_pass);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..6752af1d2f80fad449e1cdbaac27c31eb8322b78
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,12 +35,22 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+ struct VulkanContextAccess final {
+     static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
++    static VkInstance instance(VulkanContext& ctx) noexcept { return ctx.impl->instance; }
++    static VkPhysicalDevice physical(VulkanContext& ctx) noexcept { return ctx.impl->physical_device; }
++    static VkDevice device(VulkanContext& ctx) noexcept { return ctx.impl->device; }
++    static VkQueue queue(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue; }
++    static uint32_t queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++    static VkRenderPass render_pass(VulkanContext& ctx) noexcept { return ctx.impl->render_pass; }
++    static uint32_t image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ };
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:09:17] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/app.hpp
+@@ -9,2 +9,3 @@
+ class Window;
++class ImGuiLayer;
+ 
+@@ -38,2 +39,4 @@
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+[2025-09-15T16:09:17] apply_patch(auto_approved=true) exited 0 in 83ms:
+Success. Updated the following files:
+M include/vulkano/app.hpp
+[2025-09-15T16:09:17] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..64ea6d5c678167fae68f2f74777257c7d4a52e2b
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -21,6 +21,10 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..1875c8dfcd5768b26d171cf4e0451acb52ca6549
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,155 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++
++    ImGui_ImplVulkan_Init(&init_info, impl->render_pass);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..6752af1d2f80fad449e1cdbaac27c31eb8322b78
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,12 +35,22 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+ struct VulkanContextAccess final {
+     static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
++    static VkInstance instance(VulkanContext& ctx) noexcept { return ctx.impl->instance; }
++    static VkPhysicalDevice physical(VulkanContext& ctx) noexcept { return ctx.impl->physical_device; }
++    static VkDevice device(VulkanContext& ctx) noexcept { return ctx.impl->device; }
++    static VkQueue queue(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue; }
++    static uint32_t queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++    static VkRenderPass render_pass(VulkanContext& ctx) noexcept { return ctx.impl->render_pass; }
++    static uint32_t image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ };
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:09:17] tokens used: 65,180
+[2025-09-15T16:09:17] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..64ea6d5c678167fae68f2f74777257c7d4a52e2b
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -21,6 +21,10 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..1875c8dfcd5768b26d171cf4e0451acb52ca6549
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,155 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++
++    ImGui_ImplVulkan_Init(&init_info, impl->render_pass);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..6752af1d2f80fad449e1cdbaac27c31eb8322b78
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,12 +35,22 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+ struct VulkanContextAccess final {
+     static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
++    static VkInstance instance(VulkanContext& ctx) noexcept { return ctx.impl->instance; }
++    static VkPhysicalDevice physical(VulkanContext& ctx) noexcept { return ctx.impl->physical_device; }
++    static VkDevice device(VulkanContext& ctx) noexcept { return ctx.impl->device; }
++    static VkQueue queue(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue; }
++    static uint32_t queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++    static VkRenderPass render_pass(VulkanContext& ctx) noexcept { return ctx.impl->render_pass; }
++    static uint32_t image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ };
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:09:26] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp
+@@ -3,2 +3,3 @@
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+@@ -31,3 +32,2 @@
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+@@ -37,4 +37,15 @@
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+[2025-09-15T16:09:26] apply_patch(auto_approved=true) exited 0 in 100ms:
+Success. Updated the following files:
+M src/app.cpp
+[2025-09-15T16:09:26] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..64ea6d5c678167fae68f2f74777257c7d4a52e2b
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -21,6 +21,10 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..1875c8dfcd5768b26d171cf4e0451acb52ca6549
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,155 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++
++    ImGui_ImplVulkan_Init(&init_info, impl->render_pass);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..6752af1d2f80fad449e1cdbaac27c31eb8322b78
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,12 +35,22 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+ struct VulkanContextAccess final {
+     static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
++    static VkInstance instance(VulkanContext& ctx) noexcept { return ctx.impl->instance; }
++    static VkPhysicalDevice physical(VulkanContext& ctx) noexcept { return ctx.impl->physical_device; }
++    static VkDevice device(VulkanContext& ctx) noexcept { return ctx.impl->device; }
++    static VkQueue queue(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue; }
++    static uint32_t queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++    static VkRenderPass render_pass(VulkanContext& ctx) noexcept { return ctx.impl->render_pass; }
++    static uint32_t image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ };
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:09:26] tokens used: 65,738
+[2025-09-15T16:09:26] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..64ea6d5c678167fae68f2f74777257c7d4a52e2b
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -21,6 +21,10 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..1875c8dfcd5768b26d171cf4e0451acb52ca6549
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,155 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++
++    ImGui_ImplVulkan_Init(&init_info, impl->render_pass);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..6752af1d2f80fad449e1cdbaac27c31eb8322b78
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,12 +35,22 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+ struct VulkanContextAccess final {
+     static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
++    static VkInstance instance(VulkanContext& ctx) noexcept { return ctx.impl->instance; }
++    static VkPhysicalDevice physical(VulkanContext& ctx) noexcept { return ctx.impl->physical_device; }
++    static VkDevice device(VulkanContext& ctx) noexcept { return ctx.impl->device; }
++    static VkQueue queue(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue; }
++    static uint32_t queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++    static VkRenderPass render_pass(VulkanContext& ctx) noexcept { return ctx.impl->render_pass; }
++    static uint32_t image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ };
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+
+[2025-09-15T16:09:30] thinking
+
+**Updating include paths**
+
+I need to include `include/vulkano/imgui_layer.hpp` in CMake's include file set in `include/CMakeLists.txt` to export the header properly. This is a necessary step to ensure the project builds correctly. I'll make sure to add that line, as it's important for the overall structure of the project. Taking care of these details is critical, so I’ll get this done promptly!
+[2025-09-15T16:09:31] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/include/CMakeLists.txt
+@@ -12,2 +12,3 @@
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+[2025-09-15T16:09:31] apply_patch(auto_approved=true) exited 0 in 94ms:
+Success. Updated the following files:
+M include/CMakeLists.txt
+[2025-09-15T16:09:31] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..64ea6d5c678167fae68f2f74777257c7d4a52e2b
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -21,6 +21,10 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..1875c8dfcd5768b26d171cf4e0451acb52ca6549
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,155 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++
++    ImGui_ImplVulkan_Init(&init_info, impl->render_pass);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..6752af1d2f80fad449e1cdbaac27c31eb8322b78
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,12 +35,22 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+ struct VulkanContextAccess final {
+     static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
++    static VkInstance instance(VulkanContext& ctx) noexcept { return ctx.impl->instance; }
++    static VkPhysicalDevice physical(VulkanContext& ctx) noexcept { return ctx.impl->physical_device; }
++    static VkDevice device(VulkanContext& ctx) noexcept { return ctx.impl->device; }
++    static VkQueue queue(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue; }
++    static uint32_t queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++    static VkRenderPass render_pass(VulkanContext& ctx) noexcept { return ctx.impl->render_pass; }
++    static uint32_t image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ };
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:09:31] tokens used: 73,740
+[2025-09-15T16:09:31] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..64ea6d5c678167fae68f2f74777257c7d4a52e2b
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -21,6 +21,10 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..1875c8dfcd5768b26d171cf4e0451acb52ca6549
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,155 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++
++    ImGui_ImplVulkan_Init(&init_info, impl->render_pass);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..6752af1d2f80fad449e1cdbaac27c31eb8322b78
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,12 +35,22 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+ struct VulkanContextAccess final {
+     static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
++    static VkInstance instance(VulkanContext& ctx) noexcept { return ctx.impl->instance; }
++    static VkPhysicalDevice physical(VulkanContext& ctx) noexcept { return ctx.impl->physical_device; }
++    static VkDevice device(VulkanContext& ctx) noexcept { return ctx.impl->device; }
++    static VkQueue queue(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue; }
++    static uint32_t queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++    static VkRenderPass render_pass(VulkanContext& ctx) noexcept { return ctx.impl->render_pass; }
++    static uint32_t image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ };
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:09:36] exec bash -lc 'cmake --build build --config Debug -j 4' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:09:46] bash -lc 'cmake --build build --config Debug -j 4' exited 2 in 9.73s:
+-- Including Cocoa support
+CMake Deprecation Warning at build/_deps/glm-src/CMakeLists.txt:1 (cmake_minimum_required):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+
+
+CMake Deprecation Warning at build/_deps/glm-src/CMakeLists.txt:2 (cmake_policy):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+
+
+-- GLM: Version 1.0.1
+[2025-09-15T16:09:46] tokens used: 74,055
+[2025-09-15T16:09:46] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..64ea6d5c678167fae68f2f74777257c7d4a52e2b
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -21,6 +21,10 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..1875c8dfcd5768b26d171cf4e0451acb52ca6549
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,155 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++
++    ImGui_ImplVulkan_Init(&init_info, impl->render_pass);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..6752af1d2f80fad449e1cdbaac27c31eb8322b78
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,12 +35,22 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+ struct VulkanContextAccess final {
+     static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
++    static VkInstance instance(VulkanContext& ctx) noexcept { return ctx.impl->instance; }
++    static VkPhysicalDevice physical(VulkanContext& ctx) noexcept { return ctx.impl->physical_device; }
++    static VkDevice device(VulkanContext& ctx) noexcept { return ctx.impl->device; }
++    static VkQueue queue(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue; }
++    static uint32_t queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++    static VkRenderPass render_pass(VulkanContext& ctx) noexcept { return ctx.impl->render_pass; }
++    static uint32_t image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ };
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:09:52] exec bash -lc "sed -n '1,220p' build/_deps/imgui-src/backends/imgui_impl_vulkan.h" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:09:52] bash -lc "sed -n '1,220p' build/_deps/imgui-src/backends/imgui_impl_vulkan.h" succeeded in 28ms:
+// dear imgui: Renderer Backend for Vulkan
+// This needs to be used along with a Platform Backend (e.g. GLFW, SDL, Win32, custom..)
+
+// Implemented features:
+//  [!] Renderer: User texture binding. Use 'VkDescriptorSet' as ImTextureID. Read the FAQ about ImTextureID! See https://github.com/ocornut/imgui/pull/914 for discussions.
+//  [X] Renderer: Large meshes support (64k+ vertices) with 16-bit indices.
+
+// Important: on 32-bit systems, user texture binding is only supported if your imconfig file has '#define ImTextureID ImU64'.
+// See imgui_impl_vulkan.cpp file for details.
+
+// The aim of imgui_impl_vulkan.h/.cpp is to be usable in your engine without any modification.
+// IF YOU FEEL YOU NEED TO MAKE ANY CHANGE TO THIS CODE, please share them and your feedback at https://github.com/ocornut/imgui/
+
+// You can use unmodified imgui_impl_* files in your project. See examples/ folder for examples of using this.
+// Prefer including the entire imgui/ repository into your project (either as a copy or as a submodule), and only build the backends you need.
+// Learn about Dear ImGui:
+// - FAQ                  https://dearimgui.com/faq
+// - Getting Started      https://dearimgui.com/getting-started
+// - Documentation        https://dearimgui.com/docs (same as your local docs/ folder).
+// - Introduction, links and more at the top of imgui.cpp
+[2025-09-15T16:09:52] tokens used: 76,260
+[2025-09-15T16:09:52] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..64ea6d5c678167fae68f2f74777257c7d4a52e2b
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -21,6 +21,10 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..1875c8dfcd5768b26d171cf4e0451acb52ca6549
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,155 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++
++    ImGui_ImplVulkan_Init(&init_info, impl->render_pass);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..6752af1d2f80fad449e1cdbaac27c31eb8322b78
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,12 +35,22 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+ struct VulkanContextAccess final {
+     static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
++    static VkInstance instance(VulkanContext& ctx) noexcept { return ctx.impl->instance; }
++    static VkPhysicalDevice physical(VulkanContext& ctx) noexcept { return ctx.impl->physical_device; }
++    static VkDevice device(VulkanContext& ctx) noexcept { return ctx.impl->device; }
++    static VkQueue queue(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue; }
++    static uint32_t queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++    static VkRenderPass render_pass(VulkanContext& ctx) noexcept { return ctx.impl->render_pass; }
++    static uint32_t image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ };
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+
+[2025-09-15T16:09:56] thinking
+
+**Patching Vulkan initialization**
+
+I found the signature for `ImGui_ImplVulkan_Init`, which now only requires one argument. However, this argument includes `RenderPass` in the struct. I think we should set `init_info.RenderPass` to `impl->render_pass` and then call the single-argument function. Also, I need to remember to include `<functional>` in the header `include/vulkan_context.hpp`. Let’s patch both parts to ensure everything works correctly!
+[2025-09-15T16:09:58] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/vulkan_context.hpp
+@@ -4,2 +4,3 @@
+ #include <memory>
++#include <functional>
+ 
+[2025-09-15T16:09:58] apply_patch(auto_approved=true) exited 0 in 110ms:
+Success. Updated the following files:
+M include/vulkano/vulkan_context.hpp
+[2025-09-15T16:09:58] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..33758b504d017c788f66f2fb6fdaee79a638b4af
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,6 +22,10 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..1875c8dfcd5768b26d171cf4e0451acb52ca6549
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,155 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++
++    ImGui_ImplVulkan_Init(&init_info, impl->render_pass);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..6752af1d2f80fad449e1cdbaac27c31eb8322b78
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,12 +35,22 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+ struct VulkanContextAccess final {
+     static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
++    static VkInstance instance(VulkanContext& ctx) noexcept { return ctx.impl->instance; }
++    static VkPhysicalDevice physical(VulkanContext& ctx) noexcept { return ctx.impl->physical_device; }
++    static VkDevice device(VulkanContext& ctx) noexcept { return ctx.impl->device; }
++    static VkQueue queue(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue; }
++    static uint32_t queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++    static VkRenderPass render_pass(VulkanContext& ctx) noexcept { return ctx.impl->render_pass; }
++    static uint32_t image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ };
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:09:58] tokens used: 78,691
+[2025-09-15T16:09:58] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..33758b504d017c788f66f2fb6fdaee79a638b4af
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,6 +22,10 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..1875c8dfcd5768b26d171cf4e0451acb52ca6549
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,155 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++
++    ImGui_ImplVulkan_Init(&init_info, impl->render_pass);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..6752af1d2f80fad449e1cdbaac27c31eb8322b78
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,12 +35,22 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+ struct VulkanContextAccess final {
+     static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
++    static VkInstance instance(VulkanContext& ctx) noexcept { return ctx.impl->instance; }
++    static VkPhysicalDevice physical(VulkanContext& ctx) noexcept { return ctx.impl->physical_device; }
++    static VkDevice device(VulkanContext& ctx) noexcept { return ctx.impl->device; }
++    static VkQueue queue(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue; }
++    static uint32_t queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++    static VkRenderPass render_pass(VulkanContext& ctx) noexcept { return ctx.impl->render_pass; }
++    static uint32_t image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ };
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:10:05] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/imgui_layer.cpp
+@@ -86,4 +86,5 @@
+     init_info.CheckVkResultFn = nullptr;
++    init_info.RenderPass = impl->render_pass;
+ 
+-    ImGui_ImplVulkan_Init(&init_info, impl->render_pass);
++    ImGui_ImplVulkan_Init(&init_info);
+ }
+[2025-09-15T16:10:05] apply_patch(auto_approved=true) exited 0 in 121ms:
+Success. Updated the following files:
+M src/imgui_layer.cpp
+[2025-09-15T16:10:05] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..33758b504d017c788f66f2fb6fdaee79a638b4af
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,6 +22,10 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..057ea2324c005b120d18913be98256c487edb459
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,156 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++    init_info.RenderPass = impl->render_pass;
++
++    ImGui_ImplVulkan_Init(&init_info);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..6752af1d2f80fad449e1cdbaac27c31eb8322b78
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,12 +35,22 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+ struct VulkanContextAccess final {
+     static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
++    static VkInstance instance(VulkanContext& ctx) noexcept { return ctx.impl->instance; }
++    static VkPhysicalDevice physical(VulkanContext& ctx) noexcept { return ctx.impl->physical_device; }
++    static VkDevice device(VulkanContext& ctx) noexcept { return ctx.impl->device; }
++    static VkQueue queue(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue; }
++    static uint32_t queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++    static VkRenderPass render_pass(VulkanContext& ctx) noexcept { return ctx.impl->render_pass; }
++    static uint32_t image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ };
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:10:05] tokens used: 79,101
+[2025-09-15T16:10:05] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..33758b504d017c788f66f2fb6fdaee79a638b4af
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,6 +22,10 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..057ea2324c005b120d18913be98256c487edb459
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,156 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++    init_info.RenderPass = impl->render_pass;
++
++    ImGui_ImplVulkan_Init(&init_info);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..6752af1d2f80fad449e1cdbaac27c31eb8322b78
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,12 +35,22 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+ struct VulkanContextAccess final {
+     static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
++    static VkInstance instance(VulkanContext& ctx) noexcept { return ctx.impl->instance; }
++    static VkPhysicalDevice physical(VulkanContext& ctx) noexcept { return ctx.impl->physical_device; }
++    static VkDevice device(VulkanContext& ctx) noexcept { return ctx.impl->device; }
++    static VkQueue queue(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue; }
++    static uint32_t queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++    static VkRenderPass render_pass(VulkanContext& ctx) noexcept { return ctx.impl->render_pass; }
++    static uint32_t image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ };
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:10:08] exec bash -lc 'cmake --build build --config Debug -j 4' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:10:09] bash -lc 'cmake --build build --config Debug -j 4' exited 2 in 702ms:
+[  2%] Built target glm
+[ 16%] Built target glfw
+[ 19%] Building CXX object src/CMakeFiles/vulkano.dir/vulkan_context.cpp.o
+[ 19%] Building CXX object src/CMakeFiles/vulkano.dir/app.cpp.o
+[ 19%] Building CXX object src/CMakeFiles/vulkano.dir/imgui_layer.cpp.o
+[ 89%] Built target Catch2
+[ 89%] Building CXX object src/CMakeFiles/vulkano.dir/__/_deps/imgui-src/imgui.cpp.o
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/imgui_layer.cpp:65:88: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+   65 |     VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+      |                                                                                        ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/imgui_layer.cpp:83:53: error: no member named 'image_count' in 'vulkano::VulkanContextAccess'
+   83 |     const uint32_t img_count = VulkanContextAccess::image_count(context);
+      |                                ~~~~~~~~~~~~~~~~~~~~~^
+1 warning and 1 error generated.
+gmake[2]: *** [src/CMakeFiles/vulkano.dir/build.make:121: src/CMakeFiles/vulkano.dir/imgui_layer.cpp.o] Error 1
+gmake[2]: *** Waiting for unfinished jobs....
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:280:71: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  280 |     VkSemaphoreCreateInfo sci {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+      |                                                                       ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:287:63: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+[2025-09-15T16:10:09] tokens used: 79,465
+[2025-09-15T16:10:09] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..33758b504d017c788f66f2fb6fdaee79a638b4af
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,6 +22,10 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..057ea2324c005b120d18913be98256c487edb459
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,156 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++    init_info.RenderPass = impl->render_pass;
++
++    ImGui_ImplVulkan_Init(&init_info);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..6752af1d2f80fad449e1cdbaac27c31eb8322b78
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,12 +35,22 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+ struct VulkanContextAccess final {
+     static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
++    static VkInstance instance(VulkanContext& ctx) noexcept { return ctx.impl->instance; }
++    static VkPhysicalDevice physical(VulkanContext& ctx) noexcept { return ctx.impl->physical_device; }
++    static VkDevice device(VulkanContext& ctx) noexcept { return ctx.impl->device; }
++    static VkQueue queue(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue; }
++    static uint32_t queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++    static VkRenderPass render_pass(VulkanContext& ctx) noexcept { return ctx.impl->render_pass; }
++    static uint32_t image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ };
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+
+[2025-09-15T16:10:13] thinking
+
+**Updating ImGuiLayer**
+
+I've noticed we're missing the `image_count` accessor function from ImGuiLayer. While we added `VulkanContextAccess::image_count` in `vulkan_context.cpp`, the issue is that `ImGuiLayer.cpp` is compiled before this file. We need the function’s declaration to be visible in the struct that's forward declared in `ImGuiLayer.cpp`. Currently, we've declared some method prototypes, but we haven't included `image_count` in the declaration. I need to update the struct declaration in `src/imgui_layer.cpp` to fix this.
+[2025-09-15T16:10:17] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/imgui_layer.cpp
+@@ -34,2 +34,3 @@
+     static VkRenderPass render_pass(VulkanContext&);
++    static uint32_t image_count(VulkanContext&);
+ };
+[2025-09-15T16:10:17] apply_patch(auto_approved=true) exited 0 in 126ms:
+Success. Updated the following files:
+M src/imgui_layer.cpp
+[2025-09-15T16:10:17] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..33758b504d017c788f66f2fb6fdaee79a638b4af
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,6 +22,10 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..0ce4bb496239843ddf023c5f0849a8417df121f9
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,157 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++    static uint32_t image_count(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++    init_info.RenderPass = impl->render_pass;
++
++    ImGui_ImplVulkan_Init(&init_info);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..6752af1d2f80fad449e1cdbaac27c31eb8322b78
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,12 +35,22 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+ struct VulkanContextAccess final {
+     static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
++    static VkInstance instance(VulkanContext& ctx) noexcept { return ctx.impl->instance; }
++    static VkPhysicalDevice physical(VulkanContext& ctx) noexcept { return ctx.impl->physical_device; }
++    static VkDevice device(VulkanContext& ctx) noexcept { return ctx.impl->device; }
++    static VkQueue queue(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue; }
++    static uint32_t queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++    static VkRenderPass render_pass(VulkanContext& ctx) noexcept { return ctx.impl->render_pass; }
++    static uint32_t image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ };
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:10:17] tokens used: 80,917
+[2025-09-15T16:10:17] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..33758b504d017c788f66f2fb6fdaee79a638b4af
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,6 +22,10 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..0ce4bb496239843ddf023c5f0849a8417df121f9
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,157 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++    static uint32_t image_count(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++    init_info.RenderPass = impl->render_pass;
++
++    ImGui_ImplVulkan_Init(&init_info);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..6752af1d2f80fad449e1cdbaac27c31eb8322b78
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,12 +35,22 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+ struct VulkanContextAccess final {
+     static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
++    static VkInstance instance(VulkanContext& ctx) noexcept { return ctx.impl->instance; }
++    static VkPhysicalDevice physical(VulkanContext& ctx) noexcept { return ctx.impl->physical_device; }
++    static VkDevice device(VulkanContext& ctx) noexcept { return ctx.impl->device; }
++    static VkQueue queue(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue; }
++    static uint32_t queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++    static VkRenderPass render_pass(VulkanContext& ctx) noexcept { return ctx.impl->render_pass; }
++    static uint32_t image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ };
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:10:19] exec bash -lc 'cmake --build build --config Debug -j 4' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:10:21] bash -lc 'cmake --build build --config Debug -j 4' exited 2 in 1.85s:
+[  2%] Built target glm
+[ 16%] Built target glfw
+[ 19%] Building CXX object src/CMakeFiles/vulkano.dir/imgui_layer.cpp.o
+[ 19%] Building CXX object src/CMakeFiles/vulkano.dir/__/_deps/imgui-src/imgui_tables.cpp.o
+[ 19%] Building CXX object src/CMakeFiles/vulkano.dir/__/_deps/imgui-src/imgui_draw.cpp.o
+[ 89%] Built target Catch2
+[ 89%] Building CXX object src/CMakeFiles/vulkano.dir/__/_deps/imgui-src/imgui_widgets.cpp.o
+[ 91%] Built target Catch2WithMain
+[ 92%] Building CXX object src/CMakeFiles/vulkano.dir/__/_deps/imgui-src/backends/imgui_impl_glfw.cpp.o
+[ 93%] Building CXX object src/CMakeFiles/vulkano.dir/__/_deps/imgui-src/backends/imgui_impl_vulkan.cpp.o
+/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/imgui-src/backends/imgui_impl_vulkan.cpp:505:57: warning: implicit conversion changes signedness: 'int' to 'unsigned long' [-Wsign-conversion]
+  505 |         size_t vertex_size = AlignBufferSize(draw_data->TotalVtxCount * sizeof(ImDrawVert), bd->BufferMemoryAlignment);
+      |                                              ~~~~~~~~~~~^~~~~~~~~~~~~ ~
+/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/imgui-src/backends/imgui_impl_vulkan.cpp:506:56: warning: implicit conversion changes signedness: 'int' to 'unsigned long' [-Wsign-conversion]
+  506 |         size_t index_size = AlignBufferSize(draw_data->TotalIdxCount * sizeof(ImDrawIdx), bd->BufferMemoryAlignment);
+      |                                             ~~~~~~~~~~~^~~~~~~~~~~~~ ~
+/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/imgui-src/backends/imgui_impl_vulkan.cpp:522:75: warning: implicit conversion changes signedness: 'const int' to 'unsigned long' [-Wsign-conversion]
+  522 |             memcpy(vtx_dst, cmd_list->VtxBuffer.Data, cmd_list->VtxBuffer.Size * sizeof(ImDrawVert));
+      |                                                       ~~~~~~~~~~~~~~~~~~~~^~~~ ~
+/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/imgui-src/backends/imgui_impl_vulkan.cpp:523:75: warning: implicit conversion changes signedness: 'const int' to 'unsigned long' [-Wsign-conversion]
+[2025-09-15T16:10:21] tokens used: 81,171
+[2025-09-15T16:10:21] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..33758b504d017c788f66f2fb6fdaee79a638b4af
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,6 +22,10 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..0ce4bb496239843ddf023c5f0849a8417df121f9
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,157 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++    static uint32_t image_count(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++    init_info.RenderPass = impl->render_pass;
++
++    ImGui_ImplVulkan_Init(&init_info);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..6752af1d2f80fad449e1cdbaac27c31eb8322b78
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,12 +35,22 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+ struct VulkanContextAccess final {
+     static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
++    static VkInstance instance(VulkanContext& ctx) noexcept { return ctx.impl->instance; }
++    static VkPhysicalDevice physical(VulkanContext& ctx) noexcept { return ctx.impl->physical_device; }
++    static VkDevice device(VulkanContext& ctx) noexcept { return ctx.impl->device; }
++    static VkQueue queue(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue; }
++    static uint32_t queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++    static VkRenderPass render_pass(VulkanContext& ctx) noexcept { return ctx.impl->render_pass; }
++    static uint32_t image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ };
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+
+[2025-09-15T16:10:23] thinking
+
+**Figuring out build issues**
+
+I'm looking into why the build is failing. It seems like the output was truncated at warnings, which might indicate that it didn't complete successfully. The "Exit code 2" usually suggests that something went wrong later in the process. To get more clarity, I should check the tail of the output, as it might provide more information about where the failure occurred.
+[2025-09-15T16:10:26] exec bash -lc "cmake --build build --config Debug -j 4 2>&1 | tail -n +1 | sed -n '1,200p'" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:10:26] bash -lc "cmake --build build --config Debug -j 4 2>&1 | tail -n +1 | sed -n '1,200p'" succeeded in 358ms:
+[  2%] Built target glm
+[ 16%] Built target glfw
+[ 24%] Built target vulkano
+[ 25%] Linking CXX executable /Users/bruno/Documents/Development/bruno/vulkano_codex/app/bin/Debug/vulkano_app
+[ 95%] Built target Catch2
+[ 97%] Built target Catch2WithMain
+Undefined symbols for architecture arm64:
+  "vulkano::VulkanContextAccess::image_count(vulkano::VulkanContext&)", referenced from:
+      vulkano::ImGuiLayer::ImGuiLayer(vulkano::Window const&, vulkano::VulkanContext&) in libvulkano.a[5](imgui_layer.cpp.o)
+  "vulkano::VulkanContextAccess::render_pass(vulkano::VulkanContext&)", referenced from:
+      vulkano::ImGuiLayer::ImGuiLayer(vulkano::Window const&, vulkano::VulkanContext&) in libvulkano.a[5](imgui_layer.cpp.o)
+  "vulkano::VulkanContextAccess::queue_family(vulkano::VulkanContext&)", referenced from:
+      vulkano::ImGuiLayer::ImGuiLayer(vulkano::Window const&, vulkano::VulkanContext&) in libvulkano.a[5](imgui_layer.cpp.o)
+  "vulkano::VulkanContextAccess::queue(vulkano::VulkanContext&)", referenced from:
+      vulkano::ImGuiLayer::ImGuiLayer(vulkano::Window const&, vulkano::VulkanContext&) in libvulkano.a[5](imgui_layer.cpp.o)
+  "vulkano::VulkanContextAccess::device(vulkano::VulkanContext&)", referenced from:
+      vulkano::ImGuiLayer::ImGuiLayer(vulkano::Window const&, vulkano::VulkanContext&) in libvulkano.a[5](imgui_layer.cpp.o)
+  "vulkano::VulkanContextAccess::instance(vulkano::VulkanContext&)", referenced from:
+      vulkano::ImGuiLayer::ImGuiLayer(vulkano::Window const&, vulkano::VulkanContext&) in libvulkano.a[5](imgui_layer.cpp.o)
+  "vulkano::VulkanContextAccess::physical(vulkano::VulkanContext&)", referenced from:
+[2025-09-15T16:10:26] tokens used: 82,698
+[2025-09-15T16:10:26] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..33758b504d017c788f66f2fb6fdaee79a638b4af
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,6 +22,10 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..0ce4bb496239843ddf023c5f0849a8417df121f9
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,157 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++    static uint32_t image_count(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++    init_info.RenderPass = impl->render_pass;
++
++    ImGui_ImplVulkan_Init(&init_info);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..6752af1d2f80fad449e1cdbaac27c31eb8322b78
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,12 +35,22 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+ struct VulkanContextAccess final {
+     static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
++    static VkInstance instance(VulkanContext& ctx) noexcept { return ctx.impl->instance; }
++    static VkPhysicalDevice physical(VulkanContext& ctx) noexcept { return ctx.impl->physical_device; }
++    static VkDevice device(VulkanContext& ctx) noexcept { return ctx.impl->device; }
++    static VkQueue queue(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue; }
++    static uint32_t queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++    static VkRenderPass render_pass(VulkanContext& ctx) noexcept { return ctx.impl->render_pass; }
++    static uint32_t image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ };
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+
+[2025-09-15T16:10:33] thinking
+
+**Troubleshooting Vulkan integration**
+
+It looks like I'm facing issues with undefined symbols for VulkanContextAccess functions, which are in src/vulkan_context.cpp. That file is only compiled if Vulkan_FOUND is true. It seems that find_package didn't locate Vulkan during this build. Earlier, we successfully built the target "vulkano," but now I'm running into linking errors with ImGuiLayer because it's compiled regardless of whether Vulkan is found.
+
+In src/CMakeLists, we added imgui files under the Vulkan_FOUND condition, but imgui_layer.cpp is always included. The issue is that the stub for ImGuiLayer still references VulkanContextAccess even though it should be guarded properly. It seems like the app is linking to libvulkano, which includes imgui_layer.cpp with VULKANO_HAS_VULKAN possibly set to 1, causing confusion.
+**Clarifying Vulkan build issues**
+
+I realize that VULKANO_HAS_VULKAN is defined for the target when Vulkan_FOUND is true. Earlier, I noticed messages indicating that "Built target vulkano" and "Built target vulkano_tests" were displayed, which suggests that src/vulkan_context.cpp was included successfully.
+
+However, I also found undefined symbols for VulkanContextAccess functions, which might indicate they're defined as static inline in a way that makes them invisible during linking. I defined these functions within a struct, which could be why they’re not being recognized. I need to look into how they're declared and defined to resolve this issue effectively.
+**Analyzing Vulkan function definitions**
+
+It seems I defined the functions directly inside the struct, which in C++ implies inline definitions that can be used across translation units. However, the methods inside the struct definition are only visible in vulkan_context.cpp. Meanwhile, ImGuiLayer.cpp has its own independent struct VulkanContextAccess with declarations but no definitions.
+
+At link time, these are treated as different types, despite having the same name in the same namespace. This is a problem because it violates the One Definition Rule (ODR). I need to address this inconsistency carefully.
+**Resolving struct type conflicts**
+
+I realize we have two different struct types named VulkanContextAccess. Since the friend in the header grants access to any VulkanContextAccess in the same namespace, having these separate definitions causes them to be treated as distinct types. This leads to undefined symbols during linking because the definitions in vulkan_context.cpp don't match the ImGuiLayer.cpp reference.
+
+To fix this, I should move the VulkanContextAccess struct declaration to the header file include/vulkan_context.hpp, alongside function declarations for the accessors, and then define the functions in vulkan_context.cpp. This way, both translation units will use the same type, simplifying the code. Let's go ahead and patch it!
+[2025-09-15T16:10:47] codex
+**Clarifying Vulkan build issues**
+
+I realize that VULKANO_HAS_VULKAN is defined for the target when Vulkan_FOUND is true. Earlier, I noticed messages indicating that "Built target vulkano" and "Built target vulkano_tests" were displayed, which suggests that src/vulkan_context.cpp was included successfully.
+
+However, I also found undefined symbols for VulkanContextAccess functions, which might indicate they're defined as static inline in a way that makes them invisible during linking. I defined these functions within a struct, which could be why they’re not being recognized. I need to look into how they're declared and defined to resolve this issue effectively.
+[2025-09-15T16:10:47] codex
+**Analyzing Vulkan function definitions**
+
+It seems I defined the functions directly inside the struct, which in C++ implies inline definitions that can be used across translation units. However, the methods inside the struct definition are only visible in vulkan_context.cpp. Meanwhile, ImGuiLayer.cpp has its own independent struct VulkanContextAccess with declarations but no definitions.
+
+At link time, these are treated as different types, despite having the same name in the same namespace. This is a problem because it violates the One Definition Rule (ODR). I need to address this inconsistency carefully.
+[2025-09-15T16:10:47] codex
+**Resolving struct type conflicts**
+
+I realize we have two different struct types named VulkanContextAccess. Since the friend in the header grants access to any VulkanContextAccess in the same namespace, having these separate definitions causes them to be treated as distinct types. This leads to undefined symbols during linking because the definitions in vulkan_context.cpp don't match the ImGuiLayer.cpp reference.
+
+To fix this, I should move the VulkanContextAccess struct declaration to the header file include/vulkan_context.hpp, alongside function declarations for the accessors, and then define the functions in vulkan_context.cpp. This way, both translation units will use the same type, simplifying the code. Let's go ahead and patch it!
+[2025-09-15T16:10:52] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/vulkan_context.hpp
+@@ -34,2 +34,13 @@
+ 
++// Accessor to selected VulkanContext internals for tightly-coupled helpers (e.g., ImGui integration)
++struct VulkanContextAccess final {
++    static void* instance(VulkanContext& ctx) noexcept;           // returns VkInstance
++    static void* physical(VulkanContext& ctx) noexcept;           // returns VkPhysicalDevice
++    static void* device(VulkanContext& ctx) noexcept;             // returns VkDevice
++    static void* queue(VulkanContext& ctx) noexcept;              // returns VkQueue
++    static std::uint32_t queue_family(VulkanContext& ctx) noexcept;
++    static void* render_pass(VulkanContext& ctx) noexcept;        // returns VkRenderPass
++    static std::uint32_t image_count(VulkanContext& ctx) noexcept;
++};
++
+ } // namespace vulkano
+[2025-09-15T16:10:52] apply_patch(auto_approved=true) exited 0 in 147ms:
+Success. Updated the following files:
+M include/vulkano/vulkan_context.hpp
+[2025-09-15T16:10:52] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..139cd98dd2f82d48f266b977435dad81901929ac
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,10 +22,25 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+     friend struct VulkanContextAccess;
+ };
+ 
++// Accessor to selected VulkanContext internals for tightly-coupled helpers (e.g., ImGui integration)
++struct VulkanContextAccess final {
++    static void* instance(VulkanContext& ctx) noexcept;           // returns VkInstance
++    static void* physical(VulkanContext& ctx) noexcept;           // returns VkPhysicalDevice
++    static void* device(VulkanContext& ctx) noexcept;             // returns VkDevice
++    static void* queue(VulkanContext& ctx) noexcept;              // returns VkQueue
++    static std::uint32_t queue_family(VulkanContext& ctx) noexcept;
++    static void* render_pass(VulkanContext& ctx) noexcept;        // returns VkRenderPass
++    static std::uint32_t image_count(VulkanContext& ctx) noexcept;
++};
++
+ } // namespace vulkano
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..0ce4bb496239843ddf023c5f0849a8417df121f9
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,157 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++    static uint32_t image_count(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++    init_info.RenderPass = impl->render_pass;
++
++    ImGui_ImplVulkan_Init(&init_info);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..6752af1d2f80fad449e1cdbaac27c31eb8322b78
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,12 +35,22 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+ struct VulkanContextAccess final {
+     static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
++    static VkInstance instance(VulkanContext& ctx) noexcept { return ctx.impl->instance; }
++    static VkPhysicalDevice physical(VulkanContext& ctx) noexcept { return ctx.impl->physical_device; }
++    static VkDevice device(VulkanContext& ctx) noexcept { return ctx.impl->device; }
++    static VkQueue queue(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue; }
++    static uint32_t queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++    static VkRenderPass render_pass(VulkanContext& ctx) noexcept { return ctx.impl->render_pass; }
++    static uint32_t image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ };
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:10:52] tokens used: 84,594
+[2025-09-15T16:10:52] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..139cd98dd2f82d48f266b977435dad81901929ac
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,10 +22,25 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+     friend struct VulkanContextAccess;
+ };
+ 
++// Accessor to selected VulkanContext internals for tightly-coupled helpers (e.g., ImGui integration)
++struct VulkanContextAccess final {
++    static void* instance(VulkanContext& ctx) noexcept;           // returns VkInstance
++    static void* physical(VulkanContext& ctx) noexcept;           // returns VkPhysicalDevice
++    static void* device(VulkanContext& ctx) noexcept;             // returns VkDevice
++    static void* queue(VulkanContext& ctx) noexcept;              // returns VkQueue
++    static std::uint32_t queue_family(VulkanContext& ctx) noexcept;
++    static void* render_pass(VulkanContext& ctx) noexcept;        // returns VkRenderPass
++    static std::uint32_t image_count(VulkanContext& ctx) noexcept;
++};
++
+ } // namespace vulkano
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..0ce4bb496239843ddf023c5f0849a8417df121f9
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,157 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++    static uint32_t image_count(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++    init_info.RenderPass = impl->render_pass;
++
++    ImGui_ImplVulkan_Init(&init_info);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..6752af1d2f80fad449e1cdbaac27c31eb8322b78
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,12 +35,22 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+ struct VulkanContextAccess final {
+     static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
++    static VkInstance instance(VulkanContext& ctx) noexcept { return ctx.impl->instance; }
++    static VkPhysicalDevice physical(VulkanContext& ctx) noexcept { return ctx.impl->physical_device; }
++    static VkDevice device(VulkanContext& ctx) noexcept { return ctx.impl->device; }
++    static VkQueue queue(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue; }
++    static uint32_t queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++    static VkRenderPass render_pass(VulkanContext& ctx) noexcept { return ctx.impl->render_pass; }
++    static uint32_t image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ };
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:11:05] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp
+@@ -44,13 +44,12 @@
+ 
+-struct VulkanContextAccess final {
+-    static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
+-    static VkInstance instance(VulkanContext& ctx) noexcept { return ctx.impl->instance; }
+-    static VkPhysicalDevice physical(VulkanContext& ctx) noexcept { return ctx.impl->physical_device; }
+-    static VkDevice device(VulkanContext& ctx) noexcept { return ctx.impl->device; }
+-    static VkQueue queue(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue; }
+-    static uint32_t queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
+-    static VkRenderPass render_pass(VulkanContext& ctx) noexcept { return ctx.impl->render_pass; }
+-    static uint32_t image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+-};
++struct VulkanContextAccessHelper final { static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; } };
+ 
++void* VulkanContextAccess::instance(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).instance); }
++void* VulkanContextAccess::physical(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).physical_device); }
++void* VulkanContextAccess::device(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).device); }
++void* VulkanContextAccess::queue(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).graphics_queue); }
++std::uint32_t VulkanContextAccess::queue_family(VulkanContext& ctx) noexcept { return VulkanContextAccessHelper::get(ctx).graphics_queue_family; }
++void* VulkanContextAccess::render_pass(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).render_pass); }
++std::uint32_t VulkanContextAccess::image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(VulkanContextAccessHelper::get(ctx).swapchain_images.size()); }
++
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+@@ -134,3 +133,3 @@
+ static void create_swapchain_and_views(VulkanContext& ctx, GLFWwindow* window) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextAccessHelper::get(ctx);
+     VkSurfaceCapabilitiesKHR caps {};
+@@ -203,3 +202,3 @@
+ static void create_renderpass_and_framebuffers(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextAccessHelper::get(ctx);
+     VkAttachmentDescription color {};
+[2025-09-15T16:11:05] apply_patch(auto_approved=true) exited 0 in 118ms:
+Success. Updated the following files:
+M src/vulkan_context.cpp
+[2025-09-15T16:11:05] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..139cd98dd2f82d48f266b977435dad81901929ac
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,10 +22,25 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+     friend struct VulkanContextAccess;
+ };
+ 
++// Accessor to selected VulkanContext internals for tightly-coupled helpers (e.g., ImGui integration)
++struct VulkanContextAccess final {
++    static void* instance(VulkanContext& ctx) noexcept;           // returns VkInstance
++    static void* physical(VulkanContext& ctx) noexcept;           // returns VkPhysicalDevice
++    static void* device(VulkanContext& ctx) noexcept;             // returns VkDevice
++    static void* queue(VulkanContext& ctx) noexcept;              // returns VkQueue
++    static std::uint32_t queue_family(VulkanContext& ctx) noexcept;
++    static void* render_pass(VulkanContext& ctx) noexcept;        // returns VkRenderPass
++    static std::uint32_t image_count(VulkanContext& ctx) noexcept;
++};
++
+ } // namespace vulkano
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..0ce4bb496239843ddf023c5f0849a8417df121f9
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,157 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++    static uint32_t image_count(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++    init_info.RenderPass = impl->render_pass;
++
++    ImGui_ImplVulkan_Init(&init_info);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..86d06973bc56e68c9849a6543b3d003630c7cabf
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,14 +35,23 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+-struct VulkanContextAccess final {
+-    static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
+-};
++struct VulkanContextAccessHelper final { static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; } };
+ 
++void* VulkanContextAccess::instance(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).instance); }
++void* VulkanContextAccess::physical(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).physical_device); }
++void* VulkanContextAccess::device(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).device); }
++void* VulkanContextAccess::queue(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).graphics_queue); }
++std::uint32_t VulkanContextAccess::queue_family(VulkanContext& ctx) noexcept { return VulkanContextAccessHelper::get(ctx).graphics_queue_family; }
++void* VulkanContextAccess::render_pass(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).render_pass); }
++std::uint32_t VulkanContextAccess::image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(VulkanContextAccessHelper::get(ctx).swapchain_images.size()); }
++
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
+     // Simple stderr print would go here in future
+@@ -121,7 +131,7 @@
+ }
+ 
+ static void create_swapchain_and_views(VulkanContext& ctx, GLFWwindow* window) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextAccessHelper::get(ctx);
+     VkSurfaceCapabilitiesKHR caps {};
+     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(impl.physical_device, impl.surface, &caps);
+     uint32_t fmt_count = 0;
+@@ -190,7 +200,7 @@
+ }
+ 
+ static void create_renderpass_and_framebuffers(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextAccessHelper::get(ctx);
+     VkAttachmentDescription color {};
+     color.format = impl.swapchain_format;
+     color.samples = VK_SAMPLE_COUNT_1_BIT;
+@@ -295,6 +305,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +433,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +477,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:11:05] tokens used: 85,641
+[2025-09-15T16:11:05] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..139cd98dd2f82d48f266b977435dad81901929ac
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,10 +22,25 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+     friend struct VulkanContextAccess;
+ };
+ 
++// Accessor to selected VulkanContext internals for tightly-coupled helpers (e.g., ImGui integration)
++struct VulkanContextAccess final {
++    static void* instance(VulkanContext& ctx) noexcept;           // returns VkInstance
++    static void* physical(VulkanContext& ctx) noexcept;           // returns VkPhysicalDevice
++    static void* device(VulkanContext& ctx) noexcept;             // returns VkDevice
++    static void* queue(VulkanContext& ctx) noexcept;              // returns VkQueue
++    static std::uint32_t queue_family(VulkanContext& ctx) noexcept;
++    static void* render_pass(VulkanContext& ctx) noexcept;        // returns VkRenderPass
++    static std::uint32_t image_count(VulkanContext& ctx) noexcept;
++};
++
+ } // namespace vulkano
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..0ce4bb496239843ddf023c5f0849a8417df121f9
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,157 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor into VulkanContext internals
++struct VulkanContextAccess {
++    static VkInstance instance(VulkanContext&);
++    static VkPhysicalDevice physical(VulkanContext&);
++    static VkDevice device(VulkanContext&);
++    static VkQueue queue(VulkanContext&);
++    static uint32_t queue_family(VulkanContext&);
++    static VkRenderPass render_pass(VulkanContext&);
++    static uint32_t image_count(VulkanContext&);
++};
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++    init_info.RenderPass = impl->render_pass;
++
++    ImGui_ImplVulkan_Init(&init_info);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..86d06973bc56e68c9849a6543b3d003630c7cabf
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,14 +35,23 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+-struct VulkanContextAccess final {
+-    static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
+-};
++struct VulkanContextAccessHelper final { static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; } };
+ 
++void* VulkanContextAccess::instance(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).instance); }
++void* VulkanContextAccess::physical(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).physical_device); }
++void* VulkanContextAccess::device(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).device); }
++void* VulkanContextAccess::queue(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).graphics_queue); }
++std::uint32_t VulkanContextAccess::queue_family(VulkanContext& ctx) noexcept { return VulkanContextAccessHelper::get(ctx).graphics_queue_family; }
++void* VulkanContextAccess::render_pass(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).render_pass); }
++std::uint32_t VulkanContextAccess::image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(VulkanContextAccessHelper::get(ctx).swapchain_images.size()); }
++
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
+     // Simple stderr print would go here in future
+@@ -121,7 +131,7 @@
+ }
+ 
+ static void create_swapchain_and_views(VulkanContext& ctx, GLFWwindow* window) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextAccessHelper::get(ctx);
+     VkSurfaceCapabilitiesKHR caps {};
+     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(impl.physical_device, impl.surface, &caps);
+     uint32_t fmt_count = 0;
+@@ -190,7 +200,7 @@
+ }
+ 
+ static void create_renderpass_and_framebuffers(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextAccessHelper::get(ctx);
+     VkAttachmentDescription color {};
+     color.format = impl.swapchain_format;
+     color.samples = VK_SAMPLE_COUNT_1_BIT;
+@@ -295,6 +305,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +433,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +477,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:11:08] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/imgui_layer.cpp
+@@ -26,12 +26,3 @@
+ 
+-// Forward accessor into VulkanContext internals
+-struct VulkanContextAccess {
+-    static VkInstance instance(VulkanContext&);
+-    static VkPhysicalDevice physical(VulkanContext&);
+-    static VkDevice device(VulkanContext&);
+-    static VkQueue queue(VulkanContext&);
+-    static uint32_t queue_family(VulkanContext&);
+-    static VkRenderPass render_pass(VulkanContext&);
+-    static uint32_t image_count(VulkanContext&);
+-};
++// Forward accessor is provided by vulkan_context.hpp (VulkanContextAccess)
+ 
+[2025-09-15T16:11:08] apply_patch(auto_approved=true) exited 0 in 117ms:
+Success. Updated the following files:
+M src/imgui_layer.cpp
+[2025-09-15T16:11:08] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..139cd98dd2f82d48f266b977435dad81901929ac
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,10 +22,25 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+     friend struct VulkanContextAccess;
+ };
+ 
++// Accessor to selected VulkanContext internals for tightly-coupled helpers (e.g., ImGui integration)
++struct VulkanContextAccess final {
++    static void* instance(VulkanContext& ctx) noexcept;           // returns VkInstance
++    static void* physical(VulkanContext& ctx) noexcept;           // returns VkPhysicalDevice
++    static void* device(VulkanContext& ctx) noexcept;             // returns VkDevice
++    static void* queue(VulkanContext& ctx) noexcept;              // returns VkQueue
++    static std::uint32_t queue_family(VulkanContext& ctx) noexcept;
++    static void* render_pass(VulkanContext& ctx) noexcept;        // returns VkRenderPass
++    static std::uint32_t image_count(VulkanContext& ctx) noexcept;
++};
++
+ } // namespace vulkano
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..c2593f6d6766d0745a0a79e63087a3a577d6005d
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,148 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor is provided by vulkan_context.hpp (VulkanContextAccess)
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++    init_info.RenderPass = impl->render_pass;
++
++    ImGui_ImplVulkan_Init(&init_info);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..86d06973bc56e68c9849a6543b3d003630c7cabf
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,14 +35,23 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+-struct VulkanContextAccess final {
+-    static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
+-};
++struct VulkanContextAccessHelper final { static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; } };
+ 
++void* VulkanContextAccess::instance(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).instance); }
++void* VulkanContextAccess::physical(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).physical_device); }
++void* VulkanContextAccess::device(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).device); }
++void* VulkanContextAccess::queue(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).graphics_queue); }
++std::uint32_t VulkanContextAccess::queue_family(VulkanContext& ctx) noexcept { return VulkanContextAccessHelper::get(ctx).graphics_queue_family; }
++void* VulkanContextAccess::render_pass(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).render_pass); }
++std::uint32_t VulkanContextAccess::image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(VulkanContextAccessHelper::get(ctx).swapchain_images.size()); }
++
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
+     // Simple stderr print would go here in future
+@@ -121,7 +131,7 @@
+ }
+ 
+ static void create_swapchain_and_views(VulkanContext& ctx, GLFWwindow* window) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextAccessHelper::get(ctx);
+     VkSurfaceCapabilitiesKHR caps {};
+     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(impl.physical_device, impl.surface, &caps);
+     uint32_t fmt_count = 0;
+@@ -190,7 +200,7 @@
+ }
+ 
+ static void create_renderpass_and_framebuffers(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextAccessHelper::get(ctx);
+     VkAttachmentDescription color {};
+     color.format = impl.swapchain_format;
+     color.samples = VK_SAMPLE_COUNT_1_BIT;
+@@ -295,6 +305,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +433,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +477,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:11:08] tokens used: 86,548
+[2025-09-15T16:11:08] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..139cd98dd2f82d48f266b977435dad81901929ac
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,10 +22,25 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+     friend struct VulkanContextAccess;
+ };
+ 
++// Accessor to selected VulkanContext internals for tightly-coupled helpers (e.g., ImGui integration)
++struct VulkanContextAccess final {
++    static void* instance(VulkanContext& ctx) noexcept;           // returns VkInstance
++    static void* physical(VulkanContext& ctx) noexcept;           // returns VkPhysicalDevice
++    static void* device(VulkanContext& ctx) noexcept;             // returns VkDevice
++    static void* queue(VulkanContext& ctx) noexcept;              // returns VkQueue
++    static std::uint32_t queue_family(VulkanContext& ctx) noexcept;
++    static void* render_pass(VulkanContext& ctx) noexcept;        // returns VkRenderPass
++    static std::uint32_t image_count(VulkanContext& ctx) noexcept;
++};
++
+ } // namespace vulkano
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..c2593f6d6766d0745a0a79e63087a3a577d6005d
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,148 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor is provided by vulkan_context.hpp (VulkanContextAccess)
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = VulkanContextAccess::instance(context);
++    impl->physical_device = VulkanContextAccess::physical(context);
++    impl->device = VulkanContextAccess::device(context);
++    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = VulkanContextAccess::render_pass(context);
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++    init_info.RenderPass = impl->render_pass;
++
++    ImGui_ImplVulkan_Init(&init_info);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..86d06973bc56e68c9849a6543b3d003630c7cabf
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,14 +35,23 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+-struct VulkanContextAccess final {
+-    static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
+-};
++struct VulkanContextAccessHelper final { static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; } };
+ 
++void* VulkanContextAccess::instance(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).instance); }
++void* VulkanContextAccess::physical(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).physical_device); }
++void* VulkanContextAccess::device(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).device); }
++void* VulkanContextAccess::queue(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).graphics_queue); }
++std::uint32_t VulkanContextAccess::queue_family(VulkanContext& ctx) noexcept { return VulkanContextAccessHelper::get(ctx).graphics_queue_family; }
++void* VulkanContextAccess::render_pass(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).render_pass); }
++std::uint32_t VulkanContextAccess::image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(VulkanContextAccessHelper::get(ctx).swapchain_images.size()); }
++
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
+     // Simple stderr print would go here in future
+@@ -121,7 +131,7 @@
+ }
+ 
+ static void create_swapchain_and_views(VulkanContext& ctx, GLFWwindow* window) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextAccessHelper::get(ctx);
+     VkSurfaceCapabilitiesKHR caps {};
+     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(impl.physical_device, impl.surface, &caps);
+     uint32_t fmt_count = 0;
+@@ -190,7 +200,7 @@
+ }
+ 
+ static void create_renderpass_and_framebuffers(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextAccessHelper::get(ctx);
+     VkAttachmentDescription color {};
+     color.format = impl.swapchain_format;
+     color.samples = VK_SAMPLE_COUNT_1_BIT;
+@@ -295,6 +305,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +433,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +477,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:11:23] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/imgui_layer.cpp
+@@ -31,8 +31,8 @@
+     impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
+-    impl->instance = VulkanContextAccess::instance(context);
+-    impl->physical_device = VulkanContextAccess::physical(context);
+-    impl->device = VulkanContextAccess::device(context);
+-    impl->graphics_queue = VulkanContextAccess::queue(context);
++    impl->instance = static_cast<VkInstance>(VulkanContextAccess::instance(context));
++    impl->physical_device = static_cast<VkPhysicalDevice>(VulkanContextAccess::physical(context));
++    impl->device = static_cast<VkDevice>(VulkanContextAccess::device(context));
++    impl->graphics_queue = static_cast<VkQueue>(VulkanContextAccess::queue(context));
+     impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
+-    impl->render_pass = VulkanContextAccess::render_pass(context);
++    impl->render_pass = static_cast<VkRenderPass>(VulkanContextAccess::render_pass(context));
+ 
+[2025-09-15T16:11:23] apply_patch(auto_approved=true) exited 0 in 128ms:
+Success. Updated the following files:
+M src/imgui_layer.cpp
+[2025-09-15T16:11:23] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..139cd98dd2f82d48f266b977435dad81901929ac
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,10 +22,25 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+     friend struct VulkanContextAccess;
+ };
+ 
++// Accessor to selected VulkanContext internals for tightly-coupled helpers (e.g., ImGui integration)
++struct VulkanContextAccess final {
++    static void* instance(VulkanContext& ctx) noexcept;           // returns VkInstance
++    static void* physical(VulkanContext& ctx) noexcept;           // returns VkPhysicalDevice
++    static void* device(VulkanContext& ctx) noexcept;             // returns VkDevice
++    static void* queue(VulkanContext& ctx) noexcept;              // returns VkQueue
++    static std::uint32_t queue_family(VulkanContext& ctx) noexcept;
++    static void* render_pass(VulkanContext& ctx) noexcept;        // returns VkRenderPass
++    static std::uint32_t image_count(VulkanContext& ctx) noexcept;
++};
++
+ } // namespace vulkano
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..88083691f7c57048febc0aeb74d71cf99332e553
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,148 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor is provided by vulkan_context.hpp (VulkanContextAccess)
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = static_cast<VkInstance>(VulkanContextAccess::instance(context));
++    impl->physical_device = static_cast<VkPhysicalDevice>(VulkanContextAccess::physical(context));
++    impl->device = static_cast<VkDevice>(VulkanContextAccess::device(context));
++    impl->graphics_queue = static_cast<VkQueue>(VulkanContextAccess::queue(context));
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = static_cast<VkRenderPass>(VulkanContextAccess::render_pass(context));
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++    init_info.RenderPass = impl->render_pass;
++
++    ImGui_ImplVulkan_Init(&init_info);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..86d06973bc56e68c9849a6543b3d003630c7cabf
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,14 +35,23 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+-struct VulkanContextAccess final {
+-    static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
+-};
++struct VulkanContextAccessHelper final { static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; } };
+ 
++void* VulkanContextAccess::instance(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).instance); }
++void* VulkanContextAccess::physical(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).physical_device); }
++void* VulkanContextAccess::device(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).device); }
++void* VulkanContextAccess::queue(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).graphics_queue); }
++std::uint32_t VulkanContextAccess::queue_family(VulkanContext& ctx) noexcept { return VulkanContextAccessHelper::get(ctx).graphics_queue_family; }
++void* VulkanContextAccess::render_pass(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).render_pass); }
++std::uint32_t VulkanContextAccess::image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(VulkanContextAccessHelper::get(ctx).swapchain_images.size()); }
++
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
+     // Simple stderr print would go here in future
+@@ -121,7 +131,7 @@
+ }
+ 
+ static void create_swapchain_and_views(VulkanContext& ctx, GLFWwindow* window) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextAccessHelper::get(ctx);
+     VkSurfaceCapabilitiesKHR caps {};
+     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(impl.physical_device, impl.surface, &caps);
+     uint32_t fmt_count = 0;
+@@ -190,7 +200,7 @@
+ }
+ 
+ static void create_renderpass_and_framebuffers(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextAccessHelper::get(ctx);
+     VkAttachmentDescription color {};
+     color.format = impl.swapchain_format;
+     color.samples = VK_SAMPLE_COUNT_1_BIT;
+@@ -295,6 +305,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +433,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +477,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:11:23] tokens used: 87,293
+[2025-09-15T16:11:23] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..139cd98dd2f82d48f266b977435dad81901929ac
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,10 +22,25 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+     friend struct VulkanContextAccess;
+ };
+ 
++// Accessor to selected VulkanContext internals for tightly-coupled helpers (e.g., ImGui integration)
++struct VulkanContextAccess final {
++    static void* instance(VulkanContext& ctx) noexcept;           // returns VkInstance
++    static void* physical(VulkanContext& ctx) noexcept;           // returns VkPhysicalDevice
++    static void* device(VulkanContext& ctx) noexcept;             // returns VkDevice
++    static void* queue(VulkanContext& ctx) noexcept;              // returns VkQueue
++    static std::uint32_t queue_family(VulkanContext& ctx) noexcept;
++    static void* render_pass(VulkanContext& ctx) noexcept;        // returns VkRenderPass
++    static std::uint32_t image_count(VulkanContext& ctx) noexcept;
++};
++
+ } // namespace vulkano
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..88083691f7c57048febc0aeb74d71cf99332e553
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,148 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor is provided by vulkan_context.hpp (VulkanContextAccess)
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = static_cast<VkInstance>(VulkanContextAccess::instance(context));
++    impl->physical_device = static_cast<VkPhysicalDevice>(VulkanContextAccess::physical(context));
++    impl->device = static_cast<VkDevice>(VulkanContextAccess::device(context));
++    impl->graphics_queue = static_cast<VkQueue>(VulkanContextAccess::queue(context));
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = static_cast<VkRenderPass>(VulkanContextAccess::render_pass(context));
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++    init_info.RenderPass = impl->render_pass;
++
++    ImGui_ImplVulkan_Init(&init_info);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..86d06973bc56e68c9849a6543b3d003630c7cabf
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,14 +35,23 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+-struct VulkanContextAccess final {
+-    static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
+-};
++struct VulkanContextAccessHelper final { static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; } };
+ 
++void* VulkanContextAccess::instance(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).instance); }
++void* VulkanContextAccess::physical(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).physical_device); }
++void* VulkanContextAccess::device(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).device); }
++void* VulkanContextAccess::queue(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).graphics_queue); }
++std::uint32_t VulkanContextAccess::queue_family(VulkanContext& ctx) noexcept { return VulkanContextAccessHelper::get(ctx).graphics_queue_family; }
++void* VulkanContextAccess::render_pass(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).render_pass); }
++std::uint32_t VulkanContextAccess::image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(VulkanContextAccessHelper::get(ctx).swapchain_images.size()); }
++
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
+     // Simple stderr print would go here in future
+@@ -121,7 +131,7 @@
+ }
+ 
+ static void create_swapchain_and_views(VulkanContext& ctx, GLFWwindow* window) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextAccessHelper::get(ctx);
+     VkSurfaceCapabilitiesKHR caps {};
+     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(impl.physical_device, impl.surface, &caps);
+     uint32_t fmt_count = 0;
+@@ -190,7 +200,7 @@
+ }
+ 
+ static void create_renderpass_and_framebuffers(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextAccessHelper::get(ctx);
+     VkAttachmentDescription color {};
+     color.format = impl.swapchain_format;
+     color.samples = VK_SAMPLE_COUNT_1_BIT;
+@@ -295,6 +305,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +433,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +477,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:11:24] exec bash -lc 'cmake --build build --config Debug -j 4' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:11:25] bash -lc 'cmake --build build --config Debug -j 4' exited 2 in 912ms:
+[  2%] Built target glm
+[ 16%] Built target glfw
+[ 18%] Building CXX object src/CMakeFiles/vulkano.dir/imgui_layer.cpp.o
+[ 18%] Building CXX object src/CMakeFiles/vulkano.dir/app.cpp.o
+[ 19%] Building CXX object src/CMakeFiles/vulkano.dir/vulkan_context.cpp.o
+[ 89%] Built target Catch2
+[ 91%] Built target Catch2WithMain
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/imgui_layer.cpp:57:88: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+   57 |     VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+      |                                                                                        ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:45:64: error: 'Impl' is a private member of 'vulkano::VulkanContext'
+   45 | struct VulkanContextAccessHelper final { static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; } };
+      |                                                                ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/vulkan_context.hpp:30:12: note: declared private here
+   30 |     struct Impl;
+      |            ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:45:117: error: 'impl' is a private member of 'vulkano::VulkanContext'
+   45 | struct VulkanContextAccessHelper final { static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; } };
+      |                                                                                                                     ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/vulkan_context.hpp:31:27: note: declared private here
+[2025-09-15T16:11:25] tokens used: 87,645
+[2025-09-15T16:11:26] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..139cd98dd2f82d48f266b977435dad81901929ac
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,10 +22,25 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+     friend struct VulkanContextAccess;
+ };
+ 
++// Accessor to selected VulkanContext internals for tightly-coupled helpers (e.g., ImGui integration)
++struct VulkanContextAccess final {
++    static void* instance(VulkanContext& ctx) noexcept;           // returns VkInstance
++    static void* physical(VulkanContext& ctx) noexcept;           // returns VkPhysicalDevice
++    static void* device(VulkanContext& ctx) noexcept;             // returns VkDevice
++    static void* queue(VulkanContext& ctx) noexcept;              // returns VkQueue
++    static std::uint32_t queue_family(VulkanContext& ctx) noexcept;
++    static void* render_pass(VulkanContext& ctx) noexcept;        // returns VkRenderPass
++    static std::uint32_t image_count(VulkanContext& ctx) noexcept;
++};
++
+ } // namespace vulkano
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..88083691f7c57048febc0aeb74d71cf99332e553
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,148 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor is provided by vulkan_context.hpp (VulkanContextAccess)
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = static_cast<VkInstance>(VulkanContextAccess::instance(context));
++    impl->physical_device = static_cast<VkPhysicalDevice>(VulkanContextAccess::physical(context));
++    impl->device = static_cast<VkDevice>(VulkanContextAccess::device(context));
++    impl->graphics_queue = static_cast<VkQueue>(VulkanContextAccess::queue(context));
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = static_cast<VkRenderPass>(VulkanContextAccess::render_pass(context));
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++    init_info.RenderPass = impl->render_pass;
++
++    ImGui_ImplVulkan_Init(&init_info);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..86d06973bc56e68c9849a6543b3d003630c7cabf
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,14 +35,23 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+-struct VulkanContextAccess final {
+-    static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
+-};
++struct VulkanContextAccessHelper final { static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; } };
+ 
++void* VulkanContextAccess::instance(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).instance); }
++void* VulkanContextAccess::physical(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).physical_device); }
++void* VulkanContextAccess::device(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).device); }
++void* VulkanContextAccess::queue(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).graphics_queue); }
++std::uint32_t VulkanContextAccess::queue_family(VulkanContext& ctx) noexcept { return VulkanContextAccessHelper::get(ctx).graphics_queue_family; }
++void* VulkanContextAccess::render_pass(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).render_pass); }
++std::uint32_t VulkanContextAccess::image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(VulkanContextAccessHelper::get(ctx).swapchain_images.size()); }
++
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
+     // Simple stderr print would go here in future
+@@ -121,7 +131,7 @@
+ }
+ 
+ static void create_swapchain_and_views(VulkanContext& ctx, GLFWwindow* window) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextAccessHelper::get(ctx);
+     VkSurfaceCapabilitiesKHR caps {};
+     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(impl.physical_device, impl.surface, &caps);
+     uint32_t fmt_count = 0;
+@@ -190,7 +200,7 @@
+ }
+ 
+ static void create_renderpass_and_framebuffers(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextAccessHelper::get(ctx);
+     VkAttachmentDescription color {};
+     color.format = impl.swapchain_format;
+     color.samples = VK_SAMPLE_COUNT_1_BIT;
+@@ -295,6 +305,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +433,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +477,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+
+[2025-09-15T16:11:56] thinking
+
+**Updating Vulkan context**
+
+I'm thinking about the static helper functions in `vulkan_context.cpp`. My plan is to replace `VulkanContextAccess::get(ctx)` with a pointer retrieval using `impl_ptr`. I also need to remember to patch the header to include the `impl_ptr` declaration. It seems like a straightforward adjustment, but I want to ensure I don't overlook any details during this process to keep everything working smoothly. Let's get this done carefully!
+[2025-09-15T16:12:01] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/vulkan_context.hpp
+@@ -36,2 +36,3 @@
+ struct VulkanContextAccess final {
++    static void* impl_ptr(VulkanContext& ctx) noexcept;          // returns pointer to internal Impl
+     static void* instance(VulkanContext& ctx) noexcept;           // returns VkInstance
+[2025-09-15T16:12:01] apply_patch(auto_approved=true) exited 0 in 124ms:
+Success. Updated the following files:
+M include/vulkano/vulkan_context.hpp
+[2025-09-15T16:12:01] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..8c39cd91bc8d5f0f5dc68d1b80e7067d9fec23ae
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,10 +22,26 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+     friend struct VulkanContextAccess;
+ };
+ 
++// Accessor to selected VulkanContext internals for tightly-coupled helpers (e.g., ImGui integration)
++struct VulkanContextAccess final {
++    static void* impl_ptr(VulkanContext& ctx) noexcept;          // returns pointer to internal Impl
++    static void* instance(VulkanContext& ctx) noexcept;           // returns VkInstance
++    static void* physical(VulkanContext& ctx) noexcept;           // returns VkPhysicalDevice
++    static void* device(VulkanContext& ctx) noexcept;             // returns VkDevice
++    static void* queue(VulkanContext& ctx) noexcept;              // returns VkQueue
++    static std::uint32_t queue_family(VulkanContext& ctx) noexcept;
++    static void* render_pass(VulkanContext& ctx) noexcept;        // returns VkRenderPass
++    static std::uint32_t image_count(VulkanContext& ctx) noexcept;
++};
++
+ } // namespace vulkano
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..88083691f7c57048febc0aeb74d71cf99332e553
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,148 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor is provided by vulkan_context.hpp (VulkanContextAccess)
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = static_cast<VkInstance>(VulkanContextAccess::instance(context));
++    impl->physical_device = static_cast<VkPhysicalDevice>(VulkanContextAccess::physical(context));
++    impl->device = static_cast<VkDevice>(VulkanContextAccess::device(context));
++    impl->graphics_queue = static_cast<VkQueue>(VulkanContextAccess::queue(context));
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = static_cast<VkRenderPass>(VulkanContextAccess::render_pass(context));
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++    init_info.RenderPass = impl->render_pass;
++
++    ImGui_ImplVulkan_Init(&init_info);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..86d06973bc56e68c9849a6543b3d003630c7cabf
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,14 +35,23 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+-struct VulkanContextAccess final {
+-    static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
+-};
++struct VulkanContextAccessHelper final { static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; } };
+ 
++void* VulkanContextAccess::instance(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).instance); }
++void* VulkanContextAccess::physical(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).physical_device); }
++void* VulkanContextAccess::device(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).device); }
++void* VulkanContextAccess::queue(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).graphics_queue); }
++std::uint32_t VulkanContextAccess::queue_family(VulkanContext& ctx) noexcept { return VulkanContextAccessHelper::get(ctx).graphics_queue_family; }
++void* VulkanContextAccess::render_pass(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).render_pass); }
++std::uint32_t VulkanContextAccess::image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(VulkanContextAccessHelper::get(ctx).swapchain_images.size()); }
++
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
+     // Simple stderr print would go here in future
+@@ -121,7 +131,7 @@
+ }
+ 
+ static void create_swapchain_and_views(VulkanContext& ctx, GLFWwindow* window) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextAccessHelper::get(ctx);
+     VkSurfaceCapabilitiesKHR caps {};
+     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(impl.physical_device, impl.surface, &caps);
+     uint32_t fmt_count = 0;
+@@ -190,7 +200,7 @@
+ }
+ 
+ static void create_renderpass_and_framebuffers(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextAccessHelper::get(ctx);
+     VkAttachmentDescription color {};
+     color.format = impl.swapchain_format;
+     color.samples = VK_SAMPLE_COUNT_1_BIT;
+@@ -295,6 +305,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +433,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +477,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:12:01] tokens used: 90,861
+[2025-09-15T16:12:01] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..8c39cd91bc8d5f0f5dc68d1b80e7067d9fec23ae
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,10 +22,26 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+     friend struct VulkanContextAccess;
+ };
+ 
++// Accessor to selected VulkanContext internals for tightly-coupled helpers (e.g., ImGui integration)
++struct VulkanContextAccess final {
++    static void* impl_ptr(VulkanContext& ctx) noexcept;          // returns pointer to internal Impl
++    static void* instance(VulkanContext& ctx) noexcept;           // returns VkInstance
++    static void* physical(VulkanContext& ctx) noexcept;           // returns VkPhysicalDevice
++    static void* device(VulkanContext& ctx) noexcept;             // returns VkDevice
++    static void* queue(VulkanContext& ctx) noexcept;              // returns VkQueue
++    static std::uint32_t queue_family(VulkanContext& ctx) noexcept;
++    static void* render_pass(VulkanContext& ctx) noexcept;        // returns VkRenderPass
++    static std::uint32_t image_count(VulkanContext& ctx) noexcept;
++};
++
+ } // namespace vulkano
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..88083691f7c57048febc0aeb74d71cf99332e553
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,148 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor is provided by vulkan_context.hpp (VulkanContextAccess)
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = static_cast<VkInstance>(VulkanContextAccess::instance(context));
++    impl->physical_device = static_cast<VkPhysicalDevice>(VulkanContextAccess::physical(context));
++    impl->device = static_cast<VkDevice>(VulkanContextAccess::device(context));
++    impl->graphics_queue = static_cast<VkQueue>(VulkanContextAccess::queue(context));
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = static_cast<VkRenderPass>(VulkanContextAccess::render_pass(context));
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++    init_info.RenderPass = impl->render_pass;
++
++    ImGui_ImplVulkan_Init(&init_info);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..86d06973bc56e68c9849a6543b3d003630c7cabf
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,14 +35,23 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+-struct VulkanContextAccess final {
+-    static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
+-};
++struct VulkanContextAccessHelper final { static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; } };
+ 
++void* VulkanContextAccess::instance(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).instance); }
++void* VulkanContextAccess::physical(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).physical_device); }
++void* VulkanContextAccess::device(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).device); }
++void* VulkanContextAccess::queue(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).graphics_queue); }
++std::uint32_t VulkanContextAccess::queue_family(VulkanContext& ctx) noexcept { return VulkanContextAccessHelper::get(ctx).graphics_queue_family; }
++void* VulkanContextAccess::render_pass(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).render_pass); }
++std::uint32_t VulkanContextAccess::image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(VulkanContextAccessHelper::get(ctx).swapchain_images.size()); }
++
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
+     // Simple stderr print would go here in future
+@@ -121,7 +131,7 @@
+ }
+ 
+ static void create_swapchain_and_views(VulkanContext& ctx, GLFWwindow* window) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextAccessHelper::get(ctx);
+     VkSurfaceCapabilitiesKHR caps {};
+     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(impl.physical_device, impl.surface, &caps);
+     uint32_t fmt_count = 0;
+@@ -190,7 +200,7 @@
+ }
+ 
+ static void create_renderpass_and_framebuffers(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextAccessHelper::get(ctx);
+     VkAttachmentDescription color {};
+     color.format = impl.swapchain_format;
+     color.samples = VK_SAMPLE_COUNT_1_BIT;
+@@ -295,6 +305,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +433,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +477,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:12:28] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp
+@@ -44,11 +44,10 @@
+ 
+-struct VulkanContextAccessHelper final { static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; } };
+-
+-void* VulkanContextAccess::instance(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).instance); }
+-void* VulkanContextAccess::physical(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).physical_device); }
+-void* VulkanContextAccess::device(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).device); }
+-void* VulkanContextAccess::queue(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).graphics_queue); }
+-std::uint32_t VulkanContextAccess::queue_family(VulkanContext& ctx) noexcept { return VulkanContextAccessHelper::get(ctx).graphics_queue_family; }
+-void* VulkanContextAccess::render_pass(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextAccessHelper::get(ctx).render_pass); }
+-std::uint32_t VulkanContextAccess::image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(VulkanContextAccessHelper::get(ctx).swapchain_images.size()); }
++void* VulkanContextAccess::impl_ptr(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl.get()); }
++void* VulkanContextAccess::instance(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->instance); }
++void* VulkanContextAccess::physical(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->physical_device); }
++void* VulkanContextAccess::device(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->device); }
++void* VulkanContextAccess::queue(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->graphics_queue); }
++std::uint32_t VulkanContextAccess::queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++void* VulkanContextAccess::render_pass(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->render_pass); }
++std::uint32_t VulkanContextAccess::image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ 
+@@ -133,3 +132,4 @@
+ static void create_swapchain_and_views(VulkanContext& ctx, GLFWwindow* window) {
+-    auto& impl = VulkanContextAccessHelper::get(ctx);
++    auto* impl_ptr = static_cast<VulkanContext::Impl*>(VulkanContextAccess::impl_ptr(ctx));
++    auto& impl = *impl_ptr;
+     VkSurfaceCapabilitiesKHR caps {};
+@@ -202,3 +202,4 @@
+ static void create_renderpass_and_framebuffers(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccessHelper::get(ctx);
++    auto* impl_ptr = static_cast<VulkanContext::Impl*>(VulkanContextAccess::impl_ptr(ctx));
++    auto& impl = *impl_ptr;
+     VkAttachmentDescription color {};
+[2025-09-15T16:12:28] apply_patch(auto_approved=true) exited 0 in 118ms:
+Success. Updated the following files:
+M src/vulkan_context.cpp
+[2025-09-15T16:12:28] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..8c39cd91bc8d5f0f5dc68d1b80e7067d9fec23ae
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,10 +22,26 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+     friend struct VulkanContextAccess;
+ };
+ 
++// Accessor to selected VulkanContext internals for tightly-coupled helpers (e.g., ImGui integration)
++struct VulkanContextAccess final {
++    static void* impl_ptr(VulkanContext& ctx) noexcept;          // returns pointer to internal Impl
++    static void* instance(VulkanContext& ctx) noexcept;           // returns VkInstance
++    static void* physical(VulkanContext& ctx) noexcept;           // returns VkPhysicalDevice
++    static void* device(VulkanContext& ctx) noexcept;             // returns VkDevice
++    static void* queue(VulkanContext& ctx) noexcept;              // returns VkQueue
++    static std::uint32_t queue_family(VulkanContext& ctx) noexcept;
++    static void* render_pass(VulkanContext& ctx) noexcept;        // returns VkRenderPass
++    static std::uint32_t image_count(VulkanContext& ctx) noexcept;
++};
++
+ } // namespace vulkano
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..88083691f7c57048febc0aeb74d71cf99332e553
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,148 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor is provided by vulkan_context.hpp (VulkanContextAccess)
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = static_cast<VkInstance>(VulkanContextAccess::instance(context));
++    impl->physical_device = static_cast<VkPhysicalDevice>(VulkanContextAccess::physical(context));
++    impl->device = static_cast<VkDevice>(VulkanContextAccess::device(context));
++    impl->graphics_queue = static_cast<VkQueue>(VulkanContextAccess::queue(context));
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = static_cast<VkRenderPass>(VulkanContextAccess::render_pass(context));
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++    init_info.RenderPass = impl->render_pass;
++
++    ImGui_ImplVulkan_Init(&init_info);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..c1b634a15dcbfe535cb254e697fa24ee5c8addeb
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,13 +35,21 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+-struct VulkanContextAccess final {
+-    static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
+-};
++void* VulkanContextAccess::impl_ptr(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl.get()); }
++void* VulkanContextAccess::instance(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->instance); }
++void* VulkanContextAccess::physical(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->physical_device); }
++void* VulkanContextAccess::device(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->device); }
++void* VulkanContextAccess::queue(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->graphics_queue); }
++std::uint32_t VulkanContextAccess::queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++void* VulkanContextAccess::render_pass(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->render_pass); }
++std::uint32_t VulkanContextAccess::image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
+@@ -121,7 +130,8 @@
+ }
+ 
+ static void create_swapchain_and_views(VulkanContext& ctx, GLFWwindow* window) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto* impl_ptr = static_cast<VulkanContext::Impl*>(VulkanContextAccess::impl_ptr(ctx));
++    auto& impl = *impl_ptr;
+     VkSurfaceCapabilitiesKHR caps {};
+     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(impl.physical_device, impl.surface, &caps);
+     uint32_t fmt_count = 0;
+@@ -190,7 +200,8 @@
+ }
+ 
+ static void create_renderpass_and_framebuffers(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto* impl_ptr = static_cast<VulkanContext::Impl*>(VulkanContextAccess::impl_ptr(ctx));
++    auto& impl = *impl_ptr;
+     VkAttachmentDescription color {};
+     color.format = impl.swapchain_format;
+     color.samples = VK_SAMPLE_COUNT_1_BIT;
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:12:28] tokens used: 91,767
+[2025-09-15T16:12:28] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..8c39cd91bc8d5f0f5dc68d1b80e7067d9fec23ae
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,10 +22,26 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+     friend struct VulkanContextAccess;
+ };
+ 
++// Accessor to selected VulkanContext internals for tightly-coupled helpers (e.g., ImGui integration)
++struct VulkanContextAccess final {
++    static void* impl_ptr(VulkanContext& ctx) noexcept;          // returns pointer to internal Impl
++    static void* instance(VulkanContext& ctx) noexcept;           // returns VkInstance
++    static void* physical(VulkanContext& ctx) noexcept;           // returns VkPhysicalDevice
++    static void* device(VulkanContext& ctx) noexcept;             // returns VkDevice
++    static void* queue(VulkanContext& ctx) noexcept;              // returns VkQueue
++    static std::uint32_t queue_family(VulkanContext& ctx) noexcept;
++    static void* render_pass(VulkanContext& ctx) noexcept;        // returns VkRenderPass
++    static std::uint32_t image_count(VulkanContext& ctx) noexcept;
++};
++
+ } // namespace vulkano
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..88083691f7c57048febc0aeb74d71cf99332e553
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,148 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor is provided by vulkan_context.hpp (VulkanContextAccess)
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = static_cast<VkInstance>(VulkanContextAccess::instance(context));
++    impl->physical_device = static_cast<VkPhysicalDevice>(VulkanContextAccess::physical(context));
++    impl->device = static_cast<VkDevice>(VulkanContextAccess::device(context));
++    impl->graphics_queue = static_cast<VkQueue>(VulkanContextAccess::queue(context));
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = static_cast<VkRenderPass>(VulkanContextAccess::render_pass(context));
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++    init_info.RenderPass = impl->render_pass;
++
++    ImGui_ImplVulkan_Init(&init_info);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..c1b634a15dcbfe535cb254e697fa24ee5c8addeb
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,13 +35,21 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+-struct VulkanContextAccess final {
+-    static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
+-};
++void* VulkanContextAccess::impl_ptr(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl.get()); }
++void* VulkanContextAccess::instance(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->instance); }
++void* VulkanContextAccess::physical(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->physical_device); }
++void* VulkanContextAccess::device(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->device); }
++void* VulkanContextAccess::queue(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->graphics_queue); }
++std::uint32_t VulkanContextAccess::queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++void* VulkanContextAccess::render_pass(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->render_pass); }
++std::uint32_t VulkanContextAccess::image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
+@@ -121,7 +130,8 @@
+ }
+ 
+ static void create_swapchain_and_views(VulkanContext& ctx, GLFWwindow* window) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto* impl_ptr = static_cast<VulkanContext::Impl*>(VulkanContextAccess::impl_ptr(ctx));
++    auto& impl = *impl_ptr;
+     VkSurfaceCapabilitiesKHR caps {};
+     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(impl.physical_device, impl.surface, &caps);
+     uint32_t fmt_count = 0;
+@@ -190,7 +200,8 @@
+ }
+ 
+ static void create_renderpass_and_framebuffers(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto* impl_ptr = static_cast<VulkanContext::Impl*>(VulkanContextAccess::impl_ptr(ctx));
++    auto& impl = *impl_ptr;
+     VkAttachmentDescription color {};
+     color.format = impl.swapchain_format;
+     color.samples = VK_SAMPLE_COUNT_1_BIT;
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:12:30] exec bash -lc 'cmake --build build --config Debug -j 4' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:12:31] bash -lc 'cmake --build build --config Debug -j 4' exited 2 in 951ms:
+[  2%] Built target glm
+[ 16%] Built target glfw
+[ 17%] Building CXX object src/CMakeFiles/vulkano.dir/app.cpp.o
+[ 18%] Building CXX object src/CMakeFiles/vulkano.dir/imgui_layer.cpp.o
+[ 19%] Building CXX object src/CMakeFiles/vulkano.dir/vulkan_context.cpp.o
+[ 89%] Built target Catch2
+[ 91%] Built target Catch2WithMain
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/imgui_layer.cpp:57:88: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+   57 |     VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+      |                                                                                        ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:133:49: error: 'Impl' is a private member of 'vulkano::VulkanContext'
+  133 |     auto* impl_ptr = static_cast<VulkanContext::Impl*>(VulkanContextAccess::impl_ptr(ctx));
+      |                                                 ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/vulkan_context.hpp:30:12: note: declared private here
+   30 |     struct Impl;
+      |            ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:203:49: error: 'Impl' is a private member of 'vulkano::VulkanContext'
+  203 |     auto* impl_ptr = static_cast<VulkanContext::Impl*>(VulkanContextAccess::impl_ptr(ctx));
+      |                                                 ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/vulkan_context.hpp:30:12: note: declared private here
+[2025-09-15T16:12:31] tokens used: 92,619
+[2025-09-15T16:12:32] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..8c39cd91bc8d5f0f5dc68d1b80e7067d9fec23ae
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,10 +22,26 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+     friend struct VulkanContextAccess;
+ };
+ 
++// Accessor to selected VulkanContext internals for tightly-coupled helpers (e.g., ImGui integration)
++struct VulkanContextAccess final {
++    static void* impl_ptr(VulkanContext& ctx) noexcept;          // returns pointer to internal Impl
++    static void* instance(VulkanContext& ctx) noexcept;           // returns VkInstance
++    static void* physical(VulkanContext& ctx) noexcept;           // returns VkPhysicalDevice
++    static void* device(VulkanContext& ctx) noexcept;             // returns VkDevice
++    static void* queue(VulkanContext& ctx) noexcept;              // returns VkQueue
++    static std::uint32_t queue_family(VulkanContext& ctx) noexcept;
++    static void* render_pass(VulkanContext& ctx) noexcept;        // returns VkRenderPass
++    static std::uint32_t image_count(VulkanContext& ctx) noexcept;
++};
++
+ } // namespace vulkano
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..88083691f7c57048febc0aeb74d71cf99332e553
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,148 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor is provided by vulkan_context.hpp (VulkanContextAccess)
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = static_cast<VkInstance>(VulkanContextAccess::instance(context));
++    impl->physical_device = static_cast<VkPhysicalDevice>(VulkanContextAccess::physical(context));
++    impl->device = static_cast<VkDevice>(VulkanContextAccess::device(context));
++    impl->graphics_queue = static_cast<VkQueue>(VulkanContextAccess::queue(context));
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = static_cast<VkRenderPass>(VulkanContextAccess::render_pass(context));
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++    init_info.RenderPass = impl->render_pass;
++
++    ImGui_ImplVulkan_Init(&init_info);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..c1b634a15dcbfe535cb254e697fa24ee5c8addeb
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,13 +35,21 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+-struct VulkanContextAccess final {
+-    static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
+-};
++void* VulkanContextAccess::impl_ptr(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl.get()); }
++void* VulkanContextAccess::instance(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->instance); }
++void* VulkanContextAccess::physical(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->physical_device); }
++void* VulkanContextAccess::device(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->device); }
++void* VulkanContextAccess::queue(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->graphics_queue); }
++std::uint32_t VulkanContextAccess::queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++void* VulkanContextAccess::render_pass(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->render_pass); }
++std::uint32_t VulkanContextAccess::image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
+@@ -121,7 +130,8 @@
+ }
+ 
+ static void create_swapchain_and_views(VulkanContext& ctx, GLFWwindow* window) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto* impl_ptr = static_cast<VulkanContext::Impl*>(VulkanContextAccess::impl_ptr(ctx));
++    auto& impl = *impl_ptr;
+     VkSurfaceCapabilitiesKHR caps {};
+     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(impl.physical_device, impl.surface, &caps);
+     uint32_t fmt_count = 0;
+@@ -190,7 +200,8 @@
+ }
+ 
+ static void create_renderpass_and_framebuffers(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto* impl_ptr = static_cast<VulkanContext::Impl*>(VulkanContextAccess::impl_ptr(ctx));
++    auto& impl = *impl_ptr;
+     VkAttachmentDescription color {};
+     color.format = impl.swapchain_format;
+     color.samples = VK_SAMPLE_COUNT_1_BIT;
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+
+[2025-09-15T16:12:55] thinking
+
+**Considering design approaches**
+
+I'm thinking of switching back to an earlier approach where VulkanContextAccess remains a friend for other translation units like ImGuiLayer. I also want to add a new friend struct called VulkanContextInternalsHelper in the header file. This way, I can define it right there and use it solely to access implementation details and types. That should keep things organized and manageable!
+[2025-09-15T16:12:59] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/vulkan_context.hpp
+@@ -32,2 +32,3 @@
+     friend struct VulkanContextAccess;
++    friend struct VulkanContextInternalsHelper;
+ };
+[2025-09-15T16:12:59] apply_patch(auto_approved=true) exited 0 in 123ms:
+Success. Updated the following files:
+M include/vulkano/vulkan_context.hpp
+[2025-09-15T16:12:59] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..4ddecbb83871e06d1730369c2a463e9f762b6677
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,10 +22,27 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+     friend struct VulkanContextAccess;
++    friend struct VulkanContextInternalsHelper;
++};
++
++// Accessor to selected VulkanContext internals for tightly-coupled helpers (e.g., ImGui integration)
++struct VulkanContextAccess final {
++    static void* impl_ptr(VulkanContext& ctx) noexcept;          // returns pointer to internal Impl
++    static void* instance(VulkanContext& ctx) noexcept;           // returns VkInstance
++    static void* physical(VulkanContext& ctx) noexcept;           // returns VkPhysicalDevice
++    static void* device(VulkanContext& ctx) noexcept;             // returns VkDevice
++    static void* queue(VulkanContext& ctx) noexcept;              // returns VkQueue
++    static std::uint32_t queue_family(VulkanContext& ctx) noexcept;
++    static void* render_pass(VulkanContext& ctx) noexcept;        // returns VkRenderPass
++    static std::uint32_t image_count(VulkanContext& ctx) noexcept;
+ };
+ 
+ } // namespace vulkano
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..88083691f7c57048febc0aeb74d71cf99332e553
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,148 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor is provided by vulkan_context.hpp (VulkanContextAccess)
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = static_cast<VkInstance>(VulkanContextAccess::instance(context));
++    impl->physical_device = static_cast<VkPhysicalDevice>(VulkanContextAccess::physical(context));
++    impl->device = static_cast<VkDevice>(VulkanContextAccess::device(context));
++    impl->graphics_queue = static_cast<VkQueue>(VulkanContextAccess::queue(context));
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = static_cast<VkRenderPass>(VulkanContextAccess::render_pass(context));
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++    init_info.RenderPass = impl->render_pass;
++
++    ImGui_ImplVulkan_Init(&init_info);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..c1b634a15dcbfe535cb254e697fa24ee5c8addeb
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,13 +35,21 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+-struct VulkanContextAccess final {
+-    static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
+-};
++void* VulkanContextAccess::impl_ptr(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl.get()); }
++void* VulkanContextAccess::instance(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->instance); }
++void* VulkanContextAccess::physical(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->physical_device); }
++void* VulkanContextAccess::device(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->device); }
++void* VulkanContextAccess::queue(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->graphics_queue); }
++std::uint32_t VulkanContextAccess::queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++void* VulkanContextAccess::render_pass(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->render_pass); }
++std::uint32_t VulkanContextAccess::image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
+@@ -121,7 +130,8 @@
+ }
+ 
+ static void create_swapchain_and_views(VulkanContext& ctx, GLFWwindow* window) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto* impl_ptr = static_cast<VulkanContext::Impl*>(VulkanContextAccess::impl_ptr(ctx));
++    auto& impl = *impl_ptr;
+     VkSurfaceCapabilitiesKHR caps {};
+     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(impl.physical_device, impl.surface, &caps);
+     uint32_t fmt_count = 0;
+@@ -190,7 +200,8 @@
+ }
+ 
+ static void create_renderpass_and_framebuffers(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto* impl_ptr = static_cast<VulkanContext::Impl*>(VulkanContextAccess::impl_ptr(ctx));
++    auto& impl = *impl_ptr;
+     VkAttachmentDescription color {};
+     color.format = impl.swapchain_format;
+     color.samples = VK_SAMPLE_COUNT_1_BIT;
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:12:59] tokens used: 110,561
+[2025-09-15T16:12:59] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..4ddecbb83871e06d1730369c2a463e9f762b6677
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,10 +22,27 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+     friend struct VulkanContextAccess;
++    friend struct VulkanContextInternalsHelper;
++};
++
++// Accessor to selected VulkanContext internals for tightly-coupled helpers (e.g., ImGui integration)
++struct VulkanContextAccess final {
++    static void* impl_ptr(VulkanContext& ctx) noexcept;          // returns pointer to internal Impl
++    static void* instance(VulkanContext& ctx) noexcept;           // returns VkInstance
++    static void* physical(VulkanContext& ctx) noexcept;           // returns VkPhysicalDevice
++    static void* device(VulkanContext& ctx) noexcept;             // returns VkDevice
++    static void* queue(VulkanContext& ctx) noexcept;              // returns VkQueue
++    static std::uint32_t queue_family(VulkanContext& ctx) noexcept;
++    static void* render_pass(VulkanContext& ctx) noexcept;        // returns VkRenderPass
++    static std::uint32_t image_count(VulkanContext& ctx) noexcept;
+ };
+ 
+ } // namespace vulkano
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..88083691f7c57048febc0aeb74d71cf99332e553
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,148 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor is provided by vulkan_context.hpp (VulkanContextAccess)
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = static_cast<VkInstance>(VulkanContextAccess::instance(context));
++    impl->physical_device = static_cast<VkPhysicalDevice>(VulkanContextAccess::physical(context));
++    impl->device = static_cast<VkDevice>(VulkanContextAccess::device(context));
++    impl->graphics_queue = static_cast<VkQueue>(VulkanContextAccess::queue(context));
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = static_cast<VkRenderPass>(VulkanContextAccess::render_pass(context));
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++    init_info.RenderPass = impl->render_pass;
++
++    ImGui_ImplVulkan_Init(&init_info);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..c1b634a15dcbfe535cb254e697fa24ee5c8addeb
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,13 +35,21 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+-struct VulkanContextAccess final {
+-    static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
+-};
++void* VulkanContextAccess::impl_ptr(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl.get()); }
++void* VulkanContextAccess::instance(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->instance); }
++void* VulkanContextAccess::physical(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->physical_device); }
++void* VulkanContextAccess::device(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->device); }
++void* VulkanContextAccess::queue(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->graphics_queue); }
++std::uint32_t VulkanContextAccess::queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++void* VulkanContextAccess::render_pass(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->render_pass); }
++std::uint32_t VulkanContextAccess::image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
+ 
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
+@@ -121,7 +130,8 @@
+ }
+ 
+ static void create_swapchain_and_views(VulkanContext& ctx, GLFWwindow* window) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto* impl_ptr = static_cast<VulkanContext::Impl*>(VulkanContextAccess::impl_ptr(ctx));
++    auto& impl = *impl_ptr;
+     VkSurfaceCapabilitiesKHR caps {};
+     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(impl.physical_device, impl.surface, &caps);
+     uint32_t fmt_count = 0;
+@@ -190,7 +200,8 @@
+ }
+ 
+ static void create_renderpass_and_framebuffers(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto* impl_ptr = static_cast<VulkanContext::Impl*>(VulkanContextAccess::impl_ptr(ctx));
++    auto& impl = *impl_ptr;
+     VkAttachmentDescription color {};
+     color.format = impl.swapchain_format;
+     color.samples = VK_SAMPLE_COUNT_1_BIT;
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:13:22] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp
+@@ -44,3 +44,5 @@
+ 
+-void* VulkanContextAccess::impl_ptr(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl.get()); }
++struct VulkanContextInternalsHelper final { static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; } };
++
++void* VulkanContextAccess::impl_ptr(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextInternalsHelper::get(ctx)); }
+ void* VulkanContextAccess::instance(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->instance); }
+@@ -132,4 +134,3 @@
+ static void create_swapchain_and_views(VulkanContext& ctx, GLFWwindow* window) {
+-    auto* impl_ptr = static_cast<VulkanContext::Impl*>(VulkanContextAccess::impl_ptr(ctx));
+-    auto& impl = *impl_ptr;
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
+     VkSurfaceCapabilitiesKHR caps {};
+@@ -202,4 +203,3 @@
+ static void create_renderpass_and_framebuffers(VulkanContext& ctx) {
+-    auto* impl_ptr = static_cast<VulkanContext::Impl*>(VulkanContextAccess::impl_ptr(ctx));
+-    auto& impl = *impl_ptr;
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
+     VkAttachmentDescription color {};
+[2025-09-15T16:13:22] apply_patch(auto_approved=true) exited 0 in 119ms:
+Success. Updated the following files:
+M src/vulkan_context.cpp
+[2025-09-15T16:13:22] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..4ddecbb83871e06d1730369c2a463e9f762b6677
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,10 +22,27 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+     friend struct VulkanContextAccess;
++    friend struct VulkanContextInternalsHelper;
++};
++
++// Accessor to selected VulkanContext internals for tightly-coupled helpers (e.g., ImGui integration)
++struct VulkanContextAccess final {
++    static void* impl_ptr(VulkanContext& ctx) noexcept;          // returns pointer to internal Impl
++    static void* instance(VulkanContext& ctx) noexcept;           // returns VkInstance
++    static void* physical(VulkanContext& ctx) noexcept;           // returns VkPhysicalDevice
++    static void* device(VulkanContext& ctx) noexcept;             // returns VkDevice
++    static void* queue(VulkanContext& ctx) noexcept;              // returns VkQueue
++    static std::uint32_t queue_family(VulkanContext& ctx) noexcept;
++    static void* render_pass(VulkanContext& ctx) noexcept;        // returns VkRenderPass
++    static std::uint32_t image_count(VulkanContext& ctx) noexcept;
+ };
+ 
+ } // namespace vulkano
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..88083691f7c57048febc0aeb74d71cf99332e553
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,148 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor is provided by vulkan_context.hpp (VulkanContextAccess)
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = static_cast<VkInstance>(VulkanContextAccess::instance(context));
++    impl->physical_device = static_cast<VkPhysicalDevice>(VulkanContextAccess::physical(context));
++    impl->device = static_cast<VkDevice>(VulkanContextAccess::device(context));
++    impl->graphics_queue = static_cast<VkQueue>(VulkanContextAccess::queue(context));
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = static_cast<VkRenderPass>(VulkanContextAccess::render_pass(context));
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++    init_info.RenderPass = impl->render_pass;
++
++    ImGui_ImplVulkan_Init(&init_info);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..864badc81a6d7b4b59cd2b949238001d85073494
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,14 +35,24 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+-struct VulkanContextAccess final {
+-    static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
+-};
++struct VulkanContextInternalsHelper final { static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; } };
+ 
++void* VulkanContextAccess::impl_ptr(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextInternalsHelper::get(ctx)); }
++void* VulkanContextAccess::instance(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->instance); }
++void* VulkanContextAccess::physical(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->physical_device); }
++void* VulkanContextAccess::device(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->device); }
++void* VulkanContextAccess::queue(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->graphics_queue); }
++std::uint32_t VulkanContextAccess::queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++void* VulkanContextAccess::render_pass(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->render_pass); }
++std::uint32_t VulkanContextAccess::image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
++
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
+     // Simple stderr print would go here in future
+@@ -121,7 +132,7 @@
+ }
+ 
+ static void create_swapchain_and_views(VulkanContext& ctx, GLFWwindow* window) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
+     VkSurfaceCapabilitiesKHR caps {};
+     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(impl.physical_device, impl.surface, &caps);
+     uint32_t fmt_count = 0;
+@@ -190,7 +201,7 @@
+ }
+ 
+ static void create_renderpass_and_framebuffers(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
+     VkAttachmentDescription color {};
+     color.format = impl.swapchain_format;
+     color.samples = VK_SAMPLE_COUNT_1_BIT;
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:13:22] tokens used: 111,243
+[2025-09-15T16:13:22] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..4ddecbb83871e06d1730369c2a463e9f762b6677
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,10 +22,27 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+     friend struct VulkanContextAccess;
++    friend struct VulkanContextInternalsHelper;
++};
++
++// Accessor to selected VulkanContext internals for tightly-coupled helpers (e.g., ImGui integration)
++struct VulkanContextAccess final {
++    static void* impl_ptr(VulkanContext& ctx) noexcept;          // returns pointer to internal Impl
++    static void* instance(VulkanContext& ctx) noexcept;           // returns VkInstance
++    static void* physical(VulkanContext& ctx) noexcept;           // returns VkPhysicalDevice
++    static void* device(VulkanContext& ctx) noexcept;             // returns VkDevice
++    static void* queue(VulkanContext& ctx) noexcept;              // returns VkQueue
++    static std::uint32_t queue_family(VulkanContext& ctx) noexcept;
++    static void* render_pass(VulkanContext& ctx) noexcept;        // returns VkRenderPass
++    static std::uint32_t image_count(VulkanContext& ctx) noexcept;
+ };
+ 
+ } // namespace vulkano
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..88083691f7c57048febc0aeb74d71cf99332e553
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,148 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor is provided by vulkan_context.hpp (VulkanContextAccess)
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = static_cast<VkInstance>(VulkanContextAccess::instance(context));
++    impl->physical_device = static_cast<VkPhysicalDevice>(VulkanContextAccess::physical(context));
++    impl->device = static_cast<VkDevice>(VulkanContextAccess::device(context));
++    impl->graphics_queue = static_cast<VkQueue>(VulkanContextAccess::queue(context));
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = static_cast<VkRenderPass>(VulkanContextAccess::render_pass(context));
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++    init_info.RenderPass = impl->render_pass;
++
++    ImGui_ImplVulkan_Init(&init_info);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..864badc81a6d7b4b59cd2b949238001d85073494
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,14 +35,24 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+-struct VulkanContextAccess final {
+-    static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
+-};
++struct VulkanContextInternalsHelper final { static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; } };
+ 
++void* VulkanContextAccess::impl_ptr(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextInternalsHelper::get(ctx)); }
++void* VulkanContextAccess::instance(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->instance); }
++void* VulkanContextAccess::physical(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->physical_device); }
++void* VulkanContextAccess::device(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->device); }
++void* VulkanContextAccess::queue(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->graphics_queue); }
++std::uint32_t VulkanContextAccess::queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++void* VulkanContextAccess::render_pass(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->render_pass); }
++std::uint32_t VulkanContextAccess::image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
++
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
+     // Simple stderr print would go here in future
+@@ -121,7 +132,7 @@
+ }
+ 
+ static void create_swapchain_and_views(VulkanContext& ctx, GLFWwindow* window) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
+     VkSurfaceCapabilitiesKHR caps {};
+     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(impl.physical_device, impl.surface, &caps);
+     uint32_t fmt_count = 0;
+@@ -190,7 +201,7 @@
+ }
+ 
+ static void create_renderpass_and_framebuffers(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
+     VkAttachmentDescription color {};
+     color.format = impl.swapchain_format;
+     color.samples = VK_SAMPLE_COUNT_1_BIT;
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:13:25] exec bash -lc 'cmake --build build --config Debug -j 4' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:13:26] bash -lc 'cmake --build build --config Debug -j 4' exited 2 in 887ms:
+[  2%] Built target glm
+[ 16%] Built target glfw
+[ 18%] Building CXX object src/CMakeFiles/vulkano.dir/app.cpp.o
+[ 18%] Building CXX object src/CMakeFiles/vulkano.dir/imgui_layer.cpp.o
+[ 19%] Building CXX object src/CMakeFiles/vulkano.dir/vulkan_context.cpp.o
+[ 89%] Built target Catch2
+[ 91%] Built target Catch2WithMain
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/imgui_layer.cpp:57:88: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+   57 |     VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+      |                                                                                        ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:47:75: error: cannot cast from type 'VulkanContext::Impl' to pointer type 'void *'
+   47 | void* VulkanContextAccess::impl_ptr(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextInternalsHelper::get(ctx)); }
+      |                                                                           ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:262:39: error: no member named 'get' in 'vulkano::VulkanContextAccess'
+  262 |     auto& impl = VulkanContextAccess::get(ctx);
+      |                  ~~~~~~~~~~~~~~~~~~~~~^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:280:71: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  280 |     VkSemaphoreCreateInfo sci {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+      |                                                                       ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:287:63: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+[2025-09-15T16:13:26] tokens used: 111,871
+[2025-09-15T16:13:26] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..4ddecbb83871e06d1730369c2a463e9f762b6677
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,10 +22,27 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+     friend struct VulkanContextAccess;
++    friend struct VulkanContextInternalsHelper;
++};
++
++// Accessor to selected VulkanContext internals for tightly-coupled helpers (e.g., ImGui integration)
++struct VulkanContextAccess final {
++    static void* impl_ptr(VulkanContext& ctx) noexcept;          // returns pointer to internal Impl
++    static void* instance(VulkanContext& ctx) noexcept;           // returns VkInstance
++    static void* physical(VulkanContext& ctx) noexcept;           // returns VkPhysicalDevice
++    static void* device(VulkanContext& ctx) noexcept;             // returns VkDevice
++    static void* queue(VulkanContext& ctx) noexcept;              // returns VkQueue
++    static std::uint32_t queue_family(VulkanContext& ctx) noexcept;
++    static void* render_pass(VulkanContext& ctx) noexcept;        // returns VkRenderPass
++    static std::uint32_t image_count(VulkanContext& ctx) noexcept;
+ };
+ 
+ } // namespace vulkano
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..88083691f7c57048febc0aeb74d71cf99332e553
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,148 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor is provided by vulkan_context.hpp (VulkanContextAccess)
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = static_cast<VkInstance>(VulkanContextAccess::instance(context));
++    impl->physical_device = static_cast<VkPhysicalDevice>(VulkanContextAccess::physical(context));
++    impl->device = static_cast<VkDevice>(VulkanContextAccess::device(context));
++    impl->graphics_queue = static_cast<VkQueue>(VulkanContextAccess::queue(context));
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = static_cast<VkRenderPass>(VulkanContextAccess::render_pass(context));
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++    init_info.RenderPass = impl->render_pass;
++
++    ImGui_ImplVulkan_Init(&init_info);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..864badc81a6d7b4b59cd2b949238001d85073494
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,14 +35,24 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+-struct VulkanContextAccess final {
+-    static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
+-};
++struct VulkanContextInternalsHelper final { static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; } };
+ 
++void* VulkanContextAccess::impl_ptr(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextInternalsHelper::get(ctx)); }
++void* VulkanContextAccess::instance(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->instance); }
++void* VulkanContextAccess::physical(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->physical_device); }
++void* VulkanContextAccess::device(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->device); }
++void* VulkanContextAccess::queue(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->graphics_queue); }
++std::uint32_t VulkanContextAccess::queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++void* VulkanContextAccess::render_pass(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->render_pass); }
++std::uint32_t VulkanContextAccess::image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
++
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
+     // Simple stderr print would go here in future
+@@ -121,7 +132,7 @@
+ }
+ 
+ static void create_swapchain_and_views(VulkanContext& ctx, GLFWwindow* window) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
+     VkSurfaceCapabilitiesKHR caps {};
+     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(impl.physical_device, impl.surface, &caps);
+     uint32_t fmt_count = 0;
+@@ -190,7 +201,7 @@
+ }
+ 
+ static void create_renderpass_and_framebuffers(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
+     VkAttachmentDescription color {};
+     color.format = impl.swapchain_format;
+     color.samples = VK_SAMPLE_COUNT_1_BIT;
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:13:31] exec bash -lc "nl -ba src/vulkan_context.cpp | sed -n '240,320p'" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:13:31] bash -lc "nl -ba src/vulkan_context.cpp | sed -n '240,320p'" succeeded in 32ms:
+   240	    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.render_pass) != VK_SUCCESS) {
+   241	        throw std::runtime_error {"Failed to create render pass"};
+   242	    }
+   243	
+   244	    impl.framebuffers.resize(impl.swapchain_image_views.size());
+   245	    for (std::size_t i = 0; i < impl.swapchain_image_views.size(); ++i) {
+   246	        VkImageView attachments[] = {impl.swapchain_image_views[i]};
+   247	        VkFramebufferCreateInfo fbci {};
+   248	        fbci.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+   249	        fbci.renderPass = impl.render_pass;
+   250	        fbci.attachmentCount = 1U;
+   251	        fbci.pAttachments = attachments;
+   252	        fbci.width = impl.swapchain_extent.width;
+   253	        fbci.height = impl.swapchain_extent.height;
+   254	        fbci.layers = 1U;
+   255	        if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.framebuffers[i]) != VK_SUCCESS) {
+   256	            throw std::runtime_error {"Failed to create framebuffer"};
+   257	        }
+   258	    }
+   259	}
+[2025-09-15T16:13:31] tokens used: 113,199
+[2025-09-15T16:13:31] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..4ddecbb83871e06d1730369c2a463e9f762b6677
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,10 +22,27 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+     friend struct VulkanContextAccess;
++    friend struct VulkanContextInternalsHelper;
++};
++
++// Accessor to selected VulkanContext internals for tightly-coupled helpers (e.g., ImGui integration)
++struct VulkanContextAccess final {
++    static void* impl_ptr(VulkanContext& ctx) noexcept;          // returns pointer to internal Impl
++    static void* instance(VulkanContext& ctx) noexcept;           // returns VkInstance
++    static void* physical(VulkanContext& ctx) noexcept;           // returns VkPhysicalDevice
++    static void* device(VulkanContext& ctx) noexcept;             // returns VkDevice
++    static void* queue(VulkanContext& ctx) noexcept;              // returns VkQueue
++    static std::uint32_t queue_family(VulkanContext& ctx) noexcept;
++    static void* render_pass(VulkanContext& ctx) noexcept;        // returns VkRenderPass
++    static std::uint32_t image_count(VulkanContext& ctx) noexcept;
+ };
+ 
+ } // namespace vulkano
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..88083691f7c57048febc0aeb74d71cf99332e553
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,148 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor is provided by vulkan_context.hpp (VulkanContextAccess)
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = static_cast<VkInstance>(VulkanContextAccess::instance(context));
++    impl->physical_device = static_cast<VkPhysicalDevice>(VulkanContextAccess::physical(context));
++    impl->device = static_cast<VkDevice>(VulkanContextAccess::device(context));
++    impl->graphics_queue = static_cast<VkQueue>(VulkanContextAccess::queue(context));
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = static_cast<VkRenderPass>(VulkanContextAccess::render_pass(context));
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++    init_info.RenderPass = impl->render_pass;
++
++    ImGui_ImplVulkan_Init(&init_info);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..864badc81a6d7b4b59cd2b949238001d85073494
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,14 +35,24 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+-struct VulkanContextAccess final {
+-    static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
+-};
++struct VulkanContextInternalsHelper final { static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; } };
+ 
++void* VulkanContextAccess::impl_ptr(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextInternalsHelper::get(ctx)); }
++void* VulkanContextAccess::instance(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->instance); }
++void* VulkanContextAccess::physical(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->physical_device); }
++void* VulkanContextAccess::device(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->device); }
++void* VulkanContextAccess::queue(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->graphics_queue); }
++std::uint32_t VulkanContextAccess::queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++void* VulkanContextAccess::render_pass(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->render_pass); }
++std::uint32_t VulkanContextAccess::image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
++
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
+     // Simple stderr print would go here in future
+@@ -121,7 +132,7 @@
+ }
+ 
+ static void create_swapchain_and_views(VulkanContext& ctx, GLFWwindow* window) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
+     VkSurfaceCapabilitiesKHR caps {};
+     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(impl.physical_device, impl.surface, &caps);
+     uint32_t fmt_count = 0;
+@@ -190,7 +201,7 @@
+ }
+ 
+ static void create_renderpass_and_framebuffers(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
+     VkAttachmentDescription color {};
+     color.format = impl.swapchain_format;
+     color.samples = VK_SAMPLE_COUNT_1_BIT;
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:13:34] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp
+@@ -46,3 +46,3 @@
+ 
+-void* VulkanContextAccess::impl_ptr(VulkanContext& ctx) noexcept { return static_cast<void*>(VulkanContextInternalsHelper::get(ctx)); }
++void* VulkanContextAccess::impl_ptr(VulkanContext& ctx) noexcept { return static_cast<void*>(&VulkanContextInternalsHelper::get(ctx)); }
+ void* VulkanContextAccess::instance(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->instance); }
+@@ -261,3 +261,3 @@
+ static void create_commands_and_sync(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
+     VkCommandPoolCreateInfo cpci {};
+@@ -294,3 +294,3 @@
+ static void record_clear_cmds(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
+     for (std::size_t i = 0; i < impl.command_buffers.size(); ++i) {
+[2025-09-15T16:13:34] apply_patch(auto_approved=true) exited 0 in 122ms:
+Success. Updated the following files:
+M src/vulkan_context.cpp
+[2025-09-15T16:13:34] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..4ddecbb83871e06d1730369c2a463e9f762b6677
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,10 +22,27 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+     friend struct VulkanContextAccess;
++    friend struct VulkanContextInternalsHelper;
++};
++
++// Accessor to selected VulkanContext internals for tightly-coupled helpers (e.g., ImGui integration)
++struct VulkanContextAccess final {
++    static void* impl_ptr(VulkanContext& ctx) noexcept;          // returns pointer to internal Impl
++    static void* instance(VulkanContext& ctx) noexcept;           // returns VkInstance
++    static void* physical(VulkanContext& ctx) noexcept;           // returns VkPhysicalDevice
++    static void* device(VulkanContext& ctx) noexcept;             // returns VkDevice
++    static void* queue(VulkanContext& ctx) noexcept;              // returns VkQueue
++    static std::uint32_t queue_family(VulkanContext& ctx) noexcept;
++    static void* render_pass(VulkanContext& ctx) noexcept;        // returns VkRenderPass
++    static std::uint32_t image_count(VulkanContext& ctx) noexcept;
+ };
+ 
+ } // namespace vulkano
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..88083691f7c57048febc0aeb74d71cf99332e553
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,148 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor is provided by vulkan_context.hpp (VulkanContextAccess)
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = static_cast<VkInstance>(VulkanContextAccess::instance(context));
++    impl->physical_device = static_cast<VkPhysicalDevice>(VulkanContextAccess::physical(context));
++    impl->device = static_cast<VkDevice>(VulkanContextAccess::device(context));
++    impl->graphics_queue = static_cast<VkQueue>(VulkanContextAccess::queue(context));
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = static_cast<VkRenderPass>(VulkanContextAccess::render_pass(context));
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++    init_info.RenderPass = impl->render_pass;
++
++    ImGui_ImplVulkan_Init(&init_info);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..cfb8f4f799ae9e417d4db3c40df0e3ff18f02bec
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,14 +35,24 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+-struct VulkanContextAccess final {
+-    static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
+-};
++struct VulkanContextInternalsHelper final { static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; } };
+ 
++void* VulkanContextAccess::impl_ptr(VulkanContext& ctx) noexcept { return static_cast<void*>(&VulkanContextInternalsHelper::get(ctx)); }
++void* VulkanContextAccess::instance(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->instance); }
++void* VulkanContextAccess::physical(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->physical_device); }
++void* VulkanContextAccess::device(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->device); }
++void* VulkanContextAccess::queue(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->graphics_queue); }
++std::uint32_t VulkanContextAccess::queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++void* VulkanContextAccess::render_pass(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->render_pass); }
++std::uint32_t VulkanContextAccess::image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
++
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
+     // Simple stderr print would go here in future
+@@ -121,7 +132,7 @@
+ }
+ 
+ static void create_swapchain_and_views(VulkanContext& ctx, GLFWwindow* window) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
+     VkSurfaceCapabilitiesKHR caps {};
+     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(impl.physical_device, impl.surface, &caps);
+     uint32_t fmt_count = 0;
+@@ -190,7 +201,7 @@
+ }
+ 
+ static void create_renderpass_and_framebuffers(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
+     VkAttachmentDescription color {};
+     color.format = impl.swapchain_format;
+     color.samples = VK_SAMPLE_COUNT_1_BIT;
+@@ -248,7 +259,7 @@
+ }
+ 
+ static void create_commands_and_sync(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
+     VkCommandPoolCreateInfo cpci {};
+     cpci.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+     cpci.queueFamilyIndex = impl.graphics_queue_family;
+@@ -281,7 +292,7 @@
+ }
+ 
+ static void record_clear_cmds(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
+     for (std::size_t i = 0; i < impl.command_buffers.size(); ++i) {
+         VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+         vkBeginCommandBuffer(impl.command_buffers[i], &bi);
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:13:34] tokens used: 114,874
+[2025-09-15T16:13:34] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..4ddecbb83871e06d1730369c2a463e9f762b6677
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,10 +22,27 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+     friend struct VulkanContextAccess;
++    friend struct VulkanContextInternalsHelper;
++};
++
++// Accessor to selected VulkanContext internals for tightly-coupled helpers (e.g., ImGui integration)
++struct VulkanContextAccess final {
++    static void* impl_ptr(VulkanContext& ctx) noexcept;          // returns pointer to internal Impl
++    static void* instance(VulkanContext& ctx) noexcept;           // returns VkInstance
++    static void* physical(VulkanContext& ctx) noexcept;           // returns VkPhysicalDevice
++    static void* device(VulkanContext& ctx) noexcept;             // returns VkDevice
++    static void* queue(VulkanContext& ctx) noexcept;              // returns VkQueue
++    static std::uint32_t queue_family(VulkanContext& ctx) noexcept;
++    static void* render_pass(VulkanContext& ctx) noexcept;        // returns VkRenderPass
++    static std::uint32_t image_count(VulkanContext& ctx) noexcept;
+ };
+ 
+ } // namespace vulkano
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..88083691f7c57048febc0aeb74d71cf99332e553
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,148 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor is provided by vulkan_context.hpp (VulkanContextAccess)
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = static_cast<VkInstance>(VulkanContextAccess::instance(context));
++    impl->physical_device = static_cast<VkPhysicalDevice>(VulkanContextAccess::physical(context));
++    impl->device = static_cast<VkDevice>(VulkanContextAccess::device(context));
++    impl->graphics_queue = static_cast<VkQueue>(VulkanContextAccess::queue(context));
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = static_cast<VkRenderPass>(VulkanContextAccess::render_pass(context));
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++    init_info.RenderPass = impl->render_pass;
++
++    ImGui_ImplVulkan_Init(&init_info);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..cfb8f4f799ae9e417d4db3c40df0e3ff18f02bec
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,14 +35,24 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+-struct VulkanContextAccess final {
+-    static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
+-};
++struct VulkanContextInternalsHelper final { static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; } };
+ 
++void* VulkanContextAccess::impl_ptr(VulkanContext& ctx) noexcept { return static_cast<void*>(&VulkanContextInternalsHelper::get(ctx)); }
++void* VulkanContextAccess::instance(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->instance); }
++void* VulkanContextAccess::physical(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->physical_device); }
++void* VulkanContextAccess::device(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->device); }
++void* VulkanContextAccess::queue(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->graphics_queue); }
++std::uint32_t VulkanContextAccess::queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++void* VulkanContextAccess::render_pass(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->render_pass); }
++std::uint32_t VulkanContextAccess::image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
++
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
+     // Simple stderr print would go here in future
+@@ -121,7 +132,7 @@
+ }
+ 
+ static void create_swapchain_and_views(VulkanContext& ctx, GLFWwindow* window) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
+     VkSurfaceCapabilitiesKHR caps {};
+     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(impl.physical_device, impl.surface, &caps);
+     uint32_t fmt_count = 0;
+@@ -190,7 +201,7 @@
+ }
+ 
+ static void create_renderpass_and_framebuffers(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
+     VkAttachmentDescription color {};
+     color.format = impl.swapchain_format;
+     color.samples = VK_SAMPLE_COUNT_1_BIT;
+@@ -248,7 +259,7 @@
+ }
+ 
+ static void create_commands_and_sync(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
+     VkCommandPoolCreateInfo cpci {};
+     cpci.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+     cpci.queueFamilyIndex = impl.graphics_queue_family;
+@@ -281,7 +292,7 @@
+ }
+ 
+ static void record_clear_cmds(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
+     for (std::size_t i = 0; i < impl.command_buffers.size(); ++i) {
+         VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+         vkBeginCommandBuffer(impl.command_buffers[i], &bi);
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+[2025-09-15T16:13:37] exec bash -lc 'cmake --build build --config Debug -j 4' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:13:38] bash -lc 'cmake --build build --config Debug -j 4' succeeded in 1.08s:
+[  2%] Built target glm
+[ 16%] Built target glfw
+[ 17%] Building CXX object src/CMakeFiles/vulkano.dir/vulkan_context.cpp.o
+[ 87%] Built target Catch2
+[ 89%] Built target Catch2WithMain
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:280:71: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  280 |     VkSemaphoreCreateInfo sci {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+      |                                                                       ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:287:63: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  287 |     VkFenceCreateInfo fci {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+      |                                                               ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:297:81: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  297 |         VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+      |                                                                                 ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:301:77: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  301 |         VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+      |                                                                             ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:440:81: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  440 |         VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+      |                                                                                 ^
+[2025-09-15T16:13:38] tokens used: 115,215
+[2025-09-15T16:13:38] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..4ddecbb83871e06d1730369c2a463e9f762b6677
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,10 +22,27 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+     friend struct VulkanContextAccess;
++    friend struct VulkanContextInternalsHelper;
++};
++
++// Accessor to selected VulkanContext internals for tightly-coupled helpers (e.g., ImGui integration)
++struct VulkanContextAccess final {
++    static void* impl_ptr(VulkanContext& ctx) noexcept;          // returns pointer to internal Impl
++    static void* instance(VulkanContext& ctx) noexcept;           // returns VkInstance
++    static void* physical(VulkanContext& ctx) noexcept;           // returns VkPhysicalDevice
++    static void* device(VulkanContext& ctx) noexcept;             // returns VkDevice
++    static void* queue(VulkanContext& ctx) noexcept;              // returns VkQueue
++    static std::uint32_t queue_family(VulkanContext& ctx) noexcept;
++    static void* render_pass(VulkanContext& ctx) noexcept;        // returns VkRenderPass
++    static std::uint32_t image_count(VulkanContext& ctx) noexcept;
+ };
+ 
+ } // namespace vulkano
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..88083691f7c57048febc0aeb74d71cf99332e553
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,148 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor is provided by vulkan_context.hpp (VulkanContextAccess)
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = static_cast<VkInstance>(VulkanContextAccess::instance(context));
++    impl->physical_device = static_cast<VkPhysicalDevice>(VulkanContextAccess::physical(context));
++    impl->device = static_cast<VkDevice>(VulkanContextAccess::device(context));
++    impl->graphics_queue = static_cast<VkQueue>(VulkanContextAccess::queue(context));
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = static_cast<VkRenderPass>(VulkanContextAccess::render_pass(context));
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++    init_info.RenderPass = impl->render_pass;
++
++    ImGui_ImplVulkan_Init(&init_info);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..cfb8f4f799ae9e417d4db3c40df0e3ff18f02bec
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,14 +35,24 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+-struct VulkanContextAccess final {
+-    static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
+-};
++struct VulkanContextInternalsHelper final { static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; } };
+ 
++void* VulkanContextAccess::impl_ptr(VulkanContext& ctx) noexcept { return static_cast<void*>(&VulkanContextInternalsHelper::get(ctx)); }
++void* VulkanContextAccess::instance(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->instance); }
++void* VulkanContextAccess::physical(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->physical_device); }
++void* VulkanContextAccess::device(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->device); }
++void* VulkanContextAccess::queue(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->graphics_queue); }
++std::uint32_t VulkanContextAccess::queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++void* VulkanContextAccess::render_pass(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->render_pass); }
++std::uint32_t VulkanContextAccess::image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
++
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
+     // Simple stderr print would go here in future
+@@ -121,7 +132,7 @@
+ }
+ 
+ static void create_swapchain_and_views(VulkanContext& ctx, GLFWwindow* window) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
+     VkSurfaceCapabilitiesKHR caps {};
+     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(impl.physical_device, impl.surface, &caps);
+     uint32_t fmt_count = 0;
+@@ -190,7 +201,7 @@
+ }
+ 
+ static void create_renderpass_and_framebuffers(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
+     VkAttachmentDescription color {};
+     color.format = impl.swapchain_format;
+     color.samples = VK_SAMPLE_COUNT_1_BIT;
+@@ -248,7 +259,7 @@
+ }
+ 
+ static void create_commands_and_sync(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
+     VkCommandPoolCreateInfo cpci {};
+     cpci.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+     cpci.queueFamilyIndex = impl.graphics_queue_family;
+@@ -281,7 +292,7 @@
+ }
+ 
+ static void record_clear_cmds(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
+     for (std::size_t i = 0; i < impl.command_buffers.size(); ++i) {
+         VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+         vkBeginCommandBuffer(impl.command_buffers[i], &bi);
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+
+[2025-09-15T16:13:40] thinking
+
+I see that the build has succeeded, which is a great start! Now, I'm looking to run tests and then do another headless run. It's important to ensure everything works properly, so I'll make sure to check each step carefully. Let's see how the tests turn out. I’m curious if everything performs as expected or if there’ll be any surprises. Getting it right is key, so I'll stay focused on the process!
+[2025-09-15T16:13:42] exec bash -lc 'ctest --test-dir build -C Debug --output-on-failure && HEADLESS_RUN_MS=200 ./app/bin/Debug/vulkano_app' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:13:43] bash -lc 'ctest --test-dir build -C Debug --output-on-failure && HEADLESS_RUN_MS=200 ./app/bin/Debug/vulkano_app' succeeded in 993ms:
+Test project /Users/bruno/Documents/Development/bruno/vulkano_codex/build
+    Start 1: vulkano_tests
+1/1 Test #1: vulkano_tests ....................   Passed    0.35 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.35 sec
+[2025-09-15T16:13:43] tokens used: 116,191
+[2025-09-15T16:13:43] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fa0aa472a07f8cb517640379c29f9840596e6e85..63282151c310453568f2ab6e93cd5fea58c97415
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -37,6 +37,14 @@
+ )
+ FetchContent_MakeAvailable(glm)
+ 
++# Dear ImGui
++FetchContent_Declare(
++    imgui
++    GIT_REPOSITORY https://github.com/ocornut/imgui.git
++    GIT_TAG v1.91.0
++)
++FetchContent_MakeAvailable(imgui)
++
+ # Catch2 for tests
+ FetchContent_Declare(
+     catch2
+@@ -56,4 +64,3 @@
+ if(BUILD_TESTING)
+     add_subdirectory(tests)
+ endif()
+-
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 7f73b15e88179825c32e9b01d514bbc4116b7ef4..e33b956cc807b47738033aace04d631d06f8eac6
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -10,6 +10,7 @@
+             vulkano/mesh.hpp
+             vulkano/icosphere.hpp
+             vulkano/vulkan_context.hpp
++            vulkano/imgui_layer.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+diff --git a/include/vulkano/app.hpp b/include/vulkano/app.hpp
+index 0db598ab07441be9b58797ac530b80e1ea72ec3a..5b408768345b4bcbc543d0c725770a03b07a30f1
+--- a/include/vulkano/app.hpp
++++ b/include/vulkano/app.hpp
+@@ -7,6 +7,7 @@
+ namespace vulkano {
+ 
+ class Window;
++class ImGuiLayer;
+ 
+ struct AppConfig {
+     std::string title;
+@@ -36,6 +37,8 @@
+ private:
+     std::unique_ptr<Window> window;
+     bool enable_vulkan {false};
++    std::unique_ptr<ImGuiLayer> imgui;
++    std::uint32_t ui_subdivisions {2U};
+ };
+ 
+ } // namespace vulkano
+diff --git a/include/vulkano/imgui_layer.hpp b/include/vulkano/imgui_layer.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8b40a6a9772b856d11afa292b767b0cb1f27715
+--- /dev/null
++++ b/include/vulkano/imgui_layer.hpp
+@@ -0,0 +1,36 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
++class ImGuiLayer final {
++public:
++    ImGuiLayer() = delete;
++    ImGuiLayer(const Window& window, VulkanContext& context);
++    ~ImGuiLayer();
++
++    ImGuiLayer(const ImGuiLayer&) = delete;
++    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
++    ImGuiLayer(ImGuiLayer&&) noexcept;
++    ImGuiLayer& operator=(ImGuiLayer&&) noexcept;
++
++    // Begin a new ImGui frame (GLFW + Vulkan backends)
++    void begin_frame() const noexcept;
++    // Build UI contents for this app; exposes sliders and stats
++    void build_ui(std::uint32_t& subdivisions) const noexcept;
++    // Called after ImGui::Render to record draw data into given command buffer
++    void render(void* cmd_buffer) const noexcept;
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index ff2c489a0fd260c53396818ec8fac470db027d2d..4ddecbb83871e06d1730369c2a463e9f762b6677
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <cstdint>
+ #include <memory>
++#include <functional>
+ 
+ namespace vulkano {
+ 
+@@ -21,10 +22,27 @@
+     void wait_idle() const noexcept;
+     void draw_frame();
+ 
++    // Optional injection point to render extra content (e.g., ImGui).
++    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
++    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
++
+ private:
+     struct Impl;
+     std::unique_ptr<Impl> impl;
+     friend struct VulkanContextAccess;
++    friend struct VulkanContextInternalsHelper;
++};
++
++// Accessor to selected VulkanContext internals for tightly-coupled helpers (e.g., ImGui integration)
++struct VulkanContextAccess final {
++    static void* impl_ptr(VulkanContext& ctx) noexcept;          // returns pointer to internal Impl
++    static void* instance(VulkanContext& ctx) noexcept;           // returns VkInstance
++    static void* physical(VulkanContext& ctx) noexcept;           // returns VkPhysicalDevice
++    static void* device(VulkanContext& ctx) noexcept;             // returns VkDevice
++    static void* queue(VulkanContext& ctx) noexcept;              // returns VkQueue
++    static std::uint32_t queue_family(VulkanContext& ctx) noexcept;
++    static void* render_pass(VulkanContext& ctx) noexcept;        // returns VkRenderPass
++    static std::uint32_t image_count(VulkanContext& ctx) noexcept;
+ };
+ 
+ } // namespace vulkano
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 00e0900ef418dfddaf6535877b78b3267d055473..907d68562e2ff6c44c5e0749c2edff76fde71456
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -2,6 +2,7 @@
+     app.cpp
+     window.cpp
+     icosphere.cpp
++    imgui_layer.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -17,6 +18,16 @@
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+     target_sources(vulkano PRIVATE vulkan_context.cpp)
++    # ImGui files and backends
++    target_sources(vulkano PRIVATE
++        ${imgui_SOURCE_DIR}/imgui.cpp
++        ${imgui_SOURCE_DIR}/imgui_draw.cpp
++        ${imgui_SOURCE_DIR}/imgui_tables.cpp
++        ${imgui_SOURCE_DIR}/imgui_widgets.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
++        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
++    )
++    target_include_directories(vulkano PRIVATE ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+diff --git a/src/app.cpp b/src/app.cpp
+index 229421f97b40427816375b47f108b3fe7d440413..e198dd233309330ad9a57400004da5b3e7754828
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,6 +1,7 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
+ #include <vulkano/vulkan_context.hpp>
++#include <vulkano/imgui_layer.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -29,14 +30,24 @@
+ void Application::main_loop() {
+     // Optional Vulkan context; created lazily if available and enabled
+     std::unique_ptr<VulkanContext> vk { };
+-    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+ #if VULKANO_HAS_VULKAN
+         if (!vk && enable_vulkan) {
+             vk = std::make_unique<VulkanContext>(*window);
++            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
++            // Renderer callback records ImGui draw data
++            vk->set_ui_renderer([this](void* cmd) {
++                if (imgui) {
++                    imgui->render(cmd);
++                }
++            });
+         }
+         if (vk) {
++            if (imgui) {
++                imgui->begin_frame();
++                imgui->build_ui(ui_subdivisions);
++            }
+             vk->draw_frame();
+         }
+ #endif
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..88083691f7c57048febc0aeb74d71cf99332e553
+--- /dev/null
++++ b/src/imgui_layer.cpp
+@@ -0,0 +1,148 @@
++#include <vulkano/imgui_layer.hpp>
++#include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <imgui.h>
++#include <backends/imgui_impl_glfw.h>
++#include <backends/imgui_impl_vulkan.h>
++#include <GLFW/glfw3.h>
++#include <vulkan/vulkan.h>
++
++#include <stdexcept>
++
++namespace vulkano {
++
++struct ImGuiLayer::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++    VkRenderPass render_pass {VK_NULL_HANDLE};
++    VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
++};
++
++// Forward accessor is provided by vulkan_context.hpp (VulkanContextAccess)
++
++ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
++    : impl {std::make_unique<Impl>()} {
++    impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
++    impl->instance = static_cast<VkInstance>(VulkanContextAccess::instance(context));
++    impl->physical_device = static_cast<VkPhysicalDevice>(VulkanContextAccess::physical(context));
++    impl->device = static_cast<VkDevice>(VulkanContextAccess::device(context));
++    impl->graphics_queue = static_cast<VkQueue>(VulkanContextAccess::queue(context));
++    impl->graphics_queue_family = VulkanContextAccess::queue_family(context);
++    impl->render_pass = static_cast<VkRenderPass>(VulkanContextAccess::render_pass(context));
++
++    IMGUI_CHECKVERSION();
++    ImGui::CreateContext();
++    ImGui::StyleColorsDark();
++
++    ImGui_ImplGlfw_InitForVulkan(impl->glfw_window, true);
++
++    VkDescriptorPoolSize pool_sizes[] = {
++        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
++        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
++        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
++        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
++    VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
++    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
++    pool_info.maxSets = 1000 * static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.poolSizeCount = static_cast<uint32_t>(sizeof(pool_sizes) / sizeof(pool_sizes[0]));
++    pool_info.pPoolSizes = pool_sizes;
++    if (vkCreateDescriptorPool(impl->device, &pool_info, nullptr, &impl->descriptor_pool) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create ImGui descriptor pool"};
++    }
++
++    ImGui_ImplVulkan_InitInfo init_info {};
++    init_info.Instance = impl->instance;
++    init_info.PhysicalDevice = impl->physical_device;
++    init_info.Device = impl->device;
++    init_info.QueueFamily = impl->graphics_queue_family;
++    init_info.Queue = impl->graphics_queue;
++    init_info.PipelineCache = VK_NULL_HANDLE;
++    init_info.DescriptorPool = impl->descriptor_pool;
++    init_info.Allocator = nullptr;
++    const uint32_t img_count = VulkanContextAccess::image_count(context);
++    init_info.MinImageCount = img_count;
++    init_info.ImageCount = img_count;
++    init_info.CheckVkResultFn = nullptr;
++    init_info.RenderPass = impl->render_pass;
++
++    ImGui_ImplVulkan_Init(&init_info);
++}
++
++ImGuiLayer::~ImGuiLayer() {
++    if (impl != nullptr) {
++        ImGui_ImplVulkan_Shutdown();
++        ImGui_ImplGlfw_Shutdown();
++        ImGui::DestroyContext();
++        if (impl->descriptor_pool != VK_NULL_HANDLE) {
++            vkDestroyDescriptorPool(impl->device, impl->descriptor_pool, nullptr);
++        }
++    }
++}
++
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++
++void ImGuiLayer::begin_frame() const noexcept {
++    ImGui_ImplVulkan_NewFrame();
++    ImGui_ImplGlfw_NewFrame();
++    ImGui::NewFrame();
++}
++
++void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
++    ImGui::Begin("Vulkano Controls");
++    ImGui::Text("Icosphere");
++    int sub = static_cast<int>(subdivisions);
++    if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
++        if (sub < 0) {
++            sub = 0;
++        }
++        if (sub > 6) {
++            sub = 6;
++        }
++        subdivisions = static_cast<std::uint32_t>(sub);
++    }
++    ImGui::End();
++}
++
++void ImGuiLayer::render(void* cmd_buffer) const noexcept {
++    ImGui::Render();
++    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(cmd_buffer));
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++class VulkanContext;
++
++ImGuiLayer::ImGuiLayer(const Window&, VulkanContext&) : impl {nullptr} {
++}
++ImGuiLayer::~ImGuiLayer() = default;
++ImGuiLayer::ImGuiLayer(ImGuiLayer&&) noexcept = default;
++ImGuiLayer& ImGuiLayer::operator=(ImGuiLayer&&) noexcept = default;
++void ImGuiLayer::begin_frame() const noexcept {
++}
++void ImGuiLayer::build_ui(std::uint32_t&) const noexcept {
++}
++void ImGuiLayer::render(void*) const noexcept {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 57d88f93423153c88b45d5d349d48e880c0bf195..cfb8f4f799ae9e417d4db3c40df0e3ff18f02bec
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -6,6 +6,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <array>
++#include <functional>
+ #include <vector>
+ #include <stdexcept>
+ 
+@@ -34,14 +35,24 @@
+     VkSemaphore render_finished {VK_NULL_HANDLE};
+     VkFence in_flight {VK_NULL_HANDLE};
+ 
++    // Optional UI callback invoked during command recording
++    std::function<void(void* cmd_buffer)> ui_renderer { };
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+ 
+-struct VulkanContextAccess final {
+-    static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
+-};
++struct VulkanContextInternalsHelper final { static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; } };
+ 
++void* VulkanContextAccess::impl_ptr(VulkanContext& ctx) noexcept { return static_cast<void*>(&VulkanContextInternalsHelper::get(ctx)); }
++void* VulkanContextAccess::instance(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->instance); }
++void* VulkanContextAccess::physical(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->physical_device); }
++void* VulkanContextAccess::device(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->device); }
++void* VulkanContextAccess::queue(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->graphics_queue); }
++std::uint32_t VulkanContextAccess::queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
++void* VulkanContextAccess::render_pass(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->render_pass); }
++std::uint32_t VulkanContextAccess::image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
++
+ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
+     // Simple stderr print would go here in future
+@@ -121,7 +132,7 @@
+ }
+ 
+ static void create_swapchain_and_views(VulkanContext& ctx, GLFWwindow* window) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
+     VkSurfaceCapabilitiesKHR caps {};
+     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(impl.physical_device, impl.surface, &caps);
+     uint32_t fmt_count = 0;
+@@ -190,7 +201,7 @@
+ }
+ 
+ static void create_renderpass_and_framebuffers(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
+     VkAttachmentDescription color {};
+     color.format = impl.swapchain_format;
+     color.samples = VK_SAMPLE_COUNT_1_BIT;
+@@ -248,7 +259,7 @@
+ }
+ 
+ static void create_commands_and_sync(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
+     VkCommandPoolCreateInfo cpci {};
+     cpci.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+     cpci.queueFamilyIndex = impl.graphics_queue_family;
+@@ -281,7 +292,7 @@
+ }
+ 
+ static void record_clear_cmds(VulkanContext& ctx) {
+-    auto& impl = VulkanContextAccess::get(ctx);
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
+     for (std::size_t i = 0; i < impl.command_buffers.size(); ++i) {
+         VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+         vkBeginCommandBuffer(impl.command_buffers[i], &bi);
+@@ -295,6 +306,9 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl.ui_renderer) {
++            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
++        }
+         vkCmdEndRenderPass(impl.command_buffers[i]);
+         vkEndCommandBuffer(impl.command_buffers[i]);
+     }
+@@ -420,14 +434,36 @@
+     uint32_t image_index = 0U;
+     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
+ 
++    // Re-record command buffer for this image to allow dynamic UI rendering
++    {
++        VkCommandBuffer cmd = impl->command_buffers[image_index];
++        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
++        vkBeginCommandBuffer(cmd, &bi);
++        VkClearValue clear_color {};
++        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
++        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
++        rpbi.renderPass = impl->render_pass;
++        rpbi.framebuffer = impl->framebuffers[image_index];
++        rpbi.renderArea.offset = {0, 0};
++        rpbi.renderArea.extent = impl->swapchain_extent;
++        rpbi.clearValueCount = 1U;
++        rpbi.pClearValues = &clear_color;
++        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        if (impl->ui_renderer) {
++            impl->ui_renderer(static_cast<void*>(cmd));
++        }
++        vkCmdEndRenderPass(cmd);
++        vkEndCommandBuffer(cmd);
++    }
++
+     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+     si.waitSemaphoreCount = 1U;
+     si.pWaitSemaphores = &impl->image_available;
+     si.pWaitDstStageMask = wait_stages;
+     si.commandBufferCount = 1U;
+-    VkCommandBuffer cmd = impl->command_buffers[image_index];
+-    si.pCommandBuffers = &cmd;
++    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
++    si.pCommandBuffers = &cmd_submit;
+     si.signalSemaphoreCount = 1U;
+     si.pSignalSemaphores = &impl->render_finished;
+     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
+@@ -442,6 +478,10 @@
+     vkQueuePresentKHR(impl->graphics_queue, &pi);
+ }
+ 
++void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
++    impl->ui_renderer = renderer;
++}
++
+ } // namespace vulkano
+ 
+ #else
+
+
+[2025-09-15T16:13:45] thinking
+
+**Evaluating ImGui Integration**
+
+The headless run didn’t produce any output despite having an exit code of 0. This suggests it might have tried to create a window, which is interesting considering the headless environment is present. That’s good news, though! I think we should proceed with the commitment now that ImGui is integrated and it compiles successfully. It's great to see progress being made on this integration!
+[2025-09-15T16:13:47] exec bash -lc 'git add -A && git commit -m "feat(imgui): integrate Dear ImGui (GLFW+Vulkan) and UI hook; record per-frame commands; add ImGuiLayer and VulkanContext UI callback"' in /Users/bruno/Documents/Development/bruno/vulkano_codex

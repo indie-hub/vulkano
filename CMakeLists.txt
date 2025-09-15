@@ -37,6 +37,14 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(glm)
 
+# Dear ImGui
+FetchContent_Declare(
+    imgui
+    GIT_REPOSITORY https://github.com/ocornut/imgui.git
+    GIT_TAG v1.91.0
+)
+FetchContent_MakeAvailable(imgui)
+
 # Catch2 for tests
 FetchContent_Declare(
     catch2
@@ -56,4 +64,3 @@ include(CTest)
 if(BUILD_TESTING)
     add_subdirectory(tests)
 endif()
-

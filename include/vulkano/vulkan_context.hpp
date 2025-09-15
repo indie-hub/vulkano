@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <functional>
 
 namespace vulkano {
 
@@ -21,10 +22,27 @@ public:
     void wait_idle() const noexcept;
     void draw_frame();
 
+    // Optional injection point to render extra content (e.g., ImGui).
+    // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
+    void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
+
 private:
     struct Impl;
     std::unique_ptr<Impl> impl;
     friend struct VulkanContextAccess;
+    friend struct VulkanContextInternalsHelper;
+};
+
+// Accessor to selected VulkanContext internals for tightly-coupled helpers (e.g., ImGui integration)
+struct VulkanContextAccess final {
+    static void* impl_ptr(VulkanContext& ctx) noexcept;          // returns pointer to internal Impl
+    static void* instance(VulkanContext& ctx) noexcept;           // returns VkInstance
+    static void* physical(VulkanContext& ctx) noexcept;           // returns VkPhysicalDevice
+    static void* device(VulkanContext& ctx) noexcept;             // returns VkDevice
+    static void* queue(VulkanContext& ctx) noexcept;              // returns VkQueue
+    static std::uint32_t queue_family(VulkanContext& ctx) noexcept;
+    static void* render_pass(VulkanContext& ctx) noexcept;        // returns VkRenderPass
+    static std::uint32_t image_count(VulkanContext& ctx) noexcept;
 };
 
 } // namespace vulkano

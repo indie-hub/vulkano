@@ -6,6 +6,7 @@
 #include <GLFW/glfw3.h>
 
 #include <array>
+#include <functional>
 #include <vector>
 #include <stdexcept>
 
@@ -34,13 +35,23 @@ struct VulkanContext::Impl final {
     VkSemaphore render_finished {VK_NULL_HANDLE};
     VkFence in_flight {VK_NULL_HANDLE};
 
+    // Optional UI callback invoked during command recording
+    std::function<void(void* cmd_buffer)> ui_renderer { };
+
     Impl() = default;
     ~Impl() = default;
 };
 
-struct VulkanContextAccess final {
-    static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; }
-};
+struct VulkanContextInternalsHelper final { static VulkanContext::Impl& get(VulkanContext& ctx) noexcept { return *ctx.impl; } };
+
+void* VulkanContextAccess::impl_ptr(VulkanContext& ctx) noexcept { return static_cast<void*>(&VulkanContextInternalsHelper::get(ctx)); }
+void* VulkanContextAccess::instance(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->instance); }
+void* VulkanContextAccess::physical(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->physical_device); }
+void* VulkanContextAccess::device(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->device); }
+void* VulkanContextAccess::queue(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->graphics_queue); }
+std::uint32_t VulkanContextAccess::queue_family(VulkanContext& ctx) noexcept { return ctx.impl->graphics_queue_family; }
+void* VulkanContextAccess::render_pass(VulkanContext& ctx) noexcept { return static_cast<void*>(ctx.impl->render_pass); }
+std::uint32_t VulkanContextAccess::image_count(VulkanContext& ctx) noexcept { return static_cast<uint32_t>(ctx.impl->swapchain_images.size()); }
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
@@ -121,7 +132,7 @@ static VkExtent2D choose_extent(const VkSurfaceCapabilitiesKHR& caps, GLFWwindow
 }
 
 static void create_swapchain_and_views(VulkanContext& ctx, GLFWwindow* window) {
-    auto& impl = VulkanContextAccess::get(ctx);
+    auto& impl = VulkanContextInternalsHelper::get(ctx);
     VkSurfaceCapabilitiesKHR caps {};
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(impl.physical_device, impl.surface, &caps);
     uint32_t fmt_count = 0;
@@ -190,7 +201,7 @@ static void create_swapchain_and_views(VulkanContext& ctx, GLFWwindow* window) {
 }
 
 static void create_renderpass_and_framebuffers(VulkanContext& ctx) {
-    auto& impl = VulkanContextAccess::get(ctx);
+    auto& impl = VulkanContextInternalsHelper::get(ctx);
     VkAttachmentDescription color {};
     color.format = impl.swapchain_format;
     color.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -248,7 +259,7 @@ static void create_renderpass_and_framebuffers(VulkanContext& ctx) {
 }
 
 static void create_commands_and_sync(VulkanContext& ctx) {
-    auto& impl = VulkanContextAccess::get(ctx);
+    auto& impl = VulkanContextInternalsHelper::get(ctx);
     VkCommandPoolCreateInfo cpci {};
     cpci.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     cpci.queueFamilyIndex = impl.graphics_queue_family;
@@ -281,7 +292,7 @@ static void create_commands_and_sync(VulkanContext& ctx) {
 }
 
 static void record_clear_cmds(VulkanContext& ctx) {
-    auto& impl = VulkanContextAccess::get(ctx);
+    auto& impl = VulkanContextInternalsHelper::get(ctx);
     for (std::size_t i = 0; i < impl.command_buffers.size(); ++i) {
         VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
         vkBeginCommandBuffer(impl.command_buffers[i], &bi);
@@ -295,6 +306,9 @@ static void record_clear_cmds(VulkanContext& ctx) {
         rpbi.clearValueCount = 1U;
         rpbi.pClearValues = &clear_color;
         vkCmdBeginRenderPass(impl.command_buffers[i], &rpbi, VK_SUBPASS_CONTENTS_INLINE);
+        if (impl.ui_renderer) {
+            impl.ui_renderer(static_cast<void*>(impl.command_buffers[i]));
+        }
         vkCmdEndRenderPass(impl.command_buffers[i]);
         vkEndCommandBuffer(impl.command_buffers[i]);
     }
@@ -420,14 +434,36 @@ void VulkanContext::draw_frame() {
     uint32_t image_index = 0U;
     vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
 
+    // Re-record command buffer for this image to allow dynamic UI rendering
+    {
+        VkCommandBuffer cmd = impl->command_buffers[image_index];
+        VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+        vkBeginCommandBuffer(cmd, &bi);
+        VkClearValue clear_color {};
+        clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
+        VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+        rpbi.renderPass = impl->render_pass;
+        rpbi.framebuffer = impl->framebuffers[image_index];
+        rpbi.renderArea.offset = {0, 0};
+        rpbi.renderArea.extent = impl->swapchain_extent;
+        rpbi.clearValueCount = 1U;
+        rpbi.pClearValues = &clear_color;
+        vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
+        if (impl->ui_renderer) {
+            impl->ui_renderer(static_cast<void*>(cmd));
+        }
+        vkCmdEndRenderPass(cmd);
+        vkEndCommandBuffer(cmd);
+    }
+
     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
     VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
     si.waitSemaphoreCount = 1U;
     si.pWaitSemaphores = &impl->image_available;
     si.pWaitDstStageMask = wait_stages;
     si.commandBufferCount = 1U;
-    VkCommandBuffer cmd = impl->command_buffers[image_index];
-    si.pCommandBuffers = &cmd;
+    VkCommandBuffer cmd_submit = impl->command_buffers[image_index];
+    si.pCommandBuffers = &cmd_submit;
     si.signalSemaphoreCount = 1U;
     si.pSignalSemaphores = &impl->render_finished;
     vkQueueSubmit(impl->graphics_queue, 1U, &si, impl->in_flight);
@@ -440,6 +476,10 @@ void VulkanContext::draw_frame() {
     pi.pSwapchains = &sc;
     pi.pImageIndices = &image_index;
     vkQueuePresentKHR(impl->graphics_queue, &pi);
+}
+
+void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
+    impl->ui_renderer = renderer;
 }
 
 } // namespace vulkano
