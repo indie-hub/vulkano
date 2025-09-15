@@ -47,3 +47,11 @@ Session 2025-09-15 16:30: Build/Verify
 - Reconfigured and rebuilt Release; dependencies fetched; shaders compiled.
 - Tests passed (2/2). Packaged to app/Release.
 - No code changes required; docs and plan synced.
+
+Session 2025-09-15 16:40: Fresh build_cli verify
+
+- Configured fresh build at ./build_cli (Release); shaders compiled via glslc.
+- Built targets: library, example app, tests.
+- Ran ctest (2/2 green): icosphere_tests, camera_tests.
+- Packaging: existing app/Release contains binary + SPIR-V; left as-is.
+- Result: Acceptance criteria still met; no source changes needed.

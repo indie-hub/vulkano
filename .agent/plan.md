@@ -24,3 +24,6 @@
 - SSAO compute variant and AO debug visualize.
 
 Status: Build and tests green on local; packaged Release binary and SPIR-V into app/Release.
+Notes 2025-09-15 16:40:
+- Verified an additional fresh build in ./build_cli. The pipeline, binaries, and tests are reproducible.
+- No functional gaps vs. goal spec identified during smoke checks.
