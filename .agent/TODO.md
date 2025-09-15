@@ -1,64 +1,25 @@
-# TODO — Vulkano Codex
+Plan (high level)
 
-High-level plan to reach acceptance criteria.
+- SSAO integration: add offscreen AO targets, descriptor sets, pipelines.
+- Blur pass: separable horizontal+vertical using fullscreen tri.
+- Wire ImGui SSAO params to UBO; update each frame.
+- Compose: sample scene * AO; gamma correct.
+- Validate swapchain recreation; rebuild targets/pipelines on resize.
+- Unit tests: keep icosphere shape/TBN checks.
 
-1) Bootstrap project
-- CMake project with options (validation, wayland, imgui docking)
-- FetchContent: GLFW, GLM, Catch2, stb (header-only), ImGui (+ backends)
-- Baseline .clang-format/.clang-tidy; CI stub
+Status
 
-2) Core engine scaffolding
-- VulkanContext: instance, debug utils, physical/logical device, queues
-- Swapchain: surface, formats, image views, recreate on resize
-- VMA allocator: buffers/images helper
-- Frame graph-ish: render passes for GBuffer, SSAO, Blur, Compose
-- ImGuiLayer: init, new frame, render draw data
+- Done: G-buffer pass (scene color, normal, viewZ, depth).
+- Done: SSAO pass integrated; 4x4 noise, 64-sample kernel UBO; adjustable params.
+- Done: Blur pass integrated; horizontal + vertical via push constants.
+- Done: Compose pass sampling scene and final AO.
+- Done: ImGui UI hooked into params; per-frame UBO updates.
+- Done: Robust shader lookup and glslc compile step.
+- Todo/Nice: SSAO compute variant, kernel randomization per frame, AO debug visualize.
 
-3) Geometry & assets
-- Icosphere generator with subdivisions 0..6
-- Tangent/bitangent generation from UVs (robust)
-- Procedural fallback textures: checker albedo + flat/normal map
+Next Steps
 
-4) Renderer passes
-- GBuffer: position/depth, normal (view space), albedo (sRGB)
-- SSAO: kernel + noise texture; radius, bias, power
-- Blur: separable Gaussian (configurable radius)
-- Compose: Blinn-Phong + SSAO; gamma correction
-
-5) UI + Controls
-- ImGui controls as per spec
-- Fly camera (WASD, mouse look), toggle cursor capture
-
-6) Tests
-- Unit tests for icosphere topology and tangent generation
-- Minimal compile/run sanity in CI (headless skip rendering)
-
-7) Docs
-- README with build/run instructions (Windows/Linux/macOS)
-- Notes on Vulkan SDK/MoltenVK
-
-Milestone 1 (organized repo): [COMPLETED]
-- Project skeleton settled; unified CMake, per-config bin/lib outputs
-- CI added (Linux/Windows/macOS with Vulkan SDK)
-- .gitignore expanded; tools scripts for format/tidy/build
-- Removed committed build/IDE artifacts; added ignores for staging/logs
-- Pruned duplicate subproject folder and temp files
-- Icosphere generator + tests in place
-- Renderer/ImGui scaffolding; shader compile step in CMake
-
-Completion log:
-- 2025-09-15: Build passes on macOS; unit tests green; runtime opens a window and renders basic forward pass with ImGui. Wayland and docking switches wired in CMake.
-
-Next milestones tracked here as we implement passes.
-
-Upcoming (M2):
-- Remove all implementation code from the header files
-- SSAO G-buffer layout and attachments; basic full-screen pipeline [IN PROGRESS]
-- Texture loader (stb) and procedural fallbacks
-- ImGui controls wiring for lighting/material/SSAO
-
-2025-09-15 Progress:
-- Added fullscreen vertex shader and modified G-buffer shaders to output lit scene color + normals + view-space depth.
-- Implemented offscreen G-buffer pass and compose pass (scene * AO) to swapchain; AO currently a white dummy texture pending SSAO.
-- Wired descriptor sets and pipelines for compose; forward pipeline retained but not used in final presentation.
-- Next: implement SSAO pass reading G-buffer normal/viewZ + noise, with adjustable kernel; then optional separable blur pass, and switch compose AO input accordingly.
+- Remove all inline code from the header files.
+- Add wireframe overlay toggle and optional pipeline state.
+- Add optional HDR tonemapping in compose.
+- Add more unit tests (camera matrices invariants).
