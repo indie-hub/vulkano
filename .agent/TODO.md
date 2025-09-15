@@ -2,6 +2,7 @@
 
 Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
 Update: SSAO controls added and AO hook in forward shader. G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and a simple isotropic blur pass are integrated. Robust swapchain‑recreation paths remain.
+Verification: Built Debug locally, tests pass, headless run OK.
 
 ## High-level Plan
 - Scaffold CMake project and folders
@@ -46,6 +47,7 @@ Update: SSAO controls added and AO hook in forward shader. G-buffer prepass (nor
 - All unit tests pass (`ctest` Debug).
 - Implemented AO blur pass (single-pass isotropic) and forward wiring; shaders compiled and included.
 - Attempted push; skipped due to missing `GITHUB_TOKEN` in environment. Local commits are on `personal/codex/second_try`.
+ - Current: Verified build + tests in this session; ready to push if token present.
 
 ## Immediate TODOs
 - Add CI workflow to configure, build, run unit tests, and attempt headless app run on Linux and macOS (MoltenVK notes).
