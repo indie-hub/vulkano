@@ -25,11 +25,14 @@ layout(std140, binding = 4) uniform LightUBO {
     float shininess;
 } uLight;
 
+layout(binding = 1) uniform sampler2D uAlbedoMap;
+layout(binding = 2) uniform sampler2D uNormalMap;
+
 void main() {
-    vec3 albedo = uMaterial.albedo;
-    vec3 n = vec3(0.0, 0.0, 1.0);
+    vec3 baseAlbedo = texture(uAlbedoMap, vUV).rgb * uMaterial.albedo;
+    vec3 n = texture(uNormalMap, vUV).xyz * 2.0 - 1.0;
     n.xy *= uMaterial.normalStrength;
-    vec3 N = normalize(vTBN * n);
+    vec3 N = normalize(vTBN * normalize(n));
     vec3 fragPos = vWorldPos;
     vec3 L = normalize(uLight.lightPos - fragPos);
     vec3 V = normalize(uCamera.cameraPos - fragPos);
@@ -37,7 +40,7 @@ void main() {
     float NdotL = max(dot(N, L), 0.0);
     float diffuse = NdotL;
     float spec = pow(max(dot(N, H), 0.0), uLight.shininess);
-    vec3 color = albedo * diffuse + spec * uLight.lightColor * uLight.intensity;
+    vec3 color = baseAlbedo * diffuse + spec * uLight.lightColor * uLight.intensity;
     color = pow(color, vec3(1.0/2.2));
     outColor = vec4(color, 1.0);
 }
