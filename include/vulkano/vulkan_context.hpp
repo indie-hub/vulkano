@@ -24,7 +24,7 @@ public:
 private:
     struct Impl;
     std::unique_ptr<Impl> impl;
+    friend struct VulkanContextAccess;
 };
 
 } // namespace vulkano
-
