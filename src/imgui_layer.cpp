@@ -22,6 +22,7 @@ struct ImGuiLayer::Impl final {
     VkRenderPass render_pass {VK_NULL_HANDLE};
     VkDescriptorPool descriptor_pool {VK_NULL_HANDLE};
     GLFWwindow* glfw_window {nullptr};
+    VulkanContext* ctx {nullptr};
 };
 
 // Forward accessor is provided by vulkan_context.hpp (VulkanContextAccess)
@@ -29,6 +30,7 @@ struct ImGuiLayer::Impl final {
 ImGuiLayer::ImGuiLayer(const Window& window, VulkanContext& context)
     : impl {std::make_unique<Impl>()} {
     impl->glfw_window = static_cast<GLFWwindow*>(window.native_handle());
+    impl->ctx = &context;
     impl->instance = static_cast<VkInstance>(VulkanContextAccess::instance(context));
     impl->physical_device = static_cast<VkPhysicalDevice>(VulkanContextAccess::physical(context));
     impl->device = static_cast<VkDevice>(VulkanContextAccess::device(context));
@@ -106,13 +108,23 @@ void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
     ImGui::Text("Icosphere");
     int sub = static_cast<int>(subdivisions);
     if (ImGui::SliderInt("Subdivisions", &sub, 0, 6)) {
-        if (sub < 0) {
-            sub = 0;
-        }
-        if (sub > 6) {
-            sub = 6;
-        }
+        if (sub < 0) { sub = 0; }
+        if (sub > 6) { sub = 6; }
         subdivisions = static_cast<std::uint32_t>(sub);
+    }
+
+    if (impl->ctx != nullptr) {
+        auto s = impl->ctx->get_settings();
+        ImGui::Separator();
+        ImGui::Text("Material");
+        ImGui::SliderFloat("Normal Strength", &s.normal_strength, 0.0F, 2.0F);
+        ImGui::Separator();
+        ImGui::Text("Light");
+        ImGui::SliderFloat3("Position", s.light_pos, -10.0F, 10.0F);
+        ImGui::ColorEdit3("Color", s.light_color);
+        ImGui::SliderFloat("Intensity", &s.light_intensity, 0.0F, 5.0F);
+        ImGui::SliderFloat("Shininess", &s.shininess, 4.0F, 256.0F);
+        impl->ctx->set_settings(s);
     }
     ImGui::End();
 }

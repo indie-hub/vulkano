@@ -55,6 +55,21 @@ struct VulkanContext::Impl final {
     VkDeviceMemory index_memory {VK_NULL_HANDLE};
     std::uint32_t index_count {0U};
     std::uint32_t current_subdivisions {0U};
+    VulkanContext::Settings settings {};
+
+    // Material and per-frame resources
+    VkDescriptorSetLayout desc_layout {VK_NULL_HANDLE};
+    VkDescriptorPool desc_pool {VK_NULL_HANDLE};
+    VkDescriptorSet desc_set {VK_NULL_HANDLE};
+    VkSampler sampler {VK_NULL_HANDLE};
+    VkImage albedo_image {VK_NULL_HANDLE};
+    VkDeviceMemory albedo_memory {VK_NULL_HANDLE};
+    VkImageView albedo_view {VK_NULL_HANDLE};
+    VkImage normal_image {VK_NULL_HANDLE};
+    VkDeviceMemory normal_memory {VK_NULL_HANDLE};
+    VkImageView normal_view {VK_NULL_HANDLE};
+    VkBuffer ubo_buffer {VK_NULL_HANDLE};
+    VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
 
     Impl() = default;
     ~Impl() = default;
@@ -513,6 +528,116 @@ static void create_buffer(VulkanContext& ctx, VkDeviceSize size, VkBufferUsageFl
     vkBindBufferMemory(impl.device, *outBuffer, *outMemory, 0);
 }
 
+static VkCommandBuffer begin_one_time_commands(VulkanContext& ctx) {
+    auto& impl = VulkanContextInternalsHelper::get(ctx);
+    VkCommandBufferAllocateInfo ai {VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
+    ai.commandPool = impl.command_pool;
+    ai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    ai.commandBufferCount = 1U;
+    VkCommandBuffer cmd {VK_NULL_HANDLE};
+    vkAllocateCommandBuffers(impl.device, &ai, &cmd);
+    VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+    bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(cmd, &bi);
+    return cmd;
+}
+
+static void end_one_time_commands(VulkanContext& ctx, VkCommandBuffer cmd) {
+    auto& impl = VulkanContextInternalsHelper::get(ctx);
+    vkEndCommandBuffer(cmd);
+    VkSubmitInfo si {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+    si.commandBufferCount = 1U;
+    si.pCommandBuffers = &cmd;
+    vkQueueSubmit(impl.graphics_queue, 1U, &si, VK_NULL_HANDLE);
+    vkQueueWaitIdle(impl.graphics_queue);
+    vkFreeCommandBuffers(impl.device, impl.command_pool, 1U, &cmd);
+}
+
+static void transition_image_layout(VulkanContext& ctx, VkImage image, VkFormat, VkImageLayout oldLayout, VkImageLayout newLayout) {
+    auto& impl = VulkanContextInternalsHelper::get(ctx);
+    VkCommandBuffer cmd = begin_one_time_commands(ctx);
+    VkImageMemoryBarrier barrier {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+    barrier.oldLayout = oldLayout;
+    barrier.newLayout = newLayout;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = image;
+    barrier.subresourceRange.aspectMask = (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.baseMipLevel = 0;
+    barrier.subresourceRange.levelCount = 1;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount = 1;
+    VkPipelineStageFlags srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+    VkPipelineStageFlags dstStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+        barrier.srcAccessMask = 0;
+        barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        dstStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    } else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        srcStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        dstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    }
+    vkCmdPipelineBarrier(cmd, srcStage, dstStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+    end_one_time_commands(ctx, cmd);
+}
+
+static void copy_buffer_to_image(VulkanContext& ctx, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) {
+    VkCommandBuffer cmd = begin_one_time_commands(ctx);
+    VkBufferImageCopy region {};
+    region.bufferOffset = 0;
+    region.bufferRowLength = 0;
+    region.bufferImageHeight = 0;
+    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    region.imageSubresource.mipLevel = 0;
+    region.imageSubresource.baseArrayLayer = 0;
+    region.imageSubresource.layerCount = 1;
+    region.imageOffset = {0, 0, 0};
+    region.imageExtent = {width, height, 1};
+    vkCmdCopyBufferToImage(cmd, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+    end_one_time_commands(ctx, cmd);
+}
+
+static void create_image_and_upload(VulkanContext& ctx, uint32_t width, uint32_t height, const void* pixels, VkDeviceSize size,
+    VkImage* outImage, VkDeviceMemory* outMem, VkImageView* outView) {
+    auto& impl = VulkanContextInternalsHelper::get(ctx);
+    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+    ici.imageType = VK_IMAGE_TYPE_2D;
+    ici.extent = {width, height, 1};
+    ici.mipLevels = 1;
+    ici.arrayLayers = 1;
+    ici.format = VK_FORMAT_R8G8B8A8_UNORM;
+    ici.tiling = VK_IMAGE_TILING_OPTIMAL;
+    ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    ici.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    ici.samples = VK_SAMPLE_COUNT_1_BIT;
+    ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    if (vkCreateImage(impl.device, &ici, nullptr, outImage) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image"}; }
+    VkMemoryRequirements req {};
+    vkGetImageMemoryRequirements(impl.device, *outImage, &req);
+    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+    mai.allocationSize = req.size;
+    mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    if (vkAllocateMemory(impl.device, &mai, nullptr, outMem) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc image mem"}; }
+    vkBindImageMemory(impl.device, *outImage, *outMem, 0);
+
+    VkBuffer staging {VK_NULL_HANDLE}; VkDeviceMemory stagingMem {VK_NULL_HANDLE};
+    create_buffer(ctx, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &staging, &stagingMem);
+    void* data = nullptr; vkMapMemory(impl.device, stagingMem, 0, size, 0, &data); std::memcpy(data, pixels, static_cast<size_t>(size)); vkUnmapMemory(impl.device, stagingMem);
+    transition_image_layout(ctx, *outImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    copy_buffer_to_image(ctx, staging, *outImage, width, height);
+    transition_image_layout(ctx, *outImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    vkDestroyBuffer(impl.device, staging, nullptr);
+    vkFreeMemory(impl.device, stagingMem, nullptr);
+
+    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+    ivci.image = *outImage; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = VK_FORMAT_R8G8B8A8_UNORM;
+    ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; ivci.subresourceRange.levelCount = 1; ivci.subresourceRange.layerCount = 1;
+    if (vkCreateImageView(impl.device, &ivci, nullptr, outView) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image view"}; }
+}
+
 static void upload_mesh_to_gpu(VulkanContext& ctx, const vulkano::Mesh& mesh) {
     auto& impl = VulkanContextInternalsHelper::get(ctx);
     destroy_mesh_buffers(ctx);
@@ -545,13 +670,31 @@ static void destroy_pipeline(VulkanContext& ctx) {
         vkDestroyPipelineLayout(impl.device, impl.pipeline_layout, nullptr);
         impl.pipeline_layout = VK_NULL_HANDLE;
     }
+    if (impl.desc_set != VK_NULL_HANDLE) { impl.desc_set = VK_NULL_HANDLE; }
+    if (impl.desc_pool != VK_NULL_HANDLE) { vkDestroyDescriptorPool(impl.device, impl.desc_pool, nullptr); impl.desc_pool = VK_NULL_HANDLE; }
+    if (impl.desc_layout != VK_NULL_HANDLE) { vkDestroyDescriptorSetLayout(impl.device, impl.desc_layout, nullptr); impl.desc_layout = VK_NULL_HANDLE; }
+    if (impl.sampler != VK_NULL_HANDLE) { vkDestroySampler(impl.device, impl.sampler, nullptr); impl.sampler = VK_NULL_HANDLE; }
+    if (impl.albedo_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.albedo_view, nullptr); impl.albedo_view = VK_NULL_HANDLE; }
+    if (impl.albedo_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.albedo_image, nullptr); impl.albedo_image = VK_NULL_HANDLE; }
+    if (impl.albedo_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.albedo_memory, nullptr); impl.albedo_memory = VK_NULL_HANDLE; }
+    if (impl.normal_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.normal_view, nullptr); impl.normal_view = VK_NULL_HANDLE; }
+    if (impl.normal_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.normal_image, nullptr); impl.normal_image = VK_NULL_HANDLE; }
+    if (impl.normal_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.normal_memory, nullptr); impl.normal_memory = VK_NULL_HANDLE; }
+    if (impl.ubo_buffer != VK_NULL_HANDLE) { vkDestroyBuffer(impl.device, impl.ubo_buffer, nullptr); impl.ubo_buffer = VK_NULL_HANDLE; }
+    if (impl.ubo_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ubo_memory, nullptr); impl.ubo_memory = VK_NULL_HANDLE; }
 }
 
 static void create_pipeline(VulkanContext& ctx) {
     auto& impl = VulkanContextInternalsHelper::get(ctx);
-    // Expect SPIR-V shaders at runtime; if not present, skip pipeline creation
-    const std::vector<char> vs = load_binary_file("shaders/simple.vert.spv");
-    const std::vector<char> fs = load_binary_file("shaders/simple.frag.spv");
+    // Expect SPIR-V shaders at runtime; if forward shaders are not present, fallback to simple
+    std::vector<char> vs = load_binary_file("shaders/forward.vert.spv");
+    std::vector<char> fs = load_binary_file("shaders/forward.frag.spv");
+    bool forward = true;
+    if (vs.empty() || fs.empty()) {
+        forward = false;
+        vs = load_binary_file("shaders/simple.vert.spv");
+        fs = load_binary_file("shaders/simple.frag.spv");
+    }
     if (vs.empty() || fs.empty()) {
         destroy_pipeline(ctx);
         return;
@@ -633,9 +776,31 @@ static void create_pipeline(VulkanContext& ctx) {
     pcr.size = static_cast<uint32_t>(sizeof(float) * 16U);
     pcr.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
+    VkDescriptorSetLayoutCreateInfo dlci {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+    VkDescriptorSetLayoutBinding bindings[3] = {};
+    uint32_t bindCount = 0U;
+    if (forward) {
+        // binding 0: UBO, 1: albedo, 2: normal
+        bindings[0].binding = 0; bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; bindings[0].descriptorCount = 1; bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        bindings[1].binding = 1; bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[1].descriptorCount = 1; bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        bindings[2].binding = 2; bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[2].descriptorCount = 1; bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        bindCount = 3U;
+        dlci.bindingCount = bindCount; dlci.pBindings = bindings;
+        if (vkCreateDescriptorSetLayout(impl.device, &dlci, nullptr, &impl.desc_layout) != VK_SUCCESS) {
+            vkDestroyShaderModule(impl.device, vmod, nullptr);
+            vkDestroyShaderModule(impl.device, fmod, nullptr);
+            destroy_pipeline(ctx);
+            return;
+        }
+    }
+
     VkPipelineLayoutCreateInfo plci {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
     plci.pushConstantRangeCount = 1U;
     plci.pPushConstantRanges = &pcr;
+    if (forward) {
+        plci.setLayoutCount = 1U;
+        plci.pSetLayouts = &impl.desc_layout;
+    }
     if (vkCreatePipelineLayout(impl.device, &plci, nullptr, &impl.pipeline_layout) != VK_SUCCESS) {
         vkDestroyShaderModule(impl.device, vmod, nullptr);
         vkDestroyShaderModule(impl.device, fmod, nullptr);
@@ -665,6 +830,47 @@ static void create_pipeline(VulkanContext& ctx) {
 
     vkDestroyShaderModule(impl.device, vmod, nullptr);
     vkDestroyShaderModule(impl.device, fmod, nullptr);
+
+    // Material resources for forward shading
+    if (forward) {
+        // Create sampler
+        VkSamplerCreateInfo sci {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+        sci.magFilter = VK_FILTER_LINEAR; sci.minFilter = VK_FILTER_LINEAR; sci.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+        sci.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT; sci.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT; sci.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        sci.maxAnisotropy = 1.0F; sci.anisotropyEnable = VK_FALSE;
+        if (vkCreateSampler(impl.device, &sci, nullptr, &impl.sampler) != VK_SUCCESS) { /* non-fatal */ }
+
+        // Generate procedural textures (checkerboard albedo, flat normal)
+        const uint32_t W = 256, H = 256; std::vector<std::uint32_t> albedo(W*H, 0); std::vector<std::uint32_t> normal(W*H, 0);
+        for (uint32_t y=0;y<H;++y) { for (uint32_t x=0;x<W;++x) {
+            const bool c = (((x/16U) + (y/16U)) % 2U) == 0U; const std::uint8_t v = c ? 220 : 40; albedo[y*W+x] = (0xFFu<<24) | (v<<16) | (v<<8) | (v);
+            const std::uint8_t nx = 128, ny = 128, nz = 255; normal[y*W+x] = (0xFFu<<24) | (nz<<16) | (ny<<8) | (nx);
+        } }
+        create_image_and_upload(ctx, W, H, albedo.data(), static_cast<VkDeviceSize>(albedo.size()*sizeof(std::uint32_t)), &impl.albedo_image, &impl.albedo_memory, &impl.albedo_view);
+        create_image_and_upload(ctx, W, H, normal.data(), static_cast<VkDeviceSize>(normal.size()*sizeof(std::uint32_t)), &impl.normal_image, &impl.normal_memory, &impl.normal_view);
+
+        // Create UBO
+        create_buffer(ctx, sizeof(float)*16U*2U + sizeof(float)*16U, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
+
+        // Descriptor pool and set
+        VkDescriptorPoolSize poolSizes[2] = {};
+        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 1;
+        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 2;
+        VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+        dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 1;
+        vkCreateDescriptorPool(impl.device, &dpci, nullptr, &impl.desc_pool);
+        VkDescriptorSetAllocateInfo dsai {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+        dsai.descriptorPool = impl.desc_pool; dsai.descriptorSetCount = 1; dsai.pSetLayouts = &impl.desc_layout;
+        vkAllocateDescriptorSets(impl.device, &dsai, &impl.desc_set);
+        VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
+        VkDescriptorImageInfo dai1 {}; dai1.sampler = impl.sampler; dai1.imageView = impl.albedo_view; dai1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        VkDescriptorImageInfo dai2 {}; dai2.sampler = impl.sampler; dai2.imageView = impl.normal_view; dai2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        std::array<VkWriteDescriptorSet,3> writes {};
+        writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[0].dstSet = impl.desc_set; writes[0].dstBinding = 0; writes[0].descriptorCount = 1; writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes[0].pBufferInfo = &dbi;
+        writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[1].dstSet = impl.desc_set; writes[1].dstBinding = 1; writes[1].descriptorCount = 1; writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[1].pImageInfo = &dai1;
+        writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = impl.desc_set; writes[2].dstBinding = 2; writes[2].descriptorCount = 1; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[2].pImageInfo = &dai2;
+        vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+    }
 }
 
 VulkanContext::VulkanContext(const Window& window)
@@ -861,6 +1067,17 @@ void VulkanContext::draw_frame() {
             matmul(proj, view, pv);
             matmul(pv, model, mvp);
             vkCmdPushConstants(cmd, impl->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0U, static_cast<uint32_t>(sizeof(float)*16U), mvp);
+
+            // Update UBO if available: view, proj, camera/light parameters
+            if (impl->ubo_buffer != VK_NULL_HANDLE) {
+                struct Align16UBO { float view[16]; float proj[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; } u {};
+                for (int i=0;i<16;++i) { u.view[i] = view[i]; u.proj[i] = proj[i]; }
+                const auto s = impl->settings;
+                u.cam_pos[0]=eye[0]; u.cam_pos[1]=eye[1]; u.cam_pos[2]=eye[2]; u.cam_pos[3]=s.normal_strength;
+                u.light_pos[0]=s.light_pos[0]; u.light_pos[1]=s.light_pos[1]; u.light_pos[2]=s.light_pos[2]; u.light_pos[3]=s.shininess;
+                u.light_color[0]=s.light_color[0]; u.light_color[1]=s.light_color[1]; u.light_color[2]=s.light_color[2]; u.light_color[3]=s.light_intensity;
+                void* ubodata=nullptr; vkMapMemory(impl->device, impl->ubo_memory, 0, sizeof(u), 0, &ubodata); std::memcpy(ubodata, &u, sizeof(u)); vkUnmapMemory(impl->device, impl->ubo_memory);
+            }
         }
         if (impl->pipeline != VK_NULL_HANDLE && impl->vertex_buffer != VK_NULL_HANDLE && impl->index_buffer != VK_NULL_HANDLE && impl->index_count > 0U) {
             vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->pipeline);
@@ -868,6 +1085,9 @@ void VulkanContext::draw_frame() {
             VkBuffer vbs[] = {impl->vertex_buffer};
             vkCmdBindVertexBuffers(cmd, 0, 1, vbs, offs);
             vkCmdBindIndexBuffer(cmd, impl->index_buffer, 0, VK_INDEX_TYPE_UINT32);
+            if (impl->desc_set != VK_NULL_HANDLE) {
+                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->pipeline_layout, 0, 1, &impl->desc_set, 0, nullptr);
+            }
             vkCmdDrawIndexed(cmd, impl->index_count, 1, 0, 0, 0);
         }
         if (impl->ui_renderer) {
@@ -923,6 +1143,19 @@ void VulkanContext::set_subdivisions(std::uint32_t subdivisions) noexcept {
     } catch (...) {
         // ignore and keep previous state
     }
+}
+
+void VulkanContext::set_settings(const Settings& s) noexcept {
+    if (impl != nullptr) {
+        impl->settings = s;
+    }
+}
+
+VulkanContext::Settings VulkanContext::get_settings() const noexcept {
+    if (impl != nullptr) {
+        return impl->settings;
+    }
+    return Settings {};
 }
 
 } // namespace vulkano

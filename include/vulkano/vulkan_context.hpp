@@ -29,6 +29,17 @@ public:
     // Update icosphere subdivision level; triggers CPU mesh rebuild and GPU reupload
     void set_subdivisions(std::uint32_t subdivisions) noexcept;
 
+    struct Settings final {
+        float normal_strength {1.0F};
+        float shininess {64.0F};
+        float light_intensity {1.0F};
+        float light_pos[3] {3.0F, 3.0F, 3.0F};
+        float light_color[3] {1.0F, 1.0F, 1.0F};
+    };
+
+    void set_settings(const Settings& s) noexcept;
+    [[nodiscard]] Settings get_settings() const noexcept;
+
 private:
     struct Impl;
     std::unique_ptr<Impl> impl;
