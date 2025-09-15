@@ -1,7 +1,7 @@
 # Shader Pipeline Overview
 
 This document describes the shader stages used by the renderer, their inputs/outputs,
-and the data flow across the multi-pass pipeline (G-buffer, SSAO, blur, compose).
+and the data flow across the implemented multi-pass pipeline (G-buffer, SSAO, blur, compose).
 
 ## Conventions
 - Right-handed coordinate system with GLM; radians throughout.
@@ -39,14 +39,14 @@ Fragment shader (`gbuffer.frag`):
   - Depth: D32 or D24S8 written by depth test.
 
 ### 2) SSAO
-Fragment or compute (`ssao.frag`):
+Fragment (`ssao.frag`):
 - Reads linearized depth and view-space normals from G-buffer.
 - Uses a hemisphere kernel oriented by the normal; offsets sampled within radius.
 - Applies bias to reduce self-occlusion.
 - Outputs AO factor to R8 texture.
 
 ### 3) Blur
-Fragment or compute (`blur.frag`):
+Fragment (`blur.frag`):
 - Separable Gaussian blur (horizontal then vertical) over AO texture.
 - Radius configurable; skip if disabled.
 
@@ -59,4 +59,3 @@ Fragment (`compose.frag`):
 ## Depth Linearization
 Depth from the G-buffer is converted to linear/view-space Z to maintain consistency across SSAO and composition.
 Ensure the same near/far parameters as the camera UBO.
-
