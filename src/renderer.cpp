@@ -161,6 +161,7 @@ Renderer::Renderer(GLFWwindow* window) {
     create_depth_resources();
     create_framebuffers();
     create_descriptor_layouts();
+    create_descriptor_pool_and_sets();
     create_pipeline();
     create_command_pool_and_buffers();
     create_sync_objects();
