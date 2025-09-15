@@ -1,7 +1,7 @@
 # Vulkano Codex – TODO
 
 Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
+Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
 
 ## High-level Plan
 - Scaffold CMake project and folders
@@ -40,6 +40,13 @@ Update: SSAO controls added and AO hook in forward shader. AO texture currently 
 - [ ] Blur: separable pass into AO_blur
 - [ ] Integrate: forward shading samples AO_blur (already wired)
 - [ ] Resize-safe swapchain recreation for multi-pass images
+
+## Session Plan (short)
+- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
+- Add offscreen images + render passes + pipelines (guarded by VULKAN)
+- Record command buffers: G-buffer -> SSAO -> forward
+- Keep non-Vulkan build working; run headless app to verify
+- Commit often; push at end
 
 ## Notes
 - All includes must use angle brackets.
