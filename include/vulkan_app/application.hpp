@@ -5,6 +5,10 @@
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
 
+#include <vulkan_app/camera.hpp>
+#include <vulkan_app/renderer.hpp>
+#include <vulkan_app/types.hpp>
+
 namespace vulkan_app {
 
 class Application final {
@@ -18,11 +22,17 @@ public:
 
 private:
     void init_window();
-    void init_vulkan();
     void main_loop();
+    void rebuild_mesh_if_needed();
 
     GLFWwindow *window{};
-    VkInstance instance{};
+    std::unique_ptr<Renderer> renderer{};
+    Camera camera{};
+    Light light{};
+    Material material{};
+    SsaoParams ssao{};
+    int subdivisions{2};
+    int pending_subdivisions{2};
 };
 
 } // namespace vulkan_app

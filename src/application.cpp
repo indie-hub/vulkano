@@ -5,56 +5,18 @@
 #include <GLFW/glfw3.h>
 
 #include <vulkan_app/application.hpp>
+#include <vulkan_app/icosphere.hpp>
 
 namespace vulkan_app {
 namespace {
-#ifdef NDEBUG
-constexpr bool enable_validation {false};
-#else
-constexpr bool enable_validation {true};
-#endif
-
-const std::vector<const char *> validation_layers {"VK_LAYER_KHRONOS_validation"};
-
-bool check_validation_layer_support() {
-    std::uint32_t layer_count {0};
-    vkEnumerateInstanceLayerProperties(&layer_count, nullptr);
-    std::vector<VkLayerProperties> available(layer_count);
-    vkEnumerateInstanceLayerProperties(&layer_count, available.data());
-    for (const char *name : validation_layers) {
-        bool found {false};
-        for (const auto &prop : available) {
-            if (std::string_view {prop.layerName} == name) {
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            return false;
-        }
-    }
-    return true;
-}
-
-std::vector<const char *> required_extensions() {
-    std::uint32_t count {0};
-    const char **ext = glfwGetRequiredInstanceExtensions(&count);
-    std::vector<const char *> extensions(ext, ext + count);
-    if (enable_validation) {
-        extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-    }
-    return extensions;
-}
-
 } // namespace
 
 Application::Application() {
     init_window();
-    init_vulkan();
+    renderer = std::make_unique<Renderer>(window);
 }
 
 Application::~Application() noexcept {
-    vkDestroyInstance(instance, nullptr);
     glfwDestroyWindow(window);
     glfwTerminate();
 }
@@ -75,42 +37,40 @@ void Application::init_window() {
     }
 }
 
-void Application::init_vulkan() {
-    if (enable_validation && !check_validation_layer_support()) {
-        throw std::runtime_error {"Validation layers requested but not available"};
-    }
+void Application::main_loop() {
+    auto mesh = make_icosphere(subdivisions);
+    renderer->update_mesh(mesh);
+    while (glfwWindowShouldClose(window) == 0) {
+        glfwPollEvents();
+        rebuild_mesh_if_needed();
 
-    VkApplicationInfo app_info {};
-    app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    app_info.pApplicationName = "VulkanApp";
-    app_info.applicationVersion = VK_MAKE_API_VERSION(0, 1, 0, 0);
-    app_info.pEngineName = "NoEngine";
-    app_info.engineVersion = VK_MAKE_API_VERSION(0, 1, 0, 0);
-    app_info.apiVersion = VK_API_VERSION_1_2;
+        const int width = []{}(); // placeholder if needed later
+        (void)width;
 
-    auto extensions = required_extensions();
+        const int fb_width = []{}();
+        (void)fb_width;
 
-    VkInstanceCreateInfo create_info {};
-    create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    create_info.pApplicationInfo = &app_info;
-    create_info.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
-    create_info.ppEnabledExtensionNames = extensions.data();
+        // Prepare camera UBO
+        int w{0}, h{0};
+        glfwGetFramebufferSize(window, &w, &h);
+        const float aspect = (h > 0) ? static_cast<float>(w) / static_cast<float>(h) : 1.0F;
+        const auto view = camera.view();
+        const auto proj = camera.proj(aspect);
+        CameraUBO ubo{};
+        ubo.view = view;
+        ubo.proj = proj;
+        ubo.viewProj = proj * view;
+        ubo.cameraPos = camera.position();
 
-    if (enable_validation) {
-        create_info.enabledLayerCount = static_cast<std::uint32_t>(validation_layers.size());
-        create_info.ppEnabledLayerNames = validation_layers.data();
-    } else {
-        create_info.enabledLayerCount = 0U;
-    }
-
-    if (vkCreateInstance(&create_info, nullptr, &instance) != VK_SUCCESS) {
-        throw std::runtime_error {"Failed to create Vulkan instance"};
+        renderer->draw_frame(ubo, light, material, ssao);
     }
 }
 
-void Application::main_loop() {
-    while (glfwWindowShouldClose(window) == 0) {
-        glfwPollEvents();
+void Application::rebuild_mesh_if_needed() {
+    if (pending_subdivisions != subdivisions) {
+        subdivisions = pending_subdivisions;
+        const auto mesh = make_icosphere(subdivisions);
+        renderer->update_mesh(mesh);
     }
 }
 
