@@ -30,6 +30,7 @@ void Application::run() {
 void Application::main_loop() {
     // Optional Vulkan context; created lazily if available and enabled
     std::unique_ptr<VulkanContext> vk { };
+    std::uint32_t last_subdivisions {ui_subdivisions};
     while (!window->should_close()) {
         window->poll_events();
 #if VULKANO_HAS_VULKAN
@@ -42,11 +43,18 @@ void Application::main_loop() {
                     imgui->render(cmd);
                 }
             });
+            // Initialize mesh once Vulkan is ready
+            vk->set_subdivisions(ui_subdivisions);
+            last_subdivisions = ui_subdivisions;
         }
         if (vk) {
             if (imgui) {
                 imgui->begin_frame();
                 imgui->build_ui(ui_subdivisions);
+            }
+            if (ui_subdivisions != last_subdivisions) {
+                vk->set_subdivisions(ui_subdivisions);
+                last_subdivisions = ui_subdivisions;
             }
             vk->draw_frame();
         }

@@ -8,7 +8,7 @@ int main() {
     config.title = std::string {"Vulkano – Vulkan/GLFW Skeleton"};
     config.width = 1280U;
     config.height = 720U;
-    config.enable_vulkan = false; // Enabled later once Vulkan device is wired
+    config.enable_vulkan = true;
 
     vulkano::Application app {config};
     if (const char* headless = std::getenv("HEADLESS_RUN_MS"); headless != nullptr) {
