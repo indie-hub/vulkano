@@ -52,6 +52,13 @@ Completion log:
 Next milestones tracked here as we implement passes.
 
 Upcoming (M2):
-- SSAO G-buffer layout and attachments; basic full-screen pipeline
+- Remove all implementation code from the header files
+- SSAO G-buffer layout and attachments; basic full-screen pipeline [IN PROGRESS]
 - Texture loader (stb) and procedural fallbacks
 - ImGui controls wiring for lighting/material/SSAO
+
+2025-09-15 Progress:
+- Added fullscreen vertex shader and modified G-buffer shaders to output lit scene color + normals + view-space depth.
+- Implemented offscreen G-buffer pass and compose pass (scene * AO) to swapchain; AO currently a white dummy texture pending SSAO.
+- Wired descriptor sets and pipelines for compose; forward pipeline retained but not used in final presentation.
+- Next: implement SSAO pass reading G-buffer normal/viewZ + noise, with adjustable kernel; then optional separable blur pass, and switch compose AO input accordingly.

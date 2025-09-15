@@ -111,6 +111,7 @@ set(SHADER_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/shaders/ssao.frag
     ${CMAKE_CURRENT_SOURCE_DIR}/shaders/blur.frag
     ${CMAKE_CURRENT_SOURCE_DIR}/shaders/compose.frag
+    ${CMAKE_CURRENT_SOURCE_DIR}/shaders/fullscreen.vert
     ${CMAKE_CURRENT_SOURCE_DIR}/shaders/forward.vert
     ${CMAKE_CURRENT_SOURCE_DIR}/shaders/forward.frag)
 set(SPIRV_OUTPUTS)

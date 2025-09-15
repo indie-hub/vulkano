@@ -26,7 +26,10 @@ layout(std140, binding = 4) uniform SsaoParams {
     int pad;
 } uSsao;
 
-layout(binding = 5) uniform sampler1D uKernel; // kernel samples uploaded as 1D texture
+// Kernel samples as UBO for simplicity and portability
+layout(std140, binding = 5) uniform KernelUBO {
+    vec4 samples[64];
+} uKernel;
 
 void main() {
     if (uSsao.enabled == 0) {
@@ -43,7 +46,7 @@ void main() {
 
     float occlusion = 0.0;
     for (int i = 0; i < uSsao.kernelSize; ++i) {
-        vec3 sampleVec = texture(uKernel, float(i) / float(uSsao.kernelSize)).xyz;
+        vec3 sampleVec = uKernel.samples[i].xyz;
         vec3 samplePos = TBN * sampleVec; // oriented around normal
         samplePos = samplePos * uSsao.radius + vec3(vUV, depth);
         float sampleDepth = texture(uDepthTex, samplePos.xy).r;
@@ -53,4 +56,3 @@ void main() {
     occlusion = 1.0 - (occlusion / float(uSsao.kernelSize));
     outAO = pow(occlusion, uSsao.power);
 }
-

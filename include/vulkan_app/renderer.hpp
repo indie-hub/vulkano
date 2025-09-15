@@ -70,8 +70,13 @@ private:
     void create_swapchain();
     void destroy_swapchain();
     void create_render_pass();
+    void create_gbuffer_pass();
     void create_pipeline();
+    void create_gbuffer_pipeline();
+    void create_compose_pipeline();
     void create_framebuffers();
+    void create_gbuffer_targets();
+    void create_ao_targets();
     void create_command_pool_and_buffers();
     void create_sync_objects();
     void create_descriptor_layouts();
@@ -80,6 +85,11 @@ private:
     void create_sampler();
     void create_textures_if_needed();
     void recreate_swapchain();
+    void create_compose_descriptors();
+    void create_ssao_pipeline();
+    void create_ssao_descriptors();
+    void create_blur_pipeline();
+    void create_blur_descriptors();
 
     VkInstance instance_{};
     VkDebugUtilsMessengerEXT debug_messenger_{};
@@ -107,14 +117,46 @@ private:
     VkImageView depth_view_{};
     VkFormat depth_format_{};
 
+    // G-buffer offscreen
+    VkRenderPass gbuffer_pass_{};
+    VkFramebuffer gbuffer_fb_{};
+    VkImage g_scene_image_{}; VkDeviceMemory g_scene_mem_{}; VkImageView g_scene_view_{};
+    VkImage g_normal_image_{}; VkDeviceMemory g_normal_mem_{}; VkImageView g_normal_view_{};
+    VkImage g_viewz_image_{}; VkDeviceMemory g_viewz_mem_{}; VkImageView g_viewz_view_{};
+    VkImage g_depth_image_{}; VkDeviceMemory g_depth_mem_{}; VkImageView g_depth_view_{};
+
+    // SSAO resources
+    VkRenderPass ssao_pass_{};
+    VkFramebuffer ssao_fb_raw_{};
+    VkFramebuffer ssao_fb_blur_{};
+    VkImage ao_image_{}; VkDeviceMemory ao_memory_{}; VkImageView ao_view_{};
+    VkImage ao_blur_image_{}; VkDeviceMemory ao_blur_memory_{}; VkImageView ao_blur_view_{};
+    VkImage noise_image_{}; VkDeviceMemory noise_memory_{}; VkImageView noise_view_{};
+    VkBuffer ssao_params_buffer_{}; VkDeviceMemory ssao_params_memory_{};
+    VkBuffer ssao_kernel_buffer_{}; VkDeviceMemory ssao_kernel_memory_{};
+    VkDescriptorSetLayout ssao_set_layout_{}; VkDescriptorPool ssao_pool_{}; VkDescriptorSet ssao_set_{};
+    VkPipelineLayout ssao_pipeline_layout_{}; VkPipeline ssao_pipeline_{};
+
+    // Blur resources
+    VkDescriptorSetLayout blur_set_layout_{}; VkDescriptorPool blur_pool_{}; VkDescriptorSet blur_set_input_raw_{}; VkDescriptorSet blur_set_input_blur_{};
+    VkPipelineLayout blur_pipeline_layout_{}; VkPipeline blur_pipeline_{};
+
     // pipeline
     VkPipelineLayout pipeline_layout_{};
     VkPipeline pipeline_{};
+    VkPipelineLayout gbuffer_pipeline_layout_{};
+    VkPipeline gbuffer_pipeline_{};
+    VkPipelineLayout compose_pipeline_layout_{};
+    VkPipeline compose_pipeline_{};
 
     // descriptors
     VkDescriptorSetLayout desc_set_layout_{};
     VkDescriptorPool desc_pool_{};
     std::vector<VkDescriptorSet> desc_sets_{};
+    // Compose descriptors
+    VkDescriptorSetLayout compose_set_layout_{};
+    VkDescriptorPool compose_pool_{};
+    std::vector<VkDescriptorSet> compose_sets_{};
 
     // resources
     VkBuffer vertex_buffer_{};
