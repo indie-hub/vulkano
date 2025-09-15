@@ -1,6 +1,7 @@
 add_library(vulkano STATIC
     app.cpp
     window.cpp
+    icosphere.cpp
 )
 
 target_link_libraries(vulkano
@@ -18,4 +19,3 @@ if (Vulkan_FOUND)
 else()
     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
 endif()
-

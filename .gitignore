@@ -49,3 +49,4 @@ _deps/
 
 # App runtime binaries
 app/bin/
+.idea/
