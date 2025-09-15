@@ -18,6 +18,7 @@ Application::Application(Application&&) noexcept = default;
 Application& Application::operator=(Application&&) noexcept = default;
 
 void Application::init_window(const AppConfig& config) {
+    enable_vulkan = config.enable_vulkan;
     window = std::make_unique<Window>(config.title, config.width, config.height);
 }
 
@@ -32,7 +33,7 @@ void Application::main_loop() {
     while (!window->should_close()) {
         window->poll_events();
 #if VULKANO_HAS_VULKAN
-        if (!vk && true) {
+        if (!vk && enable_vulkan) {
             vk = std::make_unique<VulkanContext>(*window);
         }
         if (vk) {

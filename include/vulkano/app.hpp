@@ -35,6 +35,7 @@ private:
 
 private:
     std::unique_ptr<Window> window;
+    bool enable_vulkan {false};
 };
 
 } // namespace vulkano
