@@ -82,7 +82,8 @@ ImGuiLayer::ImGuiLayer(GLFWwindow* window,
     init_info.UseDynamicRendering = false;
     init_info.PipelineCache = VK_NULL_HANDLE;
     init_info.Allocator = nullptr;
-    ImGui_ImplVulkan_Init(&init_info, renderPass);
+    init_info.RenderPass = renderPass;
+    ImGui_ImplVulkan_Init(&init_info);
 
     // Upload fonts using a one-time command buffer
     VkCommandPool temp_pool{};
@@ -93,12 +94,12 @@ ImGuiLayer::ImGuiLayer(GLFWwindow* window,
     vkAllocateCommandBuffers(device, &ai, &cmd);
     VkCommandBufferBeginInfo bi{}; bi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO; bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     vkBeginCommandBuffer(cmd, &bi);
-    ImGui_ImplVulkan_CreateFontsTexture(cmd);
+    ImGui_ImplVulkan_CreateFontsTexture();
     vkEndCommandBuffer(cmd);
     VkSubmitInfo si{}; si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO; si.commandBufferCount = 1; si.pCommandBuffers = &cmd;
     vkQueueSubmit(graphicsQueue, 1, &si, VK_NULL_HANDLE);
     vkQueueWaitIdle(graphicsQueue);
-    ImGui_ImplVulkan_DestroyFontUploadObjects();
+    ImGui_ImplVulkan_DestroyFontsTexture();
     vkDestroyCommandPool(device, temp_pool, nullptr);
 }
 

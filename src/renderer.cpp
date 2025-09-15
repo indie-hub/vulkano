@@ -8,6 +8,7 @@
 #include <vulkan/vulkan.h>
 
 #include <vulkan_app/renderer.hpp>
+#include <vulkan_app/imgui_layer.hpp>
 #include <vulkan_app/icosphere.hpp>
 #include <vulkan_app/types.hpp>
 
