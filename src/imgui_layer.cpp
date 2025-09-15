@@ -19,6 +19,7 @@ struct ImGuiLayer::Impl final {
     VkQueue queue{};
     std::uint32_t queueFamily{0U};
     VkRenderPass renderPass{};
+    VkDescriptorPool imguiPool{};
 };
 
 ImGuiLayer::ImGuiLayer(GLFWwindow* window,
@@ -43,16 +44,77 @@ ImGuiLayer::ImGuiLayer(GLFWwindow* window,
     (void)io;
     ImGui::StyleColorsDark();
     ImGui_ImplGlfw_InitForVulkan(window, true);
-    // The actual Vulkan init (descriptor pool etc.) will be done when render pass and pipeline are ready.
+
+    // Create a small descriptor pool for ImGui
+    VkDescriptorPoolSize pool_sizes[] = {
+        { VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
+        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
+        { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
+        { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
+        { VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
+        { VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
+        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
+        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
+        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
+        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
+        { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 }
+    };
+    VkDescriptorPoolCreateInfo pool_info{};
+    pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+    pool_info.maxSets = 1000 * static_cast<std::uint32_t>(std::size(pool_sizes));
+    pool_info.poolSizeCount = static_cast<std::uint32_t>(std::size(pool_sizes));
+    pool_info.pPoolSizes = pool_sizes;
+    if (vkCreateDescriptorPool(device, &pool_info, nullptr, &impl_->imguiPool) != VK_SUCCESS) {
+        IM_ASSERT(false && "Failed to create ImGui descriptor pool");
+    }
+
+    ImGui_ImplVulkan_InitInfo init_info{};
+    init_info.Instance = instance;
+    init_info.PhysicalDevice = gpu;
+    init_info.Device = device;
+    init_info.QueueFamily = graphicsQueueFamily;
+    init_info.Queue = graphicsQueue;
+    init_info.DescriptorPool = impl_->imguiPool;
+    init_info.MinImageCount = 2;
+    init_info.ImageCount = 2;
+    init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+    init_info.UseDynamicRendering = false;
+    init_info.PipelineCache = VK_NULL_HANDLE;
+    init_info.Allocator = nullptr;
+    ImGui_ImplVulkan_Init(&init_info, renderPass);
+
+    // Upload fonts using a one-time command buffer
+    VkCommandPool temp_pool{};
+    VkCommandPoolCreateInfo cp{}; cp.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO; cp.queueFamilyIndex = graphicsQueueFamily; cp.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+    vkCreateCommandPool(device, &cp, nullptr, &temp_pool);
+    VkCommandBuffer cmd{};
+    VkCommandBufferAllocateInfo ai{}; ai.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO; ai.commandPool = temp_pool; ai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; ai.commandBufferCount = 1;
+    vkAllocateCommandBuffers(device, &ai, &cmd);
+    VkCommandBufferBeginInfo bi{}; bi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO; bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(cmd, &bi);
+    ImGui_ImplVulkan_CreateFontsTexture(cmd);
+    vkEndCommandBuffer(cmd);
+    VkSubmitInfo si{}; si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO; si.commandBufferCount = 1; si.pCommandBuffers = &cmd;
+    vkQueueSubmit(graphicsQueue, 1, &si, VK_NULL_HANDLE);
+    vkQueueWaitIdle(graphicsQueue);
+    ImGui_ImplVulkan_DestroyFontUploadObjects();
+    vkDestroyCommandPool(device, temp_pool, nullptr);
 }
 
 ImGuiLayer::~ImGuiLayer() noexcept {
+    ImGui_ImplVulkan_Shutdown();
+    if (impl_->imguiPool != VK_NULL_HANDLE) {
+        vkDestroyDescriptorPool(impl_->device, impl_->imguiPool, nullptr);
+        impl_->imguiPool = VK_NULL_HANDLE;
+    }
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
     delete impl_;
 }
 
 void ImGuiLayer::new_frame() {
+    ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 }
@@ -88,9 +150,9 @@ void ImGuiLayer::draw_ui(int& subdivisions, Light& light, Material& material, Ss
     ImGui::End();
 }
 
-void ImGuiLayer::render(VkCommandBuffer /*cmd*/) {
+void ImGuiLayer::render(VkCommandBuffer cmd) {
     ImGui::Render();
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
 }
 
 } // namespace vulkan_app
-
