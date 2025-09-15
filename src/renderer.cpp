@@ -8,6 +8,7 @@
 
 #include <vulkan_app/renderer.hpp>
 #include <vulkan_app/icosphere.hpp>
+#include <vulkan_app/types.hpp>
 
 namespace vulkan_app {
 
@@ -434,7 +435,7 @@ void Renderer::update_mesh(const Mesh& mesh) {
     vkUnmapMemory(device_, index_memory_);
 }
 
-void Renderer::draw_frame(const CameraUBO& /*camera*/, const Light& /*light*/, const Material& /*material*/, const SsaoParams& /*ssao*/) {
+void Renderer::draw_frame(const CameraUBO& camera, const Light& light, const Material& material, const SsaoParams& /*ssao*/) {
     vkWaitForFences(device_, 1, &in_flight_[current_frame_], VK_TRUE, UINT64_MAX);
     std::uint32_t image_index{0U};
     VkResult acq = vkAcquireNextImageKHR(device_, swapchain_, UINT64_MAX, image_available_[current_frame_], VK_NULL_HANDLE, &image_index);
@@ -443,6 +444,18 @@ void Renderer::draw_frame(const CameraUBO& /*camera*/, const Light& /*light*/, c
         return;
     }
     vkResetFences(device_, 1, &in_flight_[current_frame_]);
+    // Update UBOs
+    void* data{nullptr};
+    vkMapMemory(device_, camera_memory_, 0, sizeof(CameraUBO), 0, &data);
+    std::memcpy(data, &camera, sizeof(CameraUBO));
+    vkUnmapMemory(device_, camera_memory_);
+    vkMapMemory(device_, material_memory_, 0, sizeof(Material), 0, &data);
+    std::memcpy(data, &material, sizeof(Material));
+    vkUnmapMemory(device_, material_memory_);
+    vkMapMemory(device_, light_memory_, 0, sizeof(Light), 0, &data);
+    std::memcpy(data, &light, sizeof(Light));
+    vkUnmapMemory(device_, light_memory_);
+
     VkCommandBuffer cmd = cmd_buffers_[image_index];
     vkResetCommandBuffer(cmd, 0);
 
@@ -474,6 +487,9 @@ void Renderer::draw_frame(const CameraUBO& /*camera*/, const Light& /*light*/, c
     }
     if (index_buffer_ != VK_NULL_HANDLE) {
         vkCmdBindIndexBuffer(cmd, index_buffer_, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 0, 1, &desc_sets_[image_index], 0, nullptr);
+        glm::mat4 model{1.0F};
+        vkCmdPushConstants(cmd, pipeline_layout_, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &model);
         vkCmdDrawIndexed(cmd, index_count_, 1, 0, 0, 0);
     }
     vkCmdEndRenderPass(cmd);
