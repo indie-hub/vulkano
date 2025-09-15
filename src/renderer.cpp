@@ -750,12 +750,14 @@ void Renderer::create_sync_objects() {
 
 void Renderer::create_descriptor_layouts() {
     VkDescriptorSetLayoutBinding b0{}; b0.binding = 0; b0.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; b0.descriptorCount = 1; b0.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    VkDescriptorSetLayoutBinding b1{}; b1.binding = 1; b1.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; b1.descriptorCount = 1; b1.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    VkDescriptorSetLayoutBinding b2{}; b2.binding = 2; b2.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; b2.descriptorCount = 1; b2.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     VkDescriptorSetLayoutBinding b3{}; b3.binding = 3; b3.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; b3.descriptorCount = 1; b3.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     VkDescriptorSetLayoutBinding b4{}; b4.binding = 4; b4.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; b4.descriptorCount = 1; b4.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-    VkDescriptorSetLayoutBinding bindings[] = { b0, b3, b4 };
+    VkDescriptorSetLayoutBinding bindings[] = { b0, b1, b2, b3, b4 };
     VkDescriptorSetLayoutCreateInfo lci{};
     lci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    lci.bindingCount = 3;
+    lci.bindingCount = static_cast<std::uint32_t>(std::size(bindings));
     lci.pBindings = bindings;
     if (vkCreateDescriptorSetLayout(device_, &lci, nullptr, &desc_set_layout_) != VK_SUCCESS) {
         throw std::runtime_error{"Failed to create descriptor set layout"};
@@ -778,13 +780,15 @@ void Renderer::create_descriptor_pool_and_sets() {
                   light_buffer_, light_memory_);
 
     // Descriptor pool and sets
-    VkDescriptorPoolSize sizes[3]{};
+    VkDescriptorPoolSize sizes[5]{};
     sizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; sizes[0].descriptorCount = static_cast<std::uint32_t>(swapchain_images_.size());
-    sizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; sizes[1].descriptorCount = static_cast<std::uint32_t>(swapchain_images_.size());
-    sizes[2].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; sizes[2].descriptorCount = static_cast<std::uint32_t>(swapchain_images_.size());
+    sizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; sizes[1].descriptorCount = static_cast<std::uint32_t>(swapchain_images_.size());
+    sizes[2].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; sizes[2].descriptorCount = static_cast<std::uint32_t>(swapchain_images_.size());
+    sizes[3].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; sizes[3].descriptorCount = static_cast<std::uint32_t>(swapchain_images_.size());
+    sizes[4].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; sizes[4].descriptorCount = static_cast<std::uint32_t>(swapchain_images_.size());
     VkDescriptorPoolCreateInfo dpci{};
     dpci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    dpci.poolSizeCount = 3; dpci.pPoolSizes = sizes;
+    dpci.poolSizeCount = 5; dpci.pPoolSizes = sizes;
     dpci.maxSets = static_cast<std::uint32_t>(swapchain_images_.size());
     if (vkCreateDescriptorPool(device_, &dpci, nullptr, &desc_pool_) != VK_SUCCESS) {
         throw std::runtime_error{"Failed to create descriptor pool"};
@@ -803,11 +807,15 @@ void Renderer::create_descriptor_pool_and_sets() {
         VkDescriptorBufferInfo cam{}; cam.buffer = camera_buffer_; cam.offset = 0; cam.range = cam_size;
         VkDescriptorBufferInfo mat{}; mat.buffer = material_buffer_; mat.offset = 0; mat.range = mat_size;
         VkDescriptorBufferInfo lig{}; lig.buffer = light_buffer_; lig.offset = 0; lig.range = light_size;
-        VkWriteDescriptorSet writes[3]{};
+        VkDescriptorImageInfo albedo{}; albedo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; albedo.imageView = albedo_view_; albedo.sampler = sampler_;
+        VkDescriptorImageInfo normal{}; normal.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; normal.imageView = normal_view_; normal.sampler = sampler_;
+        VkWriteDescriptorSet writes[5]{};
         writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[0].dstSet = desc_sets_[i]; writes[0].dstBinding = 0; writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes[0].descriptorCount = 1; writes[0].pBufferInfo = &cam;
-        writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[1].dstSet = desc_sets_[i]; writes[1].dstBinding = 3; writes[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes[1].descriptorCount = 1; writes[1].pBufferInfo = &mat;
-        writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = desc_sets_[i]; writes[2].dstBinding = 4; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes[2].descriptorCount = 1; writes[2].pBufferInfo = &lig;
-        vkUpdateDescriptorSets(device_, 3, writes, 0, nullptr);
+        writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[1].dstSet = desc_sets_[i]; writes[1].dstBinding = 1; writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[1].descriptorCount = 1; writes[1].pImageInfo = &albedo;
+        writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = desc_sets_[i]; writes[2].dstBinding = 2; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[2].descriptorCount = 1; writes[2].pImageInfo = &normal;
+        writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[3].dstSet = desc_sets_[i]; writes[3].dstBinding = 3; writes[3].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes[3].descriptorCount = 1; writes[3].pBufferInfo = &mat;
+        writes[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[4].dstSet = desc_sets_[i]; writes[4].dstBinding = 4; writes[4].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes[4].descriptorCount = 1; writes[4].pBufferInfo = &lig;
+        vkUpdateDescriptorSets(device_, 5, writes, 0, nullptr);
     }
 }
 
@@ -832,8 +840,110 @@ void Renderer::create_sampler() {
     }
 }
 
+// Helpers for one-time command submission
+static VkCommandBuffer begin_single_time_commands(VkDevice device, VkCommandPool pool) {
+    VkCommandBuffer cmd{};
+    VkCommandBufferAllocateInfo ai{}; ai.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO; ai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; ai.commandPool = pool; ai.commandBufferCount = 1;
+    vkAllocateCommandBuffers(device, &ai, &cmd);
+    VkCommandBufferBeginInfo bi{}; bi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO; bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(cmd, &bi);
+    return cmd;
+}
+
+static void end_single_time_commands(VkDevice device, VkQueue queue, VkCommandPool pool, VkCommandBuffer cmd) {
+    vkEndCommandBuffer(cmd);
+    VkSubmitInfo si{}; si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO; si.commandBufferCount = 1; si.pCommandBuffers = &cmd;
+    vkQueueSubmit(queue, 1, &si, VK_NULL_HANDLE);
+    vkQueueWaitIdle(queue);
+    vkFreeCommandBuffers(device, pool, 1, &cmd);
+}
+
+static void transition_image_layout(VkCommandBuffer cmd, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout, VkImageAspectFlags aspect) {
+    VkImageMemoryBarrier barrier{}; barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER; barrier.oldLayout = oldLayout; barrier.newLayout = newLayout; barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED; barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED; barrier.image = image; barrier.subresourceRange.aspectMask = aspect; barrier.subresourceRange.baseMipLevel = 0; barrier.subresourceRange.levelCount = 1; barrier.subresourceRange.baseArrayLayer = 0; barrier.subresourceRange.layerCount = 1;
+    VkPipelineStageFlags srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+    VkPipelineStageFlags dstStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+        barrier.srcAccessMask = 0; barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT; dstStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    } else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT; barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        srcStage = VK_PIPELINE_STAGE_TRANSFER_BIT; dstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    }
+    vkCmdPipelineBarrier(cmd, srcStage, dstStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+}
+
+static void copy_buffer_to_image(VkCommandBuffer cmd, VkBuffer buffer, VkImage image, std::uint32_t w, std::uint32_t h) {
+    VkBufferImageCopy region{}; region.bufferOffset = 0; region.bufferRowLength = 0; region.bufferImageHeight = 0; region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; region.imageSubresource.mipLevel = 0; region.imageSubresource.baseArrayLayer = 0; region.imageSubresource.layerCount = 1; region.imageOffset = {0,0,0}; region.imageExtent = {w,h,1};
+    vkCmdCopyBufferToImage(cmd, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+}
+
 void Renderer::create_textures_if_needed() {
-    // TODO: Upload procedural checkerboard textures (omitted in minimal phase)
+    if (albedo_image_ != VK_NULL_HANDLE && normal_image_ != VK_NULL_HANDLE) {
+        return;
+    }
+    const std::uint32_t W{256U};
+    const std::uint32_t H{256U};
+    // Create host-side images
+    std::vector<std::uint8_t> albedo_cpu(static_cast<std::size_t>(W) * static_cast<std::size_t>(H) * 4U);
+    std::vector<std::uint8_t> normal_cpu(static_cast<std::size_t>(W) * static_cast<std::size_t>(H) * 4U);
+    for (std::uint32_t y{0}; y < H; ++y) {
+        for (std::uint32_t x{0}; x < W; ++x) {
+            const bool checker = (((x / 32U) + (y / 32U)) % 2U) == 0U;
+            const std::uint8_t c = checker ? 220U : 30U;
+            const std::size_t i = (static_cast<std::size_t>(y) * W + x) * 4U;
+            albedo_cpu[i+0] = c; albedo_cpu[i+1] = c; albedo_cpu[i+2] = c; albedo_cpu[i+3] = 255U;
+            // Procedural wavy normal map for visible perturbations
+            const float fx = static_cast<float>(x) / static_cast<float>(W);
+            const float fy = static_cast<float>(y) / static_cast<float>(H);
+            const float sx = std::sin(fx * 20.0F) * 0.5F; // [-0.5,0.5]
+            const float sy = std::cos(fy * 20.0F) * 0.5F;
+            const float nx = sx;
+            const float ny = sy;
+            const float nz = std::sqrt(std::max(0.0F, 1.0F - nx*nx - ny*ny));
+            normal_cpu[i+0] = static_cast<std::uint8_t>((nx * 0.5F + 0.5F) * 255.0F);
+            normal_cpu[i+1] = static_cast<std::uint8_t>((ny * 0.5F + 0.5F) * 255.0F);
+            normal_cpu[i+2] = static_cast<std::uint8_t>((nz * 0.5F + 0.5F) * 255.0F);
+            normal_cpu[i+3] = 255U;
+        }
+    }
+
+    // Create GPU images
+    create_image(physical_device_, device_, W, H, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL,
+                 VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                 albedo_image_, albedo_memory_);
+    albedo_view_ = create_image_view(device_, albedo_image_, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
+    create_image(physical_device_, device_, W, H, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL,
+                 VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                 normal_image_, normal_memory_);
+    normal_view_ = create_image_view(device_, normal_image_, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
+
+    // Staging buffers
+    VkBuffer stagingA{}; VkDeviceMemory stagingAmem{};
+    VkBuffer stagingN{}; VkDeviceMemory stagingNmem{};
+    const VkDeviceSize sz = static_cast<VkDeviceSize>(albedo_cpu.size());
+    create_buffer(physical_device_, device_, sz, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                  stagingA, stagingAmem);
+    create_buffer(physical_device_, device_, sz, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                  stagingN, stagingNmem);
+    void* data{nullptr};
+    vkMapMemory(device_, stagingAmem, 0, sz, 0, &data); std::memcpy(data, albedo_cpu.data(), static_cast<std::size_t>(sz)); vkUnmapMemory(device_, stagingAmem);
+    vkMapMemory(device_, stagingNmem, 0, sz, 0, &data); std::memcpy(data, normal_cpu.data(), static_cast<std::size_t>(sz)); vkUnmapMemory(device_, stagingNmem);
+
+    // Copy + transitions
+    VkCommandBuffer cmd = begin_single_time_commands(device_, cmd_pool_);
+    transition_image_layout(cmd, albedo_image_, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
+    transition_image_layout(cmd, normal_image_, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
+    copy_buffer_to_image(cmd, stagingA, albedo_image_, W, H);
+    copy_buffer_to_image(cmd, stagingN, normal_image_, W, H);
+    transition_image_layout(cmd, albedo_image_, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
+    transition_image_layout(cmd, normal_image_, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT);
+    end_single_time_commands(device_, graphics_queue_, cmd_pool_, cmd);
+
+    // Clean staging
+    vkDestroyBuffer(device_, stagingA, nullptr); vkFreeMemory(device_, stagingAmem, nullptr);
+    vkDestroyBuffer(device_, stagingN, nullptr); vkFreeMemory(device_, stagingNmem, nullptr);
 }
 
 void Renderer::recreate_swapchain() {
