@@ -1,19 +1,21 @@
-# TODO / Plan
-Phases:
-1) Swapchain + forward pipeline + draw icosphere. [done]
-2) Mesh buffers upload + resize handling. [done]
-3) ImGui integration with subdivision control. [done]
-4) G-buffer, SSAO, blur, composite passes. [in-progress]
-5) Validation, cleanup, docs/tests updates. [todo]
+# TODO — Vulkano Codex
 
-Notes:
-- Follow AGENTS.md: angle-bracket includes, braces, RAII, const.
-- Commit and push after each file edit.
-Next:
-- Add offscreen G-buffer images + render pass, wire geometry pass to write albedo/normal/depth.
-- Add fullscreen pipelines for SSAO, blur (separable), and compose.
-- Generate SSAO kernel + noise textures on CPU and upload to GPU.
-- Hook ImGui toggles to descriptor updates and constants.
-Done in this iteration:
-- Forward shading updated to sample albedo + normal maps with TBN.
-- Procedural albedo + normal textures generated and uploaded; descriptors wired.
+Short-term fixes and next steps. Keep updated as work progresses.
+
+## Done
+- Enable Vulkan portability on macOS (MoltenVK):
+  - Add VK_KHR_portability_enumeration + instance flag.
+  - Add VK_KHR_portability_subset device extension when available.
+  - Use concurrent image sharing when graphics/present queues differ.
+
+## Next
+- SSAO pipeline: G-buffer, SSAO, blur, and compose passes.
+- ImGui controls wiring for SSAO params and mesh subdivisions.
+- Swapchain resize path validation and cleanup ordering.
+- Add end-to-end test harness (headless where possible) and unit tests for math/icosphere.
+- macOS README notes: MoltenVK install, VK_ICD_FILENAMES hints.
+- CI: format (clang-format) and clang-tidy jobs.
+
+## Notes
+- Pushing to origin failed (no permission). Either set upstream to a fork with GITHUB_TOKEN or grant access.
+
