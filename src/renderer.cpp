@@ -292,20 +292,30 @@ void Renderer::create_device() {
     std::vector<VkQueueFamilyProperties> families(family_count);
     vkGetPhysicalDeviceQueueFamilyProperties(physical_device_, &family_count, families.data());
 
-    // Naive selection: first with graphics; assume present is same.
+    // Select graphics and present families
+    bool graphics_found{false};
+    bool present_found{false};
     for (std::uint32_t i{0U}; i < family_count; ++i) {
-        if ((families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0U) {
-            graphics_family_ = i;
-            present_family_ = i;
-            break;
+        if (!graphics_found && (families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0U) {
+            graphics_family_ = i; graphics_found = true;
+        }
+        VkBool32 present_support{VK_FALSE};
+        vkGetPhysicalDeviceSurfaceSupportKHR(physical_device_, i, surface_, &present_support);
+        if (!present_found && present_support == VK_TRUE) {
+            present_family_ = i; present_found = true;
         }
     }
+    if (!graphics_found || !present_found) {
+        throw std::runtime_error{"No suitable queue families"};
+    }
     const float prio{1.0F};
-    VkDeviceQueueCreateInfo qci{};
-    qci.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    qci.queueFamilyIndex = graphics_family_;
-    qci.queueCount = 1;
-    qci.pQueuePriorities = &prio;
+    std::vector<VkDeviceQueueCreateInfo> queues;
+    VkDeviceQueueCreateInfo qci{}; qci.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO; qci.queueFamilyIndex = graphics_family_; qci.queueCount = 1; qci.pQueuePriorities = &prio;
+    queues.push_back(qci);
+    if (present_family_ != graphics_family_) {
+        VkDeviceQueueCreateInfo pci{}; pci.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO; pci.queueFamilyIndex = present_family_; pci.queueCount = 1; pci.pQueuePriorities = &prio;
+        queues.push_back(pci);
+    }
 
     VkPhysicalDeviceFeatures features{};
 
@@ -313,8 +323,8 @@ void Renderer::create_device() {
 
     VkDeviceCreateInfo dci{};
     dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    dci.pQueueCreateInfos = &qci;
-    dci.queueCreateInfoCount = 1;
+    dci.pQueueCreateInfos = queues.data();
+    dci.queueCreateInfoCount = static_cast<std::uint32_t>(queues.size());
     dci.pEnabledFeatures = &features;
     dci.enabledExtensionCount = 1;
     dci.ppEnabledExtensionNames = device_exts;
@@ -322,7 +332,7 @@ void Renderer::create_device() {
         throw std::runtime_error{"Failed to create logical device"};
     }
     vkGetDeviceQueue(device_, graphics_family_, 0, &graphics_queue_);
-    present_queue_ = graphics_queue_;
+    vkGetDeviceQueue(device_, present_family_, 0, &present_queue_);
 }
 
 void Renderer::create_swapchain() {
