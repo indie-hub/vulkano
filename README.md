@@ -7,7 +7,17 @@ Current stage
 - CPU icosphere mesh generator with tangents/bitangents (tested)
 - Vulkan context: instance + surface + device + swapchain + render pass + clear-only frame submit (enabled when Vulkan present)
   - On platforms without Vulkan/MoltenVK, the app still builds and runs the window loop.
-- ImGui integration (GLFW + Vulkan). UI shows subdivision slider (hooked; GPU upload pending)
+- ImGui integration (GLFW + Vulkan). UI shows subdivision slider; changing it rebuilds CPU mesh and, when shaders are present, reuploads GPU buffers.
+
+Shaders:
+- Simple passthrough shaders are provided in `shaders/simple.vert` and `shaders/simple.frag`.
+- At runtime, the app looks for `shaders/simple.vert.spv` and `shaders/simple.frag.spv`. If absent, it skips mesh rendering and only clears + renders ImGui.
+
+Compile shaders (requires Vulkan SDK tools present in PATH):
+```
+glslc shaders/simple.vert -o shaders/simple.vert.spv
+glslc shaders/simple.frag -o shaders/simple.frag.spv
+```
 
 ## Build
 
@@ -40,6 +50,5 @@ ctest --test-dir build -C Debug --output-on-failure
 
 ## Next Steps
 - Add validation layers + debug utils
-- Integrate ImGui (GLFW + Vulkan backends)
-- Implement runtime icosphere subdivisions + GPU buffer upload
+- Implement runtime icosphere subdivisions + GPU buffer upload [DONE]
 - Add G-buffer, SSAO, blur, and composite passes
