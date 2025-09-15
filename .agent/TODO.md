@@ -22,11 +22,19 @@ Status
 
 Next Steps
 
-- Remove all inline code from the header files.
 - Add wireframe overlay toggle and optional pipeline state.
 - Add optional HDR tonemapping in compose.
 - Done: additional unit tests (camera projection/view invariants).
- - Verify runtime on Windows/Linux; document MoltenVK specifics tested on macOS.
+- Verify runtime on Windows/Linux; document MoltenVK specifics tested on macOS.
+
+Session 2025-09-15
+
+- Verified clean configure + build (Release) locally with shader compile.
+- Ran unit tests via ctest: green.
+- Packaged runnable folder under app/Release with binaries + SPIR-V.
+- Performed quick smoke run (launched and terminated after ~1s).
+- Reviewed headers for no inline impl and angle-bracket includes: compliant.
+- No source changes needed; repo already meets acceptance criteria.
 
 Fix Log
 
