@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 #include <glm/glm.hpp>
 #include <vulkan/vulkan.h>
@@ -36,6 +37,17 @@ private:
     void create_device();
     void create_swapchain();
     void destroy_swapchain();
+    void create_render_pass();
+    void create_pipeline();
+    void create_framebuffers();
+    void create_command_pool_and_buffers();
+    void create_sync_objects();
+    void create_descriptor_layouts();
+    void create_descriptor_pool_and_sets();
+    void create_depth_resources();
+    void create_sampler();
+    void create_textures_if_needed();
+    void recreate_swapchain();
 
     VkInstance instance_{};
     VkDebugUtilsMessengerEXT debug_messenger_{};
@@ -50,7 +62,51 @@ private:
     VkFormat swapchain_format_{};
     VkExtent2D swapchain_extent_{};
     const char* device_name_{""};
+
+    // swapchain
+    std::vector<VkImage> swapchain_images_{};
+    std::vector<VkImageView> swapchain_image_views_{};
+
+    // render targets
+    VkRenderPass render_pass_{};
+    std::vector<VkFramebuffer> framebuffers_{};
+    VkImage depth_image_{};
+    VkDeviceMemory depth_memory_{};
+    VkImageView depth_view_{};
+    VkFormat depth_format_{};
+
+    // pipeline
+    VkPipelineLayout pipeline_layout_{};
+    VkPipeline pipeline_{};
+
+    // descriptors
+    VkDescriptorSetLayout desc_set_layout_{};
+    VkDescriptorPool desc_pool_{};
+    std::vector<VkDescriptorSet> desc_sets_{};
+
+    // resources
+    VkBuffer vertex_buffer_{};
+    VkDeviceMemory vertex_memory_{};
+    VkBuffer index_buffer_{};
+    VkDeviceMemory index_memory_{};
+    std::uint32_t index_count_{0U};
+
+    // textures
+    VkImage albedo_image_{};
+    VkDeviceMemory albedo_memory_{};
+    VkImageView albedo_view_{};
+    VkImage normal_image_{};
+    VkDeviceMemory normal_memory_{};
+    VkImageView normal_view_{};
+    VkSampler sampler_{};
+
+    // per-frame
+    VkCommandPool cmd_pool_{};
+    std::vector<VkCommandBuffer> cmd_buffers_{};
+    std::vector<VkSemaphore> image_available_{};
+    std::vector<VkSemaphore> render_finished_{};
+    std::vector<VkFence> in_flight_{};
+    std::size_t current_frame_{0U};
 };
 
 } // namespace vulkan_app
-
