@@ -1,6 +1,14 @@
 cmake_minimum_required(VERSION 3.25)
 project(vulkan_app VERSION 0.1.0 LANGUAGES CXX)
 
+option(ENABLE_VALIDATION "Enable Vulkan validation layers in Debug" ON)
+option(ENABLE_GLFW_WAYLAND "Enable GLFW Wayland backend on Linux" OFF)
+option(ENABLE_IMGUI_DOCKING "Enable ImGui docking" OFF)
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -44,6 +52,9 @@ target_sources(vulkan_app
 
 target_include_directories(vulkan_app PUBLIC include)
 target_link_libraries(vulkan_app PUBLIC glm glfw Vulkan::Vulkan)
+if (ENABLE_VALIDATION)
+    target_compile_definitions(vulkan_app PUBLIC VULKAN_APP_ENABLE_VALIDATION=1)
+endif()
 
 add_executable(vulkan_app_example src/main.cpp)
 target_link_libraries(vulkan_app_example PRIVATE vulkan_app)
