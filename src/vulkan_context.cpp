@@ -85,15 +85,20 @@ static void create_instance(VkInstance* instance) {
 
     uint32_t ext_count = 0U;
     const char** exts = glfwGetRequiredInstanceExtensions(&ext_count);
-    std::array<const char*, 4> extensions {};
+    std::vector<const char*> extensions {};
+    extensions.reserve(static_cast<std::size_t>(ext_count + 1U));
     for (uint32_t i = 0; i < ext_count; ++i) {
-        extensions[i] = exts[i];
+        extensions.push_back(exts[i]);
     }
+#ifndef NDEBUG
+    // Enable debug utils when validation is enabled
+    extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+#endif
 
     VkInstanceCreateInfo ci {};
     ci.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     ci.pApplicationInfo = &app_info;
-    ci.enabledExtensionCount = ext_count;
+    ci.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
     ci.ppEnabledExtensionNames = extensions.data();
 
 #ifndef NDEBUG
