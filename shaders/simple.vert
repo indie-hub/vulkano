@@ -6,8 +6,10 @@ layout(location = 2) in vec3 inTangent;
 layout(location = 3) in vec3 inBitangent;
 layout(location = 4) in vec2 inUV;
 
-void main() {
-    // For now, use object position directly as clip-space position (unit sphere fits)
-    gl_Position = vec4(inPos, 1.0);
-}
+layout(push_constant) uniform PC {
+    mat4 mvp;
+} pc;
 
+void main() {
+    gl_Position = pc.mvp * vec4(inPos, 1.0);
+}

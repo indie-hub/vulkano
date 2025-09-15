@@ -529,7 +529,14 @@ static void create_pipeline(VulkanContext& ctx) {
     VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
     cb.attachmentCount = 1; cb.pAttachments = &cba;
 
+    VkPushConstantRange pcr {};
+    pcr.offset = 0U;
+    pcr.size = static_cast<uint32_t>(sizeof(float) * 16U);
+    pcr.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
     VkPipelineLayoutCreateInfo plci {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+    plci.pushConstantRangeCount = 1U;
+    plci.pPushConstantRanges = &pcr;
     if (vkCreatePipelineLayout(impl.device, &plci, nullptr, &impl.pipeline_layout) != VK_SUCCESS) {
         vkDestroyShaderModule(impl.device, vmod, nullptr);
         vkDestroyShaderModule(impl.device, fmod, nullptr);
@@ -697,6 +704,60 @@ void VulkanContext::draw_frame() {
         rpbi.clearValueCount = 1U;
         rpbi.pClearValues = &clear_color;
         vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
+        // Push a simple MVP matrix (perspective * view * model) for basic 3D
+        {
+            // Minimal inline math to avoid further dependencies here; we will replace with GLM later if needed
+            // Construct a right-handed perspective projection
+            const float fov = 45.0F;
+            const float radians = fov * 3.1415926535F / 180.0F;
+            const float aspect = static_cast<float>(impl->swapchain_extent.width) / static_cast<float>(impl->swapchain_extent.height == 0 ? 1 : impl->swapchain_extent.height);
+            const float znear = 0.1F;
+            const float zfar = 100.0F;
+            const float f = 1.0F / std::tanf(radians * 0.5F);
+            float proj[16] = {0};
+            proj[0] = f / aspect;
+            proj[5] = f;
+            proj[10] = (zfar + znear) / (znear - zfar);
+            proj[11] = -1.0F;
+            proj[14] = (2.0F * zfar * znear) / (znear - zfar);
+
+            // Simple look-at view from (0,0,3) to origin with up (0,1,0)
+            const float eye[3] = {0.0F, 0.0F, 3.0F};
+            const float center[3] = {0.0F, 0.0F, 0.0F};
+            const float up[3] = {0.0F, 1.0F, 0.0F};
+            auto norm3 = [](float v[3]) noexcept {
+                const float len = std::sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
+                if (len > 0.0F) { v[0]/=len; v[1]/=len; v[2]/=len; }
+            };
+            float fwd[3] = {center[0]-eye[0], center[1]-eye[1], center[2]-eye[2]};
+            norm3(fwd);
+            float s[3] = {fwd[1]*up[2] - fwd[2]*up[1], fwd[2]*up[0] - fwd[0]*up[2], fwd[0]*up[1] - fwd[1]*up[0]};
+            norm3(s);
+            float u[3] = {s[1]*fwd[2] - s[2]*fwd[1], s[2]*fwd[0] - s[0]*fwd[2], s[0]*fwd[1] - s[1]*fwd[0]};
+
+            float view[16] = {0};
+            view[0] = s[0]; view[4] = s[1]; view[8] = s[2];
+            view[1] = u[0]; view[5] = u[1]; view[9] = u[2];
+            view[2] = -fwd[0]; view[6] = -fwd[1]; view[10] = -fwd[2];
+            view[15] = 1.0F;
+            // Translation
+            view[12] = -(s[0]*eye[0] + s[1]*eye[1] + s[2]*eye[2]);
+            view[13] = -(u[0]*eye[0] + u[1]*eye[1] + u[2]*eye[2]);
+            view[14] = -(-fwd[0]*eye[0] + -fwd[1]*eye[1] + -fwd[2]*eye[2]);
+
+            // Model = identity
+            float model[16] = {0};
+            model[0]=1.0F; model[5]=1.0F; model[10]=1.0F; model[15]=1.0F;
+
+            // mvp = proj * view * model
+            auto matmul = [](const float a[16], const float b[16], float out[16]) noexcept {
+                for (int r=0;r<4;++r) { for (int c=0;c<4;++c) { out[r*4+c] = a[r*4+0]*b[0*4+c] + a[r*4+1]*b[1*4+c] + a[r*4+2]*b[2*4+c] + a[r*4+3]*b[3*4+c]; } }
+            };
+            float pv[16] = {0}; float mvp[16] = {0};
+            matmul(proj, view, pv);
+            matmul(pv, model, mvp);
+            vkCmdPushConstants(cmd, impl->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0U, static_cast<uint32_t>(sizeof(float)*16U), mvp);
+        }
         if (impl->pipeline != VK_NULL_HANDLE && impl->vertex_buffer != VK_NULL_HANDLE && impl->index_buffer != VK_NULL_HANDLE && impl->index_count > 0U) {
             vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->pipeline);
             VkDeviceSize offs[] = {0};
