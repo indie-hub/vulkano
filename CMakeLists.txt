@@ -13,6 +13,15 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(glm)
 
+FetchContent_Declare(
+  glfw
+  GIT_REPOSITORY https://github.com/glfw/glfw.git
+  GIT_TAG 3.3.8
+)
+FetchContent_MakeAvailable(glfw)
+
+find_package(Vulkan REQUIRED)
+
 if (MSVC)
   add_compile_options(/W4 /permissive-)
 else()
@@ -21,6 +30,7 @@ endif()
 
 add_library(vulkan_app STATIC
     src/icosphere.cpp
+    src/application.cpp
 )
 
 target_sources(vulkan_app
@@ -29,10 +39,11 @@ target_sources(vulkan_app
         BASE_DIRS include
         FILES
             include/vulkan_app/icosphere.hpp
+            include/vulkan_app/application.hpp
 )
 
 target_include_directories(vulkan_app PUBLIC include)
-target_link_libraries(vulkan_app PUBLIC glm)
+target_link_libraries(vulkan_app PUBLIC glm glfw Vulkan::Vulkan)
 
 add_executable(vulkan_app_example src/main.cpp)
 target_link_libraries(vulkan_app_example PRIVATE vulkan_app)
