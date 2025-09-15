@@ -76,3 +76,10 @@ ctest --test-dir build -C Debug --output-on-failure
 - Add separable blur pass for AO and wire composite strength
 - Robust swapchain recreation for all offscreen resources
 - Optional wireframe overlay pipeline
+
+## Acceptance Checklist
+- Icosphere subdivisions via ImGui reliably updates geometry and buffers.
+- Per-pixel Phong with tangent-space normal mapping visible (normal strength adjustable).
+- SSAO visibly darkens creases; radius/bias/power/blur toggles affect the result.
+- Resizing recreates swapchain without crashes (ongoing hardening for offscreen resources).
+- Validation layers emit no errors in normal usage (Debug builds).
