@@ -8,6 +8,14 @@
 
 #include <vulkan/vulkan.h>
 
+// Fallback defines for portability extension names if headers are older
+#ifndef VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
+#define VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME "VK_KHR_portability_enumeration"
+#endif
+#ifndef VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME
+#define VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME "VK_KHR_portability_subset"
+#endif
+
 #include <vulkan_app/renderer.hpp>
 #include <vulkan_app/imgui_layer.hpp>
 #include <vulkan_app/icosphere.hpp>
