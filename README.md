@@ -5,12 +5,13 @@ Minimal, production-quality C++20 Vulkan application scaffold.
 Current stage
 - GLFW window + event loop
 - CPU icosphere mesh generator with tangents/bitangents (tested)
-- Vulkan context: instance + surface + device + swapchain + render pass + clear-only frame submit (enabled when Vulkan present)
+- Vulkan context: instance + surface + device + swapchain + render pass + clear-only frame submit (enabled when Vulkan present). Debug utils enabled in Debug builds.
   - On platforms without Vulkan/MoltenVK, the app still builds and runs the window loop.
 - ImGui integration (GLFW + Vulkan). UI shows subdivision slider; changing it rebuilds CPU mesh and, when shaders are present, reuploads GPU buffers.
 
 Shaders:
-- Simple passthrough shaders are provided in `shaders/simple.vert` and `shaders/simple.frag`.
+- Simple shaders are provided in `shaders/simple.vert` and `shaders/simple.frag`.
+- Vertex shader uses an MVP push constant; the app computes a perspective+view matrix and uploads it each frame.
 - At runtime, the app looks for `shaders/simple.vert.spv` and `shaders/simple.frag.spv`. If absent, it skips mesh rendering and only clears + renders ImGui.
 
 Compile shaders (requires Vulkan SDK tools present in PATH):
