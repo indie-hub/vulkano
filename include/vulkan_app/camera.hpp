@@ -4,10 +4,15 @@
 
 namespace vulkan_app {
 
+/**
+ * @brief Simple camera with view/projection and adjustable parameters.
+ */
 class Camera final {
 public:
     Camera() = default;
+    /** Compute view matrix from position and yaw/pitch. */
     [[nodiscard]] glm::mat4 view() const noexcept;
+    /** Compute perspective projection matrix from FOV and aspect. */
     [[nodiscard]] glm::mat4 proj(float aspect) const noexcept;
     [[nodiscard]] glm::vec3 position() const noexcept { return position_; }
 
@@ -26,4 +31,3 @@ private:
 };
 
 } // namespace vulkan_app
-
