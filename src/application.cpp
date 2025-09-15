@@ -58,6 +58,8 @@ void Application::main_loop() {
         imgui->draw_ui(pending_subdivisions, light, material, ssao);
         // Stats window
         ImGui::Begin("Stats");
+        ImGuiIO& io = ImGui::GetIO();
+        ImGui::Text("FPS: %.1f (%.3f ms)", io.Framerate, 1000.0F / io.Framerate);
         ImGui::Text("Device: %s", renderer->device_name());
         const auto ext = renderer->swapchain_extent();
         ImGui::Text("Extent: %u x %u", ext.width, ext.height);
