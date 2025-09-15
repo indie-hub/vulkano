@@ -5,17 +5,22 @@ Minimal, production-quality C++20 Vulkan application scaffold.
 Current stage
 - GLFW window + event loop
 - CPU icosphere mesh generator with tangents/bitangents (tested)
-- Vulkan context: instance + surface + device + swapchain + render pass + clear-only frame submit (enabled when Vulkan present). Debug utils enabled in Debug builds.
+- Vulkan context: instance + surface + device + swapchain + color+depth render pass; per-frame draw with depth test. Debug utils enabled in Debug builds.
   - On platforms without Vulkan/MoltenVK, the app still builds and runs the window loop.
-- ImGui integration (GLFW + Vulkan). UI shows subdivision slider; changing it rebuilds CPU mesh and, when shaders are present, reuploads GPU buffers.
+- ImGui integration (GLFW + Vulkan). UI shows subdivision slider and lighting/material controls.
+- Forward Phong shading with tangent-space normal mapping (procedural checkerboard albedo + flat normal map). MVP via push constants; per-frame UBO for camera/light/material.
 
 Shaders:
-- Simple shaders are provided in `shaders/simple.vert` and `shaders/simple.frag`.
-- Vertex shader uses an MVP push constant; the app computes a perspective+view matrix and uploads it each frame.
-- At runtime, the app looks for `shaders/simple.vert.spv` and `shaders/simple.frag.spv`. If absent, it skips mesh rendering and only clears + renders ImGui.
+- Forward shaders: `shaders/forward.vert`, `shaders/forward.frag` (+ compiled `.spv` included). These implement Phong + normal mapping.
+- Fallback simple shaders: `shaders/simple.vert` and `shaders/simple.frag` (+ `.spv`). Used if forward shaders are missing.
 
 Compile shaders (requires Vulkan SDK tools present in PATH):
 ```
+# Forward shading
+glslc shaders/forward.vert -o shaders/forward.vert.spv
+glslc shaders/forward.frag -o shaders/forward.frag.spv
+
+# Fallback simple
 glslc shaders/simple.vert -o shaders/simple.vert.spv
 glslc shaders/simple.frag -o shaders/simple.frag.spv
 ```
@@ -50,6 +55,6 @@ ctest --test-dir build -C Debug --output-on-failure
 ```
 
 ## Next Steps
-- Add validation layers + debug utils
-- Implement runtime icosphere subdivisions + GPU buffer upload [DONE]
-- Add G-buffer, SSAO, blur, and composite passes
+- Add G-buffer (albedo, normal, depth) and SSAO pass + blur + composite
+- Wire ImGui SSAO controls (enable, radius, bias, kernel size, strength, blur)
+- Swapchain recreation for multi-pass resources
