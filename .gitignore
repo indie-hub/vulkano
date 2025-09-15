@@ -39,3 +39,13 @@
 
 # debug information files
 *.dwo
+
+# CMake build folders
+build/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+_deps/
+
+# App runtime binaries
+app/bin/
