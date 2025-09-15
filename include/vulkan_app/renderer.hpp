@@ -19,15 +19,27 @@ struct Material;
 struct SsaoParams;
 class ImGuiLayer;
 
+/**
+ * @brief Vulkan renderer that manages instance, device, swapchain, and drawing.
+ *
+ * Provides a minimal public surface for the application to update geometry and
+ * per-frame parameters, and exposes required handles for ImGui backend
+ * initialization.
+ */
 class Renderer final {
 public:
+    /** Initialize Vulkan instance, device, swapchain, pipelines, and resources. */
     explicit Renderer(GLFWwindow* window);
+    /** Destroy Vulkan resources in a safe order. */
     ~Renderer() noexcept;
     Renderer(const Renderer&) = delete;
     Renderer& operator=(const Renderer&) = delete;
 
+    /** Trigger swapchain recreation on resize. */
     void resize();
+    /** Upload new mesh vertex/index buffers to the GPU. */
     void update_mesh(const Mesh& mesh);
+    /** Record and submit rendering for the current frame. */
     void draw_frame(const CameraUBO& camera, const Light& light, const Material& material, const SsaoParams& ssao);
     [[nodiscard]] const char* device_name() const noexcept { return device_name_; }
     void attach_imgui(ImGuiLayer* layer) noexcept { imgui_layer_ = layer; }
