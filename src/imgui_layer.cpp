@@ -42,6 +42,9 @@ ImGuiLayer::ImGuiLayer(GLFWwindow* window,
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     (void)io;
+#ifdef VULKAN_APP_IMGUI_DOCKING
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+#endif
     ImGui::StyleColorsDark();
     ImGui_ImplGlfw_InitForVulkan(window, true);
 

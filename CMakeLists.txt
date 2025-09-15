@@ -27,6 +27,13 @@ FetchContent_Declare(
   GIT_REPOSITORY https://github.com/glfw/glfw.git
   GIT_TAG 3.3.8
 )
+# Allow selecting Wayland on Linux when requested
+if (UNIX AND NOT APPLE)
+  if (ENABLE_GLFW_WAYLAND)
+    set(GLFW_BUILD_WAYLAND ON CACHE BOOL "Build GLFW with Wayland support" FORCE)
+    set(GLFW_BUILD_X11 OFF CACHE BOOL "Disable X11 when Wayland is enabled" FORCE)
+  endif()
+endif()
 FetchContent_MakeAvailable(glfw)
 
 find_package(Vulkan REQUIRED)
@@ -88,6 +95,9 @@ target_compile_definitions(vulkan_app PUBLIC
 )
 if (ENABLE_VALIDATION)
     target_compile_definitions(vulkan_app PUBLIC VULKAN_APP_ENABLE_VALIDATION=1)
+endif()
+if (ENABLE_IMGUI_DOCKING)
+    target_compile_definitions(vulkan_app PUBLIC VULKAN_APP_IMGUI_DOCKING=1)
 endif()
 
 add_executable(vulkan_app_example src/main.cpp)

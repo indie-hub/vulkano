@@ -17,6 +17,7 @@ Options:
 - `ENABLE_VALIDATION=ON` to enable Vulkan validation layers in Debug.
 - `ENABLE_GLFW_WAYLAND=ON` on Wayland Linux if needed.
 - `ENABLE_IMGUI_DOCKING=ON` to enable ImGui docking (build-time flag only).
+  - When enabled, docking is compiled in and activated.
 
 Build:
 ```

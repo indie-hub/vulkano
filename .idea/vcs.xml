@@ -2,18 +2,5 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/build/_deps/catch2-src" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/build/_deps/glfw-src" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/build/_deps/glm-src" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/build/_deps/imgui-src" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/ci_build/_deps/catch2-src" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/ci_build/_deps/glfw-src" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/ci_build/_deps/glm-src" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/ci_build/_deps/imgui-src" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/vulkano/build/_deps/catch2-src" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/vulkano/build/_deps/glfw-src" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/vulkano/build/_deps/glm-src" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/vulkano/build/_deps/imgui-src" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/vulkano/build/_deps/stb-src" vcs="Git" />
   </component>
 </project>

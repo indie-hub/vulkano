@@ -37,7 +37,7 @@ High-level plan to reach acceptance criteria.
 - README with build/run instructions (Windows/Linux/macOS)
 - Notes on Vulkan SDK/MoltenVK
 
-Milestone 1 (organized repo):
+Milestone 1 (organized repo): [COMPLETED]
 - Project skeleton settled; unified CMake, per-config bin/lib outputs
 - CI added (Linux/Windows/macOS with Vulkan SDK)
 - .gitignore expanded; tools scripts for format/tidy/build
@@ -45,6 +45,9 @@ Milestone 1 (organized repo):
 - Pruned duplicate subproject folder and temp files
 - Icosphere generator + tests in place
 - Renderer/ImGui scaffolding; shader compile step in CMake
+
+Completion log:
+- 2025-09-15: Build passes on macOS; unit tests green; runtime opens a window and renders basic forward pass with ImGui. Wayland and docking switches wired in CMake.
 
 Next milestones tracked here as we implement passes.
 
