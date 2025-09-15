@@ -107,6 +107,11 @@ private:
     std::vector<VkSemaphore> render_finished_{};
     std::vector<VkFence> in_flight_{};
     std::size_t current_frame_{0U};
+
+    // UBOs
+    VkBuffer camera_buffer_{}; VkDeviceMemory camera_memory_{};
+    VkBuffer material_buffer_{}; VkDeviceMemory material_memory_{};
+    VkBuffer light_buffer_{}; VkDeviceMemory light_memory_{};
 };
 
 } // namespace vulkan_app
