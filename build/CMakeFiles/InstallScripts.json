@@ -1,0 +1,15 @@
+{
+	"InstallScripts" : 
+	[
+		"/Users/bruno/Documents/Development/bruno/vulkano_codex/build/cmake_install.cmake",
+		"/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-build/cmake_install.cmake",
+		"/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-build/glm/cmake_install.cmake",
+		"/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glfw-build/cmake_install.cmake",
+		"/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glfw-build/src/cmake_install.cmake",
+		"/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glfw-build/examples/cmake_install.cmake",
+		"/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glfw-build/tests/cmake_install.cmake",
+		"/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/catch2-build/cmake_install.cmake",
+		"/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/catch2-build/src/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

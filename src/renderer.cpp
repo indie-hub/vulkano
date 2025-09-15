@@ -1,6 +1,7 @@
 #include <cstring>
 #include <stdexcept>
 #include <vector>
+#include <string>
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -222,8 +223,27 @@ void Renderer::init_instance() {
     std::uint32_t glfw_count{0U};
     const char** glfw_ext = glfwGetRequiredInstanceExtensions(&glfw_count);
     std::vector<const char*> extensions(glfw_ext, glfw_ext + glfw_count);
-    if (kEnableValidation) {
+    // Enumerate supported instance extensions so we can conditionally enable portability + debug utils
+    std::uint32_t ext_count{0U};
+    vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
+    std::vector<VkExtensionProperties> avail_exts(static_cast<std::size_t>(ext_count));
+    if (ext_count > 0U) {
+        vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, avail_exts.data());
+    }
+    auto has_ext = [&](const char* name) noexcept -> bool {
+        for (const auto &e : avail_exts) {
+            if (std::strcmp(e.extensionName, name) == 0) {
+                return true;
+            }
+        }
+        return false;
+    };
+    if (kEnableValidation && has_ext(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+    }
+    const bool portability_supported = has_ext(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+    if (portability_supported) {
+        extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
     }
 
     const std::vector<const char*> layers{
@@ -235,6 +255,9 @@ void Renderer::init_instance() {
     ci.pApplicationInfo = &app_info;
     ci.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
     ci.ppEnabledExtensionNames = extensions.data();
+    if (portability_supported) {
+        ci.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+    }
     if (kEnableValidation) {
         ci.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
         ci.ppEnabledLayerNames = layers.data();
@@ -321,15 +344,34 @@ void Renderer::create_device() {
 
     VkPhysicalDeviceFeatures features{};
 
-    const char* device_exts[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+    // Query device extensions to enable portability subset on platforms like macOS (MoltenVK)
+    std::uint32_t dev_ext_count{0U};
+    vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, nullptr);
+    std::vector<VkExtensionProperties> dev_exts(static_cast<std::size_t>(dev_ext_count));
+    if (dev_ext_count > 0U) {
+        vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, dev_exts.data());
+    }
+    auto has_dev_ext = [&](const char* name) noexcept -> bool {
+        for (const auto &e : dev_exts) {
+            if (std::strcmp(e.extensionName, name) == 0) {
+                return true;
+            }
+        }
+        return false;
+    };
+    std::vector<const char*> device_exts;
+    device_exts.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+    if (has_dev_ext(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
+        device_exts.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
+    }
 
     VkDeviceCreateInfo dci{};
     dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     dci.pQueueCreateInfos = queues.data();
     dci.queueCreateInfoCount = static_cast<std::uint32_t>(queues.size());
     dci.pEnabledFeatures = &features;
-    dci.enabledExtensionCount = 1;
-    dci.ppEnabledExtensionNames = device_exts;
+    dci.enabledExtensionCount = static_cast<std::uint32_t>(device_exts.size());
+    dci.ppEnabledExtensionNames = device_exts.data();
     if (vkCreateDevice(physical_device_, &dci, nullptr, &device_) != VK_SUCCESS) {
         throw std::runtime_error{"Failed to create logical device"};
     }
@@ -382,7 +424,14 @@ void Renderer::create_swapchain() {
     sci.imageExtent = extent;
     sci.imageArrayLayers = 1;
     sci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-    sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    if (present_family_ != graphics_family_) {
+        const std::uint32_t indices[2] = { graphics_family_, present_family_ };
+        sci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+        sci.queueFamilyIndexCount = 2;
+        sci.pQueueFamilyIndices = indices;
+    } else {
+        sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    }
     sci.preTransform = caps.currentTransform;
     sci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     sci.presentMode = chosen_present;

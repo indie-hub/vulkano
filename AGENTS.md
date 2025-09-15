@@ -9,6 +9,7 @@
 * **Mission:** Produce maintainable, performant C++20 code and supporting assets (tests, docs, CMake, CI) that follow SOLID and Clean Code.
 * **Scope:** Libraries, services, tools, and samples. The agent may create new modules, extend existing ones, refactor safely, and write docs/tests.
 * **Non‑Goals:** Experimental hacks, throwaway spikes without clear marking, or code that bypasses review/CI.
+* **Mandatory:** Do NOT commit code that does not compile, fails tests, or violates formatting/linting rules.
 
 ---
 
