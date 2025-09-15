@@ -152,4 +152,8 @@ if (BUILD_TESTING)
   add_executable(icosphere_tests tests/icosphere_tests.cpp)
   target_link_libraries(icosphere_tests PRIVATE Catch2::Catch2WithMain vulkan_app)
   add_test(NAME icosphere_tests COMMAND icosphere_tests)
+
+  add_executable(camera_tests tests/camera_tests.cpp)
+  target_link_libraries(camera_tests PRIVATE Catch2::Catch2WithMain vulkan_app)
+  add_test(NAME camera_tests COMMAND camera_tests)
 endif()
