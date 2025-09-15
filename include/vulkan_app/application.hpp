@@ -7,6 +7,7 @@
 
 #include <vulkan_app/camera.hpp>
 #include <vulkan_app/renderer.hpp>
+#include <vulkan_app/imgui_layer.hpp>
 #include <vulkan_app/types.hpp>
 
 namespace vulkan_app {
@@ -27,6 +28,7 @@ private:
 
     GLFWwindow *window{};
     std::unique_ptr<Renderer> renderer{};
+    std::unique_ptr<ImGuiLayer> imgui{};
     Camera camera{};
     Light light{};
     Material material{};
