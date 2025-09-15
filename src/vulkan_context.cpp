@@ -68,6 +68,9 @@ struct VulkanContext::Impl final {
     VkImage normal_image {VK_NULL_HANDLE};
     VkDeviceMemory normal_memory {VK_NULL_HANDLE};
     VkImageView normal_view {VK_NULL_HANDLE};
+    VkImage ao_image {VK_NULL_HANDLE};
+    VkDeviceMemory ao_memory {VK_NULL_HANDLE};
+    VkImageView ao_view {VK_NULL_HANDLE};
     VkBuffer ubo_buffer {VK_NULL_HANDLE};
     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
 
@@ -680,6 +683,9 @@ static void destroy_pipeline(VulkanContext& ctx) {
     if (impl.normal_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.normal_view, nullptr); impl.normal_view = VK_NULL_HANDLE; }
     if (impl.normal_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.normal_image, nullptr); impl.normal_image = VK_NULL_HANDLE; }
     if (impl.normal_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.normal_memory, nullptr); impl.normal_memory = VK_NULL_HANDLE; }
+    if (impl.ao_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.ao_view, nullptr); impl.ao_view = VK_NULL_HANDLE; }
+    if (impl.ao_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.ao_image, nullptr); impl.ao_image = VK_NULL_HANDLE; }
+    if (impl.ao_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ao_memory, nullptr); impl.ao_memory = VK_NULL_HANDLE; }
     if (impl.ubo_buffer != VK_NULL_HANDLE) { vkDestroyBuffer(impl.device, impl.ubo_buffer, nullptr); impl.ubo_buffer = VK_NULL_HANDLE; }
     if (impl.ubo_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ubo_memory, nullptr); impl.ubo_memory = VK_NULL_HANDLE; }
 }
@@ -777,14 +783,15 @@ static void create_pipeline(VulkanContext& ctx) {
     pcr.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
     VkDescriptorSetLayoutCreateInfo dlci {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
-    VkDescriptorSetLayoutBinding bindings[3] = {};
+    VkDescriptorSetLayoutBinding bindings[4] = {};
     uint32_t bindCount = 0U;
     if (forward) {
-        // binding 0: UBO, 1: albedo, 2: normal
+        // binding 0: UBO, 1: albedo, 2: normal, 3: AO
         bindings[0].binding = 0; bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; bindings[0].descriptorCount = 1; bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
         bindings[1].binding = 1; bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[1].descriptorCount = 1; bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
         bindings[2].binding = 2; bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[2].descriptorCount = 1; bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-        bindCount = 3U;
+        bindings[3].binding = 3; bindings[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[3].descriptorCount = 1; bindings[3].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        bindCount = 4U;
         dlci.bindingCount = bindCount; dlci.pBindings = bindings;
         if (vkCreateDescriptorSetLayout(impl.device, &dlci, nullptr, &impl.desc_layout) != VK_SUCCESS) {
             vkDestroyShaderModule(impl.device, vmod, nullptr);
@@ -849,13 +856,17 @@ static void create_pipeline(VulkanContext& ctx) {
         create_image_and_upload(ctx, W, H, albedo.data(), static_cast<VkDeviceSize>(albedo.size()*sizeof(std::uint32_t)), &impl.albedo_image, &impl.albedo_memory, &impl.albedo_view);
         create_image_and_upload(ctx, W, H, normal.data(), static_cast<VkDeviceSize>(normal.size()*sizeof(std::uint32_t)), &impl.normal_image, &impl.normal_memory, &impl.normal_view);
 
-        // Create UBO
-        create_buffer(ctx, sizeof(float)*16U*2U + sizeof(float)*16U, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
+        // AO texture placeholder: 1x1 white (no occlusion)
+        const uint32_t AO_W = 1, AO_H = 1; const std::uint32_t white = 0xFFFFFFFFu;
+        create_image_and_upload(ctx, AO_W, AO_H, &white, sizeof(white), &impl.ao_image, &impl.ao_memory, &impl.ao_view);
+
+        // Create UBO (256 bytes)
+        create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
 
         // Descriptor pool and set
         VkDescriptorPoolSize poolSizes[2] = {};
         poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 1;
-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 2;
+        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 3;
         VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
         dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 1;
         vkCreateDescriptorPool(impl.device, &dpci, nullptr, &impl.desc_pool);
@@ -865,10 +876,12 @@ static void create_pipeline(VulkanContext& ctx) {
         VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
         VkDescriptorImageInfo dai1 {}; dai1.sampler = impl.sampler; dai1.imageView = impl.albedo_view; dai1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         VkDescriptorImageInfo dai2 {}; dai2.sampler = impl.sampler; dai2.imageView = impl.normal_view; dai2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        std::array<VkWriteDescriptorSet,3> writes {};
+        VkDescriptorImageInfo dai3 {}; dai3.sampler = impl.sampler; dai3.imageView = impl.ao_view; dai3.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        std::array<VkWriteDescriptorSet,4> writes {};
         writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[0].dstSet = impl.desc_set; writes[0].dstBinding = 0; writes[0].descriptorCount = 1; writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes[0].pBufferInfo = &dbi;
         writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[1].dstSet = impl.desc_set; writes[1].dstBinding = 1; writes[1].descriptorCount = 1; writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[1].pImageInfo = &dai1;
         writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = impl.desc_set; writes[2].dstBinding = 2; writes[2].descriptorCount = 1; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[2].pImageInfo = &dai2;
+        writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[3].dstSet = impl.desc_set; writes[3].dstBinding = 3; writes[3].descriptorCount = 1; writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[3].pImageInfo = &dai3;
         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
     }
 }
@@ -1068,14 +1081,17 @@ void VulkanContext::draw_frame() {
             matmul(pv, model, mvp);
             vkCmdPushConstants(cmd, impl->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0U, static_cast<uint32_t>(sizeof(float)*16U), mvp);
 
-            // Update UBO if available: view, proj, camera/light parameters
+            // Update UBO if available: view, proj, camera/light parameters, screen params
             if (impl->ubo_buffer != VK_NULL_HANDLE) {
-                struct Align16UBO { float view[16]; float proj[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; } u {};
+                struct Align16UBO { float view[16]; float proj[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; float screen[4]; } u {};
                 for (int i=0;i<16;++i) { u.view[i] = view[i]; u.proj[i] = proj[i]; }
                 const auto s = impl->settings;
                 u.cam_pos[0]=eye[0]; u.cam_pos[1]=eye[1]; u.cam_pos[2]=eye[2]; u.cam_pos[3]=s.normal_strength;
                 u.light_pos[0]=s.light_pos[0]; u.light_pos[1]=s.light_pos[1]; u.light_pos[2]=s.light_pos[2]; u.light_pos[3]=s.shininess;
                 u.light_color[0]=s.light_color[0]; u.light_color[1]=s.light_color[1]; u.light_color[2]=s.light_color[2]; u.light_color[3]=s.light_intensity;
+                const float invW = impl->swapchain_extent.width > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.width) : 0.0F;
+                const float invH = impl->swapchain_extent.height > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.height) : 0.0F;
+                u.screen[0]=invW; u.screen[1]=invH; u.screen[2]=s.ssao_power; u.screen[3]=0.0F;
                 void* ubodata=nullptr; vkMapMemory(impl->device, impl->ubo_memory, 0, sizeof(u), 0, &ubodata); std::memcpy(ubodata, &u, sizeof(u)); vkUnmapMemory(impl->device, impl->ubo_memory);
             }
         }

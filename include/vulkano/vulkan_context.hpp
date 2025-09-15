@@ -35,6 +35,14 @@ public:
         float light_intensity {1.0F};
         float light_pos[3] {3.0F, 3.0F, 3.0F};
         float light_color[3] {1.0F, 1.0F, 1.0F};
+        // SSAO controls (initial wiring; passes added subsequently)
+        bool ssao_enabled {true};
+        int ssao_kernel {32};
+        float ssao_radius {0.5F};
+        float ssao_bias {0.02F};
+        float ssao_power {1.0F};
+        bool ssao_blur {true};
+        int ssao_blur_radius {2};
     };
 
     void set_settings(const Settings& s) noexcept;

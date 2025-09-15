@@ -34410,3 +34410,2245 @@ I’ll also create blur pipelines for horizontal and vertical passes. In draw_fr
 
 Before making heavy edits, I should commit the current state and update the TODO list to reflect upcoming tasks. It’s essential I keep track of progress and maintain frequent commits as per the user's requirements.
 [2025-09-15T16:48:16] exec bash -lc 'git add -A && git status --porcelain' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:48:17] bash -lc 'git add -A && git status --porcelain' succeeded in 56ms:
+M  output.md
+[2025-09-15T16:48:17] tokens used: 69,986
+[2025-09-15T16:48:20] exec bash -lc 'git commit -m "chore: baseline build green; ready to add SSAO pipeline"' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:48:20] bash -lc 'git commit -m "chore: baseline build green; ready to add SSAO pipeline"' succeeded in 48ms:
+[personal/codex/second_try 71b53da] chore: baseline build green; ready to add SSAO pipeline
+ 1 file changed, 7797 insertions(+)
+[2025-09-15T16:48:20] tokens used: 70,150
+
+[2025-09-15T16:48:26] thinking
+
+**Implementing pipeline changes**
+
+I'm tackling some significant updates to the pipeline. To keep it manageable, I'm focusing on a simpler approach. I want to preserve the forward pipeline while adding prepass, SSAO, and blur. Before the forward pass is drawn, I need to bind descriptor sampling AO. Right now, the forward pipeline's descriptor set has bindings for UBO, albedo, and normal; I need to add an AO texture. I'll modify shaders to incorporate this and ensure proper handling of resolution in the shader.
+**Optimizing Vulkan setup**
+
+Alternatively, I could use Vulkan's built-in `gl_FragCoord` along with a push constant for inverse resolution. Push constants are limited in size, and I already use them for the MVP in the vertex stage. So, passing the screen size via a descriptor UBO makes sense. I’ll extend the UBO struct for this and ensure the memory size is updated. The UBO is adjusted in the draw loop, allowing for computation of the inverse width and height from the swap chain extent. Additionally, I need to modify the pipeline descriptor to include an AO binding and set up a render pass for writing the AO image. For SSAO, normal maps from the prepass must be input, requiring modifications to gbuffer shaders for proper view-space normals.
+**Streamlining the UBO setup**
+
+To simplify things, I can reuse the same UBO buffer with different layouts. Instead of writing normals in object space and multiplying them in SSAO, it’s better to compute view-space normals in `gbuffer.frag` using the view matrix from the UBO. However, the prepass pipeline will need its own descriptor. I’m aiming to maintain the same UBO layout as the forward pipeline, but since the descriptors differ, I'll create a separate layout for the prepass that references the same UBO buffer.
+**Implementing Vulkan code structure**
+
+I'm laying out the code structure for the Vulkan implementation. First, I’ll extend `VulkanContext::Impl` to include images for gNormal, gDepth, AO, and AO_blur, along with their views, framebuffers, and render passes for prepass, SSAO, and blur. 
+
+Next, I'll create pipeline functions for prepass, SSAO, and blur while loading shaders, like `gbuffer.vert`, `gbuffer.frag`, `ssao.frag`, and `blur.frag`. There’s a need to manage shader files under the `shaders/` directory and compile the GLSL into SPIR-V. 
+
+To keep it practical, I’ll include precompiled SPIR-V for convenience, while also requiring a local compile for new shaders.
+**Planning SSAO integration**
+
+I need to maintain a fallback path where the forward pipeline still functions if the new passes aren't found, although they won’t achieve SSAO. Given the constraints, I think it’s prudent to focus on code scaffolding while updating the README to include compile commands and outline next steps. 
+
+To enhance efficiency, I can modify `forward.frag` to compute AO procedurally, but it needs depth texture sampling, which may not be feasible. I’ll implement SSAO code while noting that shaders must be loaded correctly; adding controls and adjusting UBO are essential steps. I'll set defaults for SSAO settings and ensure proper integration into ImGui. Also, AO texture resources and pipeline modifications are necessary for a consistent future implementation.
+**Checking .spv compilation options**
+
+I noticed that earlier on this machine, I had existing compiled `.spv` files for the forward shader. If I modify the GLSL code, I’ll need to recompile those shaders. I can set up a small custom command in CMake to handle compilation during the build if the Vulkan SDK is installed. Alternatively, I could run `glslc` through the shell, provided it’s available in the environment. I should check if `glslc` is indeed installed and ready to go.
+[2025-09-15T16:49:21] codex
+**Optimizing Vulkan setup**
+
+Alternatively, I could use Vulkan's built-in `gl_FragCoord` along with a push constant for inverse resolution. Push constants are limited in size, and I already use them for the MVP in the vertex stage. So, passing the screen size via a descriptor UBO makes sense. I’ll extend the UBO struct for this and ensure the memory size is updated. The UBO is adjusted in the draw loop, allowing for computation of the inverse width and height from the swap chain extent. Additionally, I need to modify the pipeline descriptor to include an AO binding and set up a render pass for writing the AO image. For SSAO, normal maps from the prepass must be input, requiring modifications to gbuffer shaders for proper view-space normals.
+[2025-09-15T16:49:21] codex
+**Streamlining the UBO setup**
+
+To simplify things, I can reuse the same UBO buffer with different layouts. Instead of writing normals in object space and multiplying them in SSAO, it’s better to compute view-space normals in `gbuffer.frag` using the view matrix from the UBO. However, the prepass pipeline will need its own descriptor. I’m aiming to maintain the same UBO layout as the forward pipeline, but since the descriptors differ, I'll create a separate layout for the prepass that references the same UBO buffer.
+[2025-09-15T16:49:21] codex
+**Implementing Vulkan code structure**
+
+I'm laying out the code structure for the Vulkan implementation. First, I’ll extend `VulkanContext::Impl` to include images for gNormal, gDepth, AO, and AO_blur, along with their views, framebuffers, and render passes for prepass, SSAO, and blur. 
+
+Next, I'll create pipeline functions for prepass, SSAO, and blur while loading shaders, like `gbuffer.vert`, `gbuffer.frag`, `ssao.frag`, and `blur.frag`. There’s a need to manage shader files under the `shaders/` directory and compile the GLSL into SPIR-V. 
+
+To keep it practical, I’ll include precompiled SPIR-V for convenience, while also requiring a local compile for new shaders.
+[2025-09-15T16:49:21] codex
+**Planning SSAO integration**
+
+I need to maintain a fallback path where the forward pipeline still functions if the new passes aren't found, although they won’t achieve SSAO. Given the constraints, I think it’s prudent to focus on code scaffolding while updating the README to include compile commands and outline next steps. 
+
+To enhance efficiency, I can modify `forward.frag` to compute AO procedurally, but it needs depth texture sampling, which may not be feasible. I’ll implement SSAO code while noting that shaders must be loaded correctly; adding controls and adjusting UBO are essential steps. I'll set defaults for SSAO settings and ensure proper integration into ImGui. Also, AO texture resources and pipeline modifications are necessary for a consistent future implementation.
+[2025-09-15T16:49:21] codex
+**Checking .spv compilation options**
+
+I noticed that earlier on this machine, I had existing compiled `.spv` files for the forward shader. If I modify the GLSL code, I’ll need to recompile those shaders. I can set up a small custom command in CMake to handle compilation during the build if the Vulkan SDK is installed. Alternatively, I could run `glslc` through the shell, provided it’s available in the environment. I should check if `glslc` is indeed installed and ready to go.
+[2025-09-15T16:49:21] exec bash -lc 'which glslc || echo no_glslc' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:49:21] bash -lc 'which glslc || echo no_glslc' succeeded in 22ms:
+/usr/local/bin/glslc
+[2025-09-15T16:49:21] tokens used: 72,339
+
+[2025-09-15T16:49:24] thinking
+
+**Implementing shader modifications**
+
+I’m feeling good since we have glslc! Now I can modify the shader and compile it, which is exciting. I think adding patches will really enhance the effects I'm aiming for. I'll need to focus on making sure everything integrates smoothly. It’s a bit daunting, but I'm eager to see how the changes will look once they're implemented. Let's dive into the details and get this done!
+[2025-09-15T16:49:27] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/vulkan_context.hpp
+@@ -37,2 +37,10 @@
+         float light_color[3] {1.0F, 1.0F, 1.0F};
++        // SSAO controls (initial wiring; passes added subsequently)
++        bool ssao_enabled {true};
++        int ssao_kernel {32};
++        float ssao_radius {0.5F};
++        float ssao_bias {0.02F};
++        float ssao_power {1.0F};
++        bool ssao_blur {true};
++        int ssao_blur_radius {2};
+     };
+[2025-09-15T16:49:27] apply_patch(auto_approved=true) exited 0 in 18ms:
+Success. Updated the following files:
+M include/vulkano/vulkan_context.hpp
+[2025-09-15T16:49:27] turn diff:
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index 2290faca01c678ec81806baf1dc2750353a06fb3..fbf0a791ce5b68f29174b8cabd105681f78c0b60
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -35,6 +35,14 @@
+         float light_intensity {1.0F};
+         float light_pos[3] {3.0F, 3.0F, 3.0F};
+         float light_color[3] {1.0F, 1.0F, 1.0F};
++        // SSAO controls (initial wiring; passes added subsequently)
++        bool ssao_enabled {true};
++        int ssao_kernel {32};
++        float ssao_radius {0.5F};
++        float ssao_bias {0.02F};
++        float ssao_power {1.0F};
++        bool ssao_blur {true};
++        int ssao_blur_radius {2};
+     };
+ 
+     void set_settings(const Settings& s) noexcept;
+
+[2025-09-15T16:49:27] tokens used: 72,661
+[2025-09-15T16:49:27] turn diff:
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index 2290faca01c678ec81806baf1dc2750353a06fb3..fbf0a791ce5b68f29174b8cabd105681f78c0b60
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -35,6 +35,14 @@
+         float light_intensity {1.0F};
+         float light_pos[3] {3.0F, 3.0F, 3.0F};
+         float light_color[3] {1.0F, 1.0F, 1.0F};
++        // SSAO controls (initial wiring; passes added subsequently)
++        bool ssao_enabled {true};
++        int ssao_kernel {32};
++        float ssao_radius {0.5F};
++        float ssao_bias {0.02F};
++        float ssao_power {1.0F};
++        bool ssao_blur {true};
++        int ssao_blur_radius {2};
+     };
+ 
+     void set_settings(const Settings& s) noexcept;
+
+[2025-09-15T16:49:29] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/imgui_layer.hpp
+[2025-09-15T16:49:29] apply_patch(auto_approved=true) exited 0 in 29ms:
+Success. Updated the following files:
+M include/vulkano/imgui_layer.hpp
+[2025-09-15T16:49:29] turn diff:
+
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index 2290faca01c678ec81806baf1dc2750353a06fb3..fbf0a791ce5b68f29174b8cabd105681f78c0b60
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -35,6 +35,14 @@
+         float light_intensity {1.0F};
+         float light_pos[3] {3.0F, 3.0F, 3.0F};
+         float light_color[3] {1.0F, 1.0F, 1.0F};
++        // SSAO controls (initial wiring; passes added subsequently)
++        bool ssao_enabled {true};
++        int ssao_kernel {32};
++        float ssao_radius {0.5F};
++        float ssao_bias {0.02F};
++        float ssao_power {1.0F};
++        bool ssao_blur {true};
++        int ssao_blur_radius {2};
+     };
+ 
+     void set_settings(const Settings& s) noexcept;
+
+[2025-09-15T16:49:29] tokens used: 73,141
+[2025-09-15T16:49:29] turn diff:
+
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index 2290faca01c678ec81806baf1dc2750353a06fb3..fbf0a791ce5b68f29174b8cabd105681f78c0b60
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -35,6 +35,14 @@
+         float light_intensity {1.0F};
+         float light_pos[3] {3.0F, 3.0F, 3.0F};
+         float light_color[3] {1.0F, 1.0F, 1.0F};
++        // SSAO controls (initial wiring; passes added subsequently)
++        bool ssao_enabled {true};
++        int ssao_kernel {32};
++        float ssao_radius {0.5F};
++        float ssao_bias {0.02F};
++        float ssao_power {1.0F};
++        bool ssao_blur {true};
++        int ssao_blur_radius {2};
+     };
+ 
+     void set_settings(const Settings& s) noexcept;
+
+[2025-09-15T16:49:39] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/imgui_layer.cpp
+@@ -126,2 +126,12 @@
+         ImGui::SliderFloat("Shininess", &s.shininess, 4.0F, 256.0F);
++
++        ImGui::Separator();
++        ImGui::Text("SSAO");
++        ImGui::Checkbox("Enable SSAO", &s.ssao_enabled);
++        ImGui::SliderInt("Kernel Size", &s.ssao_kernel, 8, 64);
++        ImGui::SliderFloat("Radius", &s.ssao_radius, 0.05F, 2.0F);
++        ImGui::SliderFloat("Bias", &s.ssao_bias, 0.0F, 0.1F);
++        ImGui::SliderFloat("Power", &s.ssao_power, 0.0F, 2.0F);
++        ImGui::Checkbox("Blur AO", &s.ssao_blur);
++        ImGui::SliderInt("Blur Radius", &s.ssao_blur_radius, 1, 5);
+         impl->ctx->set_settings(s);
+[2025-09-15T16:49:39] apply_patch(auto_approved=true) exited 0 in 40ms:
+Success. Updated the following files:
+M src/imgui_layer.cpp
+[2025-09-15T16:49:39] turn diff:
+
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index 2290faca01c678ec81806baf1dc2750353a06fb3..fbf0a791ce5b68f29174b8cabd105681f78c0b60
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -35,6 +35,14 @@
+         float light_intensity {1.0F};
+         float light_pos[3] {3.0F, 3.0F, 3.0F};
+         float light_color[3] {1.0F, 1.0F, 1.0F};
++        // SSAO controls (initial wiring; passes added subsequently)
++        bool ssao_enabled {true};
++        int ssao_kernel {32};
++        float ssao_radius {0.5F};
++        float ssao_bias {0.02F};
++        float ssao_power {1.0F};
++        bool ssao_blur {true};
++        int ssao_blur_radius {2};
+     };
+ 
+     void set_settings(const Settings& s) noexcept;
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+index 94c6560d6c86ce8166e3303e0e8d6a0ce5a4fc5c..ab2dba099289e44f45d6393eba8b243ea871b9ff
+--- a/src/imgui_layer.cpp
++++ b/src/imgui_layer.cpp
+@@ -124,6 +124,16 @@
+         ImGui::ColorEdit3("Color", s.light_color);
+         ImGui::SliderFloat("Intensity", &s.light_intensity, 0.0F, 5.0F);
+         ImGui::SliderFloat("Shininess", &s.shininess, 4.0F, 256.0F);
++
++        ImGui::Separator();
++        ImGui::Text("SSAO");
++        ImGui::Checkbox("Enable SSAO", &s.ssao_enabled);
++        ImGui::SliderInt("Kernel Size", &s.ssao_kernel, 8, 64);
++        ImGui::SliderFloat("Radius", &s.ssao_radius, 0.05F, 2.0F);
++        ImGui::SliderFloat("Bias", &s.ssao_bias, 0.0F, 0.1F);
++        ImGui::SliderFloat("Power", &s.ssao_power, 0.0F, 2.0F);
++        ImGui::Checkbox("Blur AO", &s.ssao_blur);
++        ImGui::SliderInt("Blur Radius", &s.ssao_blur_radius, 1, 5);
+         impl->ctx->set_settings(s);
+     }
+     ImGui::End();
+
+[2025-09-15T16:49:39] tokens used: 73,875
+[2025-09-15T16:49:39] turn diff:
+
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index 2290faca01c678ec81806baf1dc2750353a06fb3..fbf0a791ce5b68f29174b8cabd105681f78c0b60
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -35,6 +35,14 @@
+         float light_intensity {1.0F};
+         float light_pos[3] {3.0F, 3.0F, 3.0F};
+         float light_color[3] {1.0F, 1.0F, 1.0F};
++        // SSAO controls (initial wiring; passes added subsequently)
++        bool ssao_enabled {true};
++        int ssao_kernel {32};
++        float ssao_radius {0.5F};
++        float ssao_bias {0.02F};
++        float ssao_power {1.0F};
++        bool ssao_blur {true};
++        int ssao_blur_radius {2};
+     };
+ 
+     void set_settings(const Settings& s) noexcept;
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+index 94c6560d6c86ce8166e3303e0e8d6a0ce5a4fc5c..ab2dba099289e44f45d6393eba8b243ea871b9ff
+--- a/src/imgui_layer.cpp
++++ b/src/imgui_layer.cpp
+@@ -124,6 +124,16 @@
+         ImGui::ColorEdit3("Color", s.light_color);
+         ImGui::SliderFloat("Intensity", &s.light_intensity, 0.0F, 5.0F);
+         ImGui::SliderFloat("Shininess", &s.shininess, 4.0F, 256.0F);
++
++        ImGui::Separator();
++        ImGui::Text("SSAO");
++        ImGui::Checkbox("Enable SSAO", &s.ssao_enabled);
++        ImGui::SliderInt("Kernel Size", &s.ssao_kernel, 8, 64);
++        ImGui::SliderFloat("Radius", &s.ssao_radius, 0.05F, 2.0F);
++        ImGui::SliderFloat("Bias", &s.ssao_bias, 0.0F, 0.1F);
++        ImGui::SliderFloat("Power", &s.ssao_power, 0.0F, 2.0F);
++        ImGui::Checkbox("Blur AO", &s.ssao_blur);
++        ImGui::SliderInt("Blur Radius", &s.ssao_blur_radius, 1, 5);
+         impl->ctx->set_settings(s);
+     }
+     ImGui::End();
+
+[2025-09-15T16:49:46] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/forward.frag
+@@ -19,2 +19,4 @@
+     float lightIntensity;
++    // screen params: (invWidth, invHeight, aoStrength, reserved)
++    vec4 screen;
+ } ubo;
+@@ -23,2 +25,3 @@
+ layout(set = 0, binding = 2) uniform sampler2D uNormal;
++layout(set = 0, binding = 3) uniform sampler2D uAO;
+ 
+@@ -52,2 +55,8 @@
+ 
++    // Sample SSAO
++    vec2 uv = gl_FragCoord.xy * ubo.screen.xy; // inv width/height
++    float ao = texture(uAO, uv).r;
++    ao = mix(1.0, clamp(ao, 0.0, 1.0), clamp(ubo.screen.z, 0.0, 2.0));
++    color *= ao;
++
+     // Gamma correct to sRGB for output
+@@ -56,2 +65 @@
+ }
+-
+[2025-09-15T16:49:46] apply_patch(auto_approved=true) exited 0 in 46ms:
+Success. Updated the following files:
+M shaders/forward.frag
+[2025-09-15T16:49:46] turn diff:
+
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index 2290faca01c678ec81806baf1dc2750353a06fb3..fbf0a791ce5b68f29174b8cabd105681f78c0b60
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -35,6 +35,14 @@
+         float light_intensity {1.0F};
+         float light_pos[3] {3.0F, 3.0F, 3.0F};
+         float light_color[3] {1.0F, 1.0F, 1.0F};
++        // SSAO controls (initial wiring; passes added subsequently)
++        bool ssao_enabled {true};
++        int ssao_kernel {32};
++        float ssao_radius {0.5F};
++        float ssao_bias {0.02F};
++        float ssao_power {1.0F};
++        bool ssao_blur {true};
++        int ssao_blur_radius {2};
+     };
+ 
+     void set_settings(const Settings& s) noexcept;
+diff --git a/shaders/forward.frag b/shaders/forward.frag
+index 989ff1142b5a85546924c12d9a958be5f751363f..91145c0145fbb58765becb71039706bde2dfb95d
+--- a/shaders/forward.frag
++++ b/shaders/forward.frag
+@@ -17,10 +17,13 @@
+     float shininess;
+     vec3 lightColor;
+     float lightIntensity;
++    // screen params: (invWidth, invHeight, aoStrength, reserved)
++    vec4 screen;
+ } ubo;
+ 
+ layout(set = 0, binding = 1) uniform sampler2D uAlbedo;
+ layout(set = 0, binding = 2) uniform sampler2D uNormal;
++layout(set = 0, binding = 3) uniform sampler2D uAO;
+ 
+ vec3 applyNormalMap(vec3 n, vec3 t, vec3 b, vec2 uv) {
+     // Sample normal map (assumed in [0,1] RGB with (0,0,1) as flat)
+@@ -50,8 +53,13 @@
+     vec3 specular = ubo.lightColor * spec;
+     vec3 color = (diffuse + specular) * ubo.lightColor * ubo.lightIntensity;
+ 
++    // Sample SSAO
++    vec2 uv = gl_FragCoord.xy * ubo.screen.xy; // inv width/height
++    float ao = texture(uAO, uv).r;
++    ao = mix(1.0, clamp(ao, 0.0, 1.0), clamp(ubo.screen.z, 0.0, 2.0));
++    color *= ao;
++
+     // Gamma correct to sRGB for output
+     color = pow(color, vec3(1.0/2.2));
+     outColor = vec4(color, 1.0);
+ }
+-
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+index 94c6560d6c86ce8166e3303e0e8d6a0ce5a4fc5c..ab2dba099289e44f45d6393eba8b243ea871b9ff
+--- a/src/imgui_layer.cpp
++++ b/src/imgui_layer.cpp
+@@ -124,6 +124,16 @@
+         ImGui::ColorEdit3("Color", s.light_color);
+         ImGui::SliderFloat("Intensity", &s.light_intensity, 0.0F, 5.0F);
+         ImGui::SliderFloat("Shininess", &s.shininess, 4.0F, 256.0F);
++
++        ImGui::Separator();
++        ImGui::Text("SSAO");
++        ImGui::Checkbox("Enable SSAO", &s.ssao_enabled);
++        ImGui::SliderInt("Kernel Size", &s.ssao_kernel, 8, 64);
++        ImGui::SliderFloat("Radius", &s.ssao_radius, 0.05F, 2.0F);
++        ImGui::SliderFloat("Bias", &s.ssao_bias, 0.0F, 0.1F);
++        ImGui::SliderFloat("Power", &s.ssao_power, 0.0F, 2.0F);
++        ImGui::Checkbox("Blur AO", &s.ssao_blur);
++        ImGui::SliderInt("Blur Radius", &s.ssao_blur_radius, 1, 5);
+         impl->ctx->set_settings(s);
+     }
+     ImGui::End();
+
+[2025-09-15T16:49:46] tokens used: 74,952
+[2025-09-15T16:49:46] turn diff:
+
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index 2290faca01c678ec81806baf1dc2750353a06fb3..fbf0a791ce5b68f29174b8cabd105681f78c0b60
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -35,6 +35,14 @@
+         float light_intensity {1.0F};
+         float light_pos[3] {3.0F, 3.0F, 3.0F};
+         float light_color[3] {1.0F, 1.0F, 1.0F};
++        // SSAO controls (initial wiring; passes added subsequently)
++        bool ssao_enabled {true};
++        int ssao_kernel {32};
++        float ssao_radius {0.5F};
++        float ssao_bias {0.02F};
++        float ssao_power {1.0F};
++        bool ssao_blur {true};
++        int ssao_blur_radius {2};
+     };
+ 
+     void set_settings(const Settings& s) noexcept;
+diff --git a/shaders/forward.frag b/shaders/forward.frag
+index 989ff1142b5a85546924c12d9a958be5f751363f..91145c0145fbb58765becb71039706bde2dfb95d
+--- a/shaders/forward.frag
++++ b/shaders/forward.frag
+@@ -17,10 +17,13 @@
+     float shininess;
+     vec3 lightColor;
+     float lightIntensity;
++    // screen params: (invWidth, invHeight, aoStrength, reserved)
++    vec4 screen;
+ } ubo;
+ 
+ layout(set = 0, binding = 1) uniform sampler2D uAlbedo;
+ layout(set = 0, binding = 2) uniform sampler2D uNormal;
++layout(set = 0, binding = 3) uniform sampler2D uAO;
+ 
+ vec3 applyNormalMap(vec3 n, vec3 t, vec3 b, vec2 uv) {
+     // Sample normal map (assumed in [0,1] RGB with (0,0,1) as flat)
+@@ -50,8 +53,13 @@
+     vec3 specular = ubo.lightColor * spec;
+     vec3 color = (diffuse + specular) * ubo.lightColor * ubo.lightIntensity;
+ 
++    // Sample SSAO
++    vec2 uv = gl_FragCoord.xy * ubo.screen.xy; // inv width/height
++    float ao = texture(uAO, uv).r;
++    ao = mix(1.0, clamp(ao, 0.0, 1.0), clamp(ubo.screen.z, 0.0, 2.0));
++    color *= ao;
++
+     // Gamma correct to sRGB for output
+     color = pow(color, vec3(1.0/2.2));
+     outColor = vec4(color, 1.0);
+ }
+-
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+index 94c6560d6c86ce8166e3303e0e8d6a0ce5a4fc5c..ab2dba099289e44f45d6393eba8b243ea871b9ff
+--- a/src/imgui_layer.cpp
++++ b/src/imgui_layer.cpp
+@@ -124,6 +124,16 @@
+         ImGui::ColorEdit3("Color", s.light_color);
+         ImGui::SliderFloat("Intensity", &s.light_intensity, 0.0F, 5.0F);
+         ImGui::SliderFloat("Shininess", &s.shininess, 4.0F, 256.0F);
++
++        ImGui::Separator();
++        ImGui::Text("SSAO");
++        ImGui::Checkbox("Enable SSAO", &s.ssao_enabled);
++        ImGui::SliderInt("Kernel Size", &s.ssao_kernel, 8, 64);
++        ImGui::SliderFloat("Radius", &s.ssao_radius, 0.05F, 2.0F);
++        ImGui::SliderFloat("Bias", &s.ssao_bias, 0.0F, 0.1F);
++        ImGui::SliderFloat("Power", &s.ssao_power, 0.0F, 2.0F);
++        ImGui::Checkbox("Blur AO", &s.ssao_blur);
++        ImGui::SliderInt("Blur Radius", &s.ssao_blur_radius, 1, 5);
+         impl->ctx->set_settings(s);
+     }
+     ImGui::End();
+
+[2025-09-15T16:49:50] exec bash -lc 'glslc shaders/forward.frag -o shaders/forward.frag.spv && glslc shaders/forward.vert -o shaders/forward.vert.spv && echo OK || echo FAIL' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:49:50] bash -lc 'glslc shaders/forward.frag -o shaders/forward.frag.spv && glslc shaders/forward.vert -o shaders/forward.vert.spv && echo OK || echo FAIL' succeeded in 115ms:
+OK
+[2025-09-15T16:49:50] tokens used: 75,490
+[2025-09-15T16:49:50] turn diff:
+
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index 2290faca01c678ec81806baf1dc2750353a06fb3..fbf0a791ce5b68f29174b8cabd105681f78c0b60
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -35,6 +35,14 @@
+         float light_intensity {1.0F};
+         float light_pos[3] {3.0F, 3.0F, 3.0F};
+         float light_color[3] {1.0F, 1.0F, 1.0F};
++        // SSAO controls (initial wiring; passes added subsequently)
++        bool ssao_enabled {true};
++        int ssao_kernel {32};
++        float ssao_radius {0.5F};
++        float ssao_bias {0.02F};
++        float ssao_power {1.0F};
++        bool ssao_blur {true};
++        int ssao_blur_radius {2};
+     };
+ 
+     void set_settings(const Settings& s) noexcept;
+diff --git a/shaders/forward.frag b/shaders/forward.frag
+index 989ff1142b5a85546924c12d9a958be5f751363f..91145c0145fbb58765becb71039706bde2dfb95d
+--- a/shaders/forward.frag
++++ b/shaders/forward.frag
+@@ -17,10 +17,13 @@
+     float shininess;
+     vec3 lightColor;
+     float lightIntensity;
++    // screen params: (invWidth, invHeight, aoStrength, reserved)
++    vec4 screen;
+ } ubo;
+ 
+ layout(set = 0, binding = 1) uniform sampler2D uAlbedo;
+ layout(set = 0, binding = 2) uniform sampler2D uNormal;
++layout(set = 0, binding = 3) uniform sampler2D uAO;
+ 
+ vec3 applyNormalMap(vec3 n, vec3 t, vec3 b, vec2 uv) {
+     // Sample normal map (assumed in [0,1] RGB with (0,0,1) as flat)
+@@ -50,8 +53,13 @@
+     vec3 specular = ubo.lightColor * spec;
+     vec3 color = (diffuse + specular) * ubo.lightColor * ubo.lightIntensity;
+ 
++    // Sample SSAO
++    vec2 uv = gl_FragCoord.xy * ubo.screen.xy; // inv width/height
++    float ao = texture(uAO, uv).r;
++    ao = mix(1.0, clamp(ao, 0.0, 1.0), clamp(ubo.screen.z, 0.0, 2.0));
++    color *= ao;
++
+     // Gamma correct to sRGB for output
+     color = pow(color, vec3(1.0/2.2));
+     outColor = vec4(color, 1.0);
+ }
+-
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+index 94c6560d6c86ce8166e3303e0e8d6a0ce5a4fc5c..ab2dba099289e44f45d6393eba8b243ea871b9ff
+--- a/src/imgui_layer.cpp
++++ b/src/imgui_layer.cpp
+@@ -124,6 +124,16 @@
+         ImGui::ColorEdit3("Color", s.light_color);
+         ImGui::SliderFloat("Intensity", &s.light_intensity, 0.0F, 5.0F);
+         ImGui::SliderFloat("Shininess", &s.shininess, 4.0F, 256.0F);
++
++        ImGui::Separator();
++        ImGui::Text("SSAO");
++        ImGui::Checkbox("Enable SSAO", &s.ssao_enabled);
++        ImGui::SliderInt("Kernel Size", &s.ssao_kernel, 8, 64);
++        ImGui::SliderFloat("Radius", &s.ssao_radius, 0.05F, 2.0F);
++        ImGui::SliderFloat("Bias", &s.ssao_bias, 0.0F, 0.1F);
++        ImGui::SliderFloat("Power", &s.ssao_power, 0.0F, 2.0F);
++        ImGui::Checkbox("Blur AO", &s.ssao_blur);
++        ImGui::SliderInt("Blur Radius", &s.ssao_blur_radius, 1, 5);
+         impl->ctx->set_settings(s);
+     }
+     ImGui::End();
+
+[2025-09-15T16:50:57] tokens used: 78,159
+[2025-09-15T16:50:57] turn diff:
+
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index 2290faca01c678ec81806baf1dc2750353a06fb3..fbf0a791ce5b68f29174b8cabd105681f78c0b60
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -35,6 +35,14 @@
+         float light_intensity {1.0F};
+         float light_pos[3] {3.0F, 3.0F, 3.0F};
+         float light_color[3] {1.0F, 1.0F, 1.0F};
++        // SSAO controls (initial wiring; passes added subsequently)
++        bool ssao_enabled {true};
++        int ssao_kernel {32};
++        float ssao_radius {0.5F};
++        float ssao_bias {0.02F};
++        float ssao_power {1.0F};
++        bool ssao_blur {true};
++        int ssao_blur_radius {2};
+     };
+ 
+     void set_settings(const Settings& s) noexcept;
+diff --git a/shaders/forward.frag b/shaders/forward.frag
+index 989ff1142b5a85546924c12d9a958be5f751363f..91145c0145fbb58765becb71039706bde2dfb95d
+--- a/shaders/forward.frag
++++ b/shaders/forward.frag
+@@ -17,10 +17,13 @@
+     float shininess;
+     vec3 lightColor;
+     float lightIntensity;
++    // screen params: (invWidth, invHeight, aoStrength, reserved)
++    vec4 screen;
+ } ubo;
+ 
+ layout(set = 0, binding = 1) uniform sampler2D uAlbedo;
+ layout(set = 0, binding = 2) uniform sampler2D uNormal;
++layout(set = 0, binding = 3) uniform sampler2D uAO;
+ 
+ vec3 applyNormalMap(vec3 n, vec3 t, vec3 b, vec2 uv) {
+     // Sample normal map (assumed in [0,1] RGB with (0,0,1) as flat)
+@@ -50,8 +53,13 @@
+     vec3 specular = ubo.lightColor * spec;
+     vec3 color = (diffuse + specular) * ubo.lightColor * ubo.lightIntensity;
+ 
++    // Sample SSAO
++    vec2 uv = gl_FragCoord.xy * ubo.screen.xy; // inv width/height
++    float ao = texture(uAO, uv).r;
++    ao = mix(1.0, clamp(ao, 0.0, 1.0), clamp(ubo.screen.z, 0.0, 2.0));
++    color *= ao;
++
+     // Gamma correct to sRGB for output
+     color = pow(color, vec3(1.0/2.2));
+     outColor = vec4(color, 1.0);
+ }
+-
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+index 94c6560d6c86ce8166e3303e0e8d6a0ce5a4fc5c..ab2dba099289e44f45d6393eba8b243ea871b9ff
+--- a/src/imgui_layer.cpp
++++ b/src/imgui_layer.cpp
+@@ -124,6 +124,16 @@
+         ImGui::ColorEdit3("Color", s.light_color);
+         ImGui::SliderFloat("Intensity", &s.light_intensity, 0.0F, 5.0F);
+         ImGui::SliderFloat("Shininess", &s.shininess, 4.0F, 256.0F);
++
++        ImGui::Separator();
++        ImGui::Text("SSAO");
++        ImGui::Checkbox("Enable SSAO", &s.ssao_enabled);
++        ImGui::SliderInt("Kernel Size", &s.ssao_kernel, 8, 64);
++        ImGui::SliderFloat("Radius", &s.ssao_radius, 0.05F, 2.0F);
++        ImGui::SliderFloat("Bias", &s.ssao_bias, 0.0F, 0.1F);
++        ImGui::SliderFloat("Power", &s.ssao_power, 0.0F, 2.0F);
++        ImGui::Checkbox("Blur AO", &s.ssao_blur);
++        ImGui::SliderInt("Blur Radius", &s.ssao_blur_radius, 1, 5);
+         impl->ctx->set_settings(s);
+     }
+     ImGui::End();
+
+
+[2025-09-15T16:50:59] thinking
+
+**Fixing context mismatches**
+
+I noticed that the context lines didn’t match perfectly, likely due to line wrapping or returns. I should focus on the area around pipeline creation to resolve this issue properly. It seems opening the section related to procedural textures could help me patch it correctly. Let's work on making those adjustments to ensure everything lines up as it should!
+[2025-09-15T16:51:01] exec bash -lc "rg -n \"Generate procedural textures\" src/vulkan_context.cpp && sed -n '820,920p' src/vulkan_context.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:51:01] bash -lc "rg -n \"Generate procedural textures\" src/vulkan_context.cpp && sed -n '820,920p' src/vulkan_context.cpp" succeeded in 38ms:
+843:        // Generate procedural textures (checkerboard albedo, flat normal)
+    gpci.layout = impl.pipeline_layout;
+    gpci.renderPass = impl.render_pass;
+    gpci.subpass = 0;
+
+    if (vkCreateGraphicsPipelines(impl.device, VK_NULL_HANDLE, 1, &gpci, nullptr, &impl.pipeline) != VK_SUCCESS) {
+        vkDestroyShaderModule(impl.device, vmod, nullptr);
+        vkDestroyShaderModule(impl.device, fmod, nullptr);
+        destroy_pipeline(ctx);
+        return;
+    }
+
+    vkDestroyShaderModule(impl.device, vmod, nullptr);
+    vkDestroyShaderModule(impl.device, fmod, nullptr);
+
+    // Material resources for forward shading
+    if (forward) {
+        // Create sampler
+        VkSamplerCreateInfo sci {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+        sci.magFilter = VK_FILTER_LINEAR; sci.minFilter = VK_FILTER_LINEAR; sci.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+[2025-09-15T16:51:01] tokens used: 80,906
+[2025-09-15T16:51:01] turn diff:
+
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index 2290faca01c678ec81806baf1dc2750353a06fb3..fbf0a791ce5b68f29174b8cabd105681f78c0b60
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -35,6 +35,14 @@
+         float light_intensity {1.0F};
+         float light_pos[3] {3.0F, 3.0F, 3.0F};
+         float light_color[3] {1.0F, 1.0F, 1.0F};
++        // SSAO controls (initial wiring; passes added subsequently)
++        bool ssao_enabled {true};
++        int ssao_kernel {32};
++        float ssao_radius {0.5F};
++        float ssao_bias {0.02F};
++        float ssao_power {1.0F};
++        bool ssao_blur {true};
++        int ssao_blur_radius {2};
+     };
+ 
+     void set_settings(const Settings& s) noexcept;
+diff --git a/shaders/forward.frag b/shaders/forward.frag
+index 989ff1142b5a85546924c12d9a958be5f751363f..91145c0145fbb58765becb71039706bde2dfb95d
+--- a/shaders/forward.frag
++++ b/shaders/forward.frag
+@@ -17,10 +17,13 @@
+     float shininess;
+     vec3 lightColor;
+     float lightIntensity;
++    // screen params: (invWidth, invHeight, aoStrength, reserved)
++    vec4 screen;
+ } ubo;
+ 
+ layout(set = 0, binding = 1) uniform sampler2D uAlbedo;
+ layout(set = 0, binding = 2) uniform sampler2D uNormal;
++layout(set = 0, binding = 3) uniform sampler2D uAO;
+ 
+ vec3 applyNormalMap(vec3 n, vec3 t, vec3 b, vec2 uv) {
+     // Sample normal map (assumed in [0,1] RGB with (0,0,1) as flat)
+@@ -50,8 +53,13 @@
+     vec3 specular = ubo.lightColor * spec;
+     vec3 color = (diffuse + specular) * ubo.lightColor * ubo.lightIntensity;
+ 
++    // Sample SSAO
++    vec2 uv = gl_FragCoord.xy * ubo.screen.xy; // inv width/height
++    float ao = texture(uAO, uv).r;
++    ao = mix(1.0, clamp(ao, 0.0, 1.0), clamp(ubo.screen.z, 0.0, 2.0));
++    color *= ao;
++
+     // Gamma correct to sRGB for output
+     color = pow(color, vec3(1.0/2.2));
+     outColor = vec4(color, 1.0);
+ }
+-
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+index 94c6560d6c86ce8166e3303e0e8d6a0ce5a4fc5c..ab2dba099289e44f45d6393eba8b243ea871b9ff
+--- a/src/imgui_layer.cpp
++++ b/src/imgui_layer.cpp
+@@ -124,6 +124,16 @@
+         ImGui::ColorEdit3("Color", s.light_color);
+         ImGui::SliderFloat("Intensity", &s.light_intensity, 0.0F, 5.0F);
+         ImGui::SliderFloat("Shininess", &s.shininess, 4.0F, 256.0F);
++
++        ImGui::Separator();
++        ImGui::Text("SSAO");
++        ImGui::Checkbox("Enable SSAO", &s.ssao_enabled);
++        ImGui::SliderInt("Kernel Size", &s.ssao_kernel, 8, 64);
++        ImGui::SliderFloat("Radius", &s.ssao_radius, 0.05F, 2.0F);
++        ImGui::SliderFloat("Bias", &s.ssao_bias, 0.0F, 0.1F);
++        ImGui::SliderFloat("Power", &s.ssao_power, 0.0F, 2.0F);
++        ImGui::Checkbox("Blur AO", &s.ssao_blur);
++        ImGui::SliderInt("Blur Radius", &s.ssao_blur_radius, 1, 5);
+         impl->ctx->set_settings(s);
+     }
+     ImGui::End();
+
+[2025-09-15T16:51:07] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp
+@@ -70,2 +70,5 @@
+     VkImageView normal_view {VK_NULL_HANDLE};
++    VkImage ao_image {VK_NULL_HANDLE};
++    VkDeviceMemory ao_memory {VK_NULL_HANDLE};
++    VkImageView ao_view {VK_NULL_HANDLE};
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+[2025-09-15T16:51:07] apply_patch(auto_approved=true) exited 0 in 56ms:
+Success. Updated the following files:
+M src/vulkan_context.cpp
+[2025-09-15T16:51:07] turn diff:
+
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index 2290faca01c678ec81806baf1dc2750353a06fb3..fbf0a791ce5b68f29174b8cabd105681f78c0b60
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -35,6 +35,14 @@
+         float light_intensity {1.0F};
+         float light_pos[3] {3.0F, 3.0F, 3.0F};
+         float light_color[3] {1.0F, 1.0F, 1.0F};
++        // SSAO controls (initial wiring; passes added subsequently)
++        bool ssao_enabled {true};
++        int ssao_kernel {32};
++        float ssao_radius {0.5F};
++        float ssao_bias {0.02F};
++        float ssao_power {1.0F};
++        bool ssao_blur {true};
++        int ssao_blur_radius {2};
+     };
+ 
+     void set_settings(const Settings& s) noexcept;
+diff --git a/shaders/forward.frag b/shaders/forward.frag
+index 989ff1142b5a85546924c12d9a958be5f751363f..91145c0145fbb58765becb71039706bde2dfb95d
+--- a/shaders/forward.frag
++++ b/shaders/forward.frag
+@@ -17,10 +17,13 @@
+     float shininess;
+     vec3 lightColor;
+     float lightIntensity;
++    // screen params: (invWidth, invHeight, aoStrength, reserved)
++    vec4 screen;
+ } ubo;
+ 
+ layout(set = 0, binding = 1) uniform sampler2D uAlbedo;
+ layout(set = 0, binding = 2) uniform sampler2D uNormal;
++layout(set = 0, binding = 3) uniform sampler2D uAO;
+ 
+ vec3 applyNormalMap(vec3 n, vec3 t, vec3 b, vec2 uv) {
+     // Sample normal map (assumed in [0,1] RGB with (0,0,1) as flat)
+@@ -50,8 +53,13 @@
+     vec3 specular = ubo.lightColor * spec;
+     vec3 color = (diffuse + specular) * ubo.lightColor * ubo.lightIntensity;
+ 
++    // Sample SSAO
++    vec2 uv = gl_FragCoord.xy * ubo.screen.xy; // inv width/height
++    float ao = texture(uAO, uv).r;
++    ao = mix(1.0, clamp(ao, 0.0, 1.0), clamp(ubo.screen.z, 0.0, 2.0));
++    color *= ao;
++
+     // Gamma correct to sRGB for output
+     color = pow(color, vec3(1.0/2.2));
+     outColor = vec4(color, 1.0);
+ }
+-
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+index 94c6560d6c86ce8166e3303e0e8d6a0ce5a4fc5c..ab2dba099289e44f45d6393eba8b243ea871b9ff
+--- a/src/imgui_layer.cpp
++++ b/src/imgui_layer.cpp
+@@ -124,6 +124,16 @@
+         ImGui::ColorEdit3("Color", s.light_color);
+         ImGui::SliderFloat("Intensity", &s.light_intensity, 0.0F, 5.0F);
+         ImGui::SliderFloat("Shininess", &s.shininess, 4.0F, 256.0F);
++
++        ImGui::Separator();
++        ImGui::Text("SSAO");
++        ImGui::Checkbox("Enable SSAO", &s.ssao_enabled);
++        ImGui::SliderInt("Kernel Size", &s.ssao_kernel, 8, 64);
++        ImGui::SliderFloat("Radius", &s.ssao_radius, 0.05F, 2.0F);
++        ImGui::SliderFloat("Bias", &s.ssao_bias, 0.0F, 0.1F);
++        ImGui::SliderFloat("Power", &s.ssao_power, 0.0F, 2.0F);
++        ImGui::Checkbox("Blur AO", &s.ssao_blur);
++        ImGui::SliderInt("Blur Radius", &s.ssao_blur_radius, 1, 5);
+         impl->ctx->set_settings(s);
+     }
+     ImGui::End();
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 6f813be490cd3e26519a809da7a8fc20f5ef0051..4696e17ca3139762d1abce0bc824cc13b262f0e5
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -68,6 +68,9 @@
+     VkImage normal_image {VK_NULL_HANDLE};
+     VkDeviceMemory normal_memory {VK_NULL_HANDLE};
+     VkImageView normal_view {VK_NULL_HANDLE};
++    VkImage ao_image {VK_NULL_HANDLE};
++    VkDeviceMemory ao_memory {VK_NULL_HANDLE};
++    VkImageView ao_view {VK_NULL_HANDLE};
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
+
+[2025-09-15T16:51:07] tokens used: 83,074
+[2025-09-15T16:51:07] turn diff:
+
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index 2290faca01c678ec81806baf1dc2750353a06fb3..fbf0a791ce5b68f29174b8cabd105681f78c0b60
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -35,6 +35,14 @@
+         float light_intensity {1.0F};
+         float light_pos[3] {3.0F, 3.0F, 3.0F};
+         float light_color[3] {1.0F, 1.0F, 1.0F};
++        // SSAO controls (initial wiring; passes added subsequently)
++        bool ssao_enabled {true};
++        int ssao_kernel {32};
++        float ssao_radius {0.5F};
++        float ssao_bias {0.02F};
++        float ssao_power {1.0F};
++        bool ssao_blur {true};
++        int ssao_blur_radius {2};
+     };
+ 
+     void set_settings(const Settings& s) noexcept;
+diff --git a/shaders/forward.frag b/shaders/forward.frag
+index 989ff1142b5a85546924c12d9a958be5f751363f..91145c0145fbb58765becb71039706bde2dfb95d
+--- a/shaders/forward.frag
++++ b/shaders/forward.frag
+@@ -17,10 +17,13 @@
+     float shininess;
+     vec3 lightColor;
+     float lightIntensity;
++    // screen params: (invWidth, invHeight, aoStrength, reserved)
++    vec4 screen;
+ } ubo;
+ 
+ layout(set = 0, binding = 1) uniform sampler2D uAlbedo;
+ layout(set = 0, binding = 2) uniform sampler2D uNormal;
++layout(set = 0, binding = 3) uniform sampler2D uAO;
+ 
+ vec3 applyNormalMap(vec3 n, vec3 t, vec3 b, vec2 uv) {
+     // Sample normal map (assumed in [0,1] RGB with (0,0,1) as flat)
+@@ -50,8 +53,13 @@
+     vec3 specular = ubo.lightColor * spec;
+     vec3 color = (diffuse + specular) * ubo.lightColor * ubo.lightIntensity;
+ 
++    // Sample SSAO
++    vec2 uv = gl_FragCoord.xy * ubo.screen.xy; // inv width/height
++    float ao = texture(uAO, uv).r;
++    ao = mix(1.0, clamp(ao, 0.0, 1.0), clamp(ubo.screen.z, 0.0, 2.0));
++    color *= ao;
++
+     // Gamma correct to sRGB for output
+     color = pow(color, vec3(1.0/2.2));
+     outColor = vec4(color, 1.0);
+ }
+-
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+index 94c6560d6c86ce8166e3303e0e8d6a0ce5a4fc5c..ab2dba099289e44f45d6393eba8b243ea871b9ff
+--- a/src/imgui_layer.cpp
++++ b/src/imgui_layer.cpp
+@@ -124,6 +124,16 @@
+         ImGui::ColorEdit3("Color", s.light_color);
+         ImGui::SliderFloat("Intensity", &s.light_intensity, 0.0F, 5.0F);
+         ImGui::SliderFloat("Shininess", &s.shininess, 4.0F, 256.0F);
++
++        ImGui::Separator();
++        ImGui::Text("SSAO");
++        ImGui::Checkbox("Enable SSAO", &s.ssao_enabled);
++        ImGui::SliderInt("Kernel Size", &s.ssao_kernel, 8, 64);
++        ImGui::SliderFloat("Radius", &s.ssao_radius, 0.05F, 2.0F);
++        ImGui::SliderFloat("Bias", &s.ssao_bias, 0.0F, 0.1F);
++        ImGui::SliderFloat("Power", &s.ssao_power, 0.0F, 2.0F);
++        ImGui::Checkbox("Blur AO", &s.ssao_blur);
++        ImGui::SliderInt("Blur Radius", &s.ssao_blur_radius, 1, 5);
+         impl->ctx->set_settings(s);
+     }
+     ImGui::End();
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 6f813be490cd3e26519a809da7a8fc20f5ef0051..4696e17ca3139762d1abce0bc824cc13b262f0e5
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -68,6 +68,9 @@
+     VkImage normal_image {VK_NULL_HANDLE};
+     VkDeviceMemory normal_memory {VK_NULL_HANDLE};
+     VkImageView normal_view {VK_NULL_HANDLE};
++    VkImage ao_image {VK_NULL_HANDLE};
++    VkDeviceMemory ao_memory {VK_NULL_HANDLE};
++    VkImageView ao_view {VK_NULL_HANDLE};
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
+
+[2025-09-15T16:51:11] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp
+@@ -685,2 +685,5 @@
+     if (impl.normal_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.normal_memory, nullptr); impl.normal_memory = VK_NULL_HANDLE; }
++    if (impl.ao_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.ao_view, nullptr); impl.ao_view = VK_NULL_HANDLE; }
++    if (impl.ao_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.ao_image, nullptr); impl.ao_image = VK_NULL_HANDLE; }
++    if (impl.ao_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ao_memory, nullptr); impl.ao_memory = VK_NULL_HANDLE; }
+     if (impl.ubo_buffer != VK_NULL_HANDLE) { vkDestroyBuffer(impl.device, impl.ubo_buffer, nullptr); impl.ubo_buffer = VK_NULL_HANDLE; }
+[2025-09-15T16:51:11] apply_patch(auto_approved=true) exited 0 in 69ms:
+Success. Updated the following files:
+M src/vulkan_context.cpp
+[2025-09-15T16:51:11] turn diff:
+
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index 2290faca01c678ec81806baf1dc2750353a06fb3..fbf0a791ce5b68f29174b8cabd105681f78c0b60
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -35,6 +35,14 @@
+         float light_intensity {1.0F};
+         float light_pos[3] {3.0F, 3.0F, 3.0F};
+         float light_color[3] {1.0F, 1.0F, 1.0F};
++        // SSAO controls (initial wiring; passes added subsequently)
++        bool ssao_enabled {true};
++        int ssao_kernel {32};
++        float ssao_radius {0.5F};
++        float ssao_bias {0.02F};
++        float ssao_power {1.0F};
++        bool ssao_blur {true};
++        int ssao_blur_radius {2};
+     };
+ 
+     void set_settings(const Settings& s) noexcept;
+diff --git a/shaders/forward.frag b/shaders/forward.frag
+index 989ff1142b5a85546924c12d9a958be5f751363f..91145c0145fbb58765becb71039706bde2dfb95d
+--- a/shaders/forward.frag
++++ b/shaders/forward.frag
+@@ -17,10 +17,13 @@
+     float shininess;
+     vec3 lightColor;
+     float lightIntensity;
++    // screen params: (invWidth, invHeight, aoStrength, reserved)
++    vec4 screen;
+ } ubo;
+ 
+ layout(set = 0, binding = 1) uniform sampler2D uAlbedo;
+ layout(set = 0, binding = 2) uniform sampler2D uNormal;
++layout(set = 0, binding = 3) uniform sampler2D uAO;
+ 
+ vec3 applyNormalMap(vec3 n, vec3 t, vec3 b, vec2 uv) {
+     // Sample normal map (assumed in [0,1] RGB with (0,0,1) as flat)
+@@ -50,8 +53,13 @@
+     vec3 specular = ubo.lightColor * spec;
+     vec3 color = (diffuse + specular) * ubo.lightColor * ubo.lightIntensity;
+ 
++    // Sample SSAO
++    vec2 uv = gl_FragCoord.xy * ubo.screen.xy; // inv width/height
++    float ao = texture(uAO, uv).r;
++    ao = mix(1.0, clamp(ao, 0.0, 1.0), clamp(ubo.screen.z, 0.0, 2.0));
++    color *= ao;
++
+     // Gamma correct to sRGB for output
+     color = pow(color, vec3(1.0/2.2));
+     outColor = vec4(color, 1.0);
+ }
+-
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+index 94c6560d6c86ce8166e3303e0e8d6a0ce5a4fc5c..ab2dba099289e44f45d6393eba8b243ea871b9ff
+--- a/src/imgui_layer.cpp
++++ b/src/imgui_layer.cpp
+@@ -124,6 +124,16 @@
+         ImGui::ColorEdit3("Color", s.light_color);
+         ImGui::SliderFloat("Intensity", &s.light_intensity, 0.0F, 5.0F);
+         ImGui::SliderFloat("Shininess", &s.shininess, 4.0F, 256.0F);
++
++        ImGui::Separator();
++        ImGui::Text("SSAO");
++        ImGui::Checkbox("Enable SSAO", &s.ssao_enabled);
++        ImGui::SliderInt("Kernel Size", &s.ssao_kernel, 8, 64);
++        ImGui::SliderFloat("Radius", &s.ssao_radius, 0.05F, 2.0F);
++        ImGui::SliderFloat("Bias", &s.ssao_bias, 0.0F, 0.1F);
++        ImGui::SliderFloat("Power", &s.ssao_power, 0.0F, 2.0F);
++        ImGui::Checkbox("Blur AO", &s.ssao_blur);
++        ImGui::SliderInt("Blur Radius", &s.ssao_blur_radius, 1, 5);
+         impl->ctx->set_settings(s);
+     }
+     ImGui::End();
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 6f813be490cd3e26519a809da7a8fc20f5ef0051..897fe3bf1a86a5154a4e580dc83be7b5bc702b06
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -68,6 +68,9 @@
+     VkImage normal_image {VK_NULL_HANDLE};
+     VkDeviceMemory normal_memory {VK_NULL_HANDLE};
+     VkImageView normal_view {VK_NULL_HANDLE};
++    VkImage ao_image {VK_NULL_HANDLE};
++    VkDeviceMemory ao_memory {VK_NULL_HANDLE};
++    VkImageView ao_view {VK_NULL_HANDLE};
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
+@@ -680,6 +683,9 @@
+     if (impl.normal_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.normal_view, nullptr); impl.normal_view = VK_NULL_HANDLE; }
+     if (impl.normal_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.normal_image, nullptr); impl.normal_image = VK_NULL_HANDLE; }
+     if (impl.normal_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.normal_memory, nullptr); impl.normal_memory = VK_NULL_HANDLE; }
++    if (impl.ao_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.ao_view, nullptr); impl.ao_view = VK_NULL_HANDLE; }
++    if (impl.ao_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.ao_image, nullptr); impl.ao_image = VK_NULL_HANDLE; }
++    if (impl.ao_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ao_memory, nullptr); impl.ao_memory = VK_NULL_HANDLE; }
+     if (impl.ubo_buffer != VK_NULL_HANDLE) { vkDestroyBuffer(impl.device, impl.ubo_buffer, nullptr); impl.ubo_buffer = VK_NULL_HANDLE; }
+     if (impl.ubo_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ubo_memory, nullptr); impl.ubo_memory = VK_NULL_HANDLE; }
+ }
+
+[2025-09-15T16:51:11] tokens used: 83,784
+[2025-09-15T16:51:11] turn diff:
+
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index 2290faca01c678ec81806baf1dc2750353a06fb3..fbf0a791ce5b68f29174b8cabd105681f78c0b60
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -35,6 +35,14 @@
+         float light_intensity {1.0F};
+         float light_pos[3] {3.0F, 3.0F, 3.0F};
+         float light_color[3] {1.0F, 1.0F, 1.0F};
++        // SSAO controls (initial wiring; passes added subsequently)
++        bool ssao_enabled {true};
++        int ssao_kernel {32};
++        float ssao_radius {0.5F};
++        float ssao_bias {0.02F};
++        float ssao_power {1.0F};
++        bool ssao_blur {true};
++        int ssao_blur_radius {2};
+     };
+ 
+     void set_settings(const Settings& s) noexcept;
+diff --git a/shaders/forward.frag b/shaders/forward.frag
+index 989ff1142b5a85546924c12d9a958be5f751363f..91145c0145fbb58765becb71039706bde2dfb95d
+--- a/shaders/forward.frag
++++ b/shaders/forward.frag
+@@ -17,10 +17,13 @@
+     float shininess;
+     vec3 lightColor;
+     float lightIntensity;
++    // screen params: (invWidth, invHeight, aoStrength, reserved)
++    vec4 screen;
+ } ubo;
+ 
+ layout(set = 0, binding = 1) uniform sampler2D uAlbedo;
+ layout(set = 0, binding = 2) uniform sampler2D uNormal;
++layout(set = 0, binding = 3) uniform sampler2D uAO;
+ 
+ vec3 applyNormalMap(vec3 n, vec3 t, vec3 b, vec2 uv) {
+     // Sample normal map (assumed in [0,1] RGB with (0,0,1) as flat)
+@@ -50,8 +53,13 @@
+     vec3 specular = ubo.lightColor * spec;
+     vec3 color = (diffuse + specular) * ubo.lightColor * ubo.lightIntensity;
+ 
++    // Sample SSAO
++    vec2 uv = gl_FragCoord.xy * ubo.screen.xy; // inv width/height
++    float ao = texture(uAO, uv).r;
++    ao = mix(1.0, clamp(ao, 0.0, 1.0), clamp(ubo.screen.z, 0.0, 2.0));
++    color *= ao;
++
+     // Gamma correct to sRGB for output
+     color = pow(color, vec3(1.0/2.2));
+     outColor = vec4(color, 1.0);
+ }
+-
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+index 94c6560d6c86ce8166e3303e0e8d6a0ce5a4fc5c..ab2dba099289e44f45d6393eba8b243ea871b9ff
+--- a/src/imgui_layer.cpp
++++ b/src/imgui_layer.cpp
+@@ -124,6 +124,16 @@
+         ImGui::ColorEdit3("Color", s.light_color);
+         ImGui::SliderFloat("Intensity", &s.light_intensity, 0.0F, 5.0F);
+         ImGui::SliderFloat("Shininess", &s.shininess, 4.0F, 256.0F);
++
++        ImGui::Separator();
++        ImGui::Text("SSAO");
++        ImGui::Checkbox("Enable SSAO", &s.ssao_enabled);
++        ImGui::SliderInt("Kernel Size", &s.ssao_kernel, 8, 64);
++        ImGui::SliderFloat("Radius", &s.ssao_radius, 0.05F, 2.0F);
++        ImGui::SliderFloat("Bias", &s.ssao_bias, 0.0F, 0.1F);
++        ImGui::SliderFloat("Power", &s.ssao_power, 0.0F, 2.0F);
++        ImGui::Checkbox("Blur AO", &s.ssao_blur);
++        ImGui::SliderInt("Blur Radius", &s.ssao_blur_radius, 1, 5);
+         impl->ctx->set_settings(s);
+     }
+     ImGui::End();
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 6f813be490cd3e26519a809da7a8fc20f5ef0051..897fe3bf1a86a5154a4e580dc83be7b5bc702b06
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -68,6 +68,9 @@
+     VkImage normal_image {VK_NULL_HANDLE};
+     VkDeviceMemory normal_memory {VK_NULL_HANDLE};
+     VkImageView normal_view {VK_NULL_HANDLE};
++    VkImage ao_image {VK_NULL_HANDLE};
++    VkDeviceMemory ao_memory {VK_NULL_HANDLE};
++    VkImageView ao_view {VK_NULL_HANDLE};
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
+@@ -680,6 +683,9 @@
+     if (impl.normal_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.normal_view, nullptr); impl.normal_view = VK_NULL_HANDLE; }
+     if (impl.normal_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.normal_image, nullptr); impl.normal_image = VK_NULL_HANDLE; }
+     if (impl.normal_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.normal_memory, nullptr); impl.normal_memory = VK_NULL_HANDLE; }
++    if (impl.ao_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.ao_view, nullptr); impl.ao_view = VK_NULL_HANDLE; }
++    if (impl.ao_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.ao_image, nullptr); impl.ao_image = VK_NULL_HANDLE; }
++    if (impl.ao_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ao_memory, nullptr); impl.ao_memory = VK_NULL_HANDLE; }
+     if (impl.ubo_buffer != VK_NULL_HANDLE) { vkDestroyBuffer(impl.device, impl.ubo_buffer, nullptr); impl.ubo_buffer = VK_NULL_HANDLE; }
+     if (impl.ubo_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ubo_memory, nullptr); impl.ubo_memory = VK_NULL_HANDLE; }
+ }
+
+[2025-09-15T16:51:29] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp
+@@ -785,6 +785,6 @@
+     VkDescriptorSetLayoutCreateInfo dlci {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+-    VkDescriptorSetLayoutBinding bindings[3] = {};
++    VkDescriptorSetLayoutBinding bindings[4] = {};
+     uint32_t bindCount = 0U;
+     if (forward) {
+-        // binding 0: UBO, 1: albedo, 2: normal
++        // binding 0: UBO, 1: albedo, 2: normal, 3: AO
+         bindings[0].binding = 0; bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; bindings[0].descriptorCount = 1; bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+@@ -792,3 +792,4 @@
+         bindings[2].binding = 2; bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[2].descriptorCount = 1; bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+-        bindCount = 3U;
++        bindings[3].binding = 3; bindings[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[3].descriptorCount = 1; bindings[3].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
++        bindCount = 4U;
+         dlci.bindingCount = bindCount; dlci.pBindings = bindings;
+@@ -857,5 +858,9 @@
+ 
+-        // Create UBO
+-        create_buffer(ctx, sizeof(float)*16U*2U + sizeof(float)*16U, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        // AO texture placeholder: 1x1 white (no occlusion)
++        const uint32_t AO_W = 1, AO_H = 1; const std::uint32_t white = 0xFFFFFFFFu;
++        create_image_and_upload(ctx, AO_W, AO_H, &white, sizeof(white), &impl.ao_image, &impl.ao_memory, &impl.ao_view);
+ 
++        // Create UBO (256 bytes)
++        create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++
+         // Descriptor pool and set
+@@ -863,3 +868,3 @@
+         poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 1;
+-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 2;
++        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 3;
+         VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+@@ -873,3 +878,4 @@
+         VkDescriptorImageInfo dai2 {}; dai2.sampler = impl.sampler; dai2.imageView = impl.normal_view; dai2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+-        std::array<VkWriteDescriptorSet,3> writes {};
++        VkDescriptorImageInfo dai3 {}; dai3.sampler = impl.sampler; dai3.imageView = impl.ao_view; dai3.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++        std::array<VkWriteDescriptorSet,4> writes {};
+         writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[0].dstSet = impl.desc_set; writes[0].dstBinding = 0; writes[0].descriptorCount = 1; writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes[0].pBufferInfo = &dbi;
+@@ -877,2 +883,3 @@
+         writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = impl.desc_set; writes[2].dstBinding = 2; writes[2].descriptorCount = 1; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[2].pImageInfo = &dai2;
++        writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[3].dstSet = impl.desc_set; writes[3].dstBinding = 3; writes[3].descriptorCount = 1; writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[3].pImageInfo = &dai3;
+         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+[2025-09-15T16:51:29] apply_patch(auto_approved=true) exited 0 in 73ms:
+Success. Updated the following files:
+M src/vulkan_context.cpp
+[2025-09-15T16:51:29] turn diff:
+
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index 2290faca01c678ec81806baf1dc2750353a06fb3..fbf0a791ce5b68f29174b8cabd105681f78c0b60
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -35,6 +35,14 @@
+         float light_intensity {1.0F};
+         float light_pos[3] {3.0F, 3.0F, 3.0F};
+         float light_color[3] {1.0F, 1.0F, 1.0F};
++        // SSAO controls (initial wiring; passes added subsequently)
++        bool ssao_enabled {true};
++        int ssao_kernel {32};
++        float ssao_radius {0.5F};
++        float ssao_bias {0.02F};
++        float ssao_power {1.0F};
++        bool ssao_blur {true};
++        int ssao_blur_radius {2};
+     };
+ 
+     void set_settings(const Settings& s) noexcept;
+diff --git a/shaders/forward.frag b/shaders/forward.frag
+index 989ff1142b5a85546924c12d9a958be5f751363f..91145c0145fbb58765becb71039706bde2dfb95d
+--- a/shaders/forward.frag
++++ b/shaders/forward.frag
+@@ -17,10 +17,13 @@
+     float shininess;
+     vec3 lightColor;
+     float lightIntensity;
++    // screen params: (invWidth, invHeight, aoStrength, reserved)
++    vec4 screen;
+ } ubo;
+ 
+ layout(set = 0, binding = 1) uniform sampler2D uAlbedo;
+ layout(set = 0, binding = 2) uniform sampler2D uNormal;
++layout(set = 0, binding = 3) uniform sampler2D uAO;
+ 
+ vec3 applyNormalMap(vec3 n, vec3 t, vec3 b, vec2 uv) {
+     // Sample normal map (assumed in [0,1] RGB with (0,0,1) as flat)
+@@ -50,8 +53,13 @@
+     vec3 specular = ubo.lightColor * spec;
+     vec3 color = (diffuse + specular) * ubo.lightColor * ubo.lightIntensity;
+ 
++    // Sample SSAO
++    vec2 uv = gl_FragCoord.xy * ubo.screen.xy; // inv width/height
++    float ao = texture(uAO, uv).r;
++    ao = mix(1.0, clamp(ao, 0.0, 1.0), clamp(ubo.screen.z, 0.0, 2.0));
++    color *= ao;
++
+     // Gamma correct to sRGB for output
+     color = pow(color, vec3(1.0/2.2));
+     outColor = vec4(color, 1.0);
+ }
+-
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+index 94c6560d6c86ce8166e3303e0e8d6a0ce5a4fc5c..ab2dba099289e44f45d6393eba8b243ea871b9ff
+--- a/src/imgui_layer.cpp
++++ b/src/imgui_layer.cpp
+@@ -124,6 +124,16 @@
+         ImGui::ColorEdit3("Color", s.light_color);
+         ImGui::SliderFloat("Intensity", &s.light_intensity, 0.0F, 5.0F);
+         ImGui::SliderFloat("Shininess", &s.shininess, 4.0F, 256.0F);
++
++        ImGui::Separator();
++        ImGui::Text("SSAO");
++        ImGui::Checkbox("Enable SSAO", &s.ssao_enabled);
++        ImGui::SliderInt("Kernel Size", &s.ssao_kernel, 8, 64);
++        ImGui::SliderFloat("Radius", &s.ssao_radius, 0.05F, 2.0F);
++        ImGui::SliderFloat("Bias", &s.ssao_bias, 0.0F, 0.1F);
++        ImGui::SliderFloat("Power", &s.ssao_power, 0.0F, 2.0F);
++        ImGui::Checkbox("Blur AO", &s.ssao_blur);
++        ImGui::SliderInt("Blur Radius", &s.ssao_blur_radius, 1, 5);
+         impl->ctx->set_settings(s);
+     }
+     ImGui::End();
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 6f813be490cd3e26519a809da7a8fc20f5ef0051..d205eefd01e26dd580014117f7c237cc0805b90b
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -68,6 +68,9 @@
+     VkImage normal_image {VK_NULL_HANDLE};
+     VkDeviceMemory normal_memory {VK_NULL_HANDLE};
+     VkImageView normal_view {VK_NULL_HANDLE};
++    VkImage ao_image {VK_NULL_HANDLE};
++    VkDeviceMemory ao_memory {VK_NULL_HANDLE};
++    VkImageView ao_view {VK_NULL_HANDLE};
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
+@@ -680,6 +683,9 @@
+     if (impl.normal_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.normal_view, nullptr); impl.normal_view = VK_NULL_HANDLE; }
+     if (impl.normal_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.normal_image, nullptr); impl.normal_image = VK_NULL_HANDLE; }
+     if (impl.normal_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.normal_memory, nullptr); impl.normal_memory = VK_NULL_HANDLE; }
++    if (impl.ao_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.ao_view, nullptr); impl.ao_view = VK_NULL_HANDLE; }
++    if (impl.ao_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.ao_image, nullptr); impl.ao_image = VK_NULL_HANDLE; }
++    if (impl.ao_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ao_memory, nullptr); impl.ao_memory = VK_NULL_HANDLE; }
+     if (impl.ubo_buffer != VK_NULL_HANDLE) { vkDestroyBuffer(impl.device, impl.ubo_buffer, nullptr); impl.ubo_buffer = VK_NULL_HANDLE; }
+     if (impl.ubo_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ubo_memory, nullptr); impl.ubo_memory = VK_NULL_HANDLE; }
+ }
+@@ -777,14 +783,15 @@
+     pcr.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+ 
+     VkDescriptorSetLayoutCreateInfo dlci {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+-    VkDescriptorSetLayoutBinding bindings[3] = {};
++    VkDescriptorSetLayoutBinding bindings[4] = {};
+     uint32_t bindCount = 0U;
+     if (forward) {
+-        // binding 0: UBO, 1: albedo, 2: normal
++        // binding 0: UBO, 1: albedo, 2: normal, 3: AO
+         bindings[0].binding = 0; bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; bindings[0].descriptorCount = 1; bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+         bindings[1].binding = 1; bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[1].descriptorCount = 1; bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+         bindings[2].binding = 2; bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[2].descriptorCount = 1; bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+-        bindCount = 3U;
++        bindings[3].binding = 3; bindings[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[3].descriptorCount = 1; bindings[3].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
++        bindCount = 4U;
+         dlci.bindingCount = bindCount; dlci.pBindings = bindings;
+         if (vkCreateDescriptorSetLayout(impl.device, &dlci, nullptr, &impl.desc_layout) != VK_SUCCESS) {
+             vkDestroyShaderModule(impl.device, vmod, nullptr);
+@@ -849,13 +856,17 @@
+         create_image_and_upload(ctx, W, H, albedo.data(), static_cast<VkDeviceSize>(albedo.size()*sizeof(std::uint32_t)), &impl.albedo_image, &impl.albedo_memory, &impl.albedo_view);
+         create_image_and_upload(ctx, W, H, normal.data(), static_cast<VkDeviceSize>(normal.size()*sizeof(std::uint32_t)), &impl.normal_image, &impl.normal_memory, &impl.normal_view);
+ 
+-        // Create UBO
+-        create_buffer(ctx, sizeof(float)*16U*2U + sizeof(float)*16U, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        // AO texture placeholder: 1x1 white (no occlusion)
++        const uint32_t AO_W = 1, AO_H = 1; const std::uint32_t white = 0xFFFFFFFFu;
++        create_image_and_upload(ctx, AO_W, AO_H, &white, sizeof(white), &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++
++        // Create UBO (256 bytes)
++        create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
+ 
+         // Descriptor pool and set
+         VkDescriptorPoolSize poolSizes[2] = {};
+         poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 1;
+-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 2;
++        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 3;
+         VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+         dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 1;
+         vkCreateDescriptorPool(impl.device, &dpci, nullptr, &impl.desc_pool);
+@@ -865,10 +876,12 @@
+         VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
+         VkDescriptorImageInfo dai1 {}; dai1.sampler = impl.sampler; dai1.imageView = impl.albedo_view; dai1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+         VkDescriptorImageInfo dai2 {}; dai2.sampler = impl.sampler; dai2.imageView = impl.normal_view; dai2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+-        std::array<VkWriteDescriptorSet,3> writes {};
++        VkDescriptorImageInfo dai3 {}; dai3.sampler = impl.sampler; dai3.imageView = impl.ao_view; dai3.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++        std::array<VkWriteDescriptorSet,4> writes {};
+         writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[0].dstSet = impl.desc_set; writes[0].dstBinding = 0; writes[0].descriptorCount = 1; writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes[0].pBufferInfo = &dbi;
+         writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[1].dstSet = impl.desc_set; writes[1].dstBinding = 1; writes[1].descriptorCount = 1; writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[1].pImageInfo = &dai1;
+         writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = impl.desc_set; writes[2].dstBinding = 2; writes[2].descriptorCount = 1; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[2].pImageInfo = &dai2;
++        writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[3].dstSet = impl.desc_set; writes[3].dstBinding = 3; writes[3].descriptorCount = 1; writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[3].pImageInfo = &dai3;
+         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+     }
+ }
+
+[2025-09-15T16:51:29] tokens used: 86,083
+[2025-09-15T16:51:29] turn diff:
+
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index 2290faca01c678ec81806baf1dc2750353a06fb3..fbf0a791ce5b68f29174b8cabd105681f78c0b60
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -35,6 +35,14 @@
+         float light_intensity {1.0F};
+         float light_pos[3] {3.0F, 3.0F, 3.0F};
+         float light_color[3] {1.0F, 1.0F, 1.0F};
++        // SSAO controls (initial wiring; passes added subsequently)
++        bool ssao_enabled {true};
++        int ssao_kernel {32};
++        float ssao_radius {0.5F};
++        float ssao_bias {0.02F};
++        float ssao_power {1.0F};
++        bool ssao_blur {true};
++        int ssao_blur_radius {2};
+     };
+ 
+     void set_settings(const Settings& s) noexcept;
+diff --git a/shaders/forward.frag b/shaders/forward.frag
+index 989ff1142b5a85546924c12d9a958be5f751363f..91145c0145fbb58765becb71039706bde2dfb95d
+--- a/shaders/forward.frag
++++ b/shaders/forward.frag
+@@ -17,10 +17,13 @@
+     float shininess;
+     vec3 lightColor;
+     float lightIntensity;
++    // screen params: (invWidth, invHeight, aoStrength, reserved)
++    vec4 screen;
+ } ubo;
+ 
+ layout(set = 0, binding = 1) uniform sampler2D uAlbedo;
+ layout(set = 0, binding = 2) uniform sampler2D uNormal;
++layout(set = 0, binding = 3) uniform sampler2D uAO;
+ 
+ vec3 applyNormalMap(vec3 n, vec3 t, vec3 b, vec2 uv) {
+     // Sample normal map (assumed in [0,1] RGB with (0,0,1) as flat)
+@@ -50,8 +53,13 @@
+     vec3 specular = ubo.lightColor * spec;
+     vec3 color = (diffuse + specular) * ubo.lightColor * ubo.lightIntensity;
+ 
++    // Sample SSAO
++    vec2 uv = gl_FragCoord.xy * ubo.screen.xy; // inv width/height
++    float ao = texture(uAO, uv).r;
++    ao = mix(1.0, clamp(ao, 0.0, 1.0), clamp(ubo.screen.z, 0.0, 2.0));
++    color *= ao;
++
+     // Gamma correct to sRGB for output
+     color = pow(color, vec3(1.0/2.2));
+     outColor = vec4(color, 1.0);
+ }
+-
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+index 94c6560d6c86ce8166e3303e0e8d6a0ce5a4fc5c..ab2dba099289e44f45d6393eba8b243ea871b9ff
+--- a/src/imgui_layer.cpp
++++ b/src/imgui_layer.cpp
+@@ -124,6 +124,16 @@
+         ImGui::ColorEdit3("Color", s.light_color);
+         ImGui::SliderFloat("Intensity", &s.light_intensity, 0.0F, 5.0F);
+         ImGui::SliderFloat("Shininess", &s.shininess, 4.0F, 256.0F);
++
++        ImGui::Separator();
++        ImGui::Text("SSAO");
++        ImGui::Checkbox("Enable SSAO", &s.ssao_enabled);
++        ImGui::SliderInt("Kernel Size", &s.ssao_kernel, 8, 64);
++        ImGui::SliderFloat("Radius", &s.ssao_radius, 0.05F, 2.0F);
++        ImGui::SliderFloat("Bias", &s.ssao_bias, 0.0F, 0.1F);
++        ImGui::SliderFloat("Power", &s.ssao_power, 0.0F, 2.0F);
++        ImGui::Checkbox("Blur AO", &s.ssao_blur);
++        ImGui::SliderInt("Blur Radius", &s.ssao_blur_radius, 1, 5);
+         impl->ctx->set_settings(s);
+     }
+     ImGui::End();
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 6f813be490cd3e26519a809da7a8fc20f5ef0051..d205eefd01e26dd580014117f7c237cc0805b90b
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -68,6 +68,9 @@
+     VkImage normal_image {VK_NULL_HANDLE};
+     VkDeviceMemory normal_memory {VK_NULL_HANDLE};
+     VkImageView normal_view {VK_NULL_HANDLE};
++    VkImage ao_image {VK_NULL_HANDLE};
++    VkDeviceMemory ao_memory {VK_NULL_HANDLE};
++    VkImageView ao_view {VK_NULL_HANDLE};
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
+@@ -680,6 +683,9 @@
+     if (impl.normal_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.normal_view, nullptr); impl.normal_view = VK_NULL_HANDLE; }
+     if (impl.normal_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.normal_image, nullptr); impl.normal_image = VK_NULL_HANDLE; }
+     if (impl.normal_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.normal_memory, nullptr); impl.normal_memory = VK_NULL_HANDLE; }
++    if (impl.ao_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.ao_view, nullptr); impl.ao_view = VK_NULL_HANDLE; }
++    if (impl.ao_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.ao_image, nullptr); impl.ao_image = VK_NULL_HANDLE; }
++    if (impl.ao_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ao_memory, nullptr); impl.ao_memory = VK_NULL_HANDLE; }
+     if (impl.ubo_buffer != VK_NULL_HANDLE) { vkDestroyBuffer(impl.device, impl.ubo_buffer, nullptr); impl.ubo_buffer = VK_NULL_HANDLE; }
+     if (impl.ubo_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ubo_memory, nullptr); impl.ubo_memory = VK_NULL_HANDLE; }
+ }
+@@ -777,14 +783,15 @@
+     pcr.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+ 
+     VkDescriptorSetLayoutCreateInfo dlci {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+-    VkDescriptorSetLayoutBinding bindings[3] = {};
++    VkDescriptorSetLayoutBinding bindings[4] = {};
+     uint32_t bindCount = 0U;
+     if (forward) {
+-        // binding 0: UBO, 1: albedo, 2: normal
++        // binding 0: UBO, 1: albedo, 2: normal, 3: AO
+         bindings[0].binding = 0; bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; bindings[0].descriptorCount = 1; bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+         bindings[1].binding = 1; bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[1].descriptorCount = 1; bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+         bindings[2].binding = 2; bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[2].descriptorCount = 1; bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+-        bindCount = 3U;
++        bindings[3].binding = 3; bindings[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[3].descriptorCount = 1; bindings[3].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
++        bindCount = 4U;
+         dlci.bindingCount = bindCount; dlci.pBindings = bindings;
+         if (vkCreateDescriptorSetLayout(impl.device, &dlci, nullptr, &impl.desc_layout) != VK_SUCCESS) {
+             vkDestroyShaderModule(impl.device, vmod, nullptr);
+@@ -849,13 +856,17 @@
+         create_image_and_upload(ctx, W, H, albedo.data(), static_cast<VkDeviceSize>(albedo.size()*sizeof(std::uint32_t)), &impl.albedo_image, &impl.albedo_memory, &impl.albedo_view);
+         create_image_and_upload(ctx, W, H, normal.data(), static_cast<VkDeviceSize>(normal.size()*sizeof(std::uint32_t)), &impl.normal_image, &impl.normal_memory, &impl.normal_view);
+ 
+-        // Create UBO
+-        create_buffer(ctx, sizeof(float)*16U*2U + sizeof(float)*16U, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        // AO texture placeholder: 1x1 white (no occlusion)
++        const uint32_t AO_W = 1, AO_H = 1; const std::uint32_t white = 0xFFFFFFFFu;
++        create_image_and_upload(ctx, AO_W, AO_H, &white, sizeof(white), &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++
++        // Create UBO (256 bytes)
++        create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
+ 
+         // Descriptor pool and set
+         VkDescriptorPoolSize poolSizes[2] = {};
+         poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 1;
+-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 2;
++        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 3;
+         VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+         dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 1;
+         vkCreateDescriptorPool(impl.device, &dpci, nullptr, &impl.desc_pool);
+@@ -865,10 +876,12 @@
+         VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
+         VkDescriptorImageInfo dai1 {}; dai1.sampler = impl.sampler; dai1.imageView = impl.albedo_view; dai1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+         VkDescriptorImageInfo dai2 {}; dai2.sampler = impl.sampler; dai2.imageView = impl.normal_view; dai2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+-        std::array<VkWriteDescriptorSet,3> writes {};
++        VkDescriptorImageInfo dai3 {}; dai3.sampler = impl.sampler; dai3.imageView = impl.ao_view; dai3.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++        std::array<VkWriteDescriptorSet,4> writes {};
+         writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[0].dstSet = impl.desc_set; writes[0].dstBinding = 0; writes[0].descriptorCount = 1; writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes[0].pBufferInfo = &dbi;
+         writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[1].dstSet = impl.desc_set; writes[1].dstBinding = 1; writes[1].descriptorCount = 1; writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[1].pImageInfo = &dai1;
+         writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = impl.desc_set; writes[2].dstBinding = 2; writes[2].descriptorCount = 1; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[2].pImageInfo = &dai2;
++        writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[3].dstSet = impl.desc_set; writes[3].dstBinding = 3; writes[3].descriptorCount = 1; writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[3].pImageInfo = &dai3;
+         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+     }
+ }
+
+[2025-09-15T16:51:55] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp
+@@ -1083,5 +1083,5 @@
+ 
+-            // Update UBO if available: view, proj, camera/light parameters
++            // Update UBO if available: view, proj, camera/light parameters, screen params
+             if (impl->ubo_buffer != VK_NULL_HANDLE) {
+-                struct Align16UBO { float view[16]; float proj[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; } u {};
++                struct Align16UBO { float view[16]; float proj[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; float screen[4]; } u {};
+                 for (int i=0;i<16;++i) { u.view[i] = view[i]; u.proj[i] = proj[i]; }
+@@ -1091,2 +1091,5 @@
+                 u.light_color[0]=s.light_color[0]; u.light_color[1]=s.light_color[1]; u.light_color[2]=s.light_color[2]; u.light_color[3]=s.light_intensity;
++                const float invW = impl->swapchain_extent.width > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.width) : 0.0F;
++                const float invH = impl->swapchain_extent.height > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.height) : 0.0F;
++                u.screen[0]=invW; u.screen[1]=invH; u.screen[2]=s.ssao_power; u.screen[3]=0.0F;
+                 void* ubodata=nullptr; vkMapMemory(impl->device, impl->ubo_memory, 0, sizeof(u), 0, &ubodata); std::memcpy(ubodata, &u, sizeof(u)); vkUnmapMemory(impl->device, impl->ubo_memory);
+[2025-09-15T16:51:55] apply_patch(auto_approved=true) exited 0 in 71ms:
+Success. Updated the following files:
+M src/vulkan_context.cpp
+[2025-09-15T16:51:55] turn diff:
+
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index 2290faca01c678ec81806baf1dc2750353a06fb3..fbf0a791ce5b68f29174b8cabd105681f78c0b60
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -35,6 +35,14 @@
+         float light_intensity {1.0F};
+         float light_pos[3] {3.0F, 3.0F, 3.0F};
+         float light_color[3] {1.0F, 1.0F, 1.0F};
++        // SSAO controls (initial wiring; passes added subsequently)
++        bool ssao_enabled {true};
++        int ssao_kernel {32};
++        float ssao_radius {0.5F};
++        float ssao_bias {0.02F};
++        float ssao_power {1.0F};
++        bool ssao_blur {true};
++        int ssao_blur_radius {2};
+     };
+ 
+     void set_settings(const Settings& s) noexcept;
+diff --git a/shaders/forward.frag b/shaders/forward.frag
+index 989ff1142b5a85546924c12d9a958be5f751363f..91145c0145fbb58765becb71039706bde2dfb95d
+--- a/shaders/forward.frag
++++ b/shaders/forward.frag
+@@ -17,10 +17,13 @@
+     float shininess;
+     vec3 lightColor;
+     float lightIntensity;
++    // screen params: (invWidth, invHeight, aoStrength, reserved)
++    vec4 screen;
+ } ubo;
+ 
+ layout(set = 0, binding = 1) uniform sampler2D uAlbedo;
+ layout(set = 0, binding = 2) uniform sampler2D uNormal;
++layout(set = 0, binding = 3) uniform sampler2D uAO;
+ 
+ vec3 applyNormalMap(vec3 n, vec3 t, vec3 b, vec2 uv) {
+     // Sample normal map (assumed in [0,1] RGB with (0,0,1) as flat)
+@@ -50,8 +53,13 @@
+     vec3 specular = ubo.lightColor * spec;
+     vec3 color = (diffuse + specular) * ubo.lightColor * ubo.lightIntensity;
+ 
++    // Sample SSAO
++    vec2 uv = gl_FragCoord.xy * ubo.screen.xy; // inv width/height
++    float ao = texture(uAO, uv).r;
++    ao = mix(1.0, clamp(ao, 0.0, 1.0), clamp(ubo.screen.z, 0.0, 2.0));
++    color *= ao;
++
+     // Gamma correct to sRGB for output
+     color = pow(color, vec3(1.0/2.2));
+     outColor = vec4(color, 1.0);
+ }
+-
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+index 94c6560d6c86ce8166e3303e0e8d6a0ce5a4fc5c..ab2dba099289e44f45d6393eba8b243ea871b9ff
+--- a/src/imgui_layer.cpp
++++ b/src/imgui_layer.cpp
+@@ -124,6 +124,16 @@
+         ImGui::ColorEdit3("Color", s.light_color);
+         ImGui::SliderFloat("Intensity", &s.light_intensity, 0.0F, 5.0F);
+         ImGui::SliderFloat("Shininess", &s.shininess, 4.0F, 256.0F);
++
++        ImGui::Separator();
++        ImGui::Text("SSAO");
++        ImGui::Checkbox("Enable SSAO", &s.ssao_enabled);
++        ImGui::SliderInt("Kernel Size", &s.ssao_kernel, 8, 64);
++        ImGui::SliderFloat("Radius", &s.ssao_radius, 0.05F, 2.0F);
++        ImGui::SliderFloat("Bias", &s.ssao_bias, 0.0F, 0.1F);
++        ImGui::SliderFloat("Power", &s.ssao_power, 0.0F, 2.0F);
++        ImGui::Checkbox("Blur AO", &s.ssao_blur);
++        ImGui::SliderInt("Blur Radius", &s.ssao_blur_radius, 1, 5);
+         impl->ctx->set_settings(s);
+     }
+     ImGui::End();
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 6f813be490cd3e26519a809da7a8fc20f5ef0051..e45d560a53955091853910b65ddcc068813d80f3
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -68,6 +68,9 @@
+     VkImage normal_image {VK_NULL_HANDLE};
+     VkDeviceMemory normal_memory {VK_NULL_HANDLE};
+     VkImageView normal_view {VK_NULL_HANDLE};
++    VkImage ao_image {VK_NULL_HANDLE};
++    VkDeviceMemory ao_memory {VK_NULL_HANDLE};
++    VkImageView ao_view {VK_NULL_HANDLE};
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
+@@ -680,6 +683,9 @@
+     if (impl.normal_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.normal_view, nullptr); impl.normal_view = VK_NULL_HANDLE; }
+     if (impl.normal_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.normal_image, nullptr); impl.normal_image = VK_NULL_HANDLE; }
+     if (impl.normal_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.normal_memory, nullptr); impl.normal_memory = VK_NULL_HANDLE; }
++    if (impl.ao_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.ao_view, nullptr); impl.ao_view = VK_NULL_HANDLE; }
++    if (impl.ao_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.ao_image, nullptr); impl.ao_image = VK_NULL_HANDLE; }
++    if (impl.ao_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ao_memory, nullptr); impl.ao_memory = VK_NULL_HANDLE; }
+     if (impl.ubo_buffer != VK_NULL_HANDLE) { vkDestroyBuffer(impl.device, impl.ubo_buffer, nullptr); impl.ubo_buffer = VK_NULL_HANDLE; }
+     if (impl.ubo_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ubo_memory, nullptr); impl.ubo_memory = VK_NULL_HANDLE; }
+ }
+@@ -777,14 +783,15 @@
+     pcr.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+ 
+     VkDescriptorSetLayoutCreateInfo dlci {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+-    VkDescriptorSetLayoutBinding bindings[3] = {};
++    VkDescriptorSetLayoutBinding bindings[4] = {};
+     uint32_t bindCount = 0U;
+     if (forward) {
+-        // binding 0: UBO, 1: albedo, 2: normal
++        // binding 0: UBO, 1: albedo, 2: normal, 3: AO
+         bindings[0].binding = 0; bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; bindings[0].descriptorCount = 1; bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+         bindings[1].binding = 1; bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[1].descriptorCount = 1; bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+         bindings[2].binding = 2; bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[2].descriptorCount = 1; bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+-        bindCount = 3U;
++        bindings[3].binding = 3; bindings[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[3].descriptorCount = 1; bindings[3].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
++        bindCount = 4U;
+         dlci.bindingCount = bindCount; dlci.pBindings = bindings;
+         if (vkCreateDescriptorSetLayout(impl.device, &dlci, nullptr, &impl.desc_layout) != VK_SUCCESS) {
+             vkDestroyShaderModule(impl.device, vmod, nullptr);
+@@ -849,13 +856,17 @@
+         create_image_and_upload(ctx, W, H, albedo.data(), static_cast<VkDeviceSize>(albedo.size()*sizeof(std::uint32_t)), &impl.albedo_image, &impl.albedo_memory, &impl.albedo_view);
+         create_image_and_upload(ctx, W, H, normal.data(), static_cast<VkDeviceSize>(normal.size()*sizeof(std::uint32_t)), &impl.normal_image, &impl.normal_memory, &impl.normal_view);
+ 
+-        // Create UBO
+-        create_buffer(ctx, sizeof(float)*16U*2U + sizeof(float)*16U, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        // AO texture placeholder: 1x1 white (no occlusion)
++        const uint32_t AO_W = 1, AO_H = 1; const std::uint32_t white = 0xFFFFFFFFu;
++        create_image_and_upload(ctx, AO_W, AO_H, &white, sizeof(white), &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++
++        // Create UBO (256 bytes)
++        create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
+ 
+         // Descriptor pool and set
+         VkDescriptorPoolSize poolSizes[2] = {};
+         poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 1;
+-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 2;
++        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 3;
+         VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+         dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 1;
+         vkCreateDescriptorPool(impl.device, &dpci, nullptr, &impl.desc_pool);
+@@ -865,10 +876,12 @@
+         VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
+         VkDescriptorImageInfo dai1 {}; dai1.sampler = impl.sampler; dai1.imageView = impl.albedo_view; dai1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+         VkDescriptorImageInfo dai2 {}; dai2.sampler = impl.sampler; dai2.imageView = impl.normal_view; dai2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+-        std::array<VkWriteDescriptorSet,3> writes {};
++        VkDescriptorImageInfo dai3 {}; dai3.sampler = impl.sampler; dai3.imageView = impl.ao_view; dai3.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++        std::array<VkWriteDescriptorSet,4> writes {};
+         writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[0].dstSet = impl.desc_set; writes[0].dstBinding = 0; writes[0].descriptorCount = 1; writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes[0].pBufferInfo = &dbi;
+         writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[1].dstSet = impl.desc_set; writes[1].dstBinding = 1; writes[1].descriptorCount = 1; writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[1].pImageInfo = &dai1;
+         writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = impl.desc_set; writes[2].dstBinding = 2; writes[2].descriptorCount = 1; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[2].pImageInfo = &dai2;
++        writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[3].dstSet = impl.desc_set; writes[3].dstBinding = 3; writes[3].descriptorCount = 1; writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[3].pImageInfo = &dai3;
+         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+     }
+ }
+@@ -1068,14 +1081,17 @@
+             matmul(pv, model, mvp);
+             vkCmdPushConstants(cmd, impl->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0U, static_cast<uint32_t>(sizeof(float)*16U), mvp);
+ 
+-            // Update UBO if available: view, proj, camera/light parameters
++            // Update UBO if available: view, proj, camera/light parameters, screen params
+             if (impl->ubo_buffer != VK_NULL_HANDLE) {
+-                struct Align16UBO { float view[16]; float proj[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; } u {};
++                struct Align16UBO { float view[16]; float proj[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; float screen[4]; } u {};
+                 for (int i=0;i<16;++i) { u.view[i] = view[i]; u.proj[i] = proj[i]; }
+                 const auto s = impl->settings;
+                 u.cam_pos[0]=eye[0]; u.cam_pos[1]=eye[1]; u.cam_pos[2]=eye[2]; u.cam_pos[3]=s.normal_strength;
+                 u.light_pos[0]=s.light_pos[0]; u.light_pos[1]=s.light_pos[1]; u.light_pos[2]=s.light_pos[2]; u.light_pos[3]=s.shininess;
+                 u.light_color[0]=s.light_color[0]; u.light_color[1]=s.light_color[1]; u.light_color[2]=s.light_color[2]; u.light_color[3]=s.light_intensity;
++                const float invW = impl->swapchain_extent.width > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.width) : 0.0F;
++                const float invH = impl->swapchain_extent.height > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.height) : 0.0F;
++                u.screen[0]=invW; u.screen[1]=invH; u.screen[2]=s.ssao_power; u.screen[3]=0.0F;
+                 void* ubodata=nullptr; vkMapMemory(impl->device, impl->ubo_memory, 0, sizeof(u), 0, &ubodata); std::memcpy(ubodata, &u, sizeof(u)); vkUnmapMemory(impl->device, impl->ubo_memory);
+             }
+         }
+
+[2025-09-15T16:51:55] tokens used: 100,396
+[2025-09-15T16:51:55] turn diff:
+
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index 2290faca01c678ec81806baf1dc2750353a06fb3..fbf0a791ce5b68f29174b8cabd105681f78c0b60
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -35,6 +35,14 @@
+         float light_intensity {1.0F};
+         float light_pos[3] {3.0F, 3.0F, 3.0F};
+         float light_color[3] {1.0F, 1.0F, 1.0F};
++        // SSAO controls (initial wiring; passes added subsequently)
++        bool ssao_enabled {true};
++        int ssao_kernel {32};
++        float ssao_radius {0.5F};
++        float ssao_bias {0.02F};
++        float ssao_power {1.0F};
++        bool ssao_blur {true};
++        int ssao_blur_radius {2};
+     };
+ 
+     void set_settings(const Settings& s) noexcept;
+diff --git a/shaders/forward.frag b/shaders/forward.frag
+index 989ff1142b5a85546924c12d9a958be5f751363f..91145c0145fbb58765becb71039706bde2dfb95d
+--- a/shaders/forward.frag
++++ b/shaders/forward.frag
+@@ -17,10 +17,13 @@
+     float shininess;
+     vec3 lightColor;
+     float lightIntensity;
++    // screen params: (invWidth, invHeight, aoStrength, reserved)
++    vec4 screen;
+ } ubo;
+ 
+ layout(set = 0, binding = 1) uniform sampler2D uAlbedo;
+ layout(set = 0, binding = 2) uniform sampler2D uNormal;
++layout(set = 0, binding = 3) uniform sampler2D uAO;
+ 
+ vec3 applyNormalMap(vec3 n, vec3 t, vec3 b, vec2 uv) {
+     // Sample normal map (assumed in [0,1] RGB with (0,0,1) as flat)
+@@ -50,8 +53,13 @@
+     vec3 specular = ubo.lightColor * spec;
+     vec3 color = (diffuse + specular) * ubo.lightColor * ubo.lightIntensity;
+ 
++    // Sample SSAO
++    vec2 uv = gl_FragCoord.xy * ubo.screen.xy; // inv width/height
++    float ao = texture(uAO, uv).r;
++    ao = mix(1.0, clamp(ao, 0.0, 1.0), clamp(ubo.screen.z, 0.0, 2.0));
++    color *= ao;
++
+     // Gamma correct to sRGB for output
+     color = pow(color, vec3(1.0/2.2));
+     outColor = vec4(color, 1.0);
+ }
+-
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+index 94c6560d6c86ce8166e3303e0e8d6a0ce5a4fc5c..ab2dba099289e44f45d6393eba8b243ea871b9ff
+--- a/src/imgui_layer.cpp
++++ b/src/imgui_layer.cpp
+@@ -124,6 +124,16 @@
+         ImGui::ColorEdit3("Color", s.light_color);
+         ImGui::SliderFloat("Intensity", &s.light_intensity, 0.0F, 5.0F);
+         ImGui::SliderFloat("Shininess", &s.shininess, 4.0F, 256.0F);
++
++        ImGui::Separator();
++        ImGui::Text("SSAO");
++        ImGui::Checkbox("Enable SSAO", &s.ssao_enabled);
++        ImGui::SliderInt("Kernel Size", &s.ssao_kernel, 8, 64);
++        ImGui::SliderFloat("Radius", &s.ssao_radius, 0.05F, 2.0F);
++        ImGui::SliderFloat("Bias", &s.ssao_bias, 0.0F, 0.1F);
++        ImGui::SliderFloat("Power", &s.ssao_power, 0.0F, 2.0F);
++        ImGui::Checkbox("Blur AO", &s.ssao_blur);
++        ImGui::SliderInt("Blur Radius", &s.ssao_blur_radius, 1, 5);
+         impl->ctx->set_settings(s);
+     }
+     ImGui::End();
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 6f813be490cd3e26519a809da7a8fc20f5ef0051..e45d560a53955091853910b65ddcc068813d80f3
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -68,6 +68,9 @@
+     VkImage normal_image {VK_NULL_HANDLE};
+     VkDeviceMemory normal_memory {VK_NULL_HANDLE};
+     VkImageView normal_view {VK_NULL_HANDLE};
++    VkImage ao_image {VK_NULL_HANDLE};
++    VkDeviceMemory ao_memory {VK_NULL_HANDLE};
++    VkImageView ao_view {VK_NULL_HANDLE};
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
+@@ -680,6 +683,9 @@
+     if (impl.normal_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.normal_view, nullptr); impl.normal_view = VK_NULL_HANDLE; }
+     if (impl.normal_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.normal_image, nullptr); impl.normal_image = VK_NULL_HANDLE; }
+     if (impl.normal_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.normal_memory, nullptr); impl.normal_memory = VK_NULL_HANDLE; }
++    if (impl.ao_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.ao_view, nullptr); impl.ao_view = VK_NULL_HANDLE; }
++    if (impl.ao_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.ao_image, nullptr); impl.ao_image = VK_NULL_HANDLE; }
++    if (impl.ao_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ao_memory, nullptr); impl.ao_memory = VK_NULL_HANDLE; }
+     if (impl.ubo_buffer != VK_NULL_HANDLE) { vkDestroyBuffer(impl.device, impl.ubo_buffer, nullptr); impl.ubo_buffer = VK_NULL_HANDLE; }
+     if (impl.ubo_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ubo_memory, nullptr); impl.ubo_memory = VK_NULL_HANDLE; }
+ }
+@@ -777,14 +783,15 @@
+     pcr.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+ 
+     VkDescriptorSetLayoutCreateInfo dlci {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+-    VkDescriptorSetLayoutBinding bindings[3] = {};
++    VkDescriptorSetLayoutBinding bindings[4] = {};
+     uint32_t bindCount = 0U;
+     if (forward) {
+-        // binding 0: UBO, 1: albedo, 2: normal
++        // binding 0: UBO, 1: albedo, 2: normal, 3: AO
+         bindings[0].binding = 0; bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; bindings[0].descriptorCount = 1; bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+         bindings[1].binding = 1; bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[1].descriptorCount = 1; bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+         bindings[2].binding = 2; bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[2].descriptorCount = 1; bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+-        bindCount = 3U;
++        bindings[3].binding = 3; bindings[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[3].descriptorCount = 1; bindings[3].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
++        bindCount = 4U;
+         dlci.bindingCount = bindCount; dlci.pBindings = bindings;
+         if (vkCreateDescriptorSetLayout(impl.device, &dlci, nullptr, &impl.desc_layout) != VK_SUCCESS) {
+             vkDestroyShaderModule(impl.device, vmod, nullptr);
+@@ -849,13 +856,17 @@
+         create_image_and_upload(ctx, W, H, albedo.data(), static_cast<VkDeviceSize>(albedo.size()*sizeof(std::uint32_t)), &impl.albedo_image, &impl.albedo_memory, &impl.albedo_view);
+         create_image_and_upload(ctx, W, H, normal.data(), static_cast<VkDeviceSize>(normal.size()*sizeof(std::uint32_t)), &impl.normal_image, &impl.normal_memory, &impl.normal_view);
+ 
+-        // Create UBO
+-        create_buffer(ctx, sizeof(float)*16U*2U + sizeof(float)*16U, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        // AO texture placeholder: 1x1 white (no occlusion)
++        const uint32_t AO_W = 1, AO_H = 1; const std::uint32_t white = 0xFFFFFFFFu;
++        create_image_and_upload(ctx, AO_W, AO_H, &white, sizeof(white), &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++
++        // Create UBO (256 bytes)
++        create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
+ 
+         // Descriptor pool and set
+         VkDescriptorPoolSize poolSizes[2] = {};
+         poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 1;
+-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 2;
++        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 3;
+         VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+         dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 1;
+         vkCreateDescriptorPool(impl.device, &dpci, nullptr, &impl.desc_pool);
+@@ -865,10 +876,12 @@
+         VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
+         VkDescriptorImageInfo dai1 {}; dai1.sampler = impl.sampler; dai1.imageView = impl.albedo_view; dai1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+         VkDescriptorImageInfo dai2 {}; dai2.sampler = impl.sampler; dai2.imageView = impl.normal_view; dai2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+-        std::array<VkWriteDescriptorSet,3> writes {};
++        VkDescriptorImageInfo dai3 {}; dai3.sampler = impl.sampler; dai3.imageView = impl.ao_view; dai3.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++        std::array<VkWriteDescriptorSet,4> writes {};
+         writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[0].dstSet = impl.desc_set; writes[0].dstBinding = 0; writes[0].descriptorCount = 1; writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes[0].pBufferInfo = &dbi;
+         writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[1].dstSet = impl.desc_set; writes[1].dstBinding = 1; writes[1].descriptorCount = 1; writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[1].pImageInfo = &dai1;
+         writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = impl.desc_set; writes[2].dstBinding = 2; writes[2].descriptorCount = 1; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[2].pImageInfo = &dai2;
++        writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[3].dstSet = impl.desc_set; writes[3].dstBinding = 3; writes[3].descriptorCount = 1; writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[3].pImageInfo = &dai3;
+         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+     }
+ }
+@@ -1068,14 +1081,17 @@
+             matmul(pv, model, mvp);
+             vkCmdPushConstants(cmd, impl->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0U, static_cast<uint32_t>(sizeof(float)*16U), mvp);
+ 
+-            // Update UBO if available: view, proj, camera/light parameters
++            // Update UBO if available: view, proj, camera/light parameters, screen params
+             if (impl->ubo_buffer != VK_NULL_HANDLE) {
+-                struct Align16UBO { float view[16]; float proj[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; } u {};
++                struct Align16UBO { float view[16]; float proj[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; float screen[4]; } u {};
+                 for (int i=0;i<16;++i) { u.view[i] = view[i]; u.proj[i] = proj[i]; }
+                 const auto s = impl->settings;
+                 u.cam_pos[0]=eye[0]; u.cam_pos[1]=eye[1]; u.cam_pos[2]=eye[2]; u.cam_pos[3]=s.normal_strength;
+                 u.light_pos[0]=s.light_pos[0]; u.light_pos[1]=s.light_pos[1]; u.light_pos[2]=s.light_pos[2]; u.light_pos[3]=s.shininess;
+                 u.light_color[0]=s.light_color[0]; u.light_color[1]=s.light_color[1]; u.light_color[2]=s.light_color[2]; u.light_color[3]=s.light_intensity;
++                const float invW = impl->swapchain_extent.width > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.width) : 0.0F;
++                const float invH = impl->swapchain_extent.height > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.height) : 0.0F;
++                u.screen[0]=invW; u.screen[1]=invH; u.screen[2]=s.ssao_power; u.screen[3]=0.0F;
+                 void* ubodata=nullptr; vkMapMemory(impl->device, impl->ubo_memory, 0, sizeof(u), 0, &ubodata); std::memcpy(ubodata, &u, sizeof(u)); vkUnmapMemory(impl->device, impl->ubo_memory);
+             }
+         }
+
+[2025-09-15T16:51:57] exec bash -lc 'cmake --build build -j' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:51:59] bash -lc 'cmake --build build -j' succeeded in 1.31s:
+[  1%] Built target glm
+[ 16%] Built target glfw
+[ 16%] Building CXX object src/CMakeFiles/vulkano.dir/app.cpp.o
+[ 16%] Building CXX object src/CMakeFiles/vulkano.dir/imgui_layer.cpp.o
+[ 17%] Building CXX object src/CMakeFiles/vulkano.dir/vulkan_context.cpp.o
+[ 87%] Built target Catch2
+[ 88%] Built target Catch2WithMain
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/imgui_layer.cpp:59:88: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+   59 |     VkDescriptorPoolCreateInfo pool_info {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+      |                                                                                        ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:271:63: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  271 |     VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+      |                                                               ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:287:69: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  287 |     VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+      |                                                                     ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:295:73: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  295 |     VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+      |                                                                         ^
+1 warning generated.
+[2025-09-15T16:51:59] tokens used: 101,346
+[2025-09-15T16:51:59] turn diff:
+
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index 2290faca01c678ec81806baf1dc2750353a06fb3..fbf0a791ce5b68f29174b8cabd105681f78c0b60
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -35,6 +35,14 @@
+         float light_intensity {1.0F};
+         float light_pos[3] {3.0F, 3.0F, 3.0F};
+         float light_color[3] {1.0F, 1.0F, 1.0F};
++        // SSAO controls (initial wiring; passes added subsequently)
++        bool ssao_enabled {true};
++        int ssao_kernel {32};
++        float ssao_radius {0.5F};
++        float ssao_bias {0.02F};
++        float ssao_power {1.0F};
++        bool ssao_blur {true};
++        int ssao_blur_radius {2};
+     };
+ 
+     void set_settings(const Settings& s) noexcept;
+diff --git a/shaders/forward.frag b/shaders/forward.frag
+index 989ff1142b5a85546924c12d9a958be5f751363f..91145c0145fbb58765becb71039706bde2dfb95d
+--- a/shaders/forward.frag
++++ b/shaders/forward.frag
+@@ -17,10 +17,13 @@
+     float shininess;
+     vec3 lightColor;
+     float lightIntensity;
++    // screen params: (invWidth, invHeight, aoStrength, reserved)
++    vec4 screen;
+ } ubo;
+ 
+ layout(set = 0, binding = 1) uniform sampler2D uAlbedo;
+ layout(set = 0, binding = 2) uniform sampler2D uNormal;
++layout(set = 0, binding = 3) uniform sampler2D uAO;
+ 
+ vec3 applyNormalMap(vec3 n, vec3 t, vec3 b, vec2 uv) {
+     // Sample normal map (assumed in [0,1] RGB with (0,0,1) as flat)
+@@ -50,8 +53,13 @@
+     vec3 specular = ubo.lightColor * spec;
+     vec3 color = (diffuse + specular) * ubo.lightColor * ubo.lightIntensity;
+ 
++    // Sample SSAO
++    vec2 uv = gl_FragCoord.xy * ubo.screen.xy; // inv width/height
++    float ao = texture(uAO, uv).r;
++    ao = mix(1.0, clamp(ao, 0.0, 1.0), clamp(ubo.screen.z, 0.0, 2.0));
++    color *= ao;
++
+     // Gamma correct to sRGB for output
+     color = pow(color, vec3(1.0/2.2));
+     outColor = vec4(color, 1.0);
+ }
+-
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+index 94c6560d6c86ce8166e3303e0e8d6a0ce5a4fc5c..ab2dba099289e44f45d6393eba8b243ea871b9ff
+--- a/src/imgui_layer.cpp
++++ b/src/imgui_layer.cpp
+@@ -124,6 +124,16 @@
+         ImGui::ColorEdit3("Color", s.light_color);
+         ImGui::SliderFloat("Intensity", &s.light_intensity, 0.0F, 5.0F);
+         ImGui::SliderFloat("Shininess", &s.shininess, 4.0F, 256.0F);
++
++        ImGui::Separator();
++        ImGui::Text("SSAO");
++        ImGui::Checkbox("Enable SSAO", &s.ssao_enabled);
++        ImGui::SliderInt("Kernel Size", &s.ssao_kernel, 8, 64);
++        ImGui::SliderFloat("Radius", &s.ssao_radius, 0.05F, 2.0F);
++        ImGui::SliderFloat("Bias", &s.ssao_bias, 0.0F, 0.1F);
++        ImGui::SliderFloat("Power", &s.ssao_power, 0.0F, 2.0F);
++        ImGui::Checkbox("Blur AO", &s.ssao_blur);
++        ImGui::SliderInt("Blur Radius", &s.ssao_blur_radius, 1, 5);
+         impl->ctx->set_settings(s);
+     }
+     ImGui::End();
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 6f813be490cd3e26519a809da7a8fc20f5ef0051..e45d560a53955091853910b65ddcc068813d80f3
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -68,6 +68,9 @@
+     VkImage normal_image {VK_NULL_HANDLE};
+     VkDeviceMemory normal_memory {VK_NULL_HANDLE};
+     VkImageView normal_view {VK_NULL_HANDLE};
++    VkImage ao_image {VK_NULL_HANDLE};
++    VkDeviceMemory ao_memory {VK_NULL_HANDLE};
++    VkImageView ao_view {VK_NULL_HANDLE};
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
+@@ -680,6 +683,9 @@
+     if (impl.normal_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.normal_view, nullptr); impl.normal_view = VK_NULL_HANDLE; }
+     if (impl.normal_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.normal_image, nullptr); impl.normal_image = VK_NULL_HANDLE; }
+     if (impl.normal_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.normal_memory, nullptr); impl.normal_memory = VK_NULL_HANDLE; }
++    if (impl.ao_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.ao_view, nullptr); impl.ao_view = VK_NULL_HANDLE; }
++    if (impl.ao_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.ao_image, nullptr); impl.ao_image = VK_NULL_HANDLE; }
++    if (impl.ao_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ao_memory, nullptr); impl.ao_memory = VK_NULL_HANDLE; }
+     if (impl.ubo_buffer != VK_NULL_HANDLE) { vkDestroyBuffer(impl.device, impl.ubo_buffer, nullptr); impl.ubo_buffer = VK_NULL_HANDLE; }
+     if (impl.ubo_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ubo_memory, nullptr); impl.ubo_memory = VK_NULL_HANDLE; }
+ }
+@@ -777,14 +783,15 @@
+     pcr.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+ 
+     VkDescriptorSetLayoutCreateInfo dlci {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+-    VkDescriptorSetLayoutBinding bindings[3] = {};
++    VkDescriptorSetLayoutBinding bindings[4] = {};
+     uint32_t bindCount = 0U;
+     if (forward) {
+-        // binding 0: UBO, 1: albedo, 2: normal
++        // binding 0: UBO, 1: albedo, 2: normal, 3: AO
+         bindings[0].binding = 0; bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; bindings[0].descriptorCount = 1; bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+         bindings[1].binding = 1; bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[1].descriptorCount = 1; bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+         bindings[2].binding = 2; bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[2].descriptorCount = 1; bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+-        bindCount = 3U;
++        bindings[3].binding = 3; bindings[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[3].descriptorCount = 1; bindings[3].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
++        bindCount = 4U;
+         dlci.bindingCount = bindCount; dlci.pBindings = bindings;
+         if (vkCreateDescriptorSetLayout(impl.device, &dlci, nullptr, &impl.desc_layout) != VK_SUCCESS) {
+             vkDestroyShaderModule(impl.device, vmod, nullptr);
+@@ -849,13 +856,17 @@
+         create_image_and_upload(ctx, W, H, albedo.data(), static_cast<VkDeviceSize>(albedo.size()*sizeof(std::uint32_t)), &impl.albedo_image, &impl.albedo_memory, &impl.albedo_view);
+         create_image_and_upload(ctx, W, H, normal.data(), static_cast<VkDeviceSize>(normal.size()*sizeof(std::uint32_t)), &impl.normal_image, &impl.normal_memory, &impl.normal_view);
+ 
+-        // Create UBO
+-        create_buffer(ctx, sizeof(float)*16U*2U + sizeof(float)*16U, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        // AO texture placeholder: 1x1 white (no occlusion)
++        const uint32_t AO_W = 1, AO_H = 1; const std::uint32_t white = 0xFFFFFFFFu;
++        create_image_and_upload(ctx, AO_W, AO_H, &white, sizeof(white), &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++
++        // Create UBO (256 bytes)
++        create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
+ 
+         // Descriptor pool and set
+         VkDescriptorPoolSize poolSizes[2] = {};
+         poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 1;
+-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 2;
++        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 3;
+         VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+         dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 1;
+         vkCreateDescriptorPool(impl.device, &dpci, nullptr, &impl.desc_pool);
+@@ -865,10 +876,12 @@
+         VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
+         VkDescriptorImageInfo dai1 {}; dai1.sampler = impl.sampler; dai1.imageView = impl.albedo_view; dai1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+         VkDescriptorImageInfo dai2 {}; dai2.sampler = impl.sampler; dai2.imageView = impl.normal_view; dai2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+-        std::array<VkWriteDescriptorSet,3> writes {};
++        VkDescriptorImageInfo dai3 {}; dai3.sampler = impl.sampler; dai3.imageView = impl.ao_view; dai3.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++        std::array<VkWriteDescriptorSet,4> writes {};
+         writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[0].dstSet = impl.desc_set; writes[0].dstBinding = 0; writes[0].descriptorCount = 1; writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes[0].pBufferInfo = &dbi;
+         writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[1].dstSet = impl.desc_set; writes[1].dstBinding = 1; writes[1].descriptorCount = 1; writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[1].pImageInfo = &dai1;
+         writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = impl.desc_set; writes[2].dstBinding = 2; writes[2].descriptorCount = 1; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[2].pImageInfo = &dai2;
++        writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[3].dstSet = impl.desc_set; writes[3].dstBinding = 3; writes[3].descriptorCount = 1; writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[3].pImageInfo = &dai3;
+         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+     }
+ }
+@@ -1068,14 +1081,17 @@
+             matmul(pv, model, mvp);
+             vkCmdPushConstants(cmd, impl->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0U, static_cast<uint32_t>(sizeof(float)*16U), mvp);
+ 
+-            // Update UBO if available: view, proj, camera/light parameters
++            // Update UBO if available: view, proj, camera/light parameters, screen params
+             if (impl->ubo_buffer != VK_NULL_HANDLE) {
+-                struct Align16UBO { float view[16]; float proj[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; } u {};
++                struct Align16UBO { float view[16]; float proj[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; float screen[4]; } u {};
+                 for (int i=0;i<16;++i) { u.view[i] = view[i]; u.proj[i] = proj[i]; }
+                 const auto s = impl->settings;
+                 u.cam_pos[0]=eye[0]; u.cam_pos[1]=eye[1]; u.cam_pos[2]=eye[2]; u.cam_pos[3]=s.normal_strength;
+                 u.light_pos[0]=s.light_pos[0]; u.light_pos[1]=s.light_pos[1]; u.light_pos[2]=s.light_pos[2]; u.light_pos[3]=s.shininess;
+                 u.light_color[0]=s.light_color[0]; u.light_color[1]=s.light_color[1]; u.light_color[2]=s.light_color[2]; u.light_color[3]=s.light_intensity;
++                const float invW = impl->swapchain_extent.width > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.width) : 0.0F;
++                const float invH = impl->swapchain_extent.height > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.height) : 0.0F;
++                u.screen[0]=invW; u.screen[1]=invH; u.screen[2]=s.ssao_power; u.screen[3]=0.0F;
+                 void* ubodata=nullptr; vkMapMemory(impl->device, impl->ubo_memory, 0, sizeof(u), 0, &ubodata); std::memcpy(ubodata, &u, sizeof(u)); vkUnmapMemory(impl->device, impl->ubo_memory);
+             }
+         }
+
+[2025-09-15T16:52:02] exec bash -lc 'ctest --test-dir build -C Debug --output-on-failure && HEADLESS_RUN_MS=200 ./app/bin/Debug/vulkano_app || true' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:52:03] bash -lc 'ctest --test-dir build -C Debug --output-on-failure && HEADLESS_RUN_MS=200 ./app/bin/Debug/vulkano_app || true' succeeded in 952ms:
+Test project /Users/bruno/Documents/Development/bruno/vulkano_codex/build
+    Start 1: vulkano_tests
+1/1 Test #1: vulkano_tests ....................   Passed    0.35 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.35 sec
+[2025-09-15T16:52:03] tokens used: 102,727
+[2025-09-15T16:52:03] turn diff:
+
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index 2290faca01c678ec81806baf1dc2750353a06fb3..fbf0a791ce5b68f29174b8cabd105681f78c0b60
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -35,6 +35,14 @@
+         float light_intensity {1.0F};
+         float light_pos[3] {3.0F, 3.0F, 3.0F};
+         float light_color[3] {1.0F, 1.0F, 1.0F};
++        // SSAO controls (initial wiring; passes added subsequently)
++        bool ssao_enabled {true};
++        int ssao_kernel {32};
++        float ssao_radius {0.5F};
++        float ssao_bias {0.02F};
++        float ssao_power {1.0F};
++        bool ssao_blur {true};
++        int ssao_blur_radius {2};
+     };
+ 
+     void set_settings(const Settings& s) noexcept;
+diff --git a/shaders/forward.frag b/shaders/forward.frag
+index 989ff1142b5a85546924c12d9a958be5f751363f..91145c0145fbb58765becb71039706bde2dfb95d
+--- a/shaders/forward.frag
++++ b/shaders/forward.frag
+@@ -17,10 +17,13 @@
+     float shininess;
+     vec3 lightColor;
+     float lightIntensity;
++    // screen params: (invWidth, invHeight, aoStrength, reserved)
++    vec4 screen;
+ } ubo;
+ 
+ layout(set = 0, binding = 1) uniform sampler2D uAlbedo;
+ layout(set = 0, binding = 2) uniform sampler2D uNormal;
++layout(set = 0, binding = 3) uniform sampler2D uAO;
+ 
+ vec3 applyNormalMap(vec3 n, vec3 t, vec3 b, vec2 uv) {
+     // Sample normal map (assumed in [0,1] RGB with (0,0,1) as flat)
+@@ -50,8 +53,13 @@
+     vec3 specular = ubo.lightColor * spec;
+     vec3 color = (diffuse + specular) * ubo.lightColor * ubo.lightIntensity;
+ 
++    // Sample SSAO
++    vec2 uv = gl_FragCoord.xy * ubo.screen.xy; // inv width/height
++    float ao = texture(uAO, uv).r;
++    ao = mix(1.0, clamp(ao, 0.0, 1.0), clamp(ubo.screen.z, 0.0, 2.0));
++    color *= ao;
++
+     // Gamma correct to sRGB for output
+     color = pow(color, vec3(1.0/2.2));
+     outColor = vec4(color, 1.0);
+ }
+-
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+index 94c6560d6c86ce8166e3303e0e8d6a0ce5a4fc5c..ab2dba099289e44f45d6393eba8b243ea871b9ff
+--- a/src/imgui_layer.cpp
++++ b/src/imgui_layer.cpp
+@@ -124,6 +124,16 @@
+         ImGui::ColorEdit3("Color", s.light_color);
+         ImGui::SliderFloat("Intensity", &s.light_intensity, 0.0F, 5.0F);
+         ImGui::SliderFloat("Shininess", &s.shininess, 4.0F, 256.0F);
++
++        ImGui::Separator();
++        ImGui::Text("SSAO");
++        ImGui::Checkbox("Enable SSAO", &s.ssao_enabled);
++        ImGui::SliderInt("Kernel Size", &s.ssao_kernel, 8, 64);
++        ImGui::SliderFloat("Radius", &s.ssao_radius, 0.05F, 2.0F);
++        ImGui::SliderFloat("Bias", &s.ssao_bias, 0.0F, 0.1F);
++        ImGui::SliderFloat("Power", &s.ssao_power, 0.0F, 2.0F);
++        ImGui::Checkbox("Blur AO", &s.ssao_blur);
++        ImGui::SliderInt("Blur Radius", &s.ssao_blur_radius, 1, 5);
+         impl->ctx->set_settings(s);
+     }
+     ImGui::End();
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 6f813be490cd3e26519a809da7a8fc20f5ef0051..e45d560a53955091853910b65ddcc068813d80f3
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -68,6 +68,9 @@
+     VkImage normal_image {VK_NULL_HANDLE};
+     VkDeviceMemory normal_memory {VK_NULL_HANDLE};
+     VkImageView normal_view {VK_NULL_HANDLE};
++    VkImage ao_image {VK_NULL_HANDLE};
++    VkDeviceMemory ao_memory {VK_NULL_HANDLE};
++    VkImageView ao_view {VK_NULL_HANDLE};
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
+@@ -680,6 +683,9 @@
+     if (impl.normal_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.normal_view, nullptr); impl.normal_view = VK_NULL_HANDLE; }
+     if (impl.normal_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.normal_image, nullptr); impl.normal_image = VK_NULL_HANDLE; }
+     if (impl.normal_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.normal_memory, nullptr); impl.normal_memory = VK_NULL_HANDLE; }
++    if (impl.ao_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.ao_view, nullptr); impl.ao_view = VK_NULL_HANDLE; }
++    if (impl.ao_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.ao_image, nullptr); impl.ao_image = VK_NULL_HANDLE; }
++    if (impl.ao_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ao_memory, nullptr); impl.ao_memory = VK_NULL_HANDLE; }
+     if (impl.ubo_buffer != VK_NULL_HANDLE) { vkDestroyBuffer(impl.device, impl.ubo_buffer, nullptr); impl.ubo_buffer = VK_NULL_HANDLE; }
+     if (impl.ubo_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ubo_memory, nullptr); impl.ubo_memory = VK_NULL_HANDLE; }
+ }
+@@ -777,14 +783,15 @@
+     pcr.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+ 
+     VkDescriptorSetLayoutCreateInfo dlci {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+-    VkDescriptorSetLayoutBinding bindings[3] = {};
++    VkDescriptorSetLayoutBinding bindings[4] = {};
+     uint32_t bindCount = 0U;
+     if (forward) {
+-        // binding 0: UBO, 1: albedo, 2: normal
++        // binding 0: UBO, 1: albedo, 2: normal, 3: AO
+         bindings[0].binding = 0; bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; bindings[0].descriptorCount = 1; bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+         bindings[1].binding = 1; bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[1].descriptorCount = 1; bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+         bindings[2].binding = 2; bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[2].descriptorCount = 1; bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+-        bindCount = 3U;
++        bindings[3].binding = 3; bindings[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[3].descriptorCount = 1; bindings[3].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
++        bindCount = 4U;
+         dlci.bindingCount = bindCount; dlci.pBindings = bindings;
+         if (vkCreateDescriptorSetLayout(impl.device, &dlci, nullptr, &impl.desc_layout) != VK_SUCCESS) {
+             vkDestroyShaderModule(impl.device, vmod, nullptr);
+@@ -849,13 +856,17 @@
+         create_image_and_upload(ctx, W, H, albedo.data(), static_cast<VkDeviceSize>(albedo.size()*sizeof(std::uint32_t)), &impl.albedo_image, &impl.albedo_memory, &impl.albedo_view);
+         create_image_and_upload(ctx, W, H, normal.data(), static_cast<VkDeviceSize>(normal.size()*sizeof(std::uint32_t)), &impl.normal_image, &impl.normal_memory, &impl.normal_view);
+ 
+-        // Create UBO
+-        create_buffer(ctx, sizeof(float)*16U*2U + sizeof(float)*16U, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        // AO texture placeholder: 1x1 white (no occlusion)
++        const uint32_t AO_W = 1, AO_H = 1; const std::uint32_t white = 0xFFFFFFFFu;
++        create_image_and_upload(ctx, AO_W, AO_H, &white, sizeof(white), &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++
++        // Create UBO (256 bytes)
++        create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
+ 
+         // Descriptor pool and set
+         VkDescriptorPoolSize poolSizes[2] = {};
+         poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 1;
+-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 2;
++        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 3;
+         VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+         dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 1;
+         vkCreateDescriptorPool(impl.device, &dpci, nullptr, &impl.desc_pool);
+@@ -865,10 +876,12 @@
+         VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
+         VkDescriptorImageInfo dai1 {}; dai1.sampler = impl.sampler; dai1.imageView = impl.albedo_view; dai1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+         VkDescriptorImageInfo dai2 {}; dai2.sampler = impl.sampler; dai2.imageView = impl.normal_view; dai2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+-        std::array<VkWriteDescriptorSet,3> writes {};
++        VkDescriptorImageInfo dai3 {}; dai3.sampler = impl.sampler; dai3.imageView = impl.ao_view; dai3.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++        std::array<VkWriteDescriptorSet,4> writes {};
+         writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[0].dstSet = impl.desc_set; writes[0].dstBinding = 0; writes[0].descriptorCount = 1; writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes[0].pBufferInfo = &dbi;
+         writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[1].dstSet = impl.desc_set; writes[1].dstBinding = 1; writes[1].descriptorCount = 1; writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[1].pImageInfo = &dai1;
+         writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = impl.desc_set; writes[2].dstBinding = 2; writes[2].descriptorCount = 1; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[2].pImageInfo = &dai2;
++        writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[3].dstSet = impl.desc_set; writes[3].dstBinding = 3; writes[3].descriptorCount = 1; writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[3].pImageInfo = &dai3;
+         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+     }
+ }
+@@ -1068,14 +1081,17 @@
+             matmul(pv, model, mvp);
+             vkCmdPushConstants(cmd, impl->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0U, static_cast<uint32_t>(sizeof(float)*16U), mvp);
+ 
+-            // Update UBO if available: view, proj, camera/light parameters
++            // Update UBO if available: view, proj, camera/light parameters, screen params
+             if (impl->ubo_buffer != VK_NULL_HANDLE) {
+-                struct Align16UBO { float view[16]; float proj[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; } u {};
++                struct Align16UBO { float view[16]; float proj[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; float screen[4]; } u {};
+                 for (int i=0;i<16;++i) { u.view[i] = view[i]; u.proj[i] = proj[i]; }
+                 const auto s = impl->settings;
+                 u.cam_pos[0]=eye[0]; u.cam_pos[1]=eye[1]; u.cam_pos[2]=eye[2]; u.cam_pos[3]=s.normal_strength;
+                 u.light_pos[0]=s.light_pos[0]; u.light_pos[1]=s.light_pos[1]; u.light_pos[2]=s.light_pos[2]; u.light_pos[3]=s.shininess;
+                 u.light_color[0]=s.light_color[0]; u.light_color[1]=s.light_color[1]; u.light_color[2]=s.light_color[2]; u.light_color[3]=s.light_intensity;
++                const float invW = impl->swapchain_extent.width > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.width) : 0.0F;
++                const float invH = impl->swapchain_extent.height > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.height) : 0.0F;
++                u.screen[0]=invW; u.screen[1]=invH; u.screen[2]=s.ssao_power; u.screen[3]=0.0F;
+                 void* ubodata=nullptr; vkMapMemory(impl->device, impl->ubo_memory, 0, sizeof(u), 0, &ubodata); std::memcpy(ubodata, &u, sizeof(u)); vkUnmapMemory(impl->device, impl->ubo_memory);
+             }
+         }
+
+
+[2025-09-15T16:52:05] thinking
+
+**Committing changes**
+
+I’m seeing that the build is okay, which is great! We modified the shaders and compiled the .spv file successfully. Now it’s time to commit those changes. I want to make sure everything is in order before moving forward, just to ensure there are no issues later on. I need to double-check that the modifications align with our goals, but I'm feeling good about this progress! Let’s commit!
+[2025-09-15T16:52:07] exec bash -lc 'git add -A && git commit -m "feat: wire SSAO controls and AO texture into forward pass; extend UBO and descriptors; update forward shader"' in /Users/bruno/Documents/Development/bruno/vulkano_codex

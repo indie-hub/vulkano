@@ -124,6 +124,16 @@ void ImGuiLayer::build_ui(std::uint32_t& subdivisions) const noexcept {
         ImGui::ColorEdit3("Color", s.light_color);
         ImGui::SliderFloat("Intensity", &s.light_intensity, 0.0F, 5.0F);
         ImGui::SliderFloat("Shininess", &s.shininess, 4.0F, 256.0F);
+
+        ImGui::Separator();
+        ImGui::Text("SSAO");
+        ImGui::Checkbox("Enable SSAO", &s.ssao_enabled);
+        ImGui::SliderInt("Kernel Size", &s.ssao_kernel, 8, 64);
+        ImGui::SliderFloat("Radius", &s.ssao_radius, 0.05F, 2.0F);
+        ImGui::SliderFloat("Bias", &s.ssao_bias, 0.0F, 0.1F);
+        ImGui::SliderFloat("Power", &s.ssao_power, 0.0F, 2.0F);
+        ImGui::Checkbox("Blur AO", &s.ssao_blur);
+        ImGui::SliderInt("Blur Radius", &s.ssao_blur_radius, 1, 5);
         impl->ctx->set_settings(s);
     }
     ImGui::End();

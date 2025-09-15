@@ -17,10 +17,13 @@ layout(set = 0, binding = 0) uniform UBO {
     float shininess;
     vec3 lightColor;
     float lightIntensity;
+    // screen params: (invWidth, invHeight, aoStrength, reserved)
+    vec4 screen;
 } ubo;
 
 layout(set = 0, binding = 1) uniform sampler2D uAlbedo;
 layout(set = 0, binding = 2) uniform sampler2D uNormal;
+layout(set = 0, binding = 3) uniform sampler2D uAO;
 
 vec3 applyNormalMap(vec3 n, vec3 t, vec3 b, vec2 uv) {
     // Sample normal map (assumed in [0,1] RGB with (0,0,1) as flat)
@@ -50,8 +53,13 @@ void main() {
     vec3 specular = ubo.lightColor * spec;
     vec3 color = (diffuse + specular) * ubo.lightColor * ubo.lightIntensity;
 
+    // Sample SSAO
+    vec2 uv = gl_FragCoord.xy * ubo.screen.xy; // inv width/height
+    float ao = texture(uAO, uv).r;
+    ao = mix(1.0, clamp(ao, 0.0, 1.0), clamp(ubo.screen.z, 0.0, 2.0));
+    color *= ao;
+
     // Gamma correct to sRGB for output
     color = pow(color, vec3(1.0/2.2));
     outColor = vec4(color, 1.0);
 }
-
