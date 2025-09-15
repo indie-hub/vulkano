@@ -39,6 +39,7 @@ public:
     [[nodiscard]] VkQueue graphics_queue() const noexcept { return graphics_queue_; }
     [[nodiscard]] std::uint32_t graphics_queue_family() const noexcept { return graphics_family_; }
     [[nodiscard]] VkRenderPass render_pass() const noexcept { return render_pass_; }
+    [[nodiscard]] VkExtent2D swapchain_extent() const noexcept { return swapchain_extent_; }
 
 private:
     void init_instance();
