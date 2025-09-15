@@ -15,6 +15,8 @@ Status
 - Done: Compose pass sampling scene and final AO.
 - Done: ImGui UI hooked into params; per-frame UBO updates.
 - Done: Robust shader lookup and glslc compile step.
+- Done: Build succeeds on macOS toolchain; tests pass (Catch2).
+- Done: App launches; packaging script produces runnable folder under app/Release.
 - Todo/Nice: SSAO compute variant, kernel randomization per frame, AO debug visualize.
 
 Next Steps
