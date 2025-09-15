@@ -27,7 +27,7 @@ cmake --build build --config Release
 ## Run
 
 ```
-./build/bin/vulkan_app_example
+./build/bin/Release/vulkan_app_example
 ```
 
 Shader discovery is robust across common layouts: the app searches the build shader output
@@ -36,12 +36,12 @@ folder on macOS.
 
 On Windows (PowerShell):
 ```
-./build/bin/vulkan_app_example.exe
+./build/bin/Release/vulkan_app_example.exe
 ```
 
 On Linux/macOS:
 ```
-./build/bin/vulkan_app_example
+./build/bin/Release/vulkan_app_example
 ```
 
 ## Test

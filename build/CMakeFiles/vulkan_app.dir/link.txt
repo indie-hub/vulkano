@@ -1,2 +1,0 @@
-/usr/bin/ar qc lib/libvulkan_app.a CMakeFiles/vulkan_app.dir/src/icosphere.cpp.o CMakeFiles/vulkan_app.dir/src/application.cpp.o CMakeFiles/vulkan_app.dir/src/renderer.cpp.o CMakeFiles/vulkan_app.dir/src/camera.cpp.o CMakeFiles/vulkan_app.dir/src/imgui_layer.cpp.o
-/usr/bin/ranlib lib/libvulkan_app.a

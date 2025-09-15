@@ -41,6 +41,8 @@ Milestone 1 (organized repo):
 - Project skeleton settled; unified CMake, per-config bin/lib outputs
 - CI added (Linux/Windows/macOS with Vulkan SDK)
 - .gitignore expanded; tools scripts for format/tidy/build
+- Removed committed build/IDE artifacts; added ignores for staging/logs
+- Pruned duplicate subproject folder and temp files
 - Icosphere generator + tests in place
 - Renderer/ImGui scaffolding; shader compile step in CMake
 
