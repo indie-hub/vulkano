@@ -39,6 +39,8 @@ endif()
 add_library(vulkan_app STATIC
     src/icosphere.cpp
     src/application.cpp
+    src/renderer.cpp
+    src/camera.cpp
 )
 
 target_sources(vulkan_app
@@ -48,6 +50,9 @@ target_sources(vulkan_app
         FILES
             include/vulkan_app/icosphere.hpp
             include/vulkan_app/application.hpp
+            include/vulkan_app/renderer.hpp
+            include/vulkan_app/camera.hpp
+            include/vulkan_app/types.hpp
 )
 
 target_include_directories(vulkan_app PUBLIC include)
