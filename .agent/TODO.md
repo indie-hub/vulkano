@@ -7,6 +7,8 @@ Short-term fixes and next steps. Keep updated as work progresses.
   - Add VK_KHR_portability_enumeration + instance flag.
   - Add VK_KHR_portability_subset device extension when available.
   - Use concurrent image sharing when graphics/present queues differ.
+ - Add public header Doxygen documentation across modules.
+ - Add CHANGELOG.md (Keep a Changelog) and architecture doc.
 
 ## Next
 - SSAO pipeline: G-buffer, SSAO, blur, and compose passes.
@@ -18,4 +20,4 @@ Short-term fixes and next steps. Keep updated as work progresses.
 
 ## Notes
 - Pushing to origin failed (no permission). Either set upstream to a fork with GITHUB_TOKEN or grant access.
-
+  - Local commits created after each file edit; pushes failed with 403.
