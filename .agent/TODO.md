@@ -24,13 +24,14 @@ Status: Initial scaffolding (CMake + GLFW window) – DONE
 - [x] Basic unit test scaffold builds
 
 ## Next Iteration
-- [ ] Fix the runtime_error: Failed to create Vulkan instance
+- [x] Fix the runtime_error: Failed to create Vulkan instance
 - [x] Icosphere mesh generation with tangents/bitangents
 - [x] Unit tests for icosphere counts and normals
 - [x] Vulkan instance/device/swapchain, debug utils (basic clear)
 - [x] ImGui integration (imgui_impl_glfw + imgui_impl_vulkan)
 - [x] Mesh GPU upload + basic pipeline (draw icosphere) [conditional on shaders/.spv present]
 - [x] Runtime subdivisions trigger CPU rebuild + GPU reupload
+- [ ] Camera + MVP matrices and Phong shading
 - [ ] G-buffer pass (albedo, normal, depth)
 - [ ] SSAO kernel + noise texture + blur + composite
 - [ ] ImGui controls: light/material/SSAO settings
