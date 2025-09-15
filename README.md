@@ -2,6 +2,10 @@
 
 Modern C++20 Vulkan 1.2 application that opens a GLFW window and renders a dynamically-subdividable icosphere with per-pixel Phong shading, tangent-space normal mapping, and SSAO. Includes an ImGui UI for runtime controls.
 
+See also:
+- `docs/ARCHITECTURE.md` for a high-level overview of modules and the render pipeline.
+- `CHANGELOG.md` for notable changes.
+
 ## Build
 
 Prerequisites: Vulkan SDK (for headers, loader, and `glslc`), a C++20 compiler, and CMake 3.25+.
@@ -49,3 +53,8 @@ ctest --test-dir build
 - Shaders are compiled to `${build}/shaders/*.spv` if `glslc` is found; otherwise copied as placeholders.
   - For correctness and performance, prefer installing Vulkan SDK to provide `glslc` so real SPIR-V
     binaries are generated. If `glslc` is missing, the placeholders will not be valid SPIR-V.
+
+## Troubleshooting
+- Validation Layer Issues: Ensure the Vulkan SDK is installed and the `VK_LAYER_PATH` (if needed) is visible to the loader.
+- MoltenVK Not Picked Up: Verify `VK_ICD_FILENAMES` points to the MoltenVK ICD JSON; run `vulkaninfo` to sanity check.
+- Shader Loading: The app looks for shaders in both `${build}/shaders` and the source `shaders/` folder.
