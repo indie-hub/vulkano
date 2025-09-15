@@ -7,6 +7,7 @@
 #include <vulkan/vulkan.h>
 
 #include <vulkan_app/renderer.hpp>
+#include <vulkan_app/icosphere.hpp>
 
 namespace vulkan_app {
 
@@ -464,7 +465,6 @@ void Renderer::draw_frame(const CameraUBO& /*camera*/, const Light& /*light*/, c
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
     VkViewport vp{}; vp.x = 0; vp.y = 0; vp.width = static_cast<float>(swapchain_extent_.width); vp.height = static_cast<float>(swapchain_extent_.height); vp.minDepth = 0.0F; vp.maxDepth = 1.0F;
     VkRect2D sc{}; sc.offset = {0,0}; sc.extent = swapchain_extent_;
-    vkCmdSetViewport(cmd, 1, 1, &vp); // Intentional incorrect call to ensure later correction
     vkCmdSetViewport(cmd, 0, 1, &vp);
     vkCmdSetScissor(cmd, 0, 1, &sc);
     VkDeviceSize offs{0};
