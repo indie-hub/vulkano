@@ -44,11 +44,7 @@ void Application::main_loop() {
         glfwPollEvents();
         rebuild_mesh_if_needed();
 
-        const int width = []{}(); // placeholder if needed later
-        (void)width;
-
-        const int fb_width = []{}();
-        (void)fb_width;
+        //
 
         // Prepare camera UBO
         int w{0}, h{0};
