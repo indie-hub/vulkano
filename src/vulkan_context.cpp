@@ -33,6 +33,10 @@ struct VulkanContext::Impl final {
 
     VkRenderPass render_pass {VK_NULL_HANDLE};
     std::vector<VkFramebuffer> framebuffers { };
+    // Depth resources
+    VkImage depth_image {VK_NULL_HANDLE};
+    VkDeviceMemory depth_memory {VK_NULL_HANDLE};
+    VkImageView depth_view {VK_NULL_HANDLE};
     VkCommandPool command_pool {VK_NULL_HANDLE};
     std::vector<VkCommandBuffer> command_buffers { };
     VkSemaphore image_available {VK_NULL_HANDLE};
@@ -219,6 +223,78 @@ static void create_swapchain_and_views(VulkanContext& ctx, GLFWwindow* window) {
     }
 }
 
+static VkFormat find_supported_format(VkPhysicalDevice pd, const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) {
+    for (VkFormat format : candidates) {
+        VkFormatProperties props {};
+        vkGetPhysicalDeviceFormatProperties(pd, format, &props);
+        if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features) {
+            return format;
+        }
+        if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features) {
+            return format;
+        }
+    }
+    return VK_FORMAT_UNDEFINED;
+}
+
+static VkFormat find_depth_format(VulkanContext& ctx) {
+    auto& impl = VulkanContextInternalsHelper::get(ctx);
+    return find_supported_format(impl.physical_device,
+        {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
+        VK_IMAGE_TILING_OPTIMAL,
+        VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+}
+
+static uint32_t find_memory_type(VkPhysicalDevice pd, uint32_t typeBits, VkMemoryPropertyFlags props);
+
+static void create_depth_resources(VulkanContext& ctx) {
+    auto& impl = VulkanContextInternalsHelper::get(ctx);
+    const VkFormat depth_format = find_depth_format(ctx);
+    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+    ici.imageType = VK_IMAGE_TYPE_2D;
+    ici.extent = {impl.swapchain_extent.width, impl.swapchain_extent.height, 1U};
+    ici.mipLevels = 1U;
+    ici.arrayLayers = 1U;
+    ici.format = depth_format;
+    ici.tiling = VK_IMAGE_TILING_OPTIMAL;
+    ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    ici.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    ici.samples = VK_SAMPLE_COUNT_1_BIT;
+    ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    if (vkCreateImage(impl.device, &ici, nullptr, &impl.depth_image) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create depth image"};
+    }
+    VkMemoryRequirements req {};
+    vkGetImageMemoryRequirements(impl.device, impl.depth_image, &req);
+    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+    mai.allocationSize = req.size;
+    mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    if (vkAllocateMemory(impl.device, &mai, nullptr, &impl.depth_memory) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to allocate depth memory"};
+    }
+    vkBindImageMemory(impl.device, impl.depth_image, impl.depth_memory, 0);
+
+    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+    ivci.image = impl.depth_image;
+    ivci.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    ivci.format = depth_format;
+    ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    ivci.subresourceRange.baseMipLevel = 0;
+    ivci.subresourceRange.levelCount = 1;
+    ivci.subresourceRange.baseArrayLayer = 0;
+    ivci.subresourceRange.layerCount = 1;
+    if (vkCreateImageView(impl.device, &ivci, nullptr, &impl.depth_view) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create depth view"};
+    }
+}
+
+static void destroy_depth_resources(VulkanContext& ctx) noexcept {
+    auto& impl = VulkanContextInternalsHelper::get(ctx);
+    if (impl.depth_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.depth_view, nullptr); impl.depth_view = VK_NULL_HANDLE; }
+    if (impl.depth_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.depth_image, nullptr); impl.depth_image = VK_NULL_HANDLE; }
+    if (impl.depth_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.depth_memory, nullptr); impl.depth_memory = VK_NULL_HANDLE; }
+}
+
 static void create_renderpass_and_framebuffers(VulkanContext& ctx) {
     auto& impl = VulkanContextInternalsHelper::get(ctx);
     VkAttachmentDescription color {};
@@ -231,14 +307,28 @@ static void create_renderpass_and_framebuffers(VulkanContext& ctx) {
     color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     color.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
+    VkAttachmentDescription depth {};
+    depth.format = find_depth_format(ctx);
+    depth.samples = VK_SAMPLE_COUNT_1_BIT;
+    depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depth.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    depth.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depth.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    depth.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
     VkAttachmentReference color_ref {};
     color_ref.attachment = 0U;
     color_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    VkAttachmentReference depth_ref {};
+    depth_ref.attachment = 1U;
+    depth_ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
     VkSubpassDescription subpass {};
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 1U;
     subpass.pColorAttachments = &color_ref;
+    subpass.pDepthStencilAttachment = &depth_ref;
 
     VkSubpassDependency dep {};
     dep.srcSubpass = VK_SUBPASS_EXTERNAL;
@@ -248,10 +338,11 @@ static void create_renderpass_and_framebuffers(VulkanContext& ctx) {
     dep.srcAccessMask = 0;
     dep.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
+    VkAttachmentDescription attachments[] = {color, depth};
     VkRenderPassCreateInfo rpci {};
     rpci.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    rpci.attachmentCount = 1U;
-    rpci.pAttachments = &color;
+    rpci.attachmentCount = 2U;
+    rpci.pAttachments = attachments;
     rpci.subpassCount = 1U;
     rpci.pSubpasses = &subpass;
     rpci.dependencyCount = 1U;
@@ -260,14 +351,15 @@ static void create_renderpass_and_framebuffers(VulkanContext& ctx) {
         throw std::runtime_error {"Failed to create render pass"};
     }
 
+    create_depth_resources(ctx);
     impl.framebuffers.resize(impl.swapchain_image_views.size());
     for (std::size_t i = 0; i < impl.swapchain_image_views.size(); ++i) {
-        VkImageView attachments[] = {impl.swapchain_image_views[i]};
+        VkImageView atts[] = {impl.swapchain_image_views[i], impl.depth_view};
         VkFramebufferCreateInfo fbci {};
         fbci.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         fbci.renderPass = impl.render_pass;
-        fbci.attachmentCount = 1U;
-        fbci.pAttachments = attachments;
+        fbci.attachmentCount = 2U;
+        fbci.pAttachments = atts;
         fbci.width = impl.swapchain_extent.width;
         fbci.height = impl.swapchain_extent.height;
         fbci.layers = 1U;
@@ -524,6 +616,13 @@ static void create_pipeline(VulkanContext& ctx) {
     VkPipelineMultisampleStateCreateInfo ms {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
     ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
+    VkPipelineDepthStencilStateCreateInfo dss {VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO};
+    dss.depthTestEnable = VK_TRUE;
+    dss.depthWriteEnable = VK_TRUE;
+    dss.depthCompareOp = VK_COMPARE_OP_LESS;
+    dss.depthBoundsTestEnable = VK_FALSE;
+    dss.stencilTestEnable = VK_FALSE;
+
     VkPipelineColorBlendAttachmentState cba {};
     cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
     VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
@@ -552,6 +651,7 @@ static void create_pipeline(VulkanContext& ctx) {
     gpci.pRasterizationState = &rs;
     gpci.pMultisampleState = &ms;
     gpci.pColorBlendState = &cb;
+    gpci.pDepthStencilState = &dss;
     gpci.layout = impl.pipeline_layout;
     gpci.renderPass = impl.render_pass;
     gpci.subpass = 0;
@@ -636,6 +736,7 @@ VulkanContext::~VulkanContext() {
             vkDeviceWaitIdle(impl->device);
         }
         destroy_pipeline(*this);
+        destroy_depth_resources(*this);
         destroy_mesh_buffers(*this);
         if (impl->in_flight != VK_NULL_HANDLE) {
             vkDestroyFence(impl->device, impl->in_flight, nullptr);
@@ -696,13 +797,16 @@ void VulkanContext::draw_frame() {
         vkBeginCommandBuffer(cmd, &bi);
         VkClearValue clear_color {};
         clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
+        VkClearValue clear_depth {};
+        clear_depth.depthStencil = {1.0F, 0};
+        VkClearValue clears[2] = {clear_color, clear_depth};
         VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
         rpbi.renderPass = impl->render_pass;
         rpbi.framebuffer = impl->framebuffers[image_index];
         rpbi.renderArea.offset = {0, 0};
         rpbi.renderArea.extent = impl->swapchain_extent;
-        rpbi.clearValueCount = 1U;
-        rpbi.pClearValues = &clear_color;
+        rpbi.clearValueCount = 2U;
+        rpbi.pClearValues = clears;
         vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
         // Push a simple MVP matrix (perspective * view * model) for basic 3D
         {
