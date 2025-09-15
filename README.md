@@ -7,6 +7,7 @@ Current stage
 - CPU icosphere mesh generator with tangents/bitangents (tested)
 - Vulkan context: instance + surface + device + swapchain + render pass + clear-only frame submit (enabled when Vulkan present)
   - On platforms without Vulkan/MoltenVK, the app still builds and runs the window loop.
+- ImGui integration (GLFW + Vulkan). UI shows subdivision slider (hooked; GPU upload pending)
 
 ## Build
 
@@ -14,7 +15,7 @@ Requirements:
 - CMake 3.25+
 - A C++20 compiler (Clang, GCC, or MSVC)
 - Internet access for FetchContent dependencies
- - Vulkan SDK or MoltenVK (optional at this stage; enables Vulkan rendering path)
+- Vulkan SDK or MoltenVK (optional at this stage; enables Vulkan rendering path)
 
 ```
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
