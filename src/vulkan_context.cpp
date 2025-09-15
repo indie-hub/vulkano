@@ -1,5 +1,7 @@
 #include <vulkano/vulkan_context.hpp>
 #include <vulkano/window.hpp>
+#include <vulkano/icosphere.hpp>
+#include <vulkano/mesh.hpp>
 
 #if VULKANO_HAS_VULKAN
 #include <vulkan/vulkan.h>
@@ -9,6 +11,8 @@
 #include <functional>
 #include <vector>
 #include <stdexcept>
+#include <cstdio>
+#include <cstring>
 
 namespace vulkano {
 
@@ -37,6 +41,16 @@ struct VulkanContext::Impl final {
 
     // Optional UI callback invoked during command recording
     std::function<void(void* cmd_buffer)> ui_renderer { };
+
+    // Mesh pipeline and GPU buffers (created only if shaders are available)
+    VkPipelineLayout pipeline_layout {VK_NULL_HANDLE};
+    VkPipeline pipeline {VK_NULL_HANDLE};
+    VkBuffer vertex_buffer {VK_NULL_HANDLE};
+    VkDeviceMemory vertex_memory {VK_NULL_HANDLE};
+    VkBuffer index_buffer {VK_NULL_HANDLE};
+    VkDeviceMemory index_memory {VK_NULL_HANDLE};
+    std::uint32_t index_count {0U};
+    std::uint32_t current_subdivisions {0U};
 
     Impl() = default;
     ~Impl() = default;
@@ -314,6 +328,233 @@ static void record_clear_cmds(VulkanContext& ctx) {
     }
 }
 
+// Minimal file loader for SPIR-V binaries
+static std::vector<char> load_binary_file(const char* path) {
+    std::vector<char> data {};
+    FILE* f = std::fopen(path, "rb");
+    if (f == nullptr) {
+        return data;
+    }
+    std::fseek(f, 0, SEEK_END);
+    const long size = std::ftell(f);
+    std::fseek(f, 0, SEEK_SET);
+    if (size > 0) {
+        data.resize(static_cast<std::size_t>(size));
+        std::fread(data.data(), 1, static_cast<std::size_t>(size), f);
+    }
+    std::fclose(f);
+    return data;
+}
+
+static VkShaderModule create_shader_module(VkDevice device, const std::vector<char>& bytes) {
+    VkShaderModule mod {VK_NULL_HANDLE};
+    if (bytes.empty()) {
+        return mod;
+    }
+    VkShaderModuleCreateInfo ci {VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
+    ci.codeSize = bytes.size();
+    ci.pCode = reinterpret_cast<const uint32_t*>(bytes.data());
+    if (vkCreateShaderModule(device, &ci, nullptr, &mod) != VK_SUCCESS) {
+        return VK_NULL_HANDLE;
+    }
+    return mod;
+}
+
+static void destroy_mesh_buffers(VulkanContext& ctx) {
+    auto& impl = VulkanContextInternalsHelper::get(ctx);
+    if (impl.vertex_buffer != VK_NULL_HANDLE) {
+        vkDestroyBuffer(impl.device, impl.vertex_buffer, nullptr);
+        impl.vertex_buffer = VK_NULL_HANDLE;
+    }
+    if (impl.vertex_memory != VK_NULL_HANDLE) {
+        vkFreeMemory(impl.device, impl.vertex_memory, nullptr);
+        impl.vertex_memory = VK_NULL_HANDLE;
+    }
+    if (impl.index_buffer != VK_NULL_HANDLE) {
+        vkDestroyBuffer(impl.device, impl.index_buffer, nullptr);
+        impl.index_buffer = VK_NULL_HANDLE;
+    }
+    if (impl.index_memory != VK_NULL_HANDLE) {
+        vkFreeMemory(impl.device, impl.index_memory, nullptr);
+        impl.index_memory = VK_NULL_HANDLE;
+    }
+    impl.index_count = 0U;
+}
+
+static uint32_t find_memory_type(VkPhysicalDevice pd, uint32_t typeBits, VkMemoryPropertyFlags props) {
+    VkPhysicalDeviceMemoryProperties mp {};
+    vkGetPhysicalDeviceMemoryProperties(pd, &mp);
+    for (uint32_t i = 0; i < mp.memoryTypeCount; ++i) {
+        if ((typeBits & (1U << i)) != 0U && (mp.memoryTypes[i].propertyFlags & props) == props) {
+            return i;
+        }
+    }
+    return UINT32_MAX;
+}
+
+static void create_buffer(VulkanContext& ctx, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags props, VkBuffer* outBuffer, VkDeviceMemory* outMemory) {
+    auto& impl = VulkanContextInternalsHelper::get(ctx);
+    VkBufferCreateInfo bci {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+    bci.size = size;
+    bci.usage = usage;
+    bci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    if (vkCreateBuffer(impl.device, &bci, nullptr, outBuffer) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create buffer"};
+    }
+    VkMemoryRequirements req {};
+    vkGetBufferMemoryRequirements(impl.device, *outBuffer, &req);
+    const uint32_t mem_type = find_memory_type(impl.physical_device, req.memoryTypeBits, props);
+    if (mem_type == UINT32_MAX) {
+        throw std::runtime_error {"Failed to find suitable memory type"};
+    }
+    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+    mai.allocationSize = req.size;
+    mai.memoryTypeIndex = mem_type;
+    if (vkAllocateMemory(impl.device, &mai, nullptr, outMemory) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to allocate buffer memory"};
+    }
+    vkBindBufferMemory(impl.device, *outBuffer, *outMemory, 0);
+}
+
+static void upload_mesh_to_gpu(VulkanContext& ctx, const vulkano::Mesh& mesh) {
+    auto& impl = VulkanContextInternalsHelper::get(ctx);
+    destroy_mesh_buffers(ctx);
+
+    const VkDeviceSize vsize = static_cast<VkDeviceSize>(mesh.vertices.size() * sizeof(vulkano::Vertex));
+    const VkDeviceSize isize = static_cast<VkDeviceSize>(mesh.indices.size() * sizeof(std::uint32_t));
+    create_buffer(ctx, vsize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.vertex_buffer, &impl.vertex_memory);
+    create_buffer(ctx, isize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.index_buffer, &impl.index_memory);
+
+    void* data = nullptr;
+    vkMapMemory(impl.device, impl.vertex_memory, 0, vsize, 0, &data);
+    std::memcpy(data, mesh.vertices.data(), static_cast<size_t>(vsize));
+    vkUnmapMemory(impl.device, impl.vertex_memory);
+
+    data = nullptr;
+    vkMapMemory(impl.device, impl.index_memory, 0, isize, 0, &data);
+    std::memcpy(data, mesh.indices.data(), static_cast<size_t>(isize));
+    vkUnmapMemory(impl.device, impl.index_memory);
+
+    impl.index_count = static_cast<std::uint32_t>(mesh.indices.size());
+}
+
+static void destroy_pipeline(VulkanContext& ctx) {
+    auto& impl = VulkanContextInternalsHelper::get(ctx);
+    if (impl.pipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(impl.device, impl.pipeline, nullptr);
+        impl.pipeline = VK_NULL_HANDLE;
+    }
+    if (impl.pipeline_layout != VK_NULL_HANDLE) {
+        vkDestroyPipelineLayout(impl.device, impl.pipeline_layout, nullptr);
+        impl.pipeline_layout = VK_NULL_HANDLE;
+    }
+}
+
+static void create_pipeline(VulkanContext& ctx) {
+    auto& impl = VulkanContextInternalsHelper::get(ctx);
+    // Expect SPIR-V shaders at runtime; if not present, skip pipeline creation
+    const std::vector<char> vs = load_binary_file("shaders/simple.vert.spv");
+    const std::vector<char> fs = load_binary_file("shaders/simple.frag.spv");
+    if (vs.empty() || fs.empty()) {
+        destroy_pipeline(ctx);
+        return;
+    }
+    VkShaderModule vmod = create_shader_module(impl.device, vs);
+    VkShaderModule fmod = create_shader_module(impl.device, fs);
+    if (vmod == VK_NULL_HANDLE || fmod == VK_NULL_HANDLE) {
+        if (vmod != VK_NULL_HANDLE) { vkDestroyShaderModule(impl.device, vmod, nullptr); }
+        if (fmod != VK_NULL_HANDLE) { vkDestroyShaderModule(impl.device, fmod, nullptr); }
+        destroy_pipeline(ctx);
+        return;
+    }
+
+    VkPipelineShaderStageCreateInfo stages[2] = {};
+    stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    stages[0].module = vmod;
+    stages[0].pName = "main";
+    stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    stages[1].module = fmod;
+    stages[1].pName = "main";
+
+    // Vertex input: position, normal, tangent, bitangent, texcoord
+    VkVertexInputBindingDescription binding {};
+    binding.binding = 0;
+    binding.stride = sizeof(vulkano::Vertex);
+    binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+    std::array<VkVertexInputAttributeDescription, 5> attrs {};
+    attrs[0] = {0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, position)};
+    attrs[1] = {1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, normal)};
+    attrs[2] = {2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, tangent)};
+    attrs[3] = {3, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, bitangent)};
+    attrs[4] = {4, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(vulkano::Vertex, texcoord)};
+
+    VkPipelineVertexInputStateCreateInfo vi {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
+    vi.vertexBindingDescriptionCount = 1;
+    vi.pVertexBindingDescriptions = &binding;
+    vi.vertexAttributeDescriptionCount = static_cast<uint32_t>(attrs.size());
+    vi.pVertexAttributeDescriptions = attrs.data();
+
+    VkPipelineInputAssemblyStateCreateInfo ia {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};
+    ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+    VkViewport viewport {};
+    viewport.x = 0.0F; viewport.y = 0.0F;
+    viewport.width = static_cast<float>(impl.swapchain_extent.width);
+    viewport.height = static_cast<float>(impl.swapchain_extent.height);
+    viewport.minDepth = 0.0F; viewport.maxDepth = 1.0F;
+    VkRect2D scissor {{0,0}, impl.swapchain_extent};
+    VkPipelineViewportStateCreateInfo vp {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO};
+    vp.viewportCount = 1; vp.pViewports = &viewport;
+    vp.scissorCount = 1; vp.pScissors = &scissor;
+
+    VkPipelineRasterizationStateCreateInfo rs {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO};
+    rs.polygonMode = VK_POLYGON_MODE_FILL;
+    rs.cullMode = VK_CULL_MODE_BACK_BIT;
+    rs.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    rs.lineWidth = 1.0F;
+
+    VkPipelineMultisampleStateCreateInfo ms {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
+    ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    VkPipelineColorBlendAttachmentState cba {};
+    cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
+    cb.attachmentCount = 1; cb.pAttachments = &cba;
+
+    VkPipelineLayoutCreateInfo plci {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+    if (vkCreatePipelineLayout(impl.device, &plci, nullptr, &impl.pipeline_layout) != VK_SUCCESS) {
+        vkDestroyShaderModule(impl.device, vmod, nullptr);
+        vkDestroyShaderModule(impl.device, fmod, nullptr);
+        destroy_pipeline(ctx);
+        return;
+    }
+
+    VkGraphicsPipelineCreateInfo gpci {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO};
+    gpci.stageCount = 2; gpci.pStages = stages;
+    gpci.pVertexInputState = &vi;
+    gpci.pInputAssemblyState = &ia;
+    gpci.pViewportState = &vp;
+    gpci.pRasterizationState = &rs;
+    gpci.pMultisampleState = &ms;
+    gpci.pColorBlendState = &cb;
+    gpci.layout = impl.pipeline_layout;
+    gpci.renderPass = impl.render_pass;
+    gpci.subpass = 0;
+
+    if (vkCreateGraphicsPipelines(impl.device, VK_NULL_HANDLE, 1, &gpci, nullptr, &impl.pipeline) != VK_SUCCESS) {
+        vkDestroyShaderModule(impl.device, vmod, nullptr);
+        vkDestroyShaderModule(impl.device, fmod, nullptr);
+        destroy_pipeline(ctx);
+        return;
+    }
+
+    vkDestroyShaderModule(impl.device, vmod, nullptr);
+    vkDestroyShaderModule(impl.device, fmod, nullptr);
+}
+
 VulkanContext::VulkanContext(const Window& window)
     : impl {std::make_unique<Impl>()} {
     create_instance(&impl->instance);
@@ -382,6 +623,8 @@ VulkanContext::~VulkanContext() {
         if (impl->device != VK_NULL_HANDLE) {
             vkDeviceWaitIdle(impl->device);
         }
+        destroy_pipeline(*this);
+        destroy_mesh_buffers(*this);
         if (impl->in_flight != VK_NULL_HANDLE) {
             vkDestroyFence(impl->device, impl->in_flight, nullptr);
         }
@@ -449,6 +692,14 @@ void VulkanContext::draw_frame() {
         rpbi.clearValueCount = 1U;
         rpbi.pClearValues = &clear_color;
         vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
+        if (impl->pipeline != VK_NULL_HANDLE && impl->vertex_buffer != VK_NULL_HANDLE && impl->index_buffer != VK_NULL_HANDLE && impl->index_count > 0U) {
+            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->pipeline);
+            VkDeviceSize offs[] = {0};
+            VkBuffer vbs[] = {impl->vertex_buffer};
+            vkCmdBindVertexBuffers(cmd, 0, 1, vbs, offs);
+            vkCmdBindIndexBuffer(cmd, impl->index_buffer, 0, VK_INDEX_TYPE_UINT32);
+            vkCmdDrawIndexed(cmd, impl->index_count, 1, 0, 0, 0);
+        }
         if (impl->ui_renderer) {
             impl->ui_renderer(static_cast<void*>(cmd));
         }
@@ -482,6 +733,28 @@ void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>&
     impl->ui_renderer = renderer;
 }
 
+void VulkanContext::set_subdivisions(std::uint32_t subdivisions) noexcept {
+    if (impl == nullptr) {
+        return;
+    }
+    if (impl->current_subdivisions == subdivisions) {
+        return;
+    }
+    impl->current_subdivisions = subdivisions;
+    try {
+        IcosphereBuilder builder {};
+        auto mesh = builder.build(subdivisions);
+        if (mesh) {
+            upload_mesh_to_gpu(*this, *mesh);
+        }
+        if (impl->pipeline == VK_NULL_HANDLE) {
+            create_pipeline(*this);
+        }
+    } catch (...) {
+        // ignore and keep previous state
+    }
+}
+
 } // namespace vulkano
 
 #else
@@ -499,6 +772,9 @@ VulkanContext& VulkanContext::operator=(VulkanContext&&) noexcept = default;
 void VulkanContext::wait_idle() const noexcept {
 }
 void VulkanContext::draw_frame() {
+}
+
+void VulkanContext::set_subdivisions(std::uint32_t) noexcept {
 }
 
 } // namespace vulkano

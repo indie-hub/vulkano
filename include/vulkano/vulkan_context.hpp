@@ -26,6 +26,9 @@ public:
     // The callback receives a native command buffer pointer (VkCommandBuffer when Vulkan is enabled).
     void set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept;
 
+    // Update icosphere subdivision level; triggers CPU mesh rebuild and GPU reupload
+    void set_subdivisions(std::uint32_t subdivisions) noexcept;
+
 private:
     struct Impl;
     std::unique_ptr<Impl> impl;
