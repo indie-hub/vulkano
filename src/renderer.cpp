@@ -2,6 +2,7 @@
 #include <stdexcept>
 #include <vector>
 #include <string>
+#include <filesystem>
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -147,6 +148,31 @@ std::vector<char> read_file(const char* path) {
     fread(data.data(), 1, static_cast<std::size_t>(sz), f);
     fclose(f);
     return data;
+}
+
+// Attempts to read a file by trying a list of base directories.
+// Provides a descriptive error if all attempts fail.
+std::vector<char> read_file_from_bases(const std::vector<std::filesystem::path>& bases,
+                                       const std::string& filename) {
+    std::vector<std::filesystem::path> tried{};
+    tried.reserve(bases.size());
+    for (const auto& base : bases) {
+        const std::filesystem::path candidate = base / filename;
+        tried.push_back(candidate);
+        std::error_code ec{};
+        const bool exists = std::filesystem::exists(candidate, ec);
+        if (!ec && exists) {
+            const std::string s = candidate.string();
+            return read_file(s.c_str());
+        }
+    }
+    std::string msg{"Failed to open file. Tried:\n"};
+    for (const auto& p : tried) {
+        msg += "  - ";
+        msg += p.string();
+        msg += "\n";
+    }
+    throw std::runtime_error{msg};
 }
 
 VkShaderModule create_shader_module(VkDevice device, const std::vector<char>& code) {
@@ -651,14 +677,21 @@ void Renderer::create_render_pass() {
 }
 
 void Renderer::create_pipeline() {
-    // Load shaders from build dir
-    // Try both build and source as fallback
-    std::string base = "./shaders";
-    std::string build = "./build/shaders";
-    std::vector<char> vs;
-    std::vector<char> fs;
-    try { vs = read_file((build + "/forward.vert.spv").c_str()); } catch (...) { vs = read_file((base + "/forward.vert.spv").c_str()); }
-    try { fs = read_file((build + "/forward.frag.spv").c_str()); } catch (...) { fs = read_file((base + "/forward.frag.spv").c_str()); }
+    // Robust shader lookup across typical build/run layouts and macOS app working dirs
+    const std::filesystem::path cwd = std::filesystem::current_path();
+    std::vector<std::filesystem::path> shader_bases{};
+    shader_bases.reserve(6);
+#ifdef VULKAN_APP_BINARY_SHADER_DIR
+    shader_bases.emplace_back(std::filesystem::path{VULKAN_APP_BINARY_SHADER_DIR});
+#endif
+    shader_bases.emplace_back(cwd / "shaders");
+    shader_bases.emplace_back(cwd.parent_path() / "shaders");
+    shader_bases.emplace_back(cwd.parent_path().parent_path() / "shaders");
+#ifdef VULKAN_APP_SOURCE_SHADER_DIR
+    shader_bases.emplace_back(std::filesystem::path{VULKAN_APP_SOURCE_SHADER_DIR});
+#endif
+    std::vector<char> vs = read_file_from_bases(shader_bases, "forward.vert.spv");
+    std::vector<char> fs = read_file_from_bases(shader_bases, "forward.frag.spv");
     VkShaderModule vsm = create_shader_module(device_, vs);
     VkShaderModule fsm = create_shader_module(device_, fs);
     VkPipelineShaderStageCreateInfo stages[2]{};
