@@ -23,3 +23,7 @@ Next Steps
 - Add wireframe overlay toggle and optional pipeline state.
 - Add optional HDR tonemapping in compose.
 - Done: additional unit tests (camera projection/view invariants).
+
+Fix Log
+
+- 2025-09-15: Fixed VK_NULL_HANDLE command pool usage causing vkAllocateCommandBuffers validation error by creating the command pool before AO noise/texture uploads in Renderer constructor.
