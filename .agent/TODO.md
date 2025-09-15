@@ -44,6 +44,7 @@ Update: SSAO controls added and AO hook in forward shader. G-buffer prepass (nor
 ## Session Summary (current)
 - Built Debug successfully on macOS; headless run OK (`HEADLESS_RUN_MS=500`).
 - All unit tests pass (`ctest` Debug).
+- Implemented AO blur pass (single-pass isotropic) and forward wiring; shaders compiled and included.
 - Could not push to remote: `GITHUB_TOKEN` is unset; local commits are present on branch `personal/codex/second_try`.
 
 ## Immediate TODOs
