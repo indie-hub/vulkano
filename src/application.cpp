@@ -3,6 +3,7 @@
 
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
+#include <imgui.h>
 
 #include <vulkan_app/application.hpp>
 #include <vulkan_app/icosphere.hpp>
@@ -55,6 +56,12 @@ void Application::main_loop() {
 
         imgui->new_frame();
         imgui->draw_ui(pending_subdivisions, light, material, ssao);
+        // Stats window
+        ImGui::Begin("Stats");
+        ImGui::Text("Device: %s", renderer->device_name());
+        const auto ext = renderer->swapchain_extent();
+        ImGui::Text("Extent: %u x %u", ext.width, ext.height);
+        ImGui::End();
 
         // Prepare camera UBO
         int w{0}, h{0};
