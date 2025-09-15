@@ -44,6 +44,12 @@ On Linux/macOS:
 ./build/bin/Release/vulkan_app_example
 ```
 
+Package a runnable folder (ignored by git):
+```
+tools/package_app.sh Release
+open app/Release   # macOS example; on Windows, open in Explorer
+```
+
 ## Test
 
 ```
