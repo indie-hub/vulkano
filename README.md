@@ -1,10 +1,10 @@
 # Vulkano Codex
 
-Modern C++20 Vulkan 1.2 application that opens a GLFW window and renders a dynamically-subdividable icosphere with per-pixel Phong shading, tangent-space normal mapping, and SSAO. Includes an ImGui UI for runtime controls.
+Modern C++20 Vulkan 1.2 application that opens a GLFW window and renders a dynamically-subdividable icosphere with per-pixel Phong shading and tangent-space normal mapping. Includes an ImGui UI for runtime controls. SSAO shaders and UI are present; the full multi-pass SSAO pipeline is being integrated next.
 
 See also:
 - `docs/ARCHITECTURE.md` for a high-level overview of modules and the render pipeline.
-- `docs/SHADERS.md` for shader stage IO and pass details (G-buffer, SSAO, blur, compose).
+- `docs/SHADERS.md` for shader stage IO and the planned multi-pass pipeline (G-buffer, SSAO, blur, compose).
 - `CHANGELOG.md` for notable changes.
 
 ## Build
@@ -61,7 +61,7 @@ ctest --test-dir build
 - Subdivisions: 0..6; regenerates mesh and reuploads buffers.
 - Light: position, color, intensity, shininess.
 - Material: albedo, normal map strength.
-- SSAO: enable, kernel size (16/32/64), radius, bias, power, blur and blur radius.
+- SSAO: UI controls are wired; effect integration pending. Kernel size (16/32/64), radius, bias, power, blur and blur radius are adjustable for the upcoming SSAO pass.
 - Stats: FPS, frame time, device name, swapchain extent.
 
 ## Notes
