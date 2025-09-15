@@ -24,7 +24,7 @@ Status: Initial scaffolding (CMake + GLFW window) – DONE
 - [x] Basic unit test scaffold builds
 
 ## Next Iteration
-- [x] Fix the runtime_error: Failed to create Vulkan instance
+- [ ] Fix the runtime_error: Failed to create Vulkan instance
 - [x] Icosphere mesh generation with tangents/bitangents
 - [x] Unit tests for icosphere counts and normals
 - [x] Vulkan instance/device/swapchain, debug utils (basic clear)

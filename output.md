@@ -1153,3 +1153,2974 @@ index fb7e917bc9cff02c49935c3dd2ab3ba1224b48d5..55aa37711445cb8215c24e671941d028
 
 I see that we've modified output.md, and now I'm deciding whether to commit or leave it. It's not super critical right now, but the user has mentioned a preference for committing changes first and pushing at the end. So, it seems like the best approach is to commit output.md with a relevant message. I’ll make sure I follow their preference to keep things tidy!
 [2025-09-15T16:30:49] exec bash -lc 'git add output.md && git commit -m "docs: update session output log" && git push origin HEAD' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:30:49] bash -lc 'git add output.md && git commit -m "docs: update session output log" && git push origin HEAD' exited 128 in 407ms:
+[personal/codex/second_try 37db67b] docs: update session output log
+ 1 file changed, 440 insertions(+)
+remote: Permission to indie-hub/vulkano.git denied to brunooliveirafvr.
+fatal: unable to access 'https://github.com/indie-hub/vulkano.git/': The requested URL returned error: 403
+[2025-09-15T16:30:49] tokens used: 59,569
+[2025-09-15T16:30:49] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 6b87743ac1c70259d44a9819d6979b668748ae7a..83a66fe170ba12c8577344b9a4a1b59a3a6daaab
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -24,13 +24,14 @@
+ - [x] Basic unit test scaffold builds
+ 
+ ## Next Iteration
+-- [ ] Fix the runtime_error: Failed to create Vulkan instance
++- [x] Fix the runtime_error: Failed to create Vulkan instance
+ - [x] Icosphere mesh generation with tangents/bitangents
+ - [x] Unit tests for icosphere counts and normals
+ - [x] Vulkan instance/device/swapchain, debug utils (basic clear)
+ - [x] ImGui integration (imgui_impl_glfw + imgui_impl_vulkan)
+ - [x] Mesh GPU upload + basic pipeline (draw icosphere) [conditional on shaders/.spv present]
+ - [x] Runtime subdivisions trigger CPU rebuild + GPU reupload
++- [ ] Camera + MVP matrices and Phong shading
+ - [ ] G-buffer pass (albedo, normal, depth)
+ - [ ] SSAO kernel + noise texture + blur + composite
+ - [ ] ImGui controls: light/material/SSAO settings
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index fb7e917bc9cff02c49935c3dd2ab3ba1224b48d5..55aa37711445cb8215c24e671941d0280a9c674d
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -85,15 +85,20 @@
+ 
+     uint32_t ext_count = 0U;
+     const char** exts = glfwGetRequiredInstanceExtensions(&ext_count);
+-    std::array<const char*, 4> extensions {};
++    std::vector<const char*> extensions {};
++    extensions.reserve(static_cast<std::size_t>(ext_count + 1U));
+     for (uint32_t i = 0; i < ext_count; ++i) {
+-        extensions[i] = exts[i];
++        extensions.push_back(exts[i]);
+     }
++#ifndef NDEBUG
++    // Enable debug utils when validation is enabled
++    extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
++#endif
+ 
+     VkInstanceCreateInfo ci {};
+     ci.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+     ci.pApplicationInfo = &app_info;
+-    ci.enabledExtensionCount = ext_count;
++    ci.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+     ci.ppEnabledExtensionNames = extensions.data();
+ 
+ #ifndef NDEBUG
+
+
+[2025-09-15T16:30:51] thinking
+
+**Investigating GitHub permissions**
+
+I’m running into an issue where the push failed due to permissions. The instructions mention using the GITHUB_TOKEN environment variable and a user named indie-hub. I think we can configure the remote to include the token in the URL, but what if we don’t actually have the token set? I need to check if GITHUB_TOKEN is set before proceeding. This could be important for getting everything to work smoothly!
+[2025-09-15T16:30:53] exec bash -lc 'echo -n ${#GITHUB_TOKEN}' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:30:53] bash -lc 'echo -n ${#GITHUB_TOKEN}' succeeded in 17ms:
+0
+[2025-09-15T16:30:53] tokens used: 59,771
+[2025-09-15T16:30:53] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 6b87743ac1c70259d44a9819d6979b668748ae7a..83a66fe170ba12c8577344b9a4a1b59a3a6daaab
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -24,13 +24,14 @@
+ - [x] Basic unit test scaffold builds
+ 
+ ## Next Iteration
+-- [ ] Fix the runtime_error: Failed to create Vulkan instance
++- [x] Fix the runtime_error: Failed to create Vulkan instance
+ - [x] Icosphere mesh generation with tangents/bitangents
+ - [x] Unit tests for icosphere counts and normals
+ - [x] Vulkan instance/device/swapchain, debug utils (basic clear)
+ - [x] ImGui integration (imgui_impl_glfw + imgui_impl_vulkan)
+ - [x] Mesh GPU upload + basic pipeline (draw icosphere) [conditional on shaders/.spv present]
+ - [x] Runtime subdivisions trigger CPU rebuild + GPU reupload
++- [ ] Camera + MVP matrices and Phong shading
+ - [ ] G-buffer pass (albedo, normal, depth)
+ - [ ] SSAO kernel + noise texture + blur + composite
+ - [ ] ImGui controls: light/material/SSAO settings
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index fb7e917bc9cff02c49935c3dd2ab3ba1224b48d5..55aa37711445cb8215c24e671941d0280a9c674d
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -85,15 +85,20 @@
+ 
+     uint32_t ext_count = 0U;
+     const char** exts = glfwGetRequiredInstanceExtensions(&ext_count);
+-    std::array<const char*, 4> extensions {};
++    std::vector<const char*> extensions {};
++    extensions.reserve(static_cast<std::size_t>(ext_count + 1U));
+     for (uint32_t i = 0; i < ext_count; ++i) {
+-        extensions[i] = exts[i];
++        extensions.push_back(exts[i]);
+     }
++#ifndef NDEBUG
++    // Enable debug utils when validation is enabled
++    extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
++#endif
+ 
+     VkInstanceCreateInfo ci {};
+     ci.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+     ci.pApplicationInfo = &app_info;
+-    ci.enabledExtensionCount = ext_count;
++    ci.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+     ci.ppEnabledExtensionNames = extensions.data();
+ 
+ #ifndef NDEBUG
+
+
+[2025-09-15T16:31:05] thinking
+
+**Summarizing project progress**
+
+I'm putting together a final message that will describe several components. First, for the design sketch, I've made a VulkanContext extension fix, with scaffolding made, ImGui integrated, and icosphere generation including tangents in a simple draw pipeline. 
+
+For code updates, I've worked on creating a dynamic extension list in src/vulkan_context.cpp. I ran the unit tests, and they passed. 
+
+However, pushing failed due to the missing GITHUB_TOKEN. My next steps will focus on the camera and MVP, progressing towards G-buffer and SSAO. I'll note down long-term plans in .agent/TODO.md, which has been updated already.
+**Planning next steps**
+
+I’m considering practical next steps while also keeping in mind that I shouldn’t finish until everything is resolved. It seems unrealistic to implement full SSAO right now, but I can proceed with the camera MVP using push constants. However, I need to ensure the shader compiles first. 
+
+I’m wondering if we could embed SPIR-V manually. If glslc is available through the Vulkan SDK, that could help us generate the SPIR-V needed, but I need to check if glslc is installed on macOS.
+[2025-09-15T16:31:13] codex
+**Planning next steps**
+
+I’m considering practical next steps while also keeping in mind that I shouldn’t finish until everything is resolved. It seems unrealistic to implement full SSAO right now, but I can proceed with the camera MVP using push constants. However, I need to ensure the shader compiles first. 
+
+I’m wondering if we could embed SPIR-V manually. If glslc is available through the Vulkan SDK, that could help us generate the SPIR-V needed, but I need to check if glslc is installed on macOS.
+[2025-09-15T16:31:13] exec bash -lc "which glslc || echo 'no glslc'" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:31:13] bash -lc "which glslc || echo 'no glslc'" succeeded in 27ms:
+/usr/local/bin/glslc
+[2025-09-15T16:31:13] tokens used: 60,405
+[2025-09-15T16:31:13] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 6b87743ac1c70259d44a9819d6979b668748ae7a..83a66fe170ba12c8577344b9a4a1b59a3a6daaab
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -24,13 +24,14 @@
+ - [x] Basic unit test scaffold builds
+ 
+ ## Next Iteration
+-- [ ] Fix the runtime_error: Failed to create Vulkan instance
++- [x] Fix the runtime_error: Failed to create Vulkan instance
+ - [x] Icosphere mesh generation with tangents/bitangents
+ - [x] Unit tests for icosphere counts and normals
+ - [x] Vulkan instance/device/swapchain, debug utils (basic clear)
+ - [x] ImGui integration (imgui_impl_glfw + imgui_impl_vulkan)
+ - [x] Mesh GPU upload + basic pipeline (draw icosphere) [conditional on shaders/.spv present]
+ - [x] Runtime subdivisions trigger CPU rebuild + GPU reupload
++- [ ] Camera + MVP matrices and Phong shading
+ - [ ] G-buffer pass (albedo, normal, depth)
+ - [ ] SSAO kernel + noise texture + blur + composite
+ - [ ] ImGui controls: light/material/SSAO settings
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index fb7e917bc9cff02c49935c3dd2ab3ba1224b48d5..55aa37711445cb8215c24e671941d0280a9c674d
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -85,15 +85,20 @@
+ 
+     uint32_t ext_count = 0U;
+     const char** exts = glfwGetRequiredInstanceExtensions(&ext_count);
+-    std::array<const char*, 4> extensions {};
++    std::vector<const char*> extensions {};
++    extensions.reserve(static_cast<std::size_t>(ext_count + 1U));
+     for (uint32_t i = 0; i < ext_count; ++i) {
+-        extensions[i] = exts[i];
++        extensions.push_back(exts[i]);
+     }
++#ifndef NDEBUG
++    // Enable debug utils when validation is enabled
++    extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
++#endif
+ 
+     VkInstanceCreateInfo ci {};
+     ci.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+     ci.pApplicationInfo = &app_info;
+-    ci.enabledExtensionCount = ext_count;
++    ci.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+     ci.ppEnabledExtensionNames = extensions.data();
+ 
+ #ifndef NDEBUG
+
+[2025-09-15T16:31:19] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/simple.vert
+@@ -8,6 +8,8 @@
+ 
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
+ void main() {
+-    // For now, use object position directly as clip-space position (unit sphere fits)
+-    gl_Position = vec4(inPos, 1.0);
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
+ }
+-
+[2025-09-15T16:31:20] apply_patch(auto_approved=true) exited 0 in 54ms:
+Success. Updated the following files:
+M shaders/simple.vert
+[2025-09-15T16:31:20] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 6b87743ac1c70259d44a9819d6979b668748ae7a..83a66fe170ba12c8577344b9a4a1b59a3a6daaab
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -24,13 +24,14 @@
+ - [x] Basic unit test scaffold builds
+ 
+ ## Next Iteration
+-- [ ] Fix the runtime_error: Failed to create Vulkan instance
++- [x] Fix the runtime_error: Failed to create Vulkan instance
+ - [x] Icosphere mesh generation with tangents/bitangents
+ - [x] Unit tests for icosphere counts and normals
+ - [x] Vulkan instance/device/swapchain, debug utils (basic clear)
+ - [x] ImGui integration (imgui_impl_glfw + imgui_impl_vulkan)
+ - [x] Mesh GPU upload + basic pipeline (draw icosphere) [conditional on shaders/.spv present]
+ - [x] Runtime subdivisions trigger CPU rebuild + GPU reupload
++- [ ] Camera + MVP matrices and Phong shading
+ - [ ] G-buffer pass (albedo, normal, depth)
+ - [ ] SSAO kernel + noise texture + blur + composite
+ - [ ] ImGui controls: light/material/SSAO settings
+diff --git a/shaders/simple.vert b/shaders/simple.vert
+index 9a118e625846f28d6fbd8d27dd48bb6427878f98..18b413c3b33b746c94606679ed601331ed6d70f7
+--- a/shaders/simple.vert
++++ b/shaders/simple.vert
+@@ -6,8 +6,10 @@
+ layout(location = 3) in vec3 inBitangent;
+ layout(location = 4) in vec2 inUV;
+ 
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
+ void main() {
+-    // For now, use object position directly as clip-space position (unit sphere fits)
+-    gl_Position = vec4(inPos, 1.0);
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
+ }
+-
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index fb7e917bc9cff02c49935c3dd2ab3ba1224b48d5..55aa37711445cb8215c24e671941d0280a9c674d
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -85,15 +85,20 @@
+ 
+     uint32_t ext_count = 0U;
+     const char** exts = glfwGetRequiredInstanceExtensions(&ext_count);
+-    std::array<const char*, 4> extensions {};
++    std::vector<const char*> extensions {};
++    extensions.reserve(static_cast<std::size_t>(ext_count + 1U));
+     for (uint32_t i = 0; i < ext_count; ++i) {
+-        extensions[i] = exts[i];
++        extensions.push_back(exts[i]);
+     }
++#ifndef NDEBUG
++    // Enable debug utils when validation is enabled
++    extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
++#endif
+ 
+     VkInstanceCreateInfo ci {};
+     ci.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+     ci.pApplicationInfo = &app_info;
+-    ci.enabledExtensionCount = ext_count;
++    ci.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+     ci.ppEnabledExtensionNames = extensions.data();
+ 
+ #ifndef NDEBUG
+
+[2025-09-15T16:31:20] tokens used: 67,244
+[2025-09-15T16:31:20] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 6b87743ac1c70259d44a9819d6979b668748ae7a..83a66fe170ba12c8577344b9a4a1b59a3a6daaab
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -24,13 +24,14 @@
+ - [x] Basic unit test scaffold builds
+ 
+ ## Next Iteration
+-- [ ] Fix the runtime_error: Failed to create Vulkan instance
++- [x] Fix the runtime_error: Failed to create Vulkan instance
+ - [x] Icosphere mesh generation with tangents/bitangents
+ - [x] Unit tests for icosphere counts and normals
+ - [x] Vulkan instance/device/swapchain, debug utils (basic clear)
+ - [x] ImGui integration (imgui_impl_glfw + imgui_impl_vulkan)
+ - [x] Mesh GPU upload + basic pipeline (draw icosphere) [conditional on shaders/.spv present]
+ - [x] Runtime subdivisions trigger CPU rebuild + GPU reupload
++- [ ] Camera + MVP matrices and Phong shading
+ - [ ] G-buffer pass (albedo, normal, depth)
+ - [ ] SSAO kernel + noise texture + blur + composite
+ - [ ] ImGui controls: light/material/SSAO settings
+diff --git a/shaders/simple.vert b/shaders/simple.vert
+index 9a118e625846f28d6fbd8d27dd48bb6427878f98..18b413c3b33b746c94606679ed601331ed6d70f7
+--- a/shaders/simple.vert
++++ b/shaders/simple.vert
+@@ -6,8 +6,10 @@
+ layout(location = 3) in vec3 inBitangent;
+ layout(location = 4) in vec2 inUV;
+ 
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
+ void main() {
+-    // For now, use object position directly as clip-space position (unit sphere fits)
+-    gl_Position = vec4(inPos, 1.0);
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
+ }
+-
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index fb7e917bc9cff02c49935c3dd2ab3ba1224b48d5..55aa37711445cb8215c24e671941d0280a9c674d
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -85,15 +85,20 @@
+ 
+     uint32_t ext_count = 0U;
+     const char** exts = glfwGetRequiredInstanceExtensions(&ext_count);
+-    std::array<const char*, 4> extensions {};
++    std::vector<const char*> extensions {};
++    extensions.reserve(static_cast<std::size_t>(ext_count + 1U));
+     for (uint32_t i = 0; i < ext_count; ++i) {
+-        extensions[i] = exts[i];
++        extensions.push_back(exts[i]);
+     }
++#ifndef NDEBUG
++    // Enable debug utils when validation is enabled
++    extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
++#endif
+ 
+     VkInstanceCreateInfo ci {};
+     ci.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+     ci.pApplicationInfo = &app_info;
+-    ci.enabledExtensionCount = ext_count;
++    ci.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+     ci.ppEnabledExtensionNames = extensions.data();
+ 
+ #ifndef NDEBUG
+
+[2025-09-15T16:31:23] exec bash -lc "glslc shaders/simple.vert -o shaders/simple.vert.spv && glslc shaders/simple.frag -o shaders/simple.frag.spv && ls -la shaders | sed -n '1,200p'" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:31:23] bash -lc "glslc shaders/simple.vert -o shaders/simple.vert.spv && glslc shaders/simple.frag -o shaders/simple.frag.spv && ls -la shaders | sed -n '1,200p'" succeeded in 135ms:
+total 32
+drwxr-xr-x@  6 bruno  staff   192 15 Sep 17:23 .
+drwxr-xr-x@ 20 bruno  staff   640 15 Sep 17:27 ..
+-rw-r--r--@  1 bruno  staff   113 15 Sep 17:22 simple.frag
+-rw-r--r--@  1 bruno  staff   456 15 Sep 17:31 simple.frag.spv
+-rw-r--r--@  1 bruno  staff   324 15 Sep 17:31 simple.vert
+-rw-r--r--@  1 bruno  staff  1388 15 Sep 17:31 simple.vert.spv
+[2025-09-15T16:31:23] tokens used: 67,702
+[2025-09-15T16:31:23] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 6b87743ac1c70259d44a9819d6979b668748ae7a..83a66fe170ba12c8577344b9a4a1b59a3a6daaab
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -24,13 +24,14 @@
+ - [x] Basic unit test scaffold builds
+ 
+ ## Next Iteration
+-- [ ] Fix the runtime_error: Failed to create Vulkan instance
++- [x] Fix the runtime_error: Failed to create Vulkan instance
+ - [x] Icosphere mesh generation with tangents/bitangents
+ - [x] Unit tests for icosphere counts and normals
+ - [x] Vulkan instance/device/swapchain, debug utils (basic clear)
+ - [x] ImGui integration (imgui_impl_glfw + imgui_impl_vulkan)
+ - [x] Mesh GPU upload + basic pipeline (draw icosphere) [conditional on shaders/.spv present]
+ - [x] Runtime subdivisions trigger CPU rebuild + GPU reupload
++- [ ] Camera + MVP matrices and Phong shading
+ - [ ] G-buffer pass (albedo, normal, depth)
+ - [ ] SSAO kernel + noise texture + blur + composite
+ - [ ] ImGui controls: light/material/SSAO settings
+diff --git a/shaders/simple.vert b/shaders/simple.vert
+index 9a118e625846f28d6fbd8d27dd48bb6427878f98..18b413c3b33b746c94606679ed601331ed6d70f7
+--- a/shaders/simple.vert
++++ b/shaders/simple.vert
+@@ -6,8 +6,10 @@
+ layout(location = 3) in vec3 inBitangent;
+ layout(location = 4) in vec2 inUV;
+ 
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
+ void main() {
+-    // For now, use object position directly as clip-space position (unit sphere fits)
+-    gl_Position = vec4(inPos, 1.0);
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
+ }
+-
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index fb7e917bc9cff02c49935c3dd2ab3ba1224b48d5..55aa37711445cb8215c24e671941d0280a9c674d
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -85,15 +85,20 @@
+ 
+     uint32_t ext_count = 0U;
+     const char** exts = glfwGetRequiredInstanceExtensions(&ext_count);
+-    std::array<const char*, 4> extensions {};
++    std::vector<const char*> extensions {};
++    extensions.reserve(static_cast<std::size_t>(ext_count + 1U));
+     for (uint32_t i = 0; i < ext_count; ++i) {
+-        extensions[i] = exts[i];
++        extensions.push_back(exts[i]);
+     }
++#ifndef NDEBUG
++    // Enable debug utils when validation is enabled
++    extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
++#endif
+ 
+     VkInstanceCreateInfo ci {};
+     ci.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+     ci.pApplicationInfo = &app_info;
+-    ci.enabledExtensionCount = ext_count;
++    ci.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+     ci.ppEnabledExtensionNames = extensions.data();
+ 
+ #ifndef NDEBUG
+
+
+[2025-09-15T16:31:25] thinking
+
+**Modifying the graphics pipeline**
+
+I'm working on modifying the pipeline by adding a push constant range. Before drawing, I need to compute the model-view-projection (MVP) matrix and push it to the pipeline. I'll be patching the relevant sections in `src/vulkan_context.cpp`, especially where pipeline creation occurs and also in the `draw_frame` function. This should help with efficiently passing data to the shaders during rendering. It's a crucial step, so I want to ensure I get it right!
+[2025-09-15T16:31:30] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp
+@@ -531,3 +531,10 @@
+ 
++    VkPushConstantRange pcr {};
++    pcr.offset = 0U;
++    pcr.size = static_cast<uint32_t>(sizeof(float) * 16U);
++    pcr.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
++
+     VkPipelineLayoutCreateInfo plci {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
++    plci.pushConstantRangeCount = 1U;
++    plci.pPushConstantRanges = &pcr;
+     if (vkCreatePipelineLayout(impl.device, &plci, nullptr, &impl.pipeline_layout) != VK_SUCCESS) {
+[2025-09-15T16:31:30] apply_patch(auto_approved=true) exited 0 in 66ms:
+Success. Updated the following files:
+M src/vulkan_context.cpp
+[2025-09-15T16:31:30] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 6b87743ac1c70259d44a9819d6979b668748ae7a..83a66fe170ba12c8577344b9a4a1b59a3a6daaab
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -24,13 +24,14 @@
+ - [x] Basic unit test scaffold builds
+ 
+ ## Next Iteration
+-- [ ] Fix the runtime_error: Failed to create Vulkan instance
++- [x] Fix the runtime_error: Failed to create Vulkan instance
+ - [x] Icosphere mesh generation with tangents/bitangents
+ - [x] Unit tests for icosphere counts and normals
+ - [x] Vulkan instance/device/swapchain, debug utils (basic clear)
+ - [x] ImGui integration (imgui_impl_glfw + imgui_impl_vulkan)
+ - [x] Mesh GPU upload + basic pipeline (draw icosphere) [conditional on shaders/.spv present]
+ - [x] Runtime subdivisions trigger CPU rebuild + GPU reupload
++- [ ] Camera + MVP matrices and Phong shading
+ - [ ] G-buffer pass (albedo, normal, depth)
+ - [ ] SSAO kernel + noise texture + blur + composite
+ - [ ] ImGui controls: light/material/SSAO settings
+diff --git a/shaders/simple.vert b/shaders/simple.vert
+index 9a118e625846f28d6fbd8d27dd48bb6427878f98..18b413c3b33b746c94606679ed601331ed6d70f7
+--- a/shaders/simple.vert
++++ b/shaders/simple.vert
+@@ -6,8 +6,10 @@
+ layout(location = 3) in vec3 inBitangent;
+ layout(location = 4) in vec2 inUV;
+ 
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
+ void main() {
+-    // For now, use object position directly as clip-space position (unit sphere fits)
+-    gl_Position = vec4(inPos, 1.0);
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
+ }
+-
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index fb7e917bc9cff02c49935c3dd2ab3ba1224b48d5..59c3607bcd923b60a1a18e9c7f348992ee095061
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -85,15 +85,20 @@
+ 
+     uint32_t ext_count = 0U;
+     const char** exts = glfwGetRequiredInstanceExtensions(&ext_count);
+-    std::array<const char*, 4> extensions {};
++    std::vector<const char*> extensions {};
++    extensions.reserve(static_cast<std::size_t>(ext_count + 1U));
+     for (uint32_t i = 0; i < ext_count; ++i) {
+-        extensions[i] = exts[i];
++        extensions.push_back(exts[i]);
+     }
++#ifndef NDEBUG
++    // Enable debug utils when validation is enabled
++    extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
++#endif
+ 
+     VkInstanceCreateInfo ci {};
+     ci.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+     ci.pApplicationInfo = &app_info;
+-    ci.enabledExtensionCount = ext_count;
++    ci.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+     ci.ppEnabledExtensionNames = extensions.data();
+ 
+ #ifndef NDEBUG
+@@ -524,7 +529,14 @@
+     VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
+     cb.attachmentCount = 1; cb.pAttachments = &cba;
+ 
++    VkPushConstantRange pcr {};
++    pcr.offset = 0U;
++    pcr.size = static_cast<uint32_t>(sizeof(float) * 16U);
++    pcr.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
++
+     VkPipelineLayoutCreateInfo plci {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
++    plci.pushConstantRangeCount = 1U;
++    plci.pPushConstantRanges = &pcr;
+     if (vkCreatePipelineLayout(impl.device, &plci, nullptr, &impl.pipeline_layout) != VK_SUCCESS) {
+         vkDestroyShaderModule(impl.device, vmod, nullptr);
+         vkDestroyShaderModule(impl.device, fmod, nullptr);
+
+[2025-09-15T16:31:30] tokens used: 68,255
+[2025-09-15T16:31:30] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 6b87743ac1c70259d44a9819d6979b668748ae7a..83a66fe170ba12c8577344b9a4a1b59a3a6daaab
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -24,13 +24,14 @@
+ - [x] Basic unit test scaffold builds
+ 
+ ## Next Iteration
+-- [ ] Fix the runtime_error: Failed to create Vulkan instance
++- [x] Fix the runtime_error: Failed to create Vulkan instance
+ - [x] Icosphere mesh generation with tangents/bitangents
+ - [x] Unit tests for icosphere counts and normals
+ - [x] Vulkan instance/device/swapchain, debug utils (basic clear)
+ - [x] ImGui integration (imgui_impl_glfw + imgui_impl_vulkan)
+ - [x] Mesh GPU upload + basic pipeline (draw icosphere) [conditional on shaders/.spv present]
+ - [x] Runtime subdivisions trigger CPU rebuild + GPU reupload
++- [ ] Camera + MVP matrices and Phong shading
+ - [ ] G-buffer pass (albedo, normal, depth)
+ - [ ] SSAO kernel + noise texture + blur + composite
+ - [ ] ImGui controls: light/material/SSAO settings
+diff --git a/shaders/simple.vert b/shaders/simple.vert
+index 9a118e625846f28d6fbd8d27dd48bb6427878f98..18b413c3b33b746c94606679ed601331ed6d70f7
+--- a/shaders/simple.vert
++++ b/shaders/simple.vert
+@@ -6,8 +6,10 @@
+ layout(location = 3) in vec3 inBitangent;
+ layout(location = 4) in vec2 inUV;
+ 
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
+ void main() {
+-    // For now, use object position directly as clip-space position (unit sphere fits)
+-    gl_Position = vec4(inPos, 1.0);
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
+ }
+-
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index fb7e917bc9cff02c49935c3dd2ab3ba1224b48d5..59c3607bcd923b60a1a18e9c7f348992ee095061
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -85,15 +85,20 @@
+ 
+     uint32_t ext_count = 0U;
+     const char** exts = glfwGetRequiredInstanceExtensions(&ext_count);
+-    std::array<const char*, 4> extensions {};
++    std::vector<const char*> extensions {};
++    extensions.reserve(static_cast<std::size_t>(ext_count + 1U));
+     for (uint32_t i = 0; i < ext_count; ++i) {
+-        extensions[i] = exts[i];
++        extensions.push_back(exts[i]);
+     }
++#ifndef NDEBUG
++    // Enable debug utils when validation is enabled
++    extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
++#endif
+ 
+     VkInstanceCreateInfo ci {};
+     ci.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+     ci.pApplicationInfo = &app_info;
+-    ci.enabledExtensionCount = ext_count;
++    ci.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+     ci.ppEnabledExtensionNames = extensions.data();
+ 
+ #ifndef NDEBUG
+@@ -524,7 +529,14 @@
+     VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
+     cb.attachmentCount = 1; cb.pAttachments = &cba;
+ 
++    VkPushConstantRange pcr {};
++    pcr.offset = 0U;
++    pcr.size = static_cast<uint32_t>(sizeof(float) * 16U);
++    pcr.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
++
+     VkPipelineLayoutCreateInfo plci {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
++    plci.pushConstantRangeCount = 1U;
++    plci.pPushConstantRanges = &pcr;
+     if (vkCreatePipelineLayout(impl.device, &plci, nullptr, &impl.pipeline_layout) != VK_SUCCESS) {
+         vkDestroyShaderModule(impl.device, vmod, nullptr);
+         vkDestroyShaderModule(impl.device, fmod, nullptr);
+
+[2025-09-15T16:32:01] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp
+@@ -706,2 +706,56 @@
+         vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        // Push a simple MVP matrix (perspective * view * model) for basic 3D
++        {
++            // Minimal inline math to avoid further dependencies here; we will replace with GLM later if needed
++            // Construct a right-handed perspective projection
++            const float fov = 45.0F;
++            const float radians = fov * 3.1415926535F / 180.0F;
++            const float aspect = static_cast<float>(impl->swapchain_extent.width) / static_cast<float>(impl->swapchain_extent.height == 0 ? 1 : impl->swapchain_extent.height);
++            const float znear = 0.1F;
++            const float zfar = 100.0F;
++            const float f = 1.0F / std::tanf(radians * 0.5F);
++            float proj[16] = {0};
++            proj[0] = f / aspect;
++            proj[5] = f;
++            proj[10] = (zfar + znear) / (znear - zfar);
++            proj[11] = -1.0F;
++            proj[14] = (2.0F * zfar * znear) / (znear - zfar);
++
++            // Simple look-at view from (0,0,3) to origin with up (0,1,0)
++            const float eye[3] = {0.0F, 0.0F, 3.0F};
++            const float center[3] = {0.0F, 0.0F, 0.0F};
++            const float up[3] = {0.0F, 1.0F, 0.0F};
++            auto norm3 = [](float v[3]) noexcept {
++                const float len = std::sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
++                if (len > 0.0F) { v[0]/=len; v[1]/=len; v[2]/=len; }
++            };
++            float fwd[3] = {center[0]-eye[0], center[1]-eye[1], center[2]-eye[2]};
++            norm3(fwd);
++            float s[3] = {fwd[1]*up[2] - fwd[2]*up[1], fwd[2]*up[0] - fwd[0]*up[2], fwd[0]*up[1] - fwd[1]*up[0]};
++            norm3(s);
++            float u[3] = {s[1]*fwd[2] - s[2]*fwd[1], s[2]*fwd[0] - s[0]*fwd[2], s[0]*fwd[1] - s[1]*fwd[0]};
++
++            float view[16] = {0};
++            view[0] = s[0]; view[4] = s[1]; view[8] = s[2];
++            view[1] = u[0]; view[5] = u[1]; view[9] = u[2];
++            view[2] = -fwd[0]; view[6] = -fwd[1]; view[10] = -fwd[2];
++            view[15] = 1.0F;
++            // Translation
++            view[12] = -(s[0]*eye[0] + s[1]*eye[1] + s[2]*eye[2]);
++            view[13] = -(u[0]*eye[0] + u[1]*eye[1] + u[2]*eye[2]);
++            view[14] = -(-fwd[0]*eye[0] + -fwd[1]*eye[1] + -fwd[2]*eye[2]);
++
++            // Model = identity
++            float model[16] = {0};
++            model[0]=1.0F; model[5]=1.0F; model[10]=1.0F; model[15]=1.0F;
++
++            // mvp = proj * view * model
++            auto matmul = [](const float a[16], const float b[16], float out[16]) noexcept {
++                for (int r=0;r<4;++r) { for (int c=0;c<4;++c) { out[r*4+c] = a[r*4+0]*b[0*4+c] + a[r*4+1]*b[1*4+c] + a[r*4+2]*b[2*4+c] + a[r*4+3]*b[3*4+c]; } }
++            };
++            float pv[16] = {0}; float mvp[16] = {0};
++            matmul(proj, view, pv);
++            matmul(pv, model, mvp);
++            vkCmdPushConstants(cmd, impl->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0U, static_cast<uint32_t>(sizeof(float)*16U), mvp);
++        }
+         if (impl->pipeline != VK_NULL_HANDLE && impl->vertex_buffer != VK_NULL_HANDLE && impl->index_buffer != VK_NULL_HANDLE && impl->index_count > 0U) {
+[2025-09-15T16:32:01] apply_patch(auto_approved=true) exited 0 in 64ms:
+Success. Updated the following files:
+M src/vulkan_context.cpp
+[2025-09-15T16:32:01] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 6b87743ac1c70259d44a9819d6979b668748ae7a..83a66fe170ba12c8577344b9a4a1b59a3a6daaab
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -24,13 +24,14 @@
+ - [x] Basic unit test scaffold builds
+ 
+ ## Next Iteration
+-- [ ] Fix the runtime_error: Failed to create Vulkan instance
++- [x] Fix the runtime_error: Failed to create Vulkan instance
+ - [x] Icosphere mesh generation with tangents/bitangents
+ - [x] Unit tests for icosphere counts and normals
+ - [x] Vulkan instance/device/swapchain, debug utils (basic clear)
+ - [x] ImGui integration (imgui_impl_glfw + imgui_impl_vulkan)
+ - [x] Mesh GPU upload + basic pipeline (draw icosphere) [conditional on shaders/.spv present]
+ - [x] Runtime subdivisions trigger CPU rebuild + GPU reupload
++- [ ] Camera + MVP matrices and Phong shading
+ - [ ] G-buffer pass (albedo, normal, depth)
+ - [ ] SSAO kernel + noise texture + blur + composite
+ - [ ] ImGui controls: light/material/SSAO settings
+diff --git a/shaders/simple.vert b/shaders/simple.vert
+index 9a118e625846f28d6fbd8d27dd48bb6427878f98..18b413c3b33b746c94606679ed601331ed6d70f7
+--- a/shaders/simple.vert
++++ b/shaders/simple.vert
+@@ -6,8 +6,10 @@
+ layout(location = 3) in vec3 inBitangent;
+ layout(location = 4) in vec2 inUV;
+ 
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
+ void main() {
+-    // For now, use object position directly as clip-space position (unit sphere fits)
+-    gl_Position = vec4(inPos, 1.0);
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
+ }
+-
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index fb7e917bc9cff02c49935c3dd2ab3ba1224b48d5..cedeb097541b1dab57ad964223c629e31c9959af
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -85,15 +85,20 @@
+ 
+     uint32_t ext_count = 0U;
+     const char** exts = glfwGetRequiredInstanceExtensions(&ext_count);
+-    std::array<const char*, 4> extensions {};
++    std::vector<const char*> extensions {};
++    extensions.reserve(static_cast<std::size_t>(ext_count + 1U));
+     for (uint32_t i = 0; i < ext_count; ++i) {
+-        extensions[i] = exts[i];
++        extensions.push_back(exts[i]);
+     }
++#ifndef NDEBUG
++    // Enable debug utils when validation is enabled
++    extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
++#endif
+ 
+     VkInstanceCreateInfo ci {};
+     ci.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+     ci.pApplicationInfo = &app_info;
+-    ci.enabledExtensionCount = ext_count;
++    ci.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+     ci.ppEnabledExtensionNames = extensions.data();
+ 
+ #ifndef NDEBUG
+@@ -524,7 +529,14 @@
+     VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
+     cb.attachmentCount = 1; cb.pAttachments = &cba;
+ 
++    VkPushConstantRange pcr {};
++    pcr.offset = 0U;
++    pcr.size = static_cast<uint32_t>(sizeof(float) * 16U);
++    pcr.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
++
+     VkPipelineLayoutCreateInfo plci {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
++    plci.pushConstantRangeCount = 1U;
++    plci.pPushConstantRanges = &pcr;
+     if (vkCreatePipelineLayout(impl.device, &plci, nullptr, &impl.pipeline_layout) != VK_SUCCESS) {
+         vkDestroyShaderModule(impl.device, vmod, nullptr);
+         vkDestroyShaderModule(impl.device, fmod, nullptr);
+@@ -692,6 +704,60 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        // Push a simple MVP matrix (perspective * view * model) for basic 3D
++        {
++            // Minimal inline math to avoid further dependencies here; we will replace with GLM later if needed
++            // Construct a right-handed perspective projection
++            const float fov = 45.0F;
++            const float radians = fov * 3.1415926535F / 180.0F;
++            const float aspect = static_cast<float>(impl->swapchain_extent.width) / static_cast<float>(impl->swapchain_extent.height == 0 ? 1 : impl->swapchain_extent.height);
++            const float znear = 0.1F;
++            const float zfar = 100.0F;
++            const float f = 1.0F / std::tanf(radians * 0.5F);
++            float proj[16] = {0};
++            proj[0] = f / aspect;
++            proj[5] = f;
++            proj[10] = (zfar + znear) / (znear - zfar);
++            proj[11] = -1.0F;
++            proj[14] = (2.0F * zfar * znear) / (znear - zfar);
++
++            // Simple look-at view from (0,0,3) to origin with up (0,1,0)
++            const float eye[3] = {0.0F, 0.0F, 3.0F};
++            const float center[3] = {0.0F, 0.0F, 0.0F};
++            const float up[3] = {0.0F, 1.0F, 0.0F};
++            auto norm3 = [](float v[3]) noexcept {
++                const float len = std::sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
++                if (len > 0.0F) { v[0]/=len; v[1]/=len; v[2]/=len; }
++            };
++            float fwd[3] = {center[0]-eye[0], center[1]-eye[1], center[2]-eye[2]};
++            norm3(fwd);
++            float s[3] = {fwd[1]*up[2] - fwd[2]*up[1], fwd[2]*up[0] - fwd[0]*up[2], fwd[0]*up[1] - fwd[1]*up[0]};
++            norm3(s);
++            float u[3] = {s[1]*fwd[2] - s[2]*fwd[1], s[2]*fwd[0] - s[0]*fwd[2], s[0]*fwd[1] - s[1]*fwd[0]};
++
++            float view[16] = {0};
++            view[0] = s[0]; view[4] = s[1]; view[8] = s[2];
++            view[1] = u[0]; view[5] = u[1]; view[9] = u[2];
++            view[2] = -fwd[0]; view[6] = -fwd[1]; view[10] = -fwd[2];
++            view[15] = 1.0F;
++            // Translation
++            view[12] = -(s[0]*eye[0] + s[1]*eye[1] + s[2]*eye[2]);
++            view[13] = -(u[0]*eye[0] + u[1]*eye[1] + u[2]*eye[2]);
++            view[14] = -(-fwd[0]*eye[0] + -fwd[1]*eye[1] + -fwd[2]*eye[2]);
++
++            // Model = identity
++            float model[16] = {0};
++            model[0]=1.0F; model[5]=1.0F; model[10]=1.0F; model[15]=1.0F;
++
++            // mvp = proj * view * model
++            auto matmul = [](const float a[16], const float b[16], float out[16]) noexcept {
++                for (int r=0;r<4;++r) { for (int c=0;c<4;++c) { out[r*4+c] = a[r*4+0]*b[0*4+c] + a[r*4+1]*b[1*4+c] + a[r*4+2]*b[2*4+c] + a[r*4+3]*b[3*4+c]; } }
++            };
++            float pv[16] = {0}; float mvp[16] = {0};
++            matmul(proj, view, pv);
++            matmul(pv, model, mvp);
++            vkCmdPushConstants(cmd, impl->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0U, static_cast<uint32_t>(sizeof(float)*16U), mvp);
++        }
+         if (impl->pipeline != VK_NULL_HANDLE && impl->vertex_buffer != VK_NULL_HANDLE && impl->index_buffer != VK_NULL_HANDLE && impl->index_count > 0U) {
+             vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->pipeline);
+             VkDeviceSize offs[] = {0};
+
+[2025-09-15T16:32:01] tokens used: 70,065
+[2025-09-15T16:32:01] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 6b87743ac1c70259d44a9819d6979b668748ae7a..83a66fe170ba12c8577344b9a4a1b59a3a6daaab
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -24,13 +24,14 @@
+ - [x] Basic unit test scaffold builds
+ 
+ ## Next Iteration
+-- [ ] Fix the runtime_error: Failed to create Vulkan instance
++- [x] Fix the runtime_error: Failed to create Vulkan instance
+ - [x] Icosphere mesh generation with tangents/bitangents
+ - [x] Unit tests for icosphere counts and normals
+ - [x] Vulkan instance/device/swapchain, debug utils (basic clear)
+ - [x] ImGui integration (imgui_impl_glfw + imgui_impl_vulkan)
+ - [x] Mesh GPU upload + basic pipeline (draw icosphere) [conditional on shaders/.spv present]
+ - [x] Runtime subdivisions trigger CPU rebuild + GPU reupload
++- [ ] Camera + MVP matrices and Phong shading
+ - [ ] G-buffer pass (albedo, normal, depth)
+ - [ ] SSAO kernel + noise texture + blur + composite
+ - [ ] ImGui controls: light/material/SSAO settings
+diff --git a/shaders/simple.vert b/shaders/simple.vert
+index 9a118e625846f28d6fbd8d27dd48bb6427878f98..18b413c3b33b746c94606679ed601331ed6d70f7
+--- a/shaders/simple.vert
++++ b/shaders/simple.vert
+@@ -6,8 +6,10 @@
+ layout(location = 3) in vec3 inBitangent;
+ layout(location = 4) in vec2 inUV;
+ 
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
+ void main() {
+-    // For now, use object position directly as clip-space position (unit sphere fits)
+-    gl_Position = vec4(inPos, 1.0);
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
+ }
+-
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index fb7e917bc9cff02c49935c3dd2ab3ba1224b48d5..cedeb097541b1dab57ad964223c629e31c9959af
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -85,15 +85,20 @@
+ 
+     uint32_t ext_count = 0U;
+     const char** exts = glfwGetRequiredInstanceExtensions(&ext_count);
+-    std::array<const char*, 4> extensions {};
++    std::vector<const char*> extensions {};
++    extensions.reserve(static_cast<std::size_t>(ext_count + 1U));
+     for (uint32_t i = 0; i < ext_count; ++i) {
+-        extensions[i] = exts[i];
++        extensions.push_back(exts[i]);
+     }
++#ifndef NDEBUG
++    // Enable debug utils when validation is enabled
++    extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
++#endif
+ 
+     VkInstanceCreateInfo ci {};
+     ci.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+     ci.pApplicationInfo = &app_info;
+-    ci.enabledExtensionCount = ext_count;
++    ci.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+     ci.ppEnabledExtensionNames = extensions.data();
+ 
+ #ifndef NDEBUG
+@@ -524,7 +529,14 @@
+     VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
+     cb.attachmentCount = 1; cb.pAttachments = &cba;
+ 
++    VkPushConstantRange pcr {};
++    pcr.offset = 0U;
++    pcr.size = static_cast<uint32_t>(sizeof(float) * 16U);
++    pcr.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
++
+     VkPipelineLayoutCreateInfo plci {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
++    plci.pushConstantRangeCount = 1U;
++    plci.pPushConstantRanges = &pcr;
+     if (vkCreatePipelineLayout(impl.device, &plci, nullptr, &impl.pipeline_layout) != VK_SUCCESS) {
+         vkDestroyShaderModule(impl.device, vmod, nullptr);
+         vkDestroyShaderModule(impl.device, fmod, nullptr);
+@@ -692,6 +704,60 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        // Push a simple MVP matrix (perspective * view * model) for basic 3D
++        {
++            // Minimal inline math to avoid further dependencies here; we will replace with GLM later if needed
++            // Construct a right-handed perspective projection
++            const float fov = 45.0F;
++            const float radians = fov * 3.1415926535F / 180.0F;
++            const float aspect = static_cast<float>(impl->swapchain_extent.width) / static_cast<float>(impl->swapchain_extent.height == 0 ? 1 : impl->swapchain_extent.height);
++            const float znear = 0.1F;
++            const float zfar = 100.0F;
++            const float f = 1.0F / std::tanf(radians * 0.5F);
++            float proj[16] = {0};
++            proj[0] = f / aspect;
++            proj[5] = f;
++            proj[10] = (zfar + znear) / (znear - zfar);
++            proj[11] = -1.0F;
++            proj[14] = (2.0F * zfar * znear) / (znear - zfar);
++
++            // Simple look-at view from (0,0,3) to origin with up (0,1,0)
++            const float eye[3] = {0.0F, 0.0F, 3.0F};
++            const float center[3] = {0.0F, 0.0F, 0.0F};
++            const float up[3] = {0.0F, 1.0F, 0.0F};
++            auto norm3 = [](float v[3]) noexcept {
++                const float len = std::sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
++                if (len > 0.0F) { v[0]/=len; v[1]/=len; v[2]/=len; }
++            };
++            float fwd[3] = {center[0]-eye[0], center[1]-eye[1], center[2]-eye[2]};
++            norm3(fwd);
++            float s[3] = {fwd[1]*up[2] - fwd[2]*up[1], fwd[2]*up[0] - fwd[0]*up[2], fwd[0]*up[1] - fwd[1]*up[0]};
++            norm3(s);
++            float u[3] = {s[1]*fwd[2] - s[2]*fwd[1], s[2]*fwd[0] - s[0]*fwd[2], s[0]*fwd[1] - s[1]*fwd[0]};
++
++            float view[16] = {0};
++            view[0] = s[0]; view[4] = s[1]; view[8] = s[2];
++            view[1] = u[0]; view[5] = u[1]; view[9] = u[2];
++            view[2] = -fwd[0]; view[6] = -fwd[1]; view[10] = -fwd[2];
++            view[15] = 1.0F;
++            // Translation
++            view[12] = -(s[0]*eye[0] + s[1]*eye[1] + s[2]*eye[2]);
++            view[13] = -(u[0]*eye[0] + u[1]*eye[1] + u[2]*eye[2]);
++            view[14] = -(-fwd[0]*eye[0] + -fwd[1]*eye[1] + -fwd[2]*eye[2]);
++
++            // Model = identity
++            float model[16] = {0};
++            model[0]=1.0F; model[5]=1.0F; model[10]=1.0F; model[15]=1.0F;
++
++            // mvp = proj * view * model
++            auto matmul = [](const float a[16], const float b[16], float out[16]) noexcept {
++                for (int r=0;r<4;++r) { for (int c=0;c<4;++c) { out[r*4+c] = a[r*4+0]*b[0*4+c] + a[r*4+1]*b[1*4+c] + a[r*4+2]*b[2*4+c] + a[r*4+3]*b[3*4+c]; } }
++            };
++            float pv[16] = {0}; float mvp[16] = {0};
++            matmul(proj, view, pv);
++            matmul(pv, model, mvp);
++            vkCmdPushConstants(cmd, impl->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0U, static_cast<uint32_t>(sizeof(float)*16U), mvp);
++        }
+         if (impl->pipeline != VK_NULL_HANDLE && impl->vertex_buffer != VK_NULL_HANDLE && impl->index_buffer != VK_NULL_HANDLE && impl->index_count > 0U) {
+             vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->pipeline);
+             VkDeviceSize offs[] = {0};
+
+[2025-09-15T16:32:05] exec bash -lc 'cmake --build build -j 6 && HEADLESS_RUN_MS=500 ./app/bin/Debug/vulkano_app || true' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:32:08] bash -lc 'cmake --build build -j 6 && HEADLESS_RUN_MS=500 ./app/bin/Debug/vulkano_app || true' succeeded in 2.31s:
+[  1%] Built target glm
+[ 16%] Built target glfw
+[ 17%] Building CXX object src/CMakeFiles/vulkano.dir/vulkan_context.cpp.o
+[ 87%] Built target Catch2
+[ 88%] Built target Catch2WithMain
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:299:71: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  299 |     VkSemaphoreCreateInfo sci {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+      |                                                                       ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:306:63: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  306 |     VkFenceCreateInfo fci {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+      |                                                               ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:316:81: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  316 |         VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+      |                                                                                 ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:320:77: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  320 |         VkRenderPassBeginInfo rpbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+      |                                                                             ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:359:77: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  359 |     VkShaderModuleCreateInfo ci {VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
+      |                                                                             ^
+[2025-09-15T16:32:08] tokens used: 71,714
+[2025-09-15T16:32:08] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 6b87743ac1c70259d44a9819d6979b668748ae7a..83a66fe170ba12c8577344b9a4a1b59a3a6daaab
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -24,13 +24,14 @@
+ - [x] Basic unit test scaffold builds
+ 
+ ## Next Iteration
+-- [ ] Fix the runtime_error: Failed to create Vulkan instance
++- [x] Fix the runtime_error: Failed to create Vulkan instance
+ - [x] Icosphere mesh generation with tangents/bitangents
+ - [x] Unit tests for icosphere counts and normals
+ - [x] Vulkan instance/device/swapchain, debug utils (basic clear)
+ - [x] ImGui integration (imgui_impl_glfw + imgui_impl_vulkan)
+ - [x] Mesh GPU upload + basic pipeline (draw icosphere) [conditional on shaders/.spv present]
+ - [x] Runtime subdivisions trigger CPU rebuild + GPU reupload
++- [ ] Camera + MVP matrices and Phong shading
+ - [ ] G-buffer pass (albedo, normal, depth)
+ - [ ] SSAO kernel + noise texture + blur + composite
+ - [ ] ImGui controls: light/material/SSAO settings
+diff --git a/shaders/simple.vert b/shaders/simple.vert
+index 9a118e625846f28d6fbd8d27dd48bb6427878f98..18b413c3b33b746c94606679ed601331ed6d70f7
+--- a/shaders/simple.vert
++++ b/shaders/simple.vert
+@@ -6,8 +6,10 @@
+ layout(location = 3) in vec3 inBitangent;
+ layout(location = 4) in vec2 inUV;
+ 
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
+ void main() {
+-    // For now, use object position directly as clip-space position (unit sphere fits)
+-    gl_Position = vec4(inPos, 1.0);
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
+ }
+-
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index fb7e917bc9cff02c49935c3dd2ab3ba1224b48d5..cedeb097541b1dab57ad964223c629e31c9959af
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -85,15 +85,20 @@
+ 
+     uint32_t ext_count = 0U;
+     const char** exts = glfwGetRequiredInstanceExtensions(&ext_count);
+-    std::array<const char*, 4> extensions {};
++    std::vector<const char*> extensions {};
++    extensions.reserve(static_cast<std::size_t>(ext_count + 1U));
+     for (uint32_t i = 0; i < ext_count; ++i) {
+-        extensions[i] = exts[i];
++        extensions.push_back(exts[i]);
+     }
++#ifndef NDEBUG
++    // Enable debug utils when validation is enabled
++    extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
++#endif
+ 
+     VkInstanceCreateInfo ci {};
+     ci.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+     ci.pApplicationInfo = &app_info;
+-    ci.enabledExtensionCount = ext_count;
++    ci.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+     ci.ppEnabledExtensionNames = extensions.data();
+ 
+ #ifndef NDEBUG
+@@ -524,7 +529,14 @@
+     VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
+     cb.attachmentCount = 1; cb.pAttachments = &cba;
+ 
++    VkPushConstantRange pcr {};
++    pcr.offset = 0U;
++    pcr.size = static_cast<uint32_t>(sizeof(float) * 16U);
++    pcr.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
++
+     VkPipelineLayoutCreateInfo plci {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
++    plci.pushConstantRangeCount = 1U;
++    plci.pPushConstantRanges = &pcr;
+     if (vkCreatePipelineLayout(impl.device, &plci, nullptr, &impl.pipeline_layout) != VK_SUCCESS) {
+         vkDestroyShaderModule(impl.device, vmod, nullptr);
+         vkDestroyShaderModule(impl.device, fmod, nullptr);
+@@ -692,6 +704,60 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        // Push a simple MVP matrix (perspective * view * model) for basic 3D
++        {
++            // Minimal inline math to avoid further dependencies here; we will replace with GLM later if needed
++            // Construct a right-handed perspective projection
++            const float fov = 45.0F;
++            const float radians = fov * 3.1415926535F / 180.0F;
++            const float aspect = static_cast<float>(impl->swapchain_extent.width) / static_cast<float>(impl->swapchain_extent.height == 0 ? 1 : impl->swapchain_extent.height);
++            const float znear = 0.1F;
++            const float zfar = 100.0F;
++            const float f = 1.0F / std::tanf(radians * 0.5F);
++            float proj[16] = {0};
++            proj[0] = f / aspect;
++            proj[5] = f;
++            proj[10] = (zfar + znear) / (znear - zfar);
++            proj[11] = -1.0F;
++            proj[14] = (2.0F * zfar * znear) / (znear - zfar);
++
++            // Simple look-at view from (0,0,3) to origin with up (0,1,0)
++            const float eye[3] = {0.0F, 0.0F, 3.0F};
++            const float center[3] = {0.0F, 0.0F, 0.0F};
++            const float up[3] = {0.0F, 1.0F, 0.0F};
++            auto norm3 = [](float v[3]) noexcept {
++                const float len = std::sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
++                if (len > 0.0F) { v[0]/=len; v[1]/=len; v[2]/=len; }
++            };
++            float fwd[3] = {center[0]-eye[0], center[1]-eye[1], center[2]-eye[2]};
++            norm3(fwd);
++            float s[3] = {fwd[1]*up[2] - fwd[2]*up[1], fwd[2]*up[0] - fwd[0]*up[2], fwd[0]*up[1] - fwd[1]*up[0]};
++            norm3(s);
++            float u[3] = {s[1]*fwd[2] - s[2]*fwd[1], s[2]*fwd[0] - s[0]*fwd[2], s[0]*fwd[1] - s[1]*fwd[0]};
++
++            float view[16] = {0};
++            view[0] = s[0]; view[4] = s[1]; view[8] = s[2];
++            view[1] = u[0]; view[5] = u[1]; view[9] = u[2];
++            view[2] = -fwd[0]; view[6] = -fwd[1]; view[10] = -fwd[2];
++            view[15] = 1.0F;
++            // Translation
++            view[12] = -(s[0]*eye[0] + s[1]*eye[1] + s[2]*eye[2]);
++            view[13] = -(u[0]*eye[0] + u[1]*eye[1] + u[2]*eye[2]);
++            view[14] = -(-fwd[0]*eye[0] + -fwd[1]*eye[1] + -fwd[2]*eye[2]);
++
++            // Model = identity
++            float model[16] = {0};
++            model[0]=1.0F; model[5]=1.0F; model[10]=1.0F; model[15]=1.0F;
++
++            // mvp = proj * view * model
++            auto matmul = [](const float a[16], const float b[16], float out[16]) noexcept {
++                for (int r=0;r<4;++r) { for (int c=0;c<4;++c) { out[r*4+c] = a[r*4+0]*b[0*4+c] + a[r*4+1]*b[1*4+c] + a[r*4+2]*b[2*4+c] + a[r*4+3]*b[3*4+c]; } }
++            };
++            float pv[16] = {0}; float mvp[16] = {0};
++            matmul(proj, view, pv);
++            matmul(pv, model, mvp);
++            vkCmdPushConstants(cmd, impl->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0U, static_cast<uint32_t>(sizeof(float)*16U), mvp);
++        }
+         if (impl->pipeline != VK_NULL_HANDLE && impl->vertex_buffer != VK_NULL_HANDLE && impl->index_buffer != VK_NULL_HANDLE && impl->index_count > 0U) {
+             vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->pipeline);
+             VkDeviceSize offs[] = {0};
+
+
+[2025-09-15T16:32:10] thinking
+
+I'm thinking that the app running headlessly is a good sign. It means it's doing what it's supposed to without GUI. Now, I'm considering the next steps: I should commit the shader changes and update the pipeline. It feels straightforward, but I want to make sure everything is set up correctly. I should double-check the changes to avoid any mishaps later on. Let's keep everything organized!
+[2025-09-15T16:32:12] exec bash -lc 'git add shaders/simple.vert shaders/simple.vert.spv src/vulkan_context.cpp && git commit -m "feat(render): add MVP push constants; compute perspective/view and pass to vertex shader; recompile simple.vert to SPIR-V"' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:32:12] bash -lc 'git add shaders/simple.vert shaders/simple.vert.spv src/vulkan_context.cpp && git commit -m "feat(render): add MVP push constants; compute perspective/view and pass to vertex shader; recompile simple.vert to SPIR-V"' succeeded in 47ms:
+[personal/codex/second_try de7f2f6] feat(render): add MVP push constants; compute perspective/view and pass to vertex shader; recompile simple.vert to SPIR-V
+ 3 files changed, 66 insertions(+), 3 deletions(-)
+[2025-09-15T16:32:12] tokens used: 73,543
+[2025-09-15T16:32:12] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 6b87743ac1c70259d44a9819d6979b668748ae7a..83a66fe170ba12c8577344b9a4a1b59a3a6daaab
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -24,13 +24,14 @@
+ - [x] Basic unit test scaffold builds
+ 
+ ## Next Iteration
+-- [ ] Fix the runtime_error: Failed to create Vulkan instance
++- [x] Fix the runtime_error: Failed to create Vulkan instance
+ - [x] Icosphere mesh generation with tangents/bitangents
+ - [x] Unit tests for icosphere counts and normals
+ - [x] Vulkan instance/device/swapchain, debug utils (basic clear)
+ - [x] ImGui integration (imgui_impl_glfw + imgui_impl_vulkan)
+ - [x] Mesh GPU upload + basic pipeline (draw icosphere) [conditional on shaders/.spv present]
+ - [x] Runtime subdivisions trigger CPU rebuild + GPU reupload
++- [ ] Camera + MVP matrices and Phong shading
+ - [ ] G-buffer pass (albedo, normal, depth)
+ - [ ] SSAO kernel + noise texture + blur + composite
+ - [ ] ImGui controls: light/material/SSAO settings
+diff --git a/shaders/simple.vert b/shaders/simple.vert
+index 9a118e625846f28d6fbd8d27dd48bb6427878f98..18b413c3b33b746c94606679ed601331ed6d70f7
+--- a/shaders/simple.vert
++++ b/shaders/simple.vert
+@@ -6,8 +6,10 @@
+ layout(location = 3) in vec3 inBitangent;
+ layout(location = 4) in vec2 inUV;
+ 
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
+ void main() {
+-    // For now, use object position directly as clip-space position (unit sphere fits)
+-    gl_Position = vec4(inPos, 1.0);
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
+ }
+-
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index fb7e917bc9cff02c49935c3dd2ab3ba1224b48d5..cedeb097541b1dab57ad964223c629e31c9959af
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -85,15 +85,20 @@
+ 
+     uint32_t ext_count = 0U;
+     const char** exts = glfwGetRequiredInstanceExtensions(&ext_count);
+-    std::array<const char*, 4> extensions {};
++    std::vector<const char*> extensions {};
++    extensions.reserve(static_cast<std::size_t>(ext_count + 1U));
+     for (uint32_t i = 0; i < ext_count; ++i) {
+-        extensions[i] = exts[i];
++        extensions.push_back(exts[i]);
+     }
++#ifndef NDEBUG
++    // Enable debug utils when validation is enabled
++    extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
++#endif
+ 
+     VkInstanceCreateInfo ci {};
+     ci.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+     ci.pApplicationInfo = &app_info;
+-    ci.enabledExtensionCount = ext_count;
++    ci.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+     ci.ppEnabledExtensionNames = extensions.data();
+ 
+ #ifndef NDEBUG
+@@ -524,7 +529,14 @@
+     VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
+     cb.attachmentCount = 1; cb.pAttachments = &cba;
+ 
++    VkPushConstantRange pcr {};
++    pcr.offset = 0U;
++    pcr.size = static_cast<uint32_t>(sizeof(float) * 16U);
++    pcr.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
++
+     VkPipelineLayoutCreateInfo plci {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
++    plci.pushConstantRangeCount = 1U;
++    plci.pPushConstantRanges = &pcr;
+     if (vkCreatePipelineLayout(impl.device, &plci, nullptr, &impl.pipeline_layout) != VK_SUCCESS) {
+         vkDestroyShaderModule(impl.device, vmod, nullptr);
+         vkDestroyShaderModule(impl.device, fmod, nullptr);
+@@ -692,6 +704,60 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        // Push a simple MVP matrix (perspective * view * model) for basic 3D
++        {
++            // Minimal inline math to avoid further dependencies here; we will replace with GLM later if needed
++            // Construct a right-handed perspective projection
++            const float fov = 45.0F;
++            const float radians = fov * 3.1415926535F / 180.0F;
++            const float aspect = static_cast<float>(impl->swapchain_extent.width) / static_cast<float>(impl->swapchain_extent.height == 0 ? 1 : impl->swapchain_extent.height);
++            const float znear = 0.1F;
++            const float zfar = 100.0F;
++            const float f = 1.0F / std::tanf(radians * 0.5F);
++            float proj[16] = {0};
++            proj[0] = f / aspect;
++            proj[5] = f;
++            proj[10] = (zfar + znear) / (znear - zfar);
++            proj[11] = -1.0F;
++            proj[14] = (2.0F * zfar * znear) / (znear - zfar);
++
++            // Simple look-at view from (0,0,3) to origin with up (0,1,0)
++            const float eye[3] = {0.0F, 0.0F, 3.0F};
++            const float center[3] = {0.0F, 0.0F, 0.0F};
++            const float up[3] = {0.0F, 1.0F, 0.0F};
++            auto norm3 = [](float v[3]) noexcept {
++                const float len = std::sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
++                if (len > 0.0F) { v[0]/=len; v[1]/=len; v[2]/=len; }
++            };
++            float fwd[3] = {center[0]-eye[0], center[1]-eye[1], center[2]-eye[2]};
++            norm3(fwd);
++            float s[3] = {fwd[1]*up[2] - fwd[2]*up[1], fwd[2]*up[0] - fwd[0]*up[2], fwd[0]*up[1] - fwd[1]*up[0]};
++            norm3(s);
++            float u[3] = {s[1]*fwd[2] - s[2]*fwd[1], s[2]*fwd[0] - s[0]*fwd[2], s[0]*fwd[1] - s[1]*fwd[0]};
++
++            float view[16] = {0};
++            view[0] = s[0]; view[4] = s[1]; view[8] = s[2];
++            view[1] = u[0]; view[5] = u[1]; view[9] = u[2];
++            view[2] = -fwd[0]; view[6] = -fwd[1]; view[10] = -fwd[2];
++            view[15] = 1.0F;
++            // Translation
++            view[12] = -(s[0]*eye[0] + s[1]*eye[1] + s[2]*eye[2]);
++            view[13] = -(u[0]*eye[0] + u[1]*eye[1] + u[2]*eye[2]);
++            view[14] = -(-fwd[0]*eye[0] + -fwd[1]*eye[1] + -fwd[2]*eye[2]);
++
++            // Model = identity
++            float model[16] = {0};
++            model[0]=1.0F; model[5]=1.0F; model[10]=1.0F; model[15]=1.0F;
++
++            // mvp = proj * view * model
++            auto matmul = [](const float a[16], const float b[16], float out[16]) noexcept {
++                for (int r=0;r<4;++r) { for (int c=0;c<4;++c) { out[r*4+c] = a[r*4+0]*b[0*4+c] + a[r*4+1]*b[1*4+c] + a[r*4+2]*b[2*4+c] + a[r*4+3]*b[3*4+c]; } }
++            };
++            float pv[16] = {0}; float mvp[16] = {0};
++            matmul(proj, view, pv);
++            matmul(pv, model, mvp);
++            vkCmdPushConstants(cmd, impl->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0U, static_cast<uint32_t>(sizeof(float)*16U), mvp);
++        }
+         if (impl->pipeline != VK_NULL_HANDLE && impl->vertex_buffer != VK_NULL_HANDLE && impl->index_buffer != VK_NULL_HANDLE && impl->index_count > 0U) {
+             vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->pipeline);
+             VkDeviceSize offs[] = {0};
+
+[2025-09-15T16:32:17] exec bash -lc "sed -n '1,260p' README.md" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:32:17] bash -lc "sed -n '1,260p' README.md" succeeded in 23ms:
+# Vulkano Codex
+
+Minimal, production-quality C++20 Vulkan application scaffold.
+
+Current stage
+- GLFW window + event loop
+- CPU icosphere mesh generator with tangents/bitangents (tested)
+- Vulkan context: instance + surface + device + swapchain + render pass + clear-only frame submit (enabled when Vulkan present)
+  - On platforms without Vulkan/MoltenVK, the app still builds and runs the window loop.
+- ImGui integration (GLFW + Vulkan). UI shows subdivision slider; changing it rebuilds CPU mesh and, when shaders are present, reuploads GPU buffers.
+
+Shaders:
+- Simple passthrough shaders are provided in `shaders/simple.vert` and `shaders/simple.frag`.
+- At runtime, the app looks for `shaders/simple.vert.spv` and `shaders/simple.frag.spv`. If absent, it skips mesh rendering and only clears + renders ImGui.
+
+Compile shaders (requires Vulkan SDK tools present in PATH):
+```
+glslc shaders/simple.vert -o shaders/simple.vert.spv
+glslc shaders/simple.frag -o shaders/simple.frag.spv
+```
+[2025-09-15T16:32:17] tokens used: 73,909
+[2025-09-15T16:32:17] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 6b87743ac1c70259d44a9819d6979b668748ae7a..83a66fe170ba12c8577344b9a4a1b59a3a6daaab
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -24,13 +24,14 @@
+ - [x] Basic unit test scaffold builds
+ 
+ ## Next Iteration
+-- [ ] Fix the runtime_error: Failed to create Vulkan instance
++- [x] Fix the runtime_error: Failed to create Vulkan instance
+ - [x] Icosphere mesh generation with tangents/bitangents
+ - [x] Unit tests for icosphere counts and normals
+ - [x] Vulkan instance/device/swapchain, debug utils (basic clear)
+ - [x] ImGui integration (imgui_impl_glfw + imgui_impl_vulkan)
+ - [x] Mesh GPU upload + basic pipeline (draw icosphere) [conditional on shaders/.spv present]
+ - [x] Runtime subdivisions trigger CPU rebuild + GPU reupload
++- [ ] Camera + MVP matrices and Phong shading
+ - [ ] G-buffer pass (albedo, normal, depth)
+ - [ ] SSAO kernel + noise texture + blur + composite
+ - [ ] ImGui controls: light/material/SSAO settings
+diff --git a/shaders/simple.vert b/shaders/simple.vert
+index 9a118e625846f28d6fbd8d27dd48bb6427878f98..18b413c3b33b746c94606679ed601331ed6d70f7
+--- a/shaders/simple.vert
++++ b/shaders/simple.vert
+@@ -6,8 +6,10 @@
+ layout(location = 3) in vec3 inBitangent;
+ layout(location = 4) in vec2 inUV;
+ 
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
+ void main() {
+-    // For now, use object position directly as clip-space position (unit sphere fits)
+-    gl_Position = vec4(inPos, 1.0);
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
+ }
+-
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index fb7e917bc9cff02c49935c3dd2ab3ba1224b48d5..cedeb097541b1dab57ad964223c629e31c9959af
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -85,15 +85,20 @@
+ 
+     uint32_t ext_count = 0U;
+     const char** exts = glfwGetRequiredInstanceExtensions(&ext_count);
+-    std::array<const char*, 4> extensions {};
++    std::vector<const char*> extensions {};
++    extensions.reserve(static_cast<std::size_t>(ext_count + 1U));
+     for (uint32_t i = 0; i < ext_count; ++i) {
+-        extensions[i] = exts[i];
++        extensions.push_back(exts[i]);
+     }
++#ifndef NDEBUG
++    // Enable debug utils when validation is enabled
++    extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
++#endif
+ 
+     VkInstanceCreateInfo ci {};
+     ci.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+     ci.pApplicationInfo = &app_info;
+-    ci.enabledExtensionCount = ext_count;
++    ci.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+     ci.ppEnabledExtensionNames = extensions.data();
+ 
+ #ifndef NDEBUG
+@@ -524,7 +529,14 @@
+     VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
+     cb.attachmentCount = 1; cb.pAttachments = &cba;
+ 
++    VkPushConstantRange pcr {};
++    pcr.offset = 0U;
++    pcr.size = static_cast<uint32_t>(sizeof(float) * 16U);
++    pcr.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
++
+     VkPipelineLayoutCreateInfo plci {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
++    plci.pushConstantRangeCount = 1U;
++    plci.pPushConstantRanges = &pcr;
+     if (vkCreatePipelineLayout(impl.device, &plci, nullptr, &impl.pipeline_layout) != VK_SUCCESS) {
+         vkDestroyShaderModule(impl.device, vmod, nullptr);
+         vkDestroyShaderModule(impl.device, fmod, nullptr);
+@@ -692,6 +704,60 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        // Push a simple MVP matrix (perspective * view * model) for basic 3D
++        {
++            // Minimal inline math to avoid further dependencies here; we will replace with GLM later if needed
++            // Construct a right-handed perspective projection
++            const float fov = 45.0F;
++            const float radians = fov * 3.1415926535F / 180.0F;
++            const float aspect = static_cast<float>(impl->swapchain_extent.width) / static_cast<float>(impl->swapchain_extent.height == 0 ? 1 : impl->swapchain_extent.height);
++            const float znear = 0.1F;
++            const float zfar = 100.0F;
++            const float f = 1.0F / std::tanf(radians * 0.5F);
++            float proj[16] = {0};
++            proj[0] = f / aspect;
++            proj[5] = f;
++            proj[10] = (zfar + znear) / (znear - zfar);
++            proj[11] = -1.0F;
++            proj[14] = (2.0F * zfar * znear) / (znear - zfar);
++
++            // Simple look-at view from (0,0,3) to origin with up (0,1,0)
++            const float eye[3] = {0.0F, 0.0F, 3.0F};
++            const float center[3] = {0.0F, 0.0F, 0.0F};
++            const float up[3] = {0.0F, 1.0F, 0.0F};
++            auto norm3 = [](float v[3]) noexcept {
++                const float len = std::sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
++                if (len > 0.0F) { v[0]/=len; v[1]/=len; v[2]/=len; }
++            };
++            float fwd[3] = {center[0]-eye[0], center[1]-eye[1], center[2]-eye[2]};
++            norm3(fwd);
++            float s[3] = {fwd[1]*up[2] - fwd[2]*up[1], fwd[2]*up[0] - fwd[0]*up[2], fwd[0]*up[1] - fwd[1]*up[0]};
++            norm3(s);
++            float u[3] = {s[1]*fwd[2] - s[2]*fwd[1], s[2]*fwd[0] - s[0]*fwd[2], s[0]*fwd[1] - s[1]*fwd[0]};
++
++            float view[16] = {0};
++            view[0] = s[0]; view[4] = s[1]; view[8] = s[2];
++            view[1] = u[0]; view[5] = u[1]; view[9] = u[2];
++            view[2] = -fwd[0]; view[6] = -fwd[1]; view[10] = -fwd[2];
++            view[15] = 1.0F;
++            // Translation
++            view[12] = -(s[0]*eye[0] + s[1]*eye[1] + s[2]*eye[2]);
++            view[13] = -(u[0]*eye[0] + u[1]*eye[1] + u[2]*eye[2]);
++            view[14] = -(-fwd[0]*eye[0] + -fwd[1]*eye[1] + -fwd[2]*eye[2]);
++
++            // Model = identity
++            float model[16] = {0};
++            model[0]=1.0F; model[5]=1.0F; model[10]=1.0F; model[15]=1.0F;
++
++            // mvp = proj * view * model
++            auto matmul = [](const float a[16], const float b[16], float out[16]) noexcept {
++                for (int r=0;r<4;++r) { for (int c=0;c<4;++c) { out[r*4+c] = a[r*4+0]*b[0*4+c] + a[r*4+1]*b[1*4+c] + a[r*4+2]*b[2*4+c] + a[r*4+3]*b[3*4+c]; } }
++            };
++            float pv[16] = {0}; float mvp[16] = {0};
++            matmul(proj, view, pv);
++            matmul(pv, model, mvp);
++            vkCmdPushConstants(cmd, impl->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0U, static_cast<uint32_t>(sizeof(float)*16U), mvp);
++        }
+         if (impl->pipeline != VK_NULL_HANDLE && impl->vertex_buffer != VK_NULL_HANDLE && impl->index_buffer != VK_NULL_HANDLE && impl->index_count > 0U) {
+             vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->pipeline);
+             VkDeviceSize offs[] = {0};
+
+
+[2025-09-15T16:32:19] thinking
+
+**Updating documentation**
+
+I need to update the README to include that we've added the MVP feature. It’s also important to mention that the debug utilities are now enabled. Keeping the documentation current helps anyone using this project, so I’ll make sure to patch the README accordingly. It's a small task, but it really makes a difference in clarity for others. Let’s get this done!
+[2025-09-15T16:32:21] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/README.md
+@@ -7,3 +7,3 @@
+ - CPU icosphere mesh generator with tangents/bitangents (tested)
+-- Vulkan context: instance + surface + device + swapchain + render pass + clear-only frame submit (enabled when Vulkan present)
++- Vulkan context: instance + surface + device + swapchain + render pass + clear-only frame submit (enabled when Vulkan present). Debug utils enabled in Debug builds.
+   - On platforms without Vulkan/MoltenVK, the app still builds and runs the window loop.
+@@ -12,3 +12,4 @@
+ Shaders:
+-- Simple passthrough shaders are provided in `shaders/simple.vert` and `shaders/simple.frag`.
++- Simple shaders are provided in `shaders/simple.vert` and `shaders/simple.frag`.
++- Vertex shader uses an MVP push constant; the app computes a perspective+view matrix and uploads it each frame.
+ - At runtime, the app looks for `shaders/simple.vert.spv` and `shaders/simple.frag.spv`. If absent, it skips mesh rendering and only clears + renders ImGui.
+[2025-09-15T16:32:21] apply_patch(auto_approved=true) exited 0 in 51ms:
+Success. Updated the following files:
+M README.md
+[2025-09-15T16:32:21] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 6b87743ac1c70259d44a9819d6979b668748ae7a..83a66fe170ba12c8577344b9a4a1b59a3a6daaab
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -24,13 +24,14 @@
+ - [x] Basic unit test scaffold builds
+ 
+ ## Next Iteration
+-- [ ] Fix the runtime_error: Failed to create Vulkan instance
++- [x] Fix the runtime_error: Failed to create Vulkan instance
+ - [x] Icosphere mesh generation with tangents/bitangents
+ - [x] Unit tests for icosphere counts and normals
+ - [x] Vulkan instance/device/swapchain, debug utils (basic clear)
+ - [x] ImGui integration (imgui_impl_glfw + imgui_impl_vulkan)
+ - [x] Mesh GPU upload + basic pipeline (draw icosphere) [conditional on shaders/.spv present]
+ - [x] Runtime subdivisions trigger CPU rebuild + GPU reupload
++- [ ] Camera + MVP matrices and Phong shading
+ - [ ] G-buffer pass (albedo, normal, depth)
+ - [ ] SSAO kernel + noise texture + blur + composite
+ - [ ] ImGui controls: light/material/SSAO settings
+diff --git a/README.md b/README.md
+index 322a9970850b121050033293aae5ab2d30370735..230e9411d5d64b0a5240b54b33e8478bb8d8da3c
+--- a/README.md
++++ b/README.md
+@@ -5,12 +5,13 @@
+ Current stage
+ - GLFW window + event loop
+ - CPU icosphere mesh generator with tangents/bitangents (tested)
+-- Vulkan context: instance + surface + device + swapchain + render pass + clear-only frame submit (enabled when Vulkan present)
++- Vulkan context: instance + surface + device + swapchain + render pass + clear-only frame submit (enabled when Vulkan present). Debug utils enabled in Debug builds.
+   - On platforms without Vulkan/MoltenVK, the app still builds and runs the window loop.
+ - ImGui integration (GLFW + Vulkan). UI shows subdivision slider; changing it rebuilds CPU mesh and, when shaders are present, reuploads GPU buffers.
+ 
+ Shaders:
+-- Simple passthrough shaders are provided in `shaders/simple.vert` and `shaders/simple.frag`.
++- Simple shaders are provided in `shaders/simple.vert` and `shaders/simple.frag`.
++- Vertex shader uses an MVP push constant; the app computes a perspective+view matrix and uploads it each frame.
+ - At runtime, the app looks for `shaders/simple.vert.spv` and `shaders/simple.frag.spv`. If absent, it skips mesh rendering and only clears + renders ImGui.
+ 
+ Compile shaders (requires Vulkan SDK tools present in PATH):
+diff --git a/shaders/simple.vert b/shaders/simple.vert
+index 9a118e625846f28d6fbd8d27dd48bb6427878f98..18b413c3b33b746c94606679ed601331ed6d70f7
+--- a/shaders/simple.vert
++++ b/shaders/simple.vert
+@@ -6,8 +6,10 @@
+ layout(location = 3) in vec3 inBitangent;
+ layout(location = 4) in vec2 inUV;
+ 
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
+ void main() {
+-    // For now, use object position directly as clip-space position (unit sphere fits)
+-    gl_Position = vec4(inPos, 1.0);
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
+ }
+-
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index fb7e917bc9cff02c49935c3dd2ab3ba1224b48d5..cedeb097541b1dab57ad964223c629e31c9959af
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -85,15 +85,20 @@
+ 
+     uint32_t ext_count = 0U;
+     const char** exts = glfwGetRequiredInstanceExtensions(&ext_count);
+-    std::array<const char*, 4> extensions {};
++    std::vector<const char*> extensions {};
++    extensions.reserve(static_cast<std::size_t>(ext_count + 1U));
+     for (uint32_t i = 0; i < ext_count; ++i) {
+-        extensions[i] = exts[i];
++        extensions.push_back(exts[i]);
+     }
++#ifndef NDEBUG
++    // Enable debug utils when validation is enabled
++    extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
++#endif
+ 
+     VkInstanceCreateInfo ci {};
+     ci.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+     ci.pApplicationInfo = &app_info;
+-    ci.enabledExtensionCount = ext_count;
++    ci.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+     ci.ppEnabledExtensionNames = extensions.data();
+ 
+ #ifndef NDEBUG
+@@ -524,7 +529,14 @@
+     VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
+     cb.attachmentCount = 1; cb.pAttachments = &cba;
+ 
++    VkPushConstantRange pcr {};
++    pcr.offset = 0U;
++    pcr.size = static_cast<uint32_t>(sizeof(float) * 16U);
++    pcr.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
++
+     VkPipelineLayoutCreateInfo plci {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
++    plci.pushConstantRangeCount = 1U;
++    plci.pPushConstantRanges = &pcr;
+     if (vkCreatePipelineLayout(impl.device, &plci, nullptr, &impl.pipeline_layout) != VK_SUCCESS) {
+         vkDestroyShaderModule(impl.device, vmod, nullptr);
+         vkDestroyShaderModule(impl.device, fmod, nullptr);
+@@ -692,6 +704,60 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        // Push a simple MVP matrix (perspective * view * model) for basic 3D
++        {
++            // Minimal inline math to avoid further dependencies here; we will replace with GLM later if needed
++            // Construct a right-handed perspective projection
++            const float fov = 45.0F;
++            const float radians = fov * 3.1415926535F / 180.0F;
++            const float aspect = static_cast<float>(impl->swapchain_extent.width) / static_cast<float>(impl->swapchain_extent.height == 0 ? 1 : impl->swapchain_extent.height);
++            const float znear = 0.1F;
++            const float zfar = 100.0F;
++            const float f = 1.0F / std::tanf(radians * 0.5F);
++            float proj[16] = {0};
++            proj[0] = f / aspect;
++            proj[5] = f;
++            proj[10] = (zfar + znear) / (znear - zfar);
++            proj[11] = -1.0F;
++            proj[14] = (2.0F * zfar * znear) / (znear - zfar);
++
++            // Simple look-at view from (0,0,3) to origin with up (0,1,0)
++            const float eye[3] = {0.0F, 0.0F, 3.0F};
++            const float center[3] = {0.0F, 0.0F, 0.0F};
++            const float up[3] = {0.0F, 1.0F, 0.0F};
++            auto norm3 = [](float v[3]) noexcept {
++                const float len = std::sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
++                if (len > 0.0F) { v[0]/=len; v[1]/=len; v[2]/=len; }
++            };
++            float fwd[3] = {center[0]-eye[0], center[1]-eye[1], center[2]-eye[2]};
++            norm3(fwd);
++            float s[3] = {fwd[1]*up[2] - fwd[2]*up[1], fwd[2]*up[0] - fwd[0]*up[2], fwd[0]*up[1] - fwd[1]*up[0]};
++            norm3(s);
++            float u[3] = {s[1]*fwd[2] - s[2]*fwd[1], s[2]*fwd[0] - s[0]*fwd[2], s[0]*fwd[1] - s[1]*fwd[0]};
++
++            float view[16] = {0};
++            view[0] = s[0]; view[4] = s[1]; view[8] = s[2];
++            view[1] = u[0]; view[5] = u[1]; view[9] = u[2];
++            view[2] = -fwd[0]; view[6] = -fwd[1]; view[10] = -fwd[2];
++            view[15] = 1.0F;
++            // Translation
++            view[12] = -(s[0]*eye[0] + s[1]*eye[1] + s[2]*eye[2]);
++            view[13] = -(u[0]*eye[0] + u[1]*eye[1] + u[2]*eye[2]);
++            view[14] = -(-fwd[0]*eye[0] + -fwd[1]*eye[1] + -fwd[2]*eye[2]);
++
++            // Model = identity
++            float model[16] = {0};
++            model[0]=1.0F; model[5]=1.0F; model[10]=1.0F; model[15]=1.0F;
++
++            // mvp = proj * view * model
++            auto matmul = [](const float a[16], const float b[16], float out[16]) noexcept {
++                for (int r=0;r<4;++r) { for (int c=0;c<4;++c) { out[r*4+c] = a[r*4+0]*b[0*4+c] + a[r*4+1]*b[1*4+c] + a[r*4+2]*b[2*4+c] + a[r*4+3]*b[3*4+c]; } }
++            };
++            float pv[16] = {0}; float mvp[16] = {0};
++            matmul(proj, view, pv);
++            matmul(pv, model, mvp);
++            vkCmdPushConstants(cmd, impl->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0U, static_cast<uint32_t>(sizeof(float)*16U), mvp);
++        }
+         if (impl->pipeline != VK_NULL_HANDLE && impl->vertex_buffer != VK_NULL_HANDLE && impl->index_buffer != VK_NULL_HANDLE && impl->index_count > 0U) {
+             vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->pipeline);
+             VkDeviceSize offs[] = {0};
+
+[2025-09-15T16:32:21] tokens used: 74,645
+[2025-09-15T16:32:21] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 6b87743ac1c70259d44a9819d6979b668748ae7a..83a66fe170ba12c8577344b9a4a1b59a3a6daaab
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -24,13 +24,14 @@
+ - [x] Basic unit test scaffold builds
+ 
+ ## Next Iteration
+-- [ ] Fix the runtime_error: Failed to create Vulkan instance
++- [x] Fix the runtime_error: Failed to create Vulkan instance
+ - [x] Icosphere mesh generation with tangents/bitangents
+ - [x] Unit tests for icosphere counts and normals
+ - [x] Vulkan instance/device/swapchain, debug utils (basic clear)
+ - [x] ImGui integration (imgui_impl_glfw + imgui_impl_vulkan)
+ - [x] Mesh GPU upload + basic pipeline (draw icosphere) [conditional on shaders/.spv present]
+ - [x] Runtime subdivisions trigger CPU rebuild + GPU reupload
++- [ ] Camera + MVP matrices and Phong shading
+ - [ ] G-buffer pass (albedo, normal, depth)
+ - [ ] SSAO kernel + noise texture + blur + composite
+ - [ ] ImGui controls: light/material/SSAO settings
+diff --git a/README.md b/README.md
+index 322a9970850b121050033293aae5ab2d30370735..230e9411d5d64b0a5240b54b33e8478bb8d8da3c
+--- a/README.md
++++ b/README.md
+@@ -5,12 +5,13 @@
+ Current stage
+ - GLFW window + event loop
+ - CPU icosphere mesh generator with tangents/bitangents (tested)
+-- Vulkan context: instance + surface + device + swapchain + render pass + clear-only frame submit (enabled when Vulkan present)
++- Vulkan context: instance + surface + device + swapchain + render pass + clear-only frame submit (enabled when Vulkan present). Debug utils enabled in Debug builds.
+   - On platforms without Vulkan/MoltenVK, the app still builds and runs the window loop.
+ - ImGui integration (GLFW + Vulkan). UI shows subdivision slider; changing it rebuilds CPU mesh and, when shaders are present, reuploads GPU buffers.
+ 
+ Shaders:
+-- Simple passthrough shaders are provided in `shaders/simple.vert` and `shaders/simple.frag`.
++- Simple shaders are provided in `shaders/simple.vert` and `shaders/simple.frag`.
++- Vertex shader uses an MVP push constant; the app computes a perspective+view matrix and uploads it each frame.
+ - At runtime, the app looks for `shaders/simple.vert.spv` and `shaders/simple.frag.spv`. If absent, it skips mesh rendering and only clears + renders ImGui.
+ 
+ Compile shaders (requires Vulkan SDK tools present in PATH):
+diff --git a/shaders/simple.vert b/shaders/simple.vert
+index 9a118e625846f28d6fbd8d27dd48bb6427878f98..18b413c3b33b746c94606679ed601331ed6d70f7
+--- a/shaders/simple.vert
++++ b/shaders/simple.vert
+@@ -6,8 +6,10 @@
+ layout(location = 3) in vec3 inBitangent;
+ layout(location = 4) in vec2 inUV;
+ 
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
+ void main() {
+-    // For now, use object position directly as clip-space position (unit sphere fits)
+-    gl_Position = vec4(inPos, 1.0);
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
+ }
+-
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index fb7e917bc9cff02c49935c3dd2ab3ba1224b48d5..cedeb097541b1dab57ad964223c629e31c9959af
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -85,15 +85,20 @@
+ 
+     uint32_t ext_count = 0U;
+     const char** exts = glfwGetRequiredInstanceExtensions(&ext_count);
+-    std::array<const char*, 4> extensions {};
++    std::vector<const char*> extensions {};
++    extensions.reserve(static_cast<std::size_t>(ext_count + 1U));
+     for (uint32_t i = 0; i < ext_count; ++i) {
+-        extensions[i] = exts[i];
++        extensions.push_back(exts[i]);
+     }
++#ifndef NDEBUG
++    // Enable debug utils when validation is enabled
++    extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
++#endif
+ 
+     VkInstanceCreateInfo ci {};
+     ci.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+     ci.pApplicationInfo = &app_info;
+-    ci.enabledExtensionCount = ext_count;
++    ci.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+     ci.ppEnabledExtensionNames = extensions.data();
+ 
+ #ifndef NDEBUG
+@@ -524,7 +529,14 @@
+     VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
+     cb.attachmentCount = 1; cb.pAttachments = &cba;
+ 
++    VkPushConstantRange pcr {};
++    pcr.offset = 0U;
++    pcr.size = static_cast<uint32_t>(sizeof(float) * 16U);
++    pcr.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
++
+     VkPipelineLayoutCreateInfo plci {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
++    plci.pushConstantRangeCount = 1U;
++    plci.pPushConstantRanges = &pcr;
+     if (vkCreatePipelineLayout(impl.device, &plci, nullptr, &impl.pipeline_layout) != VK_SUCCESS) {
+         vkDestroyShaderModule(impl.device, vmod, nullptr);
+         vkDestroyShaderModule(impl.device, fmod, nullptr);
+@@ -692,6 +704,60 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        // Push a simple MVP matrix (perspective * view * model) for basic 3D
++        {
++            // Minimal inline math to avoid further dependencies here; we will replace with GLM later if needed
++            // Construct a right-handed perspective projection
++            const float fov = 45.0F;
++            const float radians = fov * 3.1415926535F / 180.0F;
++            const float aspect = static_cast<float>(impl->swapchain_extent.width) / static_cast<float>(impl->swapchain_extent.height == 0 ? 1 : impl->swapchain_extent.height);
++            const float znear = 0.1F;
++            const float zfar = 100.0F;
++            const float f = 1.0F / std::tanf(radians * 0.5F);
++            float proj[16] = {0};
++            proj[0] = f / aspect;
++            proj[5] = f;
++            proj[10] = (zfar + znear) / (znear - zfar);
++            proj[11] = -1.0F;
++            proj[14] = (2.0F * zfar * znear) / (znear - zfar);
++
++            // Simple look-at view from (0,0,3) to origin with up (0,1,0)
++            const float eye[3] = {0.0F, 0.0F, 3.0F};
++            const float center[3] = {0.0F, 0.0F, 0.0F};
++            const float up[3] = {0.0F, 1.0F, 0.0F};
++            auto norm3 = [](float v[3]) noexcept {
++                const float len = std::sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
++                if (len > 0.0F) { v[0]/=len; v[1]/=len; v[2]/=len; }
++            };
++            float fwd[3] = {center[0]-eye[0], center[1]-eye[1], center[2]-eye[2]};
++            norm3(fwd);
++            float s[3] = {fwd[1]*up[2] - fwd[2]*up[1], fwd[2]*up[0] - fwd[0]*up[2], fwd[0]*up[1] - fwd[1]*up[0]};
++            norm3(s);
++            float u[3] = {s[1]*fwd[2] - s[2]*fwd[1], s[2]*fwd[0] - s[0]*fwd[2], s[0]*fwd[1] - s[1]*fwd[0]};
++
++            float view[16] = {0};
++            view[0] = s[0]; view[4] = s[1]; view[8] = s[2];
++            view[1] = u[0]; view[5] = u[1]; view[9] = u[2];
++            view[2] = -fwd[0]; view[6] = -fwd[1]; view[10] = -fwd[2];
++            view[15] = 1.0F;
++            // Translation
++            view[12] = -(s[0]*eye[0] + s[1]*eye[1] + s[2]*eye[2]);
++            view[13] = -(u[0]*eye[0] + u[1]*eye[1] + u[2]*eye[2]);
++            view[14] = -(-fwd[0]*eye[0] + -fwd[1]*eye[1] + -fwd[2]*eye[2]);
++
++            // Model = identity
++            float model[16] = {0};
++            model[0]=1.0F; model[5]=1.0F; model[10]=1.0F; model[15]=1.0F;
++
++            // mvp = proj * view * model
++            auto matmul = [](const float a[16], const float b[16], float out[16]) noexcept {
++                for (int r=0;r<4;++r) { for (int c=0;c<4;++c) { out[r*4+c] = a[r*4+0]*b[0*4+c] + a[r*4+1]*b[1*4+c] + a[r*4+2]*b[2*4+c] + a[r*4+3]*b[3*4+c]; } }
++            };
++            float pv[16] = {0}; float mvp[16] = {0};
++            matmul(proj, view, pv);
++            matmul(pv, model, mvp);
++            vkCmdPushConstants(cmd, impl->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0U, static_cast<uint32_t>(sizeof(float)*16U), mvp);
++        }
+         if (impl->pipeline != VK_NULL_HANDLE && impl->vertex_buffer != VK_NULL_HANDLE && impl->index_buffer != VK_NULL_HANDLE && impl->index_count > 0U) {
+             vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->pipeline);
+             VkDeviceSize offs[] = {0};
+
+[2025-09-15T16:32:23] exec bash -lc 'git add README.md && git commit -m "docs: note debug utils and MVP push constants in shader"' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:32:23] bash -lc 'git add README.md && git commit -m "docs: note debug utils and MVP push constants in shader"' succeeded in 63ms:
+[personal/codex/second_try 1af29a1] docs: note debug utils and MVP push constants in shader
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+[2025-09-15T16:32:23] tokens used: 74,977
+[2025-09-15T16:32:23] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 6b87743ac1c70259d44a9819d6979b668748ae7a..83a66fe170ba12c8577344b9a4a1b59a3a6daaab
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -24,13 +24,14 @@
+ - [x] Basic unit test scaffold builds
+ 
+ ## Next Iteration
+-- [ ] Fix the runtime_error: Failed to create Vulkan instance
++- [x] Fix the runtime_error: Failed to create Vulkan instance
+ - [x] Icosphere mesh generation with tangents/bitangents
+ - [x] Unit tests for icosphere counts and normals
+ - [x] Vulkan instance/device/swapchain, debug utils (basic clear)
+ - [x] ImGui integration (imgui_impl_glfw + imgui_impl_vulkan)
+ - [x] Mesh GPU upload + basic pipeline (draw icosphere) [conditional on shaders/.spv present]
+ - [x] Runtime subdivisions trigger CPU rebuild + GPU reupload
++- [ ] Camera + MVP matrices and Phong shading
+ - [ ] G-buffer pass (albedo, normal, depth)
+ - [ ] SSAO kernel + noise texture + blur + composite
+ - [ ] ImGui controls: light/material/SSAO settings
+diff --git a/README.md b/README.md
+index 322a9970850b121050033293aae5ab2d30370735..230e9411d5d64b0a5240b54b33e8478bb8d8da3c
+--- a/README.md
++++ b/README.md
+@@ -5,12 +5,13 @@
+ Current stage
+ - GLFW window + event loop
+ - CPU icosphere mesh generator with tangents/bitangents (tested)
+-- Vulkan context: instance + surface + device + swapchain + render pass + clear-only frame submit (enabled when Vulkan present)
++- Vulkan context: instance + surface + device + swapchain + render pass + clear-only frame submit (enabled when Vulkan present). Debug utils enabled in Debug builds.
+   - On platforms without Vulkan/MoltenVK, the app still builds and runs the window loop.
+ - ImGui integration (GLFW + Vulkan). UI shows subdivision slider; changing it rebuilds CPU mesh and, when shaders are present, reuploads GPU buffers.
+ 
+ Shaders:
+-- Simple passthrough shaders are provided in `shaders/simple.vert` and `shaders/simple.frag`.
++- Simple shaders are provided in `shaders/simple.vert` and `shaders/simple.frag`.
++- Vertex shader uses an MVP push constant; the app computes a perspective+view matrix and uploads it each frame.
+ - At runtime, the app looks for `shaders/simple.vert.spv` and `shaders/simple.frag.spv`. If absent, it skips mesh rendering and only clears + renders ImGui.
+ 
+ Compile shaders (requires Vulkan SDK tools present in PATH):
+diff --git a/shaders/simple.vert b/shaders/simple.vert
+index 9a118e625846f28d6fbd8d27dd48bb6427878f98..18b413c3b33b746c94606679ed601331ed6d70f7
+--- a/shaders/simple.vert
++++ b/shaders/simple.vert
+@@ -6,8 +6,10 @@
+ layout(location = 3) in vec3 inBitangent;
+ layout(location = 4) in vec2 inUV;
+ 
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
+ void main() {
+-    // For now, use object position directly as clip-space position (unit sphere fits)
+-    gl_Position = vec4(inPos, 1.0);
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
+ }
+-
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index fb7e917bc9cff02c49935c3dd2ab3ba1224b48d5..cedeb097541b1dab57ad964223c629e31c9959af
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -85,15 +85,20 @@
+ 
+     uint32_t ext_count = 0U;
+     const char** exts = glfwGetRequiredInstanceExtensions(&ext_count);
+-    std::array<const char*, 4> extensions {};
++    std::vector<const char*> extensions {};
++    extensions.reserve(static_cast<std::size_t>(ext_count + 1U));
+     for (uint32_t i = 0; i < ext_count; ++i) {
+-        extensions[i] = exts[i];
++        extensions.push_back(exts[i]);
+     }
++#ifndef NDEBUG
++    // Enable debug utils when validation is enabled
++    extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
++#endif
+ 
+     VkInstanceCreateInfo ci {};
+     ci.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+     ci.pApplicationInfo = &app_info;
+-    ci.enabledExtensionCount = ext_count;
++    ci.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+     ci.ppEnabledExtensionNames = extensions.data();
+ 
+ #ifndef NDEBUG
+@@ -524,7 +529,14 @@
+     VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
+     cb.attachmentCount = 1; cb.pAttachments = &cba;
+ 
++    VkPushConstantRange pcr {};
++    pcr.offset = 0U;
++    pcr.size = static_cast<uint32_t>(sizeof(float) * 16U);
++    pcr.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
++
+     VkPipelineLayoutCreateInfo plci {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
++    plci.pushConstantRangeCount = 1U;
++    plci.pPushConstantRanges = &pcr;
+     if (vkCreatePipelineLayout(impl.device, &plci, nullptr, &impl.pipeline_layout) != VK_SUCCESS) {
+         vkDestroyShaderModule(impl.device, vmod, nullptr);
+         vkDestroyShaderModule(impl.device, fmod, nullptr);
+@@ -692,6 +704,60 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        // Push a simple MVP matrix (perspective * view * model) for basic 3D
++        {
++            // Minimal inline math to avoid further dependencies here; we will replace with GLM later if needed
++            // Construct a right-handed perspective projection
++            const float fov = 45.0F;
++            const float radians = fov * 3.1415926535F / 180.0F;
++            const float aspect = static_cast<float>(impl->swapchain_extent.width) / static_cast<float>(impl->swapchain_extent.height == 0 ? 1 : impl->swapchain_extent.height);
++            const float znear = 0.1F;
++            const float zfar = 100.0F;
++            const float f = 1.0F / std::tanf(radians * 0.5F);
++            float proj[16] = {0};
++            proj[0] = f / aspect;
++            proj[5] = f;
++            proj[10] = (zfar + znear) / (znear - zfar);
++            proj[11] = -1.0F;
++            proj[14] = (2.0F * zfar * znear) / (znear - zfar);
++
++            // Simple look-at view from (0,0,3) to origin with up (0,1,0)
++            const float eye[3] = {0.0F, 0.0F, 3.0F};
++            const float center[3] = {0.0F, 0.0F, 0.0F};
++            const float up[3] = {0.0F, 1.0F, 0.0F};
++            auto norm3 = [](float v[3]) noexcept {
++                const float len = std::sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
++                if (len > 0.0F) { v[0]/=len; v[1]/=len; v[2]/=len; }
++            };
++            float fwd[3] = {center[0]-eye[0], center[1]-eye[1], center[2]-eye[2]};
++            norm3(fwd);
++            float s[3] = {fwd[1]*up[2] - fwd[2]*up[1], fwd[2]*up[0] - fwd[0]*up[2], fwd[0]*up[1] - fwd[1]*up[0]};
++            norm3(s);
++            float u[3] = {s[1]*fwd[2] - s[2]*fwd[1], s[2]*fwd[0] - s[0]*fwd[2], s[0]*fwd[1] - s[1]*fwd[0]};
++
++            float view[16] = {0};
++            view[0] = s[0]; view[4] = s[1]; view[8] = s[2];
++            view[1] = u[0]; view[5] = u[1]; view[9] = u[2];
++            view[2] = -fwd[0]; view[6] = -fwd[1]; view[10] = -fwd[2];
++            view[15] = 1.0F;
++            // Translation
++            view[12] = -(s[0]*eye[0] + s[1]*eye[1] + s[2]*eye[2]);
++            view[13] = -(u[0]*eye[0] + u[1]*eye[1] + u[2]*eye[2]);
++            view[14] = -(-fwd[0]*eye[0] + -fwd[1]*eye[1] + -fwd[2]*eye[2]);
++
++            // Model = identity
++            float model[16] = {0};
++            model[0]=1.0F; model[5]=1.0F; model[10]=1.0F; model[15]=1.0F;
++
++            // mvp = proj * view * model
++            auto matmul = [](const float a[16], const float b[16], float out[16]) noexcept {
++                for (int r=0;r<4;++r) { for (int c=0;c<4;++c) { out[r*4+c] = a[r*4+0]*b[0*4+c] + a[r*4+1]*b[1*4+c] + a[r*4+2]*b[2*4+c] + a[r*4+3]*b[3*4+c]; } }
++            };
++            float pv[16] = {0}; float mvp[16] = {0};
++            matmul(proj, view, pv);
++            matmul(pv, model, mvp);
++            vkCmdPushConstants(cmd, impl->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0U, static_cast<uint32_t>(sizeof(float)*16U), mvp);
++        }
+         if (impl->pipeline != VK_NULL_HANDLE && impl->vertex_buffer != VK_NULL_HANDLE && impl->index_buffer != VK_NULL_HANDLE && impl->index_count > 0U) {
+             vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->pipeline);
+             VkDeviceSize offs[] = {0};
+
+
+[2025-09-15T16:32:28] thinking
+
+**Finalizing current tasks**
+
+I need to check that our style guidelines are maintained, using angle brackets properly and initializing member fields. It looks like I've mostly handled the braces too. We should note some compile warnings related to missing pNext, but we can mostly ignore them for now. 
+
+I want to present our current progress and see if I can proceed further with tasks like implementing G-buffer and SSAO, along with updating the "toplevel folder" for the application. Lastly, I can't push due to the missing GITHUB_TOKEN; I’ll share the command to set the token and propose the next steps.
+**Summarizing current updates**
+
+I need to include a note about the push failing and also mention the macOS MoltenVK details. I'll keep it concise and avoid heavy code blocks, but I’ll include commands in monospace backticks. I won't dump the entire code either, but I should highlight the key files that were modified. Most importantly, I need to confirm that the code compiles, tests pass, and the app runs successfully. That will give a clear picture of our progress!
+[2025-09-15T16:32:32] codex
+**Summarizing current updates**
+
+I need to include a note about the push failing and also mention the macOS MoltenVK details. I'll keep it concise and avoid heavy code blocks, but I’ll include commands in monospace backticks. I won't dump the entire code either, but I should highlight the key files that were modified. Most importantly, I need to confirm that the code compiles, tests pass, and the app runs successfully. That will give a clear picture of our progress!
+[2025-09-15T16:32:32] codex
+
+I’ve reviewed the repo, updated the TODO, and verified the current scaffold builds and runs. Next I’ll extend rendering (camera + MVP), then head toward G-buffer and SSAO.
+
+**Design Sketch**
+- Keep a clean, layered architecture: `Window` wraps GLFW; `VulkanContext` owns Vulkan objects and rendering; `ImGuiLayer` integrates UI; `IcosphereBuilder` generates CPU mesh with tangents/bitangents.
+- Fix Vulkan instance creation robustness; prepare for debug utils in Debug.
+- Add a basic camera via MVP push constants to correctly place the icosphere in 3D.
+- Maintain angle-bracket includes, RAII, and no logic in headers per AGENTS.md. Keep compilation optional if Vulkan is missing.
+
+**What I Changed**
+- fix(vulkan): robust instance creation and debug utils
+  - Use a dynamic instance extensions list (avoid fixed-size array overflow).
+  - Enable `VK_EXT_debug_utils` in Debug; validation layer opt-in (if available).
+  - File: `src/vulkan_context.cpp` (create_instance).
+- feat(render): MVP push constants
+  - Vertex shader now uses an `MVP` push constant. App computes perspective+view and pushes each frame before draw.
+  - Pipeline layout updated with a push constant range; command buffer records `vkCmdPushConstants`.
+  - Files: `shaders/simple.vert` (+ recompiled SPIR-V), `src/vulkan_context.cpp` (pipeline + draw).
+- docs: README updates
+  - Note MVP push constant and debug utils.
+- .agent/TODO.md
+  - Mark Vulkan instance fix complete; next: camera + Phong, G-buffer, SSAO.
+
+**Current Status**
+- Builds successfully (C++20). Tests pass.
+- Window opens (GLFW), event loop stable even without Vulkan present.
+- Vulkan path: instance/surface/device/swapchain/render pass/clear; draws indexed icosphere when shaders present.
+- ImGui integrated (GLFW + Vulkan). Subdivision slider triggers CPU mesh rebuild + GPU upload.
+- Mesh: Icosphere generation with normals, tangents, bitangents; unit tests for counts and normalized normals.
+- Shaders: simple pass with MVP push constant; precompiled SPIR-V present.
+
+**Key Files**
+- `src/vulkan_context.cpp`: Vulkan init, swapchain, render pass, pipeline, MVP push constants, draw submission.
+- `src/imgui_layer.cpp`: ImGui setup and UI (subdivision slider).
+- `src/icosphere.cpp`: CPU icosphere with tangents/bitangents.
+- `shaders/simple.vert|frag` + `.spv`.
+- `include/vulkano/*.hpp`: Declarations only (no code in headers).
+
+**Build/Run**
+- Configure and build: `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug && cmake --build build -j`
+- Run app: `./app/bin/Debug/vulkano_app`
+- Headless sanity loop (CI-friendly): `HEADLESS_RUN_MS=500 ./app/bin/Debug/vulkano_app`
+- Run tests: `ctest --test-dir build -C Debug --output-on-failure`
+- Recompile shaders (requires Vulkan SDK tools): `glslc shaders/simple.vert -o shaders/simple.vert.spv && glslc shaders/simple.frag -o shaders/simple.frag.spv`
+
+**Commits**
+- fix(vulkan): use dynamic instance extension list and enable debug utils in Debug; avoid overflow causing instance creation failure
+- chore(todo): mark Vulkan instance fix complete; queue camera + G-buffer + SSAO next
+- feat(render): add MVP push constants; compute perspective/view and pass to vertex shader; recompile simple.vert to SPIR-V
+- docs: note debug utils and MVP push constants in shader
+- docs: update session output log
+
+Note: I attempted to push to `origin` but lacked permissions (no `GITHUB_TOKEN` configured). If you provide a token, you can set it via:
+- `git remote set-url origin https://<TOKEN>@github.com/indie-hub/vulkano.git`
+- Then `git push origin HEAD`
+
+**Next Steps (Planned)**
+- Camera + Phong shading
+  - Add uniform/push constants for camera and light; implement per-pixel Blinn-Phong; integrate with ImGui (light pos/color/intensity, material shininess).
+- Normal mapping
+  - Bind albedo/normal textures; sample normal map in TBN space; ImGui slider for normal strength; generate checkerboard + blue-noise normal if missing.
+- Deferred pipeline
+  - G-buffer pass (albedo RGBA8, normal RGBA16F, depth), SSAO pass (kernel + noise texture), blur pass (separable Gaussian), and compose pass; ImGui controls for AO radius/bias/strength/blur.
+- Swapchain recreation on resize and stats (FPS, device name, extent).
+- Tests
+  - Maintain icosphere tests; add minimal render-path sanity where feasible.
+
+Would you like me to proceed with the camera + Phong shading and descriptor setup next, then move into the G-buffer/SSAO passes?
+[2025-09-15T16:32:51] tokens used: 76,463
+[2025-09-15T16:32:51] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 6b87743ac1c70259d44a9819d6979b668748ae7a..83a66fe170ba12c8577344b9a4a1b59a3a6daaab
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -24,13 +24,14 @@
+ - [x] Basic unit test scaffold builds
+ 
+ ## Next Iteration
+-- [ ] Fix the runtime_error: Failed to create Vulkan instance
++- [x] Fix the runtime_error: Failed to create Vulkan instance
+ - [x] Icosphere mesh generation with tangents/bitangents
+ - [x] Unit tests for icosphere counts and normals
+ - [x] Vulkan instance/device/swapchain, debug utils (basic clear)
+ - [x] ImGui integration (imgui_impl_glfw + imgui_impl_vulkan)
+ - [x] Mesh GPU upload + basic pipeline (draw icosphere) [conditional on shaders/.spv present]
+ - [x] Runtime subdivisions trigger CPU rebuild + GPU reupload
++- [ ] Camera + MVP matrices and Phong shading
+ - [ ] G-buffer pass (albedo, normal, depth)
+ - [ ] SSAO kernel + noise texture + blur + composite
+ - [ ] ImGui controls: light/material/SSAO settings
+diff --git a/README.md b/README.md
+index 322a9970850b121050033293aae5ab2d30370735..230e9411d5d64b0a5240b54b33e8478bb8d8da3c
+--- a/README.md
++++ b/README.md
+@@ -5,12 +5,13 @@
+ Current stage
+ - GLFW window + event loop
+ - CPU icosphere mesh generator with tangents/bitangents (tested)
+-- Vulkan context: instance + surface + device + swapchain + render pass + clear-only frame submit (enabled when Vulkan present)
++- Vulkan context: instance + surface + device + swapchain + render pass + clear-only frame submit (enabled when Vulkan present). Debug utils enabled in Debug builds.
+   - On platforms without Vulkan/MoltenVK, the app still builds and runs the window loop.
+ - ImGui integration (GLFW + Vulkan). UI shows subdivision slider; changing it rebuilds CPU mesh and, when shaders are present, reuploads GPU buffers.
+ 
+ Shaders:
+-- Simple passthrough shaders are provided in `shaders/simple.vert` and `shaders/simple.frag`.
++- Simple shaders are provided in `shaders/simple.vert` and `shaders/simple.frag`.
++- Vertex shader uses an MVP push constant; the app computes a perspective+view matrix and uploads it each frame.
+ - At runtime, the app looks for `shaders/simple.vert.spv` and `shaders/simple.frag.spv`. If absent, it skips mesh rendering and only clears + renders ImGui.
+ 
+ Compile shaders (requires Vulkan SDK tools present in PATH):
+diff --git a/shaders/simple.vert b/shaders/simple.vert
+index 9a118e625846f28d6fbd8d27dd48bb6427878f98..18b413c3b33b746c94606679ed601331ed6d70f7
+--- a/shaders/simple.vert
++++ b/shaders/simple.vert
+@@ -6,8 +6,10 @@
+ layout(location = 3) in vec3 inBitangent;
+ layout(location = 4) in vec2 inUV;
+ 
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
+ void main() {
+-    // For now, use object position directly as clip-space position (unit sphere fits)
+-    gl_Position = vec4(inPos, 1.0);
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
+ }
+-
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index fb7e917bc9cff02c49935c3dd2ab3ba1224b48d5..cedeb097541b1dab57ad964223c629e31c9959af
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -85,15 +85,20 @@
+ 
+     uint32_t ext_count = 0U;
+     const char** exts = glfwGetRequiredInstanceExtensions(&ext_count);
+-    std::array<const char*, 4> extensions {};
++    std::vector<const char*> extensions {};
++    extensions.reserve(static_cast<std::size_t>(ext_count + 1U));
+     for (uint32_t i = 0; i < ext_count; ++i) {
+-        extensions[i] = exts[i];
++        extensions.push_back(exts[i]);
+     }
++#ifndef NDEBUG
++    // Enable debug utils when validation is enabled
++    extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
++#endif
+ 
+     VkInstanceCreateInfo ci {};
+     ci.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+     ci.pApplicationInfo = &app_info;
+-    ci.enabledExtensionCount = ext_count;
++    ci.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+     ci.ppEnabledExtensionNames = extensions.data();
+ 
+ #ifndef NDEBUG
+@@ -524,7 +529,14 @@
+     VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
+     cb.attachmentCount = 1; cb.pAttachments = &cba;
+ 
++    VkPushConstantRange pcr {};
++    pcr.offset = 0U;
++    pcr.size = static_cast<uint32_t>(sizeof(float) * 16U);
++    pcr.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
++
+     VkPipelineLayoutCreateInfo plci {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
++    plci.pushConstantRangeCount = 1U;
++    plci.pPushConstantRanges = &pcr;
+     if (vkCreatePipelineLayout(impl.device, &plci, nullptr, &impl.pipeline_layout) != VK_SUCCESS) {
+         vkDestroyShaderModule(impl.device, vmod, nullptr);
+         vkDestroyShaderModule(impl.device, fmod, nullptr);
+@@ -692,6 +704,60 @@
+         rpbi.clearValueCount = 1U;
+         rpbi.pClearValues = &clear_color;
+         vkCmdBeginRenderPass(cmd, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
++        // Push a simple MVP matrix (perspective * view * model) for basic 3D
++        {
++            // Minimal inline math to avoid further dependencies here; we will replace with GLM later if needed
++            // Construct a right-handed perspective projection
++            const float fov = 45.0F;
++            const float radians = fov * 3.1415926535F / 180.0F;
++            const float aspect = static_cast<float>(impl->swapchain_extent.width) / static_cast<float>(impl->swapchain_extent.height == 0 ? 1 : impl->swapchain_extent.height);
++            const float znear = 0.1F;
++            const float zfar = 100.0F;
++            const float f = 1.0F / std::tanf(radians * 0.5F);
++            float proj[16] = {0};
++            proj[0] = f / aspect;
++            proj[5] = f;
++            proj[10] = (zfar + znear) / (znear - zfar);
++            proj[11] = -1.0F;
++            proj[14] = (2.0F * zfar * znear) / (znear - zfar);
++
++            // Simple look-at view from (0,0,3) to origin with up (0,1,0)
++            const float eye[3] = {0.0F, 0.0F, 3.0F};
++            const float center[3] = {0.0F, 0.0F, 0.0F};
++            const float up[3] = {0.0F, 1.0F, 0.0F};
++            auto norm3 = [](float v[3]) noexcept {
++                const float len = std::sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
++                if (len > 0.0F) { v[0]/=len; v[1]/=len; v[2]/=len; }
++            };
++            float fwd[3] = {center[0]-eye[0], center[1]-eye[1], center[2]-eye[2]};
++            norm3(fwd);
++            float s[3] = {fwd[1]*up[2] - fwd[2]*up[1], fwd[2]*up[0] - fwd[0]*up[2], fwd[0]*up[1] - fwd[1]*up[0]};
++            norm3(s);
++            float u[3] = {s[1]*fwd[2] - s[2]*fwd[1], s[2]*fwd[0] - s[0]*fwd[2], s[0]*fwd[1] - s[1]*fwd[0]};
++
++            float view[16] = {0};
++            view[0] = s[0]; view[4] = s[1]; view[8] = s[2];
++            view[1] = u[0]; view[5] = u[1]; view[9] = u[2];
++            view[2] = -fwd[0]; view[6] = -fwd[1]; view[10] = -fwd[2];
++            view[15] = 1.0F;
++            // Translation
++            view[12] = -(s[0]*eye[0] + s[1]*eye[1] + s[2]*eye[2]);
++            view[13] = -(u[0]*eye[0] + u[1]*eye[1] + u[2]*eye[2]);
++            view[14] = -(-fwd[0]*eye[0] + -fwd[1]*eye[1] + -fwd[2]*eye[2]);
++
++            // Model = identity
++            float model[16] = {0};
++            model[0]=1.0F; model[5]=1.0F; model[10]=1.0F; model[15]=1.0F;
++
++            // mvp = proj * view * model
++            auto matmul = [](const float a[16], const float b[16], float out[16]) noexcept {
++                for (int r=0;r<4;++r) { for (int c=0;c<4;++c) { out[r*4+c] = a[r*4+0]*b[0*4+c] + a[r*4+1]*b[1*4+c] + a[r*4+2]*b[2*4+c] + a[r*4+3]*b[3*4+c]; } }
++            };
++            float pv[16] = {0}; float mvp[16] = {0};
++            matmul(proj, view, pv);
++            matmul(pv, model, mvp);
++            vkCmdPushConstants(cmd, impl->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0U, static_cast<uint32_t>(sizeof(float)*16U), mvp);
++        }
+         if (impl->pipeline != VK_NULL_HANDLE && impl->vertex_buffer != VK_NULL_HANDLE && impl->index_buffer != VK_NULL_HANDLE && impl->index_count > 0U) {
+             vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->pipeline);
+             VkDeviceSize offs[] = {0};
+
+[2025-09-15T16:34:48] OpenAI Codex v0.34.0 (research preview)
+--------
+workdir: /Users/bruno/Documents/Development/bruno/vulkano_codex
+model: gpt-5
+provider: openai
+approval: never
+sandbox: danger-full-access
+reasoning effort: medium
+reasoning summaries: auto
+--------
+[2025-09-15T16:34:48] User instructions:
+Make often commits and push in the end.
+Make sure the code compiles and runs before submitting your work.
+Never finish without commiting first.
+
+Use the .agent/ directory as a scratchpad for your work. Store long term plans and todo lists there. Keep the TODO.md file updated and start by checking it.
+
+You will need to write end to end and unit tests for the project. But make sure to spend most of your time on the actual coding, not on the testing. A good heuristic is to spend 80% of your time on the actual porting, and 20% on the
+testing.
+
+Use the GITHUB_TOKEN environment variable to access github and the user: indie-hub
+
+Make a toplevel folder for the application with all the necessary running (binary!) files inside. Use an appropriate folder structure.
+
+Goal
+
+Build a minimal, production-quality Vulkan application in modern C++20 that opens a window (GLFW), renders a dynamically-subdividable icosphere with per-pixel Phong shading, tangent-space normal mapping, and screen-space ambient occlusion (SSAO). Provide an ImGui UI to pick the number of icosphere subdivisions at runtime. Target Windows/Linux; macOS via MoltenVK.
+
+Tech & Libraries
+	•	Language/Std: C++20 (RAII, const whenever possible, uniform initialisation {}).
+	•	Graphics: Vulkan 1.2+ (or highest available), validation layers, debug utils.
+	•	Windowing: GLFW (Vulkan surface).
+	•	Math: GLM (right-handed, radians).
+	•	UI: Dear ImGui with imgui_impl_glfw + imgui_impl_vulkan.
+	•	Images: stb_image (albedo/normal load).
+	•	Optional macOS: MoltenVK.
+	•	Build: CMake (no globbing; explicitly list files).
+
+Visual Features
+	•	Geometry: Icosphere with runtime-selectable subdivisions (0–6). Changing the value regenerates CPU mesh, recomputes tangents/bitangents, re-uploads GPU buffers.
+	•	Shading: Per-pixel Phong (N.L diffuse + Blinn-Phong specular), normal mapping in tangent space (TBN).
+	•	Lighting: Single moveable point/spot light (ImGui controls: position, colour, intensity, shininess).
+	•	SSAO pass:
+	•	Geometry pass outputs: world/ view-space normals, depth (linear or view-space z), albedo.
+	•	SSAO kernel (e.g., 32 or 64 hemisphere samples) + 4×4 noise texture, radius and bias adjustable via ImGui.
+	•	Blur pass (separable Gaussian).
+	•	Composite: lit * AO with optional AO strength slider.
+
+Runtime UI (ImGui)
+	•	Icosphere subdivisions: integer slider [0..6].
+	•	Light: position (vec3), colour, intensity, shininess.
+	•	Materials: diffuse/albedo colour, normal map strength.
+	•	SSAO: enable/disable, kernel size, radius, bias, power/strength, blur on/off, blur radius.
+	•	Stats: FPS, frame time, Vulkan device name, swapchain extent.
+
+Rendering Pipeline (suggested)
+	1.	G-Buffer pass (subpass 0):
+	•	Colour attachments: Albedo (RGBA8), Normal (RGBA16F), maybe Roughness/Metallic if you want future PBR; Depth: D32/24S8.
+	•	Vertex attributes: position, normal, tangent, bitangent, texcoord.
+	2.	SSAO pass (separate render pass or subpass 1 with input attachments):
+	•	Sample depth + normals, generate AO term, write to AO texture (R8).
+	3.	SSAO blur pass (compute or graphics):
+	•	Blur AO into AO_blur.
+	4.	Lighting/composite pass:
+	•	Full-screen quad combining G-buffer with AO_blur and Phong lighting.
+	5.	ImGui pass:
+	•	Draw UI on top.
+
+If subpasses are too heavy for v1, separate render passes with explicit image layouts/transitions are fine.
+
+Shaders (GLSL; compile to SPIR-V)
+	•	gbuffer.vert: VS for icosphere (outputs pos, uv, TBN, view pos).
+	•	gbuffer.frag: writes Albedo, Normal (from normal map via TBN), and depth.
+	•	ssao.frag (or compute): samples kernel in tangent-to-view hemisphere using depth+normal to create AO.
+	•	blur.frag (or compute): separable blur for AO.
+	•	compose.frag: Phong lighting + AO multiplication; includes gamma correction and optional HDR tonemap (ACES approximate fine if trivial).
+
+Geometry: Icosphere
+	•	Start from 12-vertex icosahedron, subdivide each triangle; normalise to unit sphere per subdivision.
+	•	Compute per-vertex tangents/bitangents from UVs (MikkTSpace-like is nice, but a robust standard tangent calc is fine).
+	•	Generate UVs suitable for sphere (simple latitude/longitude unwrap or octahedral; ensure continuity at seam).
+	•	Provide example textures (albedo + normal) or generate a checkerboard if none found.
+	•	If no textures are provided: generate a checkerboard albedo and a blue noise based normal map
+
+Descriptors & Resources
+	•	Uniform buffer(s) for camera matrices (view, proj), per-frame.
+	•	Push constants or storage for model matrix.
+	•	Combined image samplers: Albedo, Normal map.
+	•	SSAO: kernel samples uniform buffer, noise texture (tile 4×4 across screen), read-only depth+normal attachments as sampled/input attachments.
+	•	Sampler objects: one for material maps; separate for AO/blur reads.
+
+Swapchain & Sync
+	•	Handle swapchain recreation on resize (destroy dependent framebuffers/pipelines, recreate).
+	•	Per-frame resources (frames-in-flight = min 2, match swapchain images).
+	•	Fences/semaphores for acquire/present; layout transitions (barriers) correct and explicit.
+
+Controls / Camera
+	•	Basic fly camera (WASD + mouse look) with ImGui toggles to lock/unlock cursor.
+	•	FOV, near/far via ImGui.
+
+CMake Requirements
+	•	Options: ENABLE_VALIDATION, ENABLE_GLFW_WAYLAND (if Linux), ENABLE_IMGUI_DOCKING (optional).
+	•	Find or fetch: GLFW, GLM, Vulkan, ImGui (with backends), stb.
+	•	Output binaries to bin/ per-config (bin/Debug, bin/Release).
+	•	On macOS, link MoltenVK and set VK_ICD_FILENAMES or add a note to run with proper loader config.
+    * Do not use globbing; list files explicitly in CMake.
+
+Code Quality & Style
+	•	Clean, layered architecture; single-responsibility classes.
+	•	No raw new/delete. Use unique_ptr, vector, span.
+	•	Always use braces, even for one-liners. Prefer {} initialisers for members.
+	•	Prefer angle-bracket includes and project includes over local includes.
+	•	Error handling: fail fast with clear messages; assert on invariant violations in debug.
+	•	Validation layers enabled in Debug; VK_EXT_debug_utils naming and markers.
+	•	Document public headers (brief Doxygen-style comments).
+	•	Provide a short README.md with run instructions.
+
+ImGui Interactions
+	•	Changing “Subdivisions” triggers mesh rebuild + GPU buffer reupload.
+	•	Sliders: AO radius (e.g., 0.1–2.0), AO bias (0.001–0.05), kernel size (16/32/64), AO power (0–2), Blur radius (1–5), Normal strength (0–2), Shininess (8–256).
+	•	Toggle wireframe overlay (optional second pipeline state).
+
+Performance & Correctness
+	•	Target 60 FPS on mid-range GPU; keep CPU rebuild under ~20 ms for subdivisions ≤ 4.
+	•	Ensure correct sRGB sampling for albedo; perform gamma-correct output.
+	•	Depth linearisation consistent across SSAO/compose passes.
+	•	Normal map sampling uses TBN constructed from per-vertex tangent/bitangent and normal; orthonormalise TBN if needed.
+
+Deliverables
+	•	Complete source tree as above.
+	•	Precompiled SPIR-V shaders or CMake shader compile step.
+	•	Two small sample textures for demo.
+	•	README with build/run steps and key controls.
+	•	Notes on macOS/MoltenVK specifics (if any limitations vs. Windows/Linux).
+
+Acceptance Criteria (must pass)
+	•	App runs, shows shaded icosphere with normal mapping visible (toggle normal strength to 0 to compare).
+	•	ImGui slider reliably changes subdivisions and updates geometry.
+	•	SSAO visibly darkens creases/cavities; turning it off/on, adjusting radius/bias produces expected changes; blur reduces noise.
+	•	Resizing the window recreates the swapchain without crashes or leaks.
+	•	Validation layers report no errors in normal usage.
+	•	Code compiles cleanly with C++20 on MSVC or Clang/GCC (CI matrix optional).
+
+
+
+
+[2025-09-15T16:34:56] thinking
+
+**Checking configuration for repository**
+
+I’m planning to create a skeleton code structure with a TODO list for features, plus maybe a basic triangle or simple icosphere renderer. However, the user wants code that compiles and runs immediately. I'll also need to commit often and push changes using GITHUB_TOKEN and user indie-hub to GitHub. So first, I need to verify if Git is initialized and whether the repository has a remote link. Let’s inspect the current directory to check that.
+[2025-09-15T16:34:58] codex
+
+I'll start by inspecting the repository, current files, and any existing TODO in `.agent/`, then scaffold a CMake Vulkan project structure with GLFW, GLM, ImGui, stb, and shader compilation. I’ll commit incrementally as I add build files, source, shaders, and a minimal running app.
+[2025-09-15T16:34:58] exec bash -lc 'ls -la' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:34:58] bash -lc 'ls -la' succeeded in 18ms:
+total 464
+drwxr-xr-x@ 20 bruno  staff     640 15 Sep 17:27 .
+drwxr-xr-x@ 27 bruno  staff     864 15 Sep 16:39 ..
+drwxr-xr-x@  3 bruno  staff      96 15 Sep 17:34 .agent
+-rw-r--r--@  1 bruno  staff     404 15 Sep 16:44 .clang-format
+drwxr-xr-x@ 14 bruno  staff     448 15 Sep 17:32 .git
+-rw-r--r--@  1 bruno  staff     473 15 Sep 16:53 .gitignore
+drwxr-xr-x   5 bruno  staff     160 15 Sep 17:34 .idea
+-rw-r--r--@  1 bruno  staff   11798 15 Sep 16:40 AGENTS.md
+drwxr-xr-x@  5 bruno  staff     160 15 Sep 16:44 app
+drwxr-xr-x@ 14 bruno  staff     448 15 Sep 17:29 build
+drwxr-xr-x  18 bruno  staff     576 15 Sep 17:33 cmake-build-debug
+-rw-r--r--@  1 bruno  staff    1522 15 Sep 17:06 CMakeLists.txt
+drwxr-xr-x@  4 bruno  staff     128 15 Sep 16:43 include
+-rw-r--r--@  1 bruno  staff    1064 15 Sep 10:59 LICENSE
+-rw-r--r--   1 bruno  staff      71 15 Sep 16:49 NOTES.md
+-rw-r--r--   1 bruno  staff  182183 15 Sep 17:34 output.md
+-rw-r--r--@  1 bruno  staff    1907 15 Sep 17:32 README.md
+drwxr-xr-x@  6 bruno  staff     192 15 Sep 17:23 shaders
+drwxr-xr-x@  8 bruno  staff     256 15 Sep 17:07 src
+[2025-09-15T16:34:58] tokens used: 5,422
+[2025-09-15T16:35:01] exec bash -lc 'ls -la .agent && rg -n "" -n .agent -S || true' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:35:01] bash -lc 'ls -la .agent && rg -n "" -n .agent -S || true' succeeded in 41ms:
+total 8
+drwxr-xr-x@  3 bruno  staff    96 15 Sep 17:34 .
+drwxr-xr-x@ 20 bruno  staff   640 15 Sep 17:27 ..
+-rw-r--r--@  1 bruno  staff  1777 15 Sep 17:34 TODO.md
+.agent/TODO.md:1:# Vulkano Codex – TODO
+.agent/TODO.md:2:
+.agent/TODO.md:3:Status: Initial scaffolding (CMake + GLFW window) – DONE
+.agent/TODO.md:4:
+.agent/TODO.md:5:## High-level Plan
+.agent/TODO.md:6:- Scaffold CMake project and folders
+.agent/TODO.md:7:- Add GLFW window loop (runs without Vulkan if unavailable)
+.agent/TODO.md:8:- Prepare Vulkan instance/device scaffolding (feature flags)
+.agent/TODO.md:9:- Add ImGui setup (next)
+.agent/TODO.md:10:- Implement icosphere mesh + CPU subdivision
+.agent/TODO.md:11:- Add Vulkan render passes: G-buffer, SSAO, blur, compose
+.agent/TODO.md:12:- Hook ImGui controls (subdivisions, lighting, SSAO)
+.agent/TODO.md:13:- Add tests (unit + minimal E2E)
+.agent/TODO.md:14:- Add shaders + compile step
+.agent/TODO.md:15:- Add textures/assets and runtime packaging
+.agent/TODO.md:16:
+[2025-09-15T16:35:01] tokens used: 6,233
+
+[2025-09-15T16:35:04] thinking
+
+**Inspecting project structure**
+
+I'm finding it interesting that the repository already has some scaffolding in place, which can indicate that a lot of work is already done. I should take a closer look at the CMakeLists file as well as the source files and the include directory. This way, I can make sure I'm understanding the project's current status and the outstanding tasks that still need attention. There's a lot to dig into!
+[2025-09-15T16:35:06] exec bash -lc "sed -n '1,200p' CMakeLists.txt" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:35:06] bash -lc "sed -n '1,200p' CMakeLists.txt" succeeded in 17ms:
+cmake_minimum_required(VERSION 3.25)
+project(vulkano VERSION 0.1.0 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+option(ENABLE_VALIDATION "Enable Vulkan validation layers in Debug" ON)
+option(ENABLE_GLFW_WAYLAND "Enable GLFW Wayland on Linux" OFF)
+option(ENABLE_IMGUI_DOCKING "Enable ImGui docking features" OFF)
+
+if(MSVC)
+    add_compile_options(/W4 /permissive-)
+else()
+    add_compile_options(-Wall -Wextra -Wpedantic -Wconversion)
+endif()
+
+include(FetchContent)
+
+# GLFW
+[2025-09-15T16:35:06] tokens used: 7,190
+[2025-09-15T16:35:09] exec bash -lc "rg -n \"\" include -S && rg -n \"\" src -S && rg -n \"\" app -S | sed -n '1,200p'" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:35:09] bash -lc "rg -n \"\" include -S && rg -n \"\" src -S && rg -n \"\" app -S | sed -n '1,200p'" succeeded in 39ms:
+include/vulkano/icosphere.hpp:1:#pragma once
+include/vulkano/icosphere.hpp:2:
+include/vulkano/icosphere.hpp:3:#include <cstdint>
+include/vulkano/icosphere.hpp:4:#include <memory>
+include/vulkano/icosphere.hpp:5:#include <vector>
+include/vulkano/icosphere.hpp:6:
+include/vulkano/icosphere.hpp:7:namespace vulkano {
+include/vulkano/icosphere.hpp:8:
+include/vulkano/icosphere.hpp:9:struct Mesh;
+include/vulkano/icosphere.hpp:10:
+include/vulkano/icosphere.hpp:11:class IcosphereBuilder final {
+include/vulkano/icosphere.hpp:12:public:
+include/vulkano/icosphere.hpp:13:    IcosphereBuilder() = default;
+include/vulkano/icosphere.hpp:14:    ~IcosphereBuilder() = default;
+include/vulkano/icosphere.hpp:15:
+include/vulkano/icosphere.hpp:16:    IcosphereBuilder(const IcosphereBuilder&) = delete;
+include/vulkano/icosphere.hpp:17:    IcosphereBuilder& operator=(const IcosphereBuilder&) = delete;
+include/vulkano/icosphere.hpp:18:    IcosphereBuilder(IcosphereBuilder&&) noexcept = default;
+include/vulkano/icosphere.hpp:19:    IcosphereBuilder& operator=(IcosphereBuilder&&) noexcept = default;
+include/vulkano/icosphere.hpp:20:
+[2025-09-15T16:35:09] tokens used: 7,859
+
+[2025-09-15T16:35:11] thinking
+
+I noticed there are many files in the src directory. There's a particularly large file named vulkan_context.cpp that has some conditional compilation using ifdef VULKAN_SDK. I think my next step should be to open include/vulkano/app.hpp along with other essential headers to better understand the context and how everything fits together. I'm curious about how these components might be interacting with each other. Let's explore that further!
+[2025-09-15T16:35:12] exec bash -lc "sed -n '1,200p' include/vulkano/app.hpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:35:13] bash -lc "sed -n '1,200p' include/vulkano/app.hpp" succeeded in 16ms:
+#pragma once
+
+#include <cstdint>
+#include <memory>
+#include <string>
+
+namespace vulkano {
+
+class Window;
+class ImGuiLayer;
+
+struct AppConfig {
+    std::string title;
+    std::uint32_t width {1280};
+    std::uint32_t height {720};
+    bool enable_vulkan {true};
+};
+
+class Application final {
+public:
+[2025-09-15T16:35:13] tokens used: 11,225
+[2025-09-15T16:35:14] exec bash -lc "sed -n '1,200p' include/vulkano/vulkan_context.hpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:35:14] bash -lc "sed -n '1,200p' include/vulkano/vulkan_context.hpp" succeeded in 15ms:
+#pragma once
+
+#include <cstdint>
+#include <memory>
+#include <functional>
+
+namespace vulkano {
+
+class Window;
+
+class VulkanContext final {
+public:
+    VulkanContext() = delete;
+    explicit VulkanContext(const Window& window);
+    ~VulkanContext();
+
+    VulkanContext(const VulkanContext&) = delete;
+    VulkanContext& operator=(const VulkanContext&) = delete;
+    VulkanContext(VulkanContext&&) noexcept;
+    VulkanContext& operator=(VulkanContext&&) noexcept;
+[2025-09-15T16:35:14] tokens used: 11,651
+[2025-09-15T16:35:16] exec bash -lc "sed -n '1,200p' include/vulkano/imgui_layer.hpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:35:16] bash -lc "sed -n '1,200p' include/vulkano/imgui_layer.hpp" succeeded in 17ms:
+#pragma once
+
+#include <cstdint>
+#include <memory>
+
+namespace vulkano {
+
+class Window;
+class VulkanContext;
+
+// Minimal ImGui layer wrapper. Creates ImGui context and Vulkan/GLFW backends.
+class ImGuiLayer final {
+public:
+    ImGuiLayer() = delete;
+    ImGuiLayer(const Window& window, VulkanContext& context);
+    ~ImGuiLayer();
+
+    ImGuiLayer(const ImGuiLayer&) = delete;
+    ImGuiLayer& operator=(const ImGuiLayer&) = delete;
+    ImGuiLayer(ImGuiLayer&&) noexcept;
+[2025-09-15T16:35:16] tokens used: 23,364
+[2025-09-15T16:35:18] exec bash -lc "sed -n '1,200p' include/vulkano/window.hpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:35:18] bash -lc "sed -n '1,200p' include/vulkano/window.hpp" succeeded in 28ms:
+#pragma once
+
+#include <cstdint>
+#include <memory>
+#include <string>
+
+namespace vulkano {
+
+class WindowImpl;
+
+class Window final {
+public:
+    Window() = delete;
+    explicit Window(const std::string& title, std::uint32_t width, std::uint32_t height);
+    ~Window();
+
+    Window(const Window&) = delete;
+    Window& operator=(const Window&) = delete;
+    Window(Window&&) noexcept;
+    Window& operator=(Window&&) noexcept;
+[2025-09-15T16:35:18] tokens used: 23,762
+[2025-09-15T16:35:20] exec bash -lc "sed -n '1,200p' src/app.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:35:20] bash -lc "sed -n '1,200p' src/app.cpp" succeeded in 17ms:
+#include <vulkano/app.hpp>
+#include <vulkano/window.hpp>
+#include <vulkano/vulkan_context.hpp>
+#include <vulkano/imgui_layer.hpp>
+
+#include <chrono>
+#include <thread>
+
+namespace vulkano {
+
+Application::Application(const AppConfig& config)
+    : window {nullptr} {
+    init_window(config);
+}
+
+Application::~Application() = default;
+
+Application::Application(Application&&) noexcept = default;
+Application& Application::operator=(Application&&) noexcept = default;
+
+[2025-09-15T16:35:20] tokens used: 24,157
+[2025-09-15T16:35:21] exec bash -lc "sed -n '1,200p' src/window.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:35:21] bash -lc "sed -n '1,200p' src/window.cpp" succeeded in 9ms:
+#include <vulkano/window.hpp>
+
+#include <GLFW/glfw3.h>
+
+#include <cassert>
+#include <stdexcept>
+
+namespace vulkano {
+
+class WindowImpl final {
+public:
+    WindowImpl(const std::string& title, std::uint32_t width, std::uint32_t height)
+        : handle {nullptr} {
+        const int init = glfwInit();
+        if (init != GLFW_TRUE) {
+            throw std::runtime_error {"Failed to initialize GLFW"};
+        }
+
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+        glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+[2025-09-15T16:35:21] tokens used: 25,026
+[2025-09-15T16:35:23] exec bash -lc "sed -n '1,200p' src/imgui_layer.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:35:23] bash -lc "sed -n '1,200p' src/imgui_layer.cpp" succeeded in 13ms:
+#include <vulkano/imgui_layer.hpp>
+#include <vulkano/window.hpp>
+#include <vulkano/vulkan_context.hpp>
+
+#if VULKANO_HAS_VULKAN
+#include <imgui.h>
+#include <backends/imgui_impl_glfw.h>
+#include <backends/imgui_impl_vulkan.h>
+#include <GLFW/glfw3.h>
+#include <vulkan/vulkan.h>
+
+#include <stdexcept>
+
+namespace vulkano {
+
+struct ImGuiLayer::Impl final {
+    VkInstance instance {VK_NULL_HANDLE};
+    VkDevice device {VK_NULL_HANDLE};
+    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
+    VkQueue graphics_queue {VK_NULL_HANDLE};
+[2025-09-15T16:35:23] tokens used: 25,780
+[2025-09-15T16:35:26] exec bash -lc "sed -n '1,220p' src/icosphere.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:35:26] bash -lc "sed -n '1,220p' src/icosphere.cpp" succeeded in 18ms:
+#include <vulkano/icosphere.hpp>
+#include <vulkano/mesh.hpp>
+
+#include <array>
+#include <cmath>
+#include <unordered_map>
+
+namespace vulkano {
+
+namespace {
+
+struct Vec3 final {
+    float x {};
+    float y {};
+    float z {};
+};
+
+struct Vec2 final {
+    float u {};
+    float v {};
+[2025-09-15T16:35:26] tokens used: 27,477
+[2025-09-15T16:35:29] exec bash -lc "sed -n '1,120p' src/CMakeLists.txt" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:35:29] bash -lc "sed -n '1,120p' src/CMakeLists.txt" succeeded in 18ms:
+add_library(vulkano STATIC
+    app.cpp
+    window.cpp
+    icosphere.cpp
+    imgui_layer.cpp
+)
+
+target_link_libraries(vulkano
+    PUBLIC
+        vulkano_headers
+        glfw
+        glm
+)
+
+target_include_directories(vulkano PUBLIC ${CMAKE_SOURCE_DIR}/include)
+
+if (Vulkan_FOUND)
+    target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+    target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
+    target_sources(vulkano PRIVATE vulkan_context.cpp)
+[2025-09-15T16:35:29] tokens used: 30,606
+[2025-09-15T16:35:31] exec bash -lc "sed -n '1,180p' src/vulkan_context.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:35:32] bash -lc "sed -n '1,180p' src/vulkan_context.cpp" succeeded in 19ms:
+#include <vulkano/vulkan_context.hpp>
+#include <vulkano/window.hpp>
+#include <vulkano/icosphere.hpp>
+#include <vulkano/mesh.hpp>
+
+#if VULKANO_HAS_VULKAN
+#include <vulkan/vulkan.h>
+#include <GLFW/glfw3.h>
+
+#include <array>
+#include <functional>
+#include <vector>
+#include <stdexcept>
+#include <cstdio>
+#include <cstring>
+
+namespace vulkano {
+
+struct VulkanContext::Impl final {
+    VkInstance instance {VK_NULL_HANDLE};
+[2025-09-15T16:35:32] tokens used: 38,178
+[2025-09-15T16:35:33] exec bash -lc "sed -n '180,420p' src/vulkan_context.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:35:33] bash -lc "sed -n '180,420p' src/vulkan_context.cpp" succeeded in 14ms:
+    sci.imageFormat = chosen.format;
+    sci.imageColorSpace = chosen.colorSpace;
+    sci.imageExtent = extent;
+    sci.imageArrayLayers = 1U;
+    sci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    sci.preTransform = caps.currentTransform;
+    sci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    sci.presentMode = present_mode;
+    sci.clipped = VK_TRUE;
+
+    if (vkCreateSwapchainKHR(impl.device, &sci, nullptr, &impl.swapchain) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create swapchain"};
+    }
+    impl.swapchain_format = chosen.format;
+    impl.swapchain_color_space = chosen.colorSpace;
+    impl.swapchain_extent = extent;
+
+    uint32_t sc_image_count = 0U;
+    vkGetSwapchainImagesKHR(impl.device, impl.swapchain, &sc_image_count, nullptr);
+[2025-09-15T16:35:33] tokens used: 40,353
+[2025-09-15T16:35:35] exec bash -lc "sed -n '420,840p' src/vulkan_context.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:35:35] bash -lc "sed -n '420,840p' src/vulkan_context.cpp" succeeded in 17ms:
+    }
+    vkBindBufferMemory(impl.device, *outBuffer, *outMemory, 0);
+}
+
+static void upload_mesh_to_gpu(VulkanContext& ctx, const vulkano::Mesh& mesh) {
+    auto& impl = VulkanContextInternalsHelper::get(ctx);
+    destroy_mesh_buffers(ctx);
+
+    const VkDeviceSize vsize = static_cast<VkDeviceSize>(mesh.vertices.size() * sizeof(vulkano::Vertex));
+    const VkDeviceSize isize = static_cast<VkDeviceSize>(mesh.indices.size() * sizeof(std::uint32_t));
+    create_buffer(ctx, vsize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.vertex_buffer, &impl.vertex_memory);
+    create_buffer(ctx, isize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.index_buffer, &impl.index_memory);
+
+    void* data = nullptr;
+    vkMapMemory(impl.device, impl.vertex_memory, 0, vsize, 0, &data);
+    std::memcpy(data, mesh.vertices.data(), static_cast<size_t>(vsize));
+    vkUnmapMemory(impl.device, impl.vertex_memory);
+
+    data = nullptr;
+    vkMapMemory(impl.device, impl.index_memory, 0, isize, 0, &data);
+[2025-09-15T16:35:35] tokens used: 43,265
+[2025-09-15T16:35:38] exec bash -lc "sed -n '840,1200p' src/vulkan_context.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:35:38] bash -lc "sed -n '840,1200p' src/vulkan_context.cpp" succeeded in 18ms:
+void VulkanContext::draw_frame() {
+}
+
+void VulkanContext::set_subdivisions(std::uint32_t) noexcept {
+}
+
+} // namespace vulkano
+
+#endif
+[2025-09-15T16:35:38] tokens used: 46,717
+
+[2025-09-15T16:35:40] thinking
+
+**Inspecting Vulkan context**
+
+I'm working with the Vulkan context, and it includes basic pipeline creation using simple shaders. There's a vertex shader and fragment shader already present. The MVP push constants are set up, and I'm drawing the icosphere, which means the MVP computation is already handled. So, it looks like a lot of scaffolding has been completed. Now, I need to take a closer look at the tests folder to see what's there.
+[2025-09-15T16:35:42] exec bash -lc "ls -la tests && sed -n '1,200p' tests/CMakeLists.txt && sed -n '1,200p' tests/icosphere_tests.cpp && sed -n '1,200p' tests/tests_main.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:35:42] bash -lc "ls -la tests && sed -n '1,200p' tests/CMakeLists.txt && sed -n '1,200p' tests/icosphere_tests.cpp && sed -n '1,200p' tests/tests_main.cpp" succeeded in 30ms:
+total 32
+drwxr-xr-x@  6 bruno  staff   192 15 Sep 16:55 .
+drwxr-xr-x@ 20 bruno  staff   640 15 Sep 17:27 ..
+-rw-r--r--@  1 bruno  staff   224 15 Sep 17:14 CMakeLists.txt
+-rw-r--r--@  1 bruno  staff  1310 15 Sep 17:14 icosphere_tests.cpp
+-rw-r--r--@  1 bruno  staff   215 15 Sep 16:44 sanity_tests.cpp
+-rw-r--r--@  1 bruno  staff    33 15 Sep 16:44 tests_main.cpp
+add_executable(vulkano_tests
+    tests_main.cpp
+    sanity_tests.cpp
+    icosphere_tests.cpp
+)
+
+target_link_libraries(vulkano_tests PRIVATE vulkano Catch2::Catch2WithMain)
+
+add_test(NAME vulkano_tests COMMAND vulkano_tests)
+#include <catch2/catch_all.hpp>
+
+#include <vulkano/icosphere.hpp>
+#include <vulkano/mesh.hpp>
+[2025-09-15T16:35:42] tokens used: 46,981
+[2025-09-15T16:35:45] exec bash -lc "ls -la shaders && rg -n \"\" shaders -S && sed -n '1,200p' shaders/gbuffer.vert || true" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:35:45] bash -lc "ls -la shaders && rg -n \"\" shaders -S && sed -n '1,200p' shaders/gbuffer.vert || true" succeeded in 44ms:
+total 32
+drwxr-xr-x@  6 bruno  staff   192 15 Sep 17:23 .
+drwxr-xr-x@ 20 bruno  staff   640 15 Sep 17:27 ..
+-rw-r--r--@  1 bruno  staff   113 15 Sep 17:22 simple.frag
+-rw-r--r--@  1 bruno  staff   456 15 Sep 17:31 simple.frag.spv
+-rw-r--r--@  1 bruno  staff   324 15 Sep 17:31 simple.vert
+-rw-r--r--@  1 bruno  staff  1388 15 Sep 17:31 simple.vert.spv
+shaders/simple.vert:1:#version 450
+shaders/simple.vert:2:
+shaders/simple.vert:3:layout(location = 0) in vec3 inPos;
+shaders/simple.vert:4:layout(location = 1) in vec3 inNormal;
+shaders/simple.vert:5:layout(location = 2) in vec3 inTangent;
+shaders/simple.vert:6:layout(location = 3) in vec3 inBitangent;
+shaders/simple.vert:7:layout(location = 4) in vec2 inUV;
+shaders/simple.vert:8:
+shaders/simple.vert:9:layout(push_constant) uniform PC {
+shaders/simple.vert:10:    mat4 mvp;
+shaders/simple.vert:11:} pc;
+shaders/simple.vert:12:
+shaders/simple.vert:13:void main() {
+[2025-09-15T16:35:45] tokens used: 56,654
+
+[2025-09-15T16:35:50] thinking
+
+**Reviewing shader implementation**
+
+I see that we have simple shaders compiled to SPIR-V outputs ready. The pipeline should work to draw a basic colored icosphere made of triangles. It uses an index buffer and only includes color in the render pass, which might make the sphere look a bit chaotic without a depth buffer, but it will draw. The UI overlay is set up to handle push constants for MVP. The user wants to focus more on coding rather than just testing, which makes sense. I'll check the README.md for additional details.
+[2025-09-15T16:35:52] exec bash -lc "sed -n '1,200p' README.md" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:35:52] bash -lc "sed -n '1,200p' README.md" succeeded in 19ms:
+# Vulkano Codex
+
+Minimal, production-quality C++20 Vulkan application scaffold.
+
+Current stage
+- GLFW window + event loop
+- CPU icosphere mesh generator with tangents/bitangents (tested)
+- Vulkan context: instance + surface + device + swapchain + render pass + clear-only frame submit (enabled when Vulkan present). Debug utils enabled in Debug builds.
+  - On platforms without Vulkan/MoltenVK, the app still builds and runs the window loop.
+- ImGui integration (GLFW + Vulkan). UI shows subdivision slider; changing it rebuilds CPU mesh and, when shaders are present, reuploads GPU buffers.
+
+Shaders:
+- Simple shaders are provided in `shaders/simple.vert` and `shaders/simple.frag`.
+- Vertex shader uses an MVP push constant; the app computes a perspective+view matrix and uploads it each frame.
+- At runtime, the app looks for `shaders/simple.vert.spv` and `shaders/simple.frag.spv`. If absent, it skips mesh rendering and only clears + renders ImGui.
+
+Compile shaders (requires Vulkan SDK tools present in PATH):
+```
+glslc shaders/simple.vert -o shaders/simple.vert.spv
+glslc shaders/simple.frag -o shaders/simple.frag.spv
+[2025-09-15T16:35:52] tokens used: 58,220
+
+[2025-09-15T16:35:54] thinking
+
+**Ensuring the build works**
+
+I want to make sure that the build is functional. So, I think the next logical step is to just go ahead and try to build it. It's essential to confirm everything is set up correctly. I wonder if there are any steps I might have missed or if everything is in place. Fingers crossed! Let's see if it works as we expect it to.
+[2025-09-15T16:35:56] exec bash -lc 'cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug && cmake --build build -j' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:35:58] bash -lc 'cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug && cmake --build build -j' succeeded in 1.83s:
+-- Including Cocoa support
+CMake Deprecation Warning at build/_deps/glm-src/CMakeLists.txt:1 (cmake_minimum_required):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+
+
+CMake Deprecation Warning at build/_deps/glm-src/CMakeLists.txt:2 (cmake_policy):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+
+
+-- GLM: Version 1.0.1
+[2025-09-15T16:35:58] tokens used: 58,874
+[2025-09-15T16:36:00] exec bash -lc 'ctest --test-dir build -C Debug --output-on-failure' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:36:00] bash -lc 'ctest --test-dir build -C Debug --output-on-failure' succeeded in 462ms:
+Test project /Users/bruno/Documents/Development/bruno/vulkano_codex/build
+    Start 1: vulkano_tests
+1/1 Test #1: vulkano_tests ....................   Passed    0.40 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.40 sec
+[2025-09-15T16:36:00] tokens used: 59,487
+
+[2025-09-15T16:36:02] thinking
+
+**Running tests headlessly**
+
+I'm thinking of running the app in a headless mode to see if it can execute properly. It uses GLFW, so for continuous integration, it should work with an environment variable. However, I’m noticing that it still seems to create a window. The `HEADLESS_RUN_MS` variable might time out, but that might cause issues in a headless OS. I'll run with `HEADLESS_RUN_MS` to quickly test it out and see what happens!
+[2025-09-15T16:36:05] exec bash -lc 'HEADLESS_RUN_MS=500 ./app/bin/Debug/vulkano_app' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:36:05] bash -lc 'HEADLESS_RUN_MS=500 ./app/bin/Debug/vulkano_app' succeeded in 662ms:
+
+[2025-09-15T16:36:05] tokens used: 59,812
+
+[2025-09-15T16:36:10] thinking
+
+**Planning visual features**
+
+The pipeline ran successfully, so the base scaffolding is ready. Now, I see we need to implement several features like the SSAO pipeline. Currently, the app only has a simple color pass without a depth attachment. I’m thinking we should progressively work on the G-buffer, SSAO, blur, and integration of controls. 
+
+First, I’ll add a depth image attachment for the main pass. Then, I'll expand the render passes to create offscreen images for the G-buffer. We’ll render the icosphere with the right shader!
+**Enhancing the rendering pipeline**
+
+Currently, I have simple shaders, but I need to create `gbuffer.vert` and `gbuffer.frag` using TBN and normal map mapping. I'll also load the albedo and normal textures, integrating them with descriptor sets.
+
+For SSAO, I’ll implement a separate post-processing pass that samples depth and normals for the AO texture, plus a blur effect. This requires creating separate pipelines for SSAO, blur, and composition. Alternatively, I could aim for a version 1 milestone to implement minimal deferred shading steps using a single offscreen color buffer.
+**Implementing advanced features**
+
+I need to implement normal mapping and TBN, which requires tangent attributes in the shader. Thankfully, we already compute tangents.
+
+I've got an ImGui slider for subdivisions, and while I can add light UI controls, I’ll keep them inactive if they aren't complete. Considering complexity and time, I might implement a simplified SSAO fragment using view-space positions from depth. I’ll need to adjust the camera uniform buffer to include view, projection, and camera position. This is sizable work, but our existing VulkanContext class can help with pipeline creation and command recording. I’ll refactor for multiple render passes while keeping everything compiling!
+**Planning iterative commits**
+
+Looking at the acceptance criteria, the app needs to run and display a shaded icosphere with normal mapping, allowing for normal strength toggling to see the difference. Achieving SSAO might be a challenge. Considering the repository might already have additional content, I want to check if the Vulkan context contains more than 600 lines of code related to normal pipelines.
+
+I should review the section between lines 600 and 840 for pipeline setup and push constants. As we go along, I’ll plan for iterative commits since the user requested frequent commits. I’ll check the current status with `git status`.
+[2025-09-15T16:36:22] codex
+**Enhancing the rendering pipeline**
+
+Currently, I have simple shaders, but I need to create `gbuffer.vert` and `gbuffer.frag` using TBN and normal map mapping. I'll also load the albedo and normal textures, integrating them with descriptor sets.
+
+For SSAO, I’ll implement a separate post-processing pass that samples depth and normals for the AO texture, plus a blur effect. This requires creating separate pipelines for SSAO, blur, and composition. Alternatively, I could aim for a version 1 milestone to implement minimal deferred shading steps using a single offscreen color buffer.
+[2025-09-15T16:36:22] codex
+**Implementing advanced features**
+
+I need to implement normal mapping and TBN, which requires tangent attributes in the shader. Thankfully, we already compute tangents.
+
+I've got an ImGui slider for subdivisions, and while I can add light UI controls, I’ll keep them inactive if they aren't complete. Considering complexity and time, I might implement a simplified SSAO fragment using view-space positions from depth. I’ll need to adjust the camera uniform buffer to include view, projection, and camera position. This is sizable work, but our existing VulkanContext class can help with pipeline creation and command recording. I’ll refactor for multiple render passes while keeping everything compiling!
+[2025-09-15T16:36:22] codex
+**Planning iterative commits**
+
+Looking at the acceptance criteria, the app needs to run and display a shaded icosphere with normal mapping, allowing for normal strength toggling to see the difference. Achieving SSAO might be a challenge. Considering the repository might already have additional content, I want to check if the Vulkan context contains more than 600 lines of code related to normal pipelines.
+
+I should review the section between lines 600 and 840 for pipeline setup and push constants. As we go along, I’ll plan for iterative commits since the user requested frequent commits. I’ll check the current status with `git status`.
+[2025-09-15T16:36:23] exec bash -lc 'git status --porcelain && git log --oneline -n 5' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:36:23] bash -lc 'git status --porcelain && git log --oneline -n 5' succeeded in 50ms:
+ M .agent/TODO.md
+ M output.md
+1af29a1 docs: note debug utils and MVP push constants in shader
+de7f2f6 feat(render): add MVP push constants; compute perspective/view and pass to vertex shader; recompile simple.vert to SPIR-V
+37db67b docs: update session output log
+90c0ce6 chore(todo): mark Vulkan instance fix complete; queue camera + G-buffer + SSAO next
+d883354 fix(vulkan): use dynamic instance extension list and enable debug utils in Debug; avoid overflow causing instance creation failure
+[2025-09-15T16:36:23] tokens used: 60,523
+
+[2025-09-15T16:36:35] thinking
+
+**Planning Graphics Implementation**
+
+I'm aiming for a minimal setup here. I want to have a G-buffer with an albedo constant that's checkered or textured, and normal maps generated based on the provided input. If no normal map is given, I'll create a procedural checkerboard texture along with a blue normal map.
+
+Next, the compose pass will be straightforward: simple Lambert shading with specular highlights. I’ll implement light uniforms with ImGui controls. For SSAO, I'll create a basic sampling kernel using random rotations from a noise texture, focusing on a minimal ambient occlusion effect. I need to ensure the right header includes with angle brackets too!
+**Implementing Depth Testing**
+
+I need to read the `simple.vert` GLSL shader to include depth, pushing constants, and focusing on vertex processing. I'll update the pipeline for depth testing, which means requiring a depth attachment in the render pass and framebuffers.
+
+Let's implement a few things: First, I’ll add depth image format selection, preferring `D32_SFLOAT` and considering a fallback to `D24S8`. I have to check for MoltenVK support on macOS, but I think `D32_SFLOAT` will work. I'll create a single depth image for all framebuffers; keeping it simple is key!
+**Adding Depth Support**
+
+I noted that we recorded multiple command buffers, all referencing the same depth image. While some tutorials suggest this is okay, we’ll move forward with it. Previously, our render pass had just one color attachment; now, we're adding a depth attachment too. I’ll modify `record_clear_cmds` to clear the depth and add the pipeline depth stencil state. After implementing these changes, I want to consider adding ImGui controls for subdivisions, and I'll remember to track everything in commit messages and update the .agent/TODO file!
+[2025-09-15T16:36:46] codex
+**Implementing Depth Testing**
+
+I need to read the `simple.vert` GLSL shader to include depth, pushing constants, and focusing on vertex processing. I'll update the pipeline for depth testing, which means requiring a depth attachment in the render pass and framebuffers.
+
+Let's implement a few things: First, I’ll add depth image format selection, preferring `D32_SFLOAT` and considering a fallback to `D24S8`. I have to check for MoltenVK support on macOS, but I think `D32_SFLOAT` will work. I'll create a single depth image for all framebuffers; keeping it simple is key!
+[2025-09-15T16:36:46] codex
+**Adding Depth Support**
+
+I noted that we recorded multiple command buffers, all referencing the same depth image. While some tutorials suggest this is okay, we’ll move forward with it. Previously, our render pass had just one color attachment; now, we're adding a depth attachment too. I’ll modify `record_clear_cmds` to clear the depth and add the pipeline depth stencil state. After implementing these changes, I want to consider adding ImGui controls for subdivisions, and I'll remember to track everything in commit messages and update the .agent/TODO file!
+[2025-09-15T16:36:46] exec bash -lc 'git add -A && git commit -m "chore(todo): snapshot before depth support" && git rev-parse --abbrev-ref HEAD' in /Users/bruno/Documents/Development/bruno/vulkano_codex
