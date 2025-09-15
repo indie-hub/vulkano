@@ -17,7 +17,9 @@ public:
     [[nodiscard]] glm::vec3 position() const noexcept { return position_; }
 
     void set_position(const glm::vec3 &p) noexcept { position_ = p; }
+    /** Set yaw and pitch in radians. */
     void set_yaw_pitch(float yaw, float pitch) noexcept { yaw_ = yaw; pitch_ = pitch; }
+    /** Set vertical field of view in radians. */
     void set_fov(float fov_radians) noexcept { fov_ = fov_radians; }
     void set_near_far(float n, float f) noexcept { near_ = n; far_ = f; }
 
