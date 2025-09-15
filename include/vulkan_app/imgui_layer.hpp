@@ -19,6 +19,16 @@ struct SsaoParams;
  */
 class ImGuiLayer final {
 public:
+    /**
+     * Construct an ImGui layer bound to the given window and Vulkan objects.
+     * @param window GLFW window handle.
+     * @param instance Vulkan instance used by the application.
+     * @param device Logical device for resource creation.
+     * @param gpu Physical device (for feature queries).
+     * @param graphicsQueue Graphics queue used for ImGui submission within the main frame.
+     * @param graphicsQueueFamily Graphics queue family index.
+     * @param renderPass The render pass used for UI rendering (typically the swapchain pass).
+     */
     ImGuiLayer(GLFWwindow* window,
                VkInstance instance,
                VkDevice device,
