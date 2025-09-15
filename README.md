@@ -23,6 +23,10 @@ cmake --build build --config Release
 ./build/bin/vulkan_app_example
 ```
 
+Shader discovery is robust across common layouts: the app searches the build shader output
+directory and the source `shaders/` directory automatically. No need to `cd` into a specific
+folder on macOS.
+
 ## Test
 
 ```
@@ -43,3 +47,5 @@ ctest --test-dir build
   - The app enables `VK_KHR_portability_enumeration` and sets `VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR`, and
     enables `VK_KHR_portability_subset` on the device when available.
 - Shaders are compiled to `${build}/shaders/*.spv` if `glslc` is found; otherwise copied as placeholders.
+  - For correctness and performance, prefer installing Vulkan SDK to provide `glslc` so real SPIR-V
+    binaries are generated. If `glslc` is missing, the placeholders will not be valid SPIR-V.
