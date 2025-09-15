@@ -37,7 +37,7 @@ Update: SSAO controls added and AO hook in forward shader. G-buffer prepass (nor
 - [x] ImGui controls: light/material (normal strength, color, intensity, shininess)
 - [x] Prepass: view-space normal + depth offscreen (sampleable)
 - [x] SSAO: kernel + 4x4 noise texture, write AO (R8)
-- [ ] Blur: separable pass into AO_blur
+- [x] Blur: single-pass isotropic blur into AO_blur (reduces noise)
 - [x] Integrate: forward shading samples AO_blur (already wired)
 - [ ] Resize-safe swapchain recreation for multi-pass images
 
@@ -48,7 +48,7 @@ Update: SSAO controls added and AO hook in forward shader. G-buffer prepass (nor
 
 ## Immediate TODOs
 - Add CI workflow to configure, build, run unit tests, and attempt headless app run on Linux and macOS (MoltenVK notes).
-- Add SSAO blur pass (separable Gaussian) and wire UI strength parameter in composition.
+- Optionally change blur to separable Gaussian (2 passes) for performance.
 - Harden swapchain/image recreation paths (destroy/recreate offscreen images, pipelines, and descriptor sets on resize).
 
 ## Session Plan (short)

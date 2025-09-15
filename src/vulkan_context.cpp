@@ -61,6 +61,7 @@ struct VulkanContext::Impl final {
     VkDescriptorSetLayout desc_layout {VK_NULL_HANDLE};
     VkDescriptorPool desc_pool {VK_NULL_HANDLE};
     VkDescriptorSet desc_set {VK_NULL_HANDLE};
+    VkDescriptorSet desc_set_blur {VK_NULL_HANDLE};
     VkSampler sampler {VK_NULL_HANDLE};
     VkImage albedo_image {VK_NULL_HANDLE};
     VkDeviceMemory albedo_memory {VK_NULL_HANDLE};
@@ -92,6 +93,16 @@ struct VulkanContext::Impl final {
     VkPipelineLayout ssao_pipeline_layout {VK_NULL_HANDLE};
     VkPipeline ssao_pipeline {VK_NULL_HANDLE};
     VkDescriptorSet ssao_desc_set {VK_NULL_HANDLE};
+
+    // AO blur (single-pass isotropic blur) resources
+    VkRenderPass blur_render_pass {VK_NULL_HANDLE};
+    VkFramebuffer blur_framebuffer {VK_NULL_HANDLE};
+    VkPipelineLayout blur_pipeline_layout {VK_NULL_HANDLE};
+    VkPipeline blur_pipeline {VK_NULL_HANDLE};
+    VkDescriptorSet blur_desc_set {VK_NULL_HANDLE};
+    VkImage ao_blur_image {VK_NULL_HANDLE};
+    VkDeviceMemory ao_blur_memory {VK_NULL_HANDLE};
+    VkImageView ao_blur_view {VK_NULL_HANDLE};
 
     Impl() = default;
     ~Impl() = default;
@@ -772,6 +783,40 @@ static void destroy_ssao_resources(VulkanContext& ctx) noexcept {
     if (impl.ssao_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.ssao_pipeline_layout, nullptr); impl.ssao_pipeline_layout = VK_NULL_HANDLE; }
 }
 
+static void create_blur_resources(VulkanContext& ctx) {
+    auto& impl = VulkanContextInternalsHelper::get(ctx);
+    const uint32_t w = impl.swapchain_extent.width;
+    const uint32_t h = impl.swapchain_extent.height;
+    // Create AO blur image (R8) color attachment + sampled
+    create_color_image(ctx, w, h, VK_FORMAT_R8_UNORM,
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        &impl.ao_blur_image, &impl.ao_blur_memory, &impl.ao_blur_view);
+
+    // Blur render pass
+    VkAttachmentDescription color { };
+    color.format = VK_FORMAT_R8_UNORM; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref;
+    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 1; rpci.pAttachments = &color; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
+    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.blur_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create blur render pass"}; }
+
+    VkImageView views[1] = {impl.ao_blur_view};
+    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.blur_render_pass; fbci.attachmentCount = 1; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
+    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.blur_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create blur framebuffer"}; }
+}
+
+static void destroy_blur_resources(VulkanContext& ctx) noexcept {
+    auto& impl = VulkanContextInternalsHelper::get(ctx);
+    if (impl.blur_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.blur_framebuffer, nullptr); impl.blur_framebuffer = VK_NULL_HANDLE; }
+    if (impl.blur_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.blur_render_pass, nullptr); impl.blur_render_pass = VK_NULL_HANDLE; }
+    if (impl.blur_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.blur_pipeline, nullptr); impl.blur_pipeline = VK_NULL_HANDLE; }
+    if (impl.blur_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.blur_pipeline_layout, nullptr); impl.blur_pipeline_layout = VK_NULL_HANDLE; }
+    if (impl.blur_desc_set != VK_NULL_HANDLE) { impl.blur_desc_set = VK_NULL_HANDLE; }
+    if (impl.ao_blur_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.ao_blur_view, nullptr); impl.ao_blur_view = VK_NULL_HANDLE; }
+    if (impl.ao_blur_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.ao_blur_image, nullptr); impl.ao_blur_image = VK_NULL_HANDLE; }
+    if (impl.ao_blur_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ao_blur_memory, nullptr); impl.ao_blur_memory = VK_NULL_HANDLE; }
+}
+
 static void upload_mesh_to_gpu(VulkanContext& ctx, const vulkano::Mesh& mesh) {
     auto& impl = VulkanContextInternalsHelper::get(ctx);
     destroy_mesh_buffers(ctx);
@@ -990,8 +1035,10 @@ static void create_pipeline(VulkanContext& ctx) {
         // Create G-buffer and SSAO render targets sized to swapchain
         destroy_gbuffer_resources(ctx);
         destroy_ssao_resources(ctx);
+        destroy_blur_resources(ctx);
         create_gbuffer_resources(ctx);
         create_ssao_resources(ctx);
+        create_blur_resources(ctx);
 
         // Create UBO (256 bytes)
         if (impl.ubo_buffer == VK_NULL_HANDLE) {
@@ -1003,12 +1050,14 @@ static void create_pipeline(VulkanContext& ctx) {
         poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 2; // forward + ssao
         poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 6; // 3 forward + 1 ssao (+spare)
         VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
-        dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 2;
+        dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 4;
         vkCreateDescriptorPool(impl.device, &dpci, nullptr, &impl.desc_pool);
         VkDescriptorSetAllocateInfo dsai {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
         dsai.descriptorPool = impl.desc_pool; dsai.descriptorSetCount = 1; dsai.pSetLayouts = &impl.desc_layout;
         vkAllocateDescriptorSets(impl.device, &dsai, &impl.desc_set);
+        vkAllocateDescriptorSets(impl.device, &dsai, &impl.desc_set_blur);
         vkAllocateDescriptorSets(impl.device, &dsai, &impl.ssao_desc_set);
+        vkAllocateDescriptorSets(impl.device, &dsai, &impl.blur_desc_set);
         VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
         VkDescriptorImageInfo dai1 {}; dai1.sampler = impl.sampler; dai1.imageView = impl.albedo_view; dai1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         VkDescriptorImageInfo dai2 {}; dai2.sampler = impl.sampler; dai2.imageView = impl.normal_view; dai2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -1020,12 +1069,28 @@ static void create_pipeline(VulkanContext& ctx) {
         writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[3].dstSet = impl.desc_set; writes[3].dstBinding = 3; writes[3].descriptorCount = 1; writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[3].pImageInfo = &dai3;
         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 
+        // Duplicate forward set but AO bound to blur view (filled after blur resources exist)
+        VkDescriptorImageInfo dai3b {}; dai3b.sampler = impl.sampler; dai3b.imageView = impl.ao_blur_view; dai3b.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        std::array<VkWriteDescriptorSet,4> writes_blur = writes;
+        writes_blur[0].dstSet = impl.desc_set_blur;
+        writes_blur[1].dstSet = impl.desc_set_blur;
+        writes_blur[2].dstSet = impl.desc_set_blur;
+        writes_blur[3].dstSet = impl.desc_set_blur; writes_blur[3].pImageInfo = &dai3b;
+        vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes_blur.size()), writes_blur.data(), 0, nullptr);
+
         // SSAO descriptor set: UBO + ND texture at binding 1
         VkDescriptorImageInfo dai_nd {}; dai_nd.sampler = impl.sampler; dai_nd.imageView = impl.gbuffer_view; dai_nd.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         std::array<VkWriteDescriptorSet,2> writes_ssao {};
         writes_ssao[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes_ssao[0].dstSet = impl.ssao_desc_set; writes_ssao[0].dstBinding = 0; writes_ssao[0].descriptorCount = 1; writes_ssao[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes_ssao[0].pBufferInfo = &dbi;
         writes_ssao[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes_ssao[1].dstSet = impl.ssao_desc_set; writes_ssao[1].dstBinding = 1; writes_ssao[1].descriptorCount = 1; writes_ssao[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes_ssao[1].pImageInfo = &dai_nd;
         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes_ssao.size()), writes_ssao.data(), 0, nullptr);
+
+        // Blur descriptor set: UBO + AO texture as input
+        VkDescriptorImageInfo dai_ao_in {}; dai_ao_in.sampler = impl.sampler; dai_ao_in.imageView = impl.ao_view; dai_ao_in.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        std::array<VkWriteDescriptorSet,2> writes_blur_in {};
+        writes_blur_in[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes_blur_in[0].dstSet = impl.blur_desc_set; writes_blur_in[0].dstBinding = 0; writes_blur_in[0].descriptorCount = 1; writes_blur_in[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes_blur_in[0].pBufferInfo = &dbi;
+        writes_blur_in[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes_blur_in[1].dstSet = impl.blur_desc_set; writes_blur_in[1].dstBinding = 1; writes_blur_in[1].descriptorCount = 1; writes_blur_in[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes_blur_in[1].pImageInfo = &dai_ao_in;
+        vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes_blur_in.size()), writes_blur_in.data(), 0, nullptr);
 
         // Create G-buffer pipeline
         {
@@ -1087,6 +1152,34 @@ static void create_pipeline(VulkanContext& ctx) {
                 vkCreatePipelineLayout(impl.device, &plci3, nullptr, &impl.ssao_pipeline_layout);
                 VkGraphicsPipelineCreateInfo gpci3 {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO}; gpci3.stageCount=2; gpci3.pStages=stages; gpci3.pVertexInputState=&vi; gpci3.pInputAssemblyState=&ia; gpci3.pViewportState=&vp; gpci3.pRasterizationState=&rs; gpci3.pMultisampleState=&ms; gpci3.pColorBlendState=&cb; gpci3.layout=impl.ssao_pipeline_layout; gpci3.renderPass=impl.ssao_render_pass; gpci3.subpass=0;
                 vkCreateGraphicsPipelines(impl.device, VK_NULL_HANDLE, 1, &gpci3, nullptr, &impl.ssao_pipeline);
+                vkDestroyShaderModule(impl.device, v, nullptr);
+                vkDestroyShaderModule(impl.device, f, nullptr);
+            }
+        }
+
+        // Create Blur pipeline (fullscreen, isotropic)
+        {
+            auto sv = load_binary_file("shaders/fullscreen.vert.spv");
+            auto sf = load_binary_file("shaders/blur.frag.spv");
+            if (!sv.empty() && !sf.empty()) {
+                VkShaderModule v = create_shader_module(impl.device, sv);
+                VkShaderModule f = create_shader_module(impl.device, sf);
+                VkPipelineShaderStageCreateInfo stages[2] = {};
+                stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT; stages[0].module = v; stages[0].pName = "main";
+                stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT; stages[1].module = f; stages[1].pName = "main";
+                VkPipelineVertexInputStateCreateInfo vi {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
+                VkPipelineInputAssemblyStateCreateInfo ia {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO}; ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+                VkViewport viewport {}; viewport.x=0; viewport.y=0; viewport.width=static_cast<float>(impl.swapchain_extent.width); viewport.height=static_cast<float>(impl.swapchain_extent.height); viewport.minDepth=0.0F; viewport.maxDepth=1.0F;
+                VkRect2D scissor {{0,0}, impl.swapchain_extent};
+                VkPipelineViewportStateCreateInfo vp {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO}; vp.viewportCount=1; vp.pViewports=&viewport; vp.scissorCount=1; vp.pScissors=&scissor;
+                VkPipelineRasterizationStateCreateInfo rs {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO}; rs.polygonMode=VK_POLYGON_MODE_FILL; rs.cullMode=VK_CULL_MODE_NONE; rs.frontFace=VK_FRONT_FACE_COUNTER_CLOCKWISE; rs.lineWidth=1.0F;
+                VkPipelineMultisampleStateCreateInfo ms {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO}; ms.rasterizationSamples=VK_SAMPLE_COUNT_1_BIT;
+                VkPipelineColorBlendAttachmentState cba {}; cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT;
+                VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO}; cb.attachmentCount=1; cb.pAttachments=&cba;
+                VkPipelineLayoutCreateInfo plci4 {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO}; plci4.setLayoutCount=1; plci4.pSetLayouts=&impl.desc_layout;
+                vkCreatePipelineLayout(impl.device, &plci4, nullptr, &impl.blur_pipeline_layout);
+                VkGraphicsPipelineCreateInfo gpci4 {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO}; gpci4.stageCount=2; gpci4.pStages=stages; gpci4.pVertexInputState=&vi; gpci4.pInputAssemblyState=&ia; gpci4.pViewportState=&vp; gpci4.pRasterizationState=&rs; gpci4.pMultisampleState=&ms; gpci4.pColorBlendState=&cb; gpci4.layout=impl.blur_pipeline_layout; gpci4.renderPass=impl.blur_render_pass; gpci4.subpass=0;
+                vkCreateGraphicsPipelines(impl.device, VK_NULL_HANDLE, 1, &gpci4, nullptr, &impl.blur_pipeline);
                 vkDestroyShaderModule(impl.device, v, nullptr);
                 vkDestroyShaderModule(impl.device, f, nullptr);
             }
@@ -1164,6 +1257,7 @@ VulkanContext::~VulkanContext() {
         }
         destroy_pipeline(*this);
         destroy_ssao_resources(*this);
+        destroy_blur_resources(*this);
         destroy_gbuffer_resources(*this);
         destroy_depth_resources(*this);
         destroy_mesh_buffers(*this);
@@ -1281,6 +1375,26 @@ void VulkanContext::draw_frame() {
                 vkCmdDraw(cmd, 3, 1, 0, 0);
                 vkCmdEndRenderPass(cmd);
             }
+
+            // Optional blur pass (single-pass isotropic) if enabled
+            if (impl->settings.ssao_blur && impl->blur_render_pass != VK_NULL_HANDLE && impl->blur_pipeline != VK_NULL_HANDLE) {
+                // Update UBO to carry blur radius in screen.w
+                if (impl->ubo_buffer != VK_NULL_HANDLE) {
+                    struct Align16UBO { float view[16]; float proj[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; float screen[4]; } u {};
+                    // Reuse previously computed view/proj; here we only need screen
+                    const float invW = impl->swapchain_extent.width>0 ? 1.0F/static_cast<float>(impl->swapchain_extent.width) : 0.0F;
+                    const float invH = impl->swapchain_extent.height>0 ? 1.0F/static_cast<float>(impl->swapchain_extent.height) : 0.0F;
+                    u.screen[0]=invW; u.screen[1]=invH; u.screen[2]=0.0F; u.screen[3]=static_cast<float>(impl->settings.ssao_blur_radius);
+                    void* ubodata=nullptr; vkMapMemory(impl->device, impl->ubo_memory, 0, sizeof(u), 0, &ubodata); std::memcpy(ubodata, &u, sizeof(u)); vkUnmapMemory(impl->device, impl->ubo_memory);
+                }
+                VkClearValue bclear; bclear.color={{1.0F,0,0,0}};
+                VkRenderPassBeginInfo brp {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO}; brp.renderPass=impl->blur_render_pass; brp.framebuffer=impl->blur_framebuffer; brp.renderArea.offset={0,0}; brp.renderArea.extent=impl->swapchain_extent; brp.clearValueCount=1; brp.pClearValues=&bclear;
+                vkCmdBeginRenderPass(cmd, &brp, VK_SUBPASS_CONTENTS_INLINE);
+                vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->blur_pipeline);
+                if (impl->blur_desc_set != VK_NULL_HANDLE) { vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->blur_pipeline_layout, 0, 1, &impl->blur_desc_set, 0, nullptr); }
+                vkCmdDraw(cmd, 3, 1, 0, 0);
+                vkCmdEndRenderPass(cmd);
+            }
         }
         VkClearValue clear_color {};
         clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
@@ -1369,8 +1483,12 @@ void VulkanContext::draw_frame() {
             VkBuffer vbs[] = {impl->vertex_buffer};
             vkCmdBindVertexBuffers(cmd, 0, 1, vbs, offs);
             vkCmdBindIndexBuffer(cmd, impl->index_buffer, 0, VK_INDEX_TYPE_UINT32);
-            if (impl->desc_set != VK_NULL_HANDLE) {
-                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->pipeline_layout, 0, 1, &impl->desc_set, 0, nullptr);
+            VkDescriptorSet active_set = impl->desc_set;
+            if (impl->settings.ssao_blur && impl->desc_set_blur != VK_NULL_HANDLE) {
+                active_set = impl->desc_set_blur;
+            }
+            if (active_set != VK_NULL_HANDLE) {
+                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->pipeline_layout, 0, 1, &active_set, 0, nullptr);
             }
             vkCmdDrawIndexed(cmd, impl->index_count, 1, 0, 0, 0);
         }
