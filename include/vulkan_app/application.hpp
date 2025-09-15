@@ -28,7 +28,7 @@ public:
     Application(const Application &) = delete;
     Application &operator=(const Application &) = delete;
 
-    /** Run the main event/render loop. */
+    /** Run the main event/render loop; blocks until the window is closed. */
     void run();
 
 private:
