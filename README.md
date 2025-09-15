@@ -37,5 +37,9 @@ ctest --test-dir build
 - Stats: FPS, frame time, device name, swapchain extent.
 
 ## Notes
-- On macOS, install MoltenVK and ensure Vulkan loader finds the ICD (e.g., set `VK_ICD_FILENAMES`).
+- macOS (MoltenVK):
+  - Install MoltenVK (via Vulkan SDK or Homebrew) and ensure the Vulkan loader can find the MoltenVK ICD JSON.
+    Example: `export VK_ICD_FILENAMES=/usr/local/share/vulkan/icd.d/MoltenVK_icd.json` (path varies by install).
+  - The app enables `VK_KHR_portability_enumeration` and sets `VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR`, and
+    enables `VK_KHR_portability_subset` on the device when available.
 - Shaders are compiled to `${build}/shaders/*.spv` if `glslc` is found; otherwise copied as placeholders.

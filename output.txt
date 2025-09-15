@@ -2284,3 +2284,925 @@ index aecf0b6c2661c56daeaf15edd3b4164f228d7622..baaea437cf50cd106ee6acba5e789c9a
      sci.presentMode = chosen_present;
 
 [2025-09-15T11:08:02] exec bash -lc 'git add -A && git commit -m "chore(agent): add .agent/TODO.md with macOS portability fix and next steps" && git push' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T11:08:02] bash -lc 'git add -A && git commit -m "chore(agent): add .agent/TODO.md with macOS portability fix and next steps" && git push' exited 128 in 168ms:
+[feat/imgui-integration 419a654] chore(agent): add .agent/TODO.md with macOS portability fix and next steps
+ 106 files changed, 10851 insertions(+), 119 deletions(-)
+ delete mode 100644 build/CMakeFiles/Progress/1
+ delete mode 100644 build/CMakeFiles/Progress/10
+ delete mode 100644 build/CMakeFiles/Progress/100
+ delete mode 100644 build/CMakeFiles/Progress/11
+ delete mode 100644 build/CMakeFiles/Progress/12
+ delete mode 100644 build/CMakeFiles/Progress/13
+ delete mode 100644 build/CMakeFiles/Progress/14
+ delete mode 100644 build/CMakeFiles/Progress/15
+ delete mode 100644 build/CMakeFiles/Progress/16
+ delete mode 100644 build/CMakeFiles/Progress/17
+ delete mode 100644 build/CMakeFiles/Progress/18
+ delete mode 100644 build/CMakeFiles/Progress/19
+ delete mode 100644 build/CMakeFiles/Progress/2
+ delete mode 100644 build/CMakeFiles/Progress/20
+ delete mode 100644 build/CMakeFiles/Progress/21
+ delete mode 100644 build/CMakeFiles/Progress/22
+ delete mode 100644 build/CMakeFiles/Progress/23
+ delete mode 100644 build/CMakeFiles/Progress/24
+[2025-09-15T11:08:02] tokens used: 61,897
+[2025-09-15T11:08:02] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index e698aa3ace6e84dacfc408675d317a7f502a3780..889973486c6006e39bf5ee5f152e92732e386270
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,19 +1,21 @@
+-# TODO / Plan
+-Phases:
+-1) Swapchain + forward pipeline + draw icosphere. [done]
+-2) Mesh buffers upload + resize handling. [done]
+-3) ImGui integration with subdivision control. [done]
+-4) G-buffer, SSAO, blur, composite passes. [in-progress]
+-5) Validation, cleanup, docs/tests updates. [todo]
++# TODO — Vulkano Codex
++
++Short-term fixes and next steps. Keep updated as work progresses.
++
++## Done
++- Enable Vulkan portability on macOS (MoltenVK):
++  - Add VK_KHR_portability_enumeration + instance flag.
++  - Add VK_KHR_portability_subset device extension when available.
++  - Use concurrent image sharing when graphics/present queues differ.
++
++## Next
++- SSAO pipeline: G-buffer, SSAO, blur, and compose passes.
++- ImGui controls wiring for SSAO params and mesh subdivisions.
++- Swapchain resize path validation and cleanup ordering.
++- Add end-to-end test harness (headless where possible) and unit tests for math/icosphere.
++- macOS README notes: MoltenVK install, VK_ICD_FILENAMES hints.
++- CI: format (clang-format) and clang-tidy jobs.
++
++## Notes
++- Pushing to origin failed (no permission). Either set upstream to a fork with GITHUB_TOKEN or grant access.
+ 
+-Notes:
+-- Follow AGENTS.md: angle-bracket includes, braces, RAII, const.
+-- Commit and push after each file edit.
+-Next:
+-- Add offscreen G-buffer images + render pass, wire geometry pass to write albedo/normal/depth.
+-- Add fullscreen pipelines for SSAO, blur (separable), and compose.
+-- Generate SSAO kernel + noise textures on CPU and upload to GPU.
+-- Hook ImGui toggles to descriptor updates and constants.
+-Done in this iteration:
+-- Forward shading updated to sample albedo + normal maps with TBN.
+-- Procedural albedo + normal textures generated and uploaded; descriptors wired.
+diff --git a/src/renderer.cpp b/src/renderer.cpp
+index aecf0b6c2661c56daeaf15edd3b4164f228d7622..baaea437cf50cd106ee6acba5e789c9a93793170
+--- a/src/renderer.cpp
++++ b/src/renderer.cpp
+@@ -1,12 +1,21 @@
+ #include <cstring>
+ #include <stdexcept>
+ #include <vector>
++#include <string>
+ 
+ #define GLFW_INCLUDE_VULKAN
+ #include <GLFW/glfw3.h>
+ 
+ #include <vulkan/vulkan.h>
+ 
++// Fallback defines for portability extension names if headers are older
++#ifndef VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
++#define VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME "VK_KHR_portability_enumeration"
++#endif
++#ifndef VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME
++#define VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME "VK_KHR_portability_subset"
++#endif
++
+ #include <vulkan_app/renderer.hpp>
+ #include <vulkan_app/imgui_layer.hpp>
+ #include <vulkan_app/icosphere.hpp>
+@@ -222,9 +231,28 @@
+     std::uint32_t glfw_count{0U};
+     const char** glfw_ext = glfwGetRequiredInstanceExtensions(&glfw_count);
+     std::vector<const char*> extensions(glfw_ext, glfw_ext + glfw_count);
+-    if (kEnableValidation) {
++    // Enumerate supported instance extensions so we can conditionally enable portability + debug utils
++    std::uint32_t ext_count{0U};
++    vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
++    std::vector<VkExtensionProperties> avail_exts(static_cast<std::size_t>(ext_count));
++    if (ext_count > 0U) {
++        vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, avail_exts.data());
++    }
++    auto has_ext = [&](const char* name) noexcept -> bool {
++        for (const auto &e : avail_exts) {
++            if (std::strcmp(e.extensionName, name) == 0) {
++                return true;
++            }
++        }
++        return false;
++    };
++    if (kEnableValidation && has_ext(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
+         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+     }
++    const bool portability_supported = has_ext(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
++    if (portability_supported) {
++        extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
++    }
+ 
+     const std::vector<const char*> layers{
+         "VK_LAYER_KHRONOS_validation"
+@@ -235,6 +263,9 @@
+     ci.pApplicationInfo = &app_info;
+     ci.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
+     ci.ppEnabledExtensionNames = extensions.data();
++    if (portability_supported) {
++        ci.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
++    }
+     if (kEnableValidation) {
+         ci.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
+         ci.ppEnabledLayerNames = layers.data();
+@@ -321,15 +352,34 @@
+ 
+     VkPhysicalDeviceFeatures features{};
+ 
+-    const char* device_exts[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
++    // Query device extensions to enable portability subset on platforms like macOS (MoltenVK)
++    std::uint32_t dev_ext_count{0U};
++    vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, nullptr);
++    std::vector<VkExtensionProperties> dev_exts(static_cast<std::size_t>(dev_ext_count));
++    if (dev_ext_count > 0U) {
++        vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, dev_exts.data());
++    }
++    auto has_dev_ext = [&](const char* name) noexcept -> bool {
++        for (const auto &e : dev_exts) {
++            if (std::strcmp(e.extensionName, name) == 0) {
++                return true;
++            }
++        }
++        return false;
++    };
++    std::vector<const char*> device_exts;
++    device_exts.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
++    if (has_dev_ext(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
++        device_exts.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
++    }
+ 
+     VkDeviceCreateInfo dci{};
+     dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+     dci.pQueueCreateInfos = queues.data();
+     dci.queueCreateInfoCount = static_cast<std::uint32_t>(queues.size());
+     dci.pEnabledFeatures = &features;
+-    dci.enabledExtensionCount = 1;
+-    dci.ppEnabledExtensionNames = device_exts;
++    dci.enabledExtensionCount = static_cast<std::uint32_t>(device_exts.size());
++    dci.ppEnabledExtensionNames = device_exts.data();
+     if (vkCreateDevice(physical_device_, &dci, nullptr, &device_) != VK_SUCCESS) {
+         throw std::runtime_error{"Failed to create logical device"};
+     }
+@@ -382,7 +432,14 @@
+     sci.imageExtent = extent;
+     sci.imageArrayLayers = 1;
+     sci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+-    sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (present_family_ != graphics_family_) {
++        const std::uint32_t indices[2] = { graphics_family_, present_family_ };
++        sci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
++        sci.queueFamilyIndexCount = 2;
++        sci.pQueueFamilyIndices = indices;
++    } else {
++        sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    }
+     sci.preTransform = caps.currentTransform;
+     sci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+     sci.presentMode = chosen_present;
+
+[2025-09-15T11:08:10] tokens used: 63,832
+[2025-09-15T11:08:10] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index e698aa3ace6e84dacfc408675d317a7f502a3780..889973486c6006e39bf5ee5f152e92732e386270
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,19 +1,21 @@
+-# TODO / Plan
+-Phases:
+-1) Swapchain + forward pipeline + draw icosphere. [done]
+-2) Mesh buffers upload + resize handling. [done]
+-3) ImGui integration with subdivision control. [done]
+-4) G-buffer, SSAO, blur, composite passes. [in-progress]
+-5) Validation, cleanup, docs/tests updates. [todo]
++# TODO — Vulkano Codex
++
++Short-term fixes and next steps. Keep updated as work progresses.
++
++## Done
++- Enable Vulkan portability on macOS (MoltenVK):
++  - Add VK_KHR_portability_enumeration + instance flag.
++  - Add VK_KHR_portability_subset device extension when available.
++  - Use concurrent image sharing when graphics/present queues differ.
++
++## Next
++- SSAO pipeline: G-buffer, SSAO, blur, and compose passes.
++- ImGui controls wiring for SSAO params and mesh subdivisions.
++- Swapchain resize path validation and cleanup ordering.
++- Add end-to-end test harness (headless where possible) and unit tests for math/icosphere.
++- macOS README notes: MoltenVK install, VK_ICD_FILENAMES hints.
++- CI: format (clang-format) and clang-tidy jobs.
++
++## Notes
++- Pushing to origin failed (no permission). Either set upstream to a fork with GITHUB_TOKEN or grant access.
+ 
+-Notes:
+-- Follow AGENTS.md: angle-bracket includes, braces, RAII, const.
+-- Commit and push after each file edit.
+-Next:
+-- Add offscreen G-buffer images + render pass, wire geometry pass to write albedo/normal/depth.
+-- Add fullscreen pipelines for SSAO, blur (separable), and compose.
+-- Generate SSAO kernel + noise textures on CPU and upload to GPU.
+-- Hook ImGui toggles to descriptor updates and constants.
+-Done in this iteration:
+-- Forward shading updated to sample albedo + normal maps with TBN.
+-- Procedural albedo + normal textures generated and uploaded; descriptors wired.
+diff --git a/src/renderer.cpp b/src/renderer.cpp
+index aecf0b6c2661c56daeaf15edd3b4164f228d7622..baaea437cf50cd106ee6acba5e789c9a93793170
+--- a/src/renderer.cpp
++++ b/src/renderer.cpp
+@@ -1,12 +1,21 @@
+ #include <cstring>
+ #include <stdexcept>
+ #include <vector>
++#include <string>
+ 
+ #define GLFW_INCLUDE_VULKAN
+ #include <GLFW/glfw3.h>
+ 
+ #include <vulkan/vulkan.h>
+ 
++// Fallback defines for portability extension names if headers are older
++#ifndef VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
++#define VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME "VK_KHR_portability_enumeration"
++#endif
++#ifndef VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME
++#define VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME "VK_KHR_portability_subset"
++#endif
++
+ #include <vulkan_app/renderer.hpp>
+ #include <vulkan_app/imgui_layer.hpp>
+ #include <vulkan_app/icosphere.hpp>
+@@ -222,9 +231,28 @@
+     std::uint32_t glfw_count{0U};
+     const char** glfw_ext = glfwGetRequiredInstanceExtensions(&glfw_count);
+     std::vector<const char*> extensions(glfw_ext, glfw_ext + glfw_count);
+-    if (kEnableValidation) {
++    // Enumerate supported instance extensions so we can conditionally enable portability + debug utils
++    std::uint32_t ext_count{0U};
++    vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
++    std::vector<VkExtensionProperties> avail_exts(static_cast<std::size_t>(ext_count));
++    if (ext_count > 0U) {
++        vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, avail_exts.data());
++    }
++    auto has_ext = [&](const char* name) noexcept -> bool {
++        for (const auto &e : avail_exts) {
++            if (std::strcmp(e.extensionName, name) == 0) {
++                return true;
++            }
++        }
++        return false;
++    };
++    if (kEnableValidation && has_ext(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
+         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+     }
++    const bool portability_supported = has_ext(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
++    if (portability_supported) {
++        extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
++    }
+ 
+     const std::vector<const char*> layers{
+         "VK_LAYER_KHRONOS_validation"
+@@ -235,6 +263,9 @@
+     ci.pApplicationInfo = &app_info;
+     ci.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
+     ci.ppEnabledExtensionNames = extensions.data();
++    if (portability_supported) {
++        ci.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
++    }
+     if (kEnableValidation) {
+         ci.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
+         ci.ppEnabledLayerNames = layers.data();
+@@ -321,15 +352,34 @@
+ 
+     VkPhysicalDeviceFeatures features{};
+ 
+-    const char* device_exts[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
++    // Query device extensions to enable portability subset on platforms like macOS (MoltenVK)
++    std::uint32_t dev_ext_count{0U};
++    vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, nullptr);
++    std::vector<VkExtensionProperties> dev_exts(static_cast<std::size_t>(dev_ext_count));
++    if (dev_ext_count > 0U) {
++        vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, dev_exts.data());
++    }
++    auto has_dev_ext = [&](const char* name) noexcept -> bool {
++        for (const auto &e : dev_exts) {
++            if (std::strcmp(e.extensionName, name) == 0) {
++                return true;
++            }
++        }
++        return false;
++    };
++    std::vector<const char*> device_exts;
++    device_exts.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
++    if (has_dev_ext(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
++        device_exts.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
++    }
+ 
+     VkDeviceCreateInfo dci{};
+     dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+     dci.pQueueCreateInfos = queues.data();
+     dci.queueCreateInfoCount = static_cast<std::uint32_t>(queues.size());
+     dci.pEnabledFeatures = &features;
+-    dci.enabledExtensionCount = 1;
+-    dci.ppEnabledExtensionNames = device_exts;
++    dci.enabledExtensionCount = static_cast<std::uint32_t>(device_exts.size());
++    dci.ppEnabledExtensionNames = device_exts.data();
+     if (vkCreateDevice(physical_device_, &dci, nullptr, &device_) != VK_SUCCESS) {
+         throw std::runtime_error{"Failed to create logical device"};
+     }
+@@ -382,7 +432,14 @@
+     sci.imageExtent = extent;
+     sci.imageArrayLayers = 1;
+     sci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+-    sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (present_family_ != graphics_family_) {
++        const std::uint32_t indices[2] = { graphics_family_, present_family_ };
++        sci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
++        sci.queueFamilyIndexCount = 2;
++        sci.pQueueFamilyIndices = indices;
++    } else {
++        sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    }
+     sci.preTransform = caps.currentTransform;
+     sci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+     sci.presentMode = chosen_present;
+
+[2025-09-15T11:08:14] exec bash -lc "sed -n '1,220p' README.md | nl -ba | sed -n '1,220p'" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T11:08:14] bash -lc "sed -n '1,220p' README.md | nl -ba | sed -n '1,220p'" succeeded in 31ms:
+     1	# Vulkano Codex
+     2	
+     3	Modern C++20 Vulkan 1.2 application that opens a GLFW window and renders a dynamically-subdividable icosphere with per-pixel Phong shading, tangent-space normal mapping, and SSAO. Includes an ImGui UI for runtime controls.
+     4	
+     5	## Build
+     6	
+     7	Prerequisites: Vulkan SDK (for headers, loader, and `glslc`), a C++20 compiler, and CMake 3.25+.
+     8	
+     9	Options:
+    10	- `ENABLE_VALIDATION=ON` to enable Vulkan validation layers in Debug.
+    11	- `ENABLE_GLFW_WAYLAND=ON` on Wayland Linux if needed.
+    12	- `ENABLE_IMGUI_DOCKING=ON` to enable ImGui docking (build-time flag only).
+    13	
+    14	Build:
+    15	```
+    16	cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DENABLE_VALIDATION=ON
+    17	cmake --build build --config Release
+    18	```
+    19	
+    20	## Run
+[2025-09-15T11:08:14] tokens used: 64,259
+[2025-09-15T11:08:14] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index e698aa3ace6e84dacfc408675d317a7f502a3780..889973486c6006e39bf5ee5f152e92732e386270
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,19 +1,21 @@
+-# TODO / Plan
+-Phases:
+-1) Swapchain + forward pipeline + draw icosphere. [done]
+-2) Mesh buffers upload + resize handling. [done]
+-3) ImGui integration with subdivision control. [done]
+-4) G-buffer, SSAO, blur, composite passes. [in-progress]
+-5) Validation, cleanup, docs/tests updates. [todo]
++# TODO — Vulkano Codex
++
++Short-term fixes and next steps. Keep updated as work progresses.
++
++## Done
++- Enable Vulkan portability on macOS (MoltenVK):
++  - Add VK_KHR_portability_enumeration + instance flag.
++  - Add VK_KHR_portability_subset device extension when available.
++  - Use concurrent image sharing when graphics/present queues differ.
++
++## Next
++- SSAO pipeline: G-buffer, SSAO, blur, and compose passes.
++- ImGui controls wiring for SSAO params and mesh subdivisions.
++- Swapchain resize path validation and cleanup ordering.
++- Add end-to-end test harness (headless where possible) and unit tests for math/icosphere.
++- macOS README notes: MoltenVK install, VK_ICD_FILENAMES hints.
++- CI: format (clang-format) and clang-tidy jobs.
++
++## Notes
++- Pushing to origin failed (no permission). Either set upstream to a fork with GITHUB_TOKEN or grant access.
+ 
+-Notes:
+-- Follow AGENTS.md: angle-bracket includes, braces, RAII, const.
+-- Commit and push after each file edit.
+-Next:
+-- Add offscreen G-buffer images + render pass, wire geometry pass to write albedo/normal/depth.
+-- Add fullscreen pipelines for SSAO, blur (separable), and compose.
+-- Generate SSAO kernel + noise textures on CPU and upload to GPU.
+-- Hook ImGui toggles to descriptor updates and constants.
+-Done in this iteration:
+-- Forward shading updated to sample albedo + normal maps with TBN.
+-- Procedural albedo + normal textures generated and uploaded; descriptors wired.
+diff --git a/src/renderer.cpp b/src/renderer.cpp
+index aecf0b6c2661c56daeaf15edd3b4164f228d7622..baaea437cf50cd106ee6acba5e789c9a93793170
+--- a/src/renderer.cpp
++++ b/src/renderer.cpp
+@@ -1,12 +1,21 @@
+ #include <cstring>
+ #include <stdexcept>
+ #include <vector>
++#include <string>
+ 
+ #define GLFW_INCLUDE_VULKAN
+ #include <GLFW/glfw3.h>
+ 
+ #include <vulkan/vulkan.h>
+ 
++// Fallback defines for portability extension names if headers are older
++#ifndef VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
++#define VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME "VK_KHR_portability_enumeration"
++#endif
++#ifndef VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME
++#define VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME "VK_KHR_portability_subset"
++#endif
++
+ #include <vulkan_app/renderer.hpp>
+ #include <vulkan_app/imgui_layer.hpp>
+ #include <vulkan_app/icosphere.hpp>
+@@ -222,9 +231,28 @@
+     std::uint32_t glfw_count{0U};
+     const char** glfw_ext = glfwGetRequiredInstanceExtensions(&glfw_count);
+     std::vector<const char*> extensions(glfw_ext, glfw_ext + glfw_count);
+-    if (kEnableValidation) {
++    // Enumerate supported instance extensions so we can conditionally enable portability + debug utils
++    std::uint32_t ext_count{0U};
++    vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
++    std::vector<VkExtensionProperties> avail_exts(static_cast<std::size_t>(ext_count));
++    if (ext_count > 0U) {
++        vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, avail_exts.data());
++    }
++    auto has_ext = [&](const char* name) noexcept -> bool {
++        for (const auto &e : avail_exts) {
++            if (std::strcmp(e.extensionName, name) == 0) {
++                return true;
++            }
++        }
++        return false;
++    };
++    if (kEnableValidation && has_ext(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
+         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+     }
++    const bool portability_supported = has_ext(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
++    if (portability_supported) {
++        extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
++    }
+ 
+     const std::vector<const char*> layers{
+         "VK_LAYER_KHRONOS_validation"
+@@ -235,6 +263,9 @@
+     ci.pApplicationInfo = &app_info;
+     ci.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
+     ci.ppEnabledExtensionNames = extensions.data();
++    if (portability_supported) {
++        ci.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
++    }
+     if (kEnableValidation) {
+         ci.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
+         ci.ppEnabledLayerNames = layers.data();
+@@ -321,15 +352,34 @@
+ 
+     VkPhysicalDeviceFeatures features{};
+ 
+-    const char* device_exts[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
++    // Query device extensions to enable portability subset on platforms like macOS (MoltenVK)
++    std::uint32_t dev_ext_count{0U};
++    vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, nullptr);
++    std::vector<VkExtensionProperties> dev_exts(static_cast<std::size_t>(dev_ext_count));
++    if (dev_ext_count > 0U) {
++        vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, dev_exts.data());
++    }
++    auto has_dev_ext = [&](const char* name) noexcept -> bool {
++        for (const auto &e : dev_exts) {
++            if (std::strcmp(e.extensionName, name) == 0) {
++                return true;
++            }
++        }
++        return false;
++    };
++    std::vector<const char*> device_exts;
++    device_exts.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
++    if (has_dev_ext(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
++        device_exts.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
++    }
+ 
+     VkDeviceCreateInfo dci{};
+     dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+     dci.pQueueCreateInfos = queues.data();
+     dci.queueCreateInfoCount = static_cast<std::uint32_t>(queues.size());
+     dci.pEnabledFeatures = &features;
+-    dci.enabledExtensionCount = 1;
+-    dci.ppEnabledExtensionNames = device_exts;
++    dci.enabledExtensionCount = static_cast<std::uint32_t>(device_exts.size());
++    dci.ppEnabledExtensionNames = device_exts.data();
+     if (vkCreateDevice(physical_device_, &dci, nullptr, &device_) != VK_SUCCESS) {
+         throw std::runtime_error{"Failed to create logical device"};
+     }
+@@ -382,7 +432,14 @@
+     sci.imageExtent = extent;
+     sci.imageArrayLayers = 1;
+     sci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+-    sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (present_family_ != graphics_family_) {
++        const std::uint32_t indices[2] = { graphics_family_, present_family_ };
++        sci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
++        sci.queueFamilyIndexCount = 2;
++        sci.pQueueFamilyIndices = indices;
++    } else {
++        sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    }
+     sci.preTransform = caps.currentTransform;
+     sci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+     sci.presentMode = chosen_present;
+
+[2025-09-15T11:08:18] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/README.md
+@@ -39,3 +39,7 @@
+ ## Notes
+-- On macOS, install MoltenVK and ensure Vulkan loader finds the ICD (e.g., set `VK_ICD_FILENAMES`).
++- macOS (MoltenVK):
++  - Install MoltenVK (via Vulkan SDK or Homebrew) and ensure the Vulkan loader can find the MoltenVK ICD JSON.
++    Example: `export VK_ICD_FILENAMES=/usr/local/share/vulkan/icd.d/MoltenVK_icd.json` (path varies by install).
++  - The app enables `VK_KHR_portability_enumeration` and sets `VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR`, and
++    enables `VK_KHR_portability_subset` on the device when available.
+ - Shaders are compiled to `${build}/shaders/*.spv` if `glslc` is found; otherwise copied as placeholders.
+[2025-09-15T11:08:18] apply_patch(auto_approved=true) exited 0 in 46ms:
+Success. Updated the following files:
+M README.md
+[2025-09-15T11:08:18] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index e698aa3ace6e84dacfc408675d317a7f502a3780..889973486c6006e39bf5ee5f152e92732e386270
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,19 +1,21 @@
+-# TODO / Plan
+-Phases:
+-1) Swapchain + forward pipeline + draw icosphere. [done]
+-2) Mesh buffers upload + resize handling. [done]
+-3) ImGui integration with subdivision control. [done]
+-4) G-buffer, SSAO, blur, composite passes. [in-progress]
+-5) Validation, cleanup, docs/tests updates. [todo]
++# TODO — Vulkano Codex
++
++Short-term fixes and next steps. Keep updated as work progresses.
++
++## Done
++- Enable Vulkan portability on macOS (MoltenVK):
++  - Add VK_KHR_portability_enumeration + instance flag.
++  - Add VK_KHR_portability_subset device extension when available.
++  - Use concurrent image sharing when graphics/present queues differ.
++
++## Next
++- SSAO pipeline: G-buffer, SSAO, blur, and compose passes.
++- ImGui controls wiring for SSAO params and mesh subdivisions.
++- Swapchain resize path validation and cleanup ordering.
++- Add end-to-end test harness (headless where possible) and unit tests for math/icosphere.
++- macOS README notes: MoltenVK install, VK_ICD_FILENAMES hints.
++- CI: format (clang-format) and clang-tidy jobs.
++
++## Notes
++- Pushing to origin failed (no permission). Either set upstream to a fork with GITHUB_TOKEN or grant access.
+ 
+-Notes:
+-- Follow AGENTS.md: angle-bracket includes, braces, RAII, const.
+-- Commit and push after each file edit.
+-Next:
+-- Add offscreen G-buffer images + render pass, wire geometry pass to write albedo/normal/depth.
+-- Add fullscreen pipelines for SSAO, blur (separable), and compose.
+-- Generate SSAO kernel + noise textures on CPU and upload to GPU.
+-- Hook ImGui toggles to descriptor updates and constants.
+-Done in this iteration:
+-- Forward shading updated to sample albedo + normal maps with TBN.
+-- Procedural albedo + normal textures generated and uploaded; descriptors wired.
+diff --git a/README.md b/README.md
+index bc3a664c12939d834a81851f35939d9cc7f66e09..db6cb0bd39232b242dbcc5a301069f38b8f40ef5
+--- a/README.md
++++ b/README.md
+@@ -37,5 +37,9 @@
+ - Stats: FPS, frame time, device name, swapchain extent.
+ 
+ ## Notes
+-- On macOS, install MoltenVK and ensure Vulkan loader finds the ICD (e.g., set `VK_ICD_FILENAMES`).
++- macOS (MoltenVK):
++  - Install MoltenVK (via Vulkan SDK or Homebrew) and ensure the Vulkan loader can find the MoltenVK ICD JSON.
++    Example: `export VK_ICD_FILENAMES=/usr/local/share/vulkan/icd.d/MoltenVK_icd.json` (path varies by install).
++  - The app enables `VK_KHR_portability_enumeration` and sets `VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR`, and
++    enables `VK_KHR_portability_subset` on the device when available.
+ - Shaders are compiled to `${build}/shaders/*.spv` if `glslc` is found; otherwise copied as placeholders.
+diff --git a/src/renderer.cpp b/src/renderer.cpp
+index aecf0b6c2661c56daeaf15edd3b4164f228d7622..baaea437cf50cd106ee6acba5e789c9a93793170
+--- a/src/renderer.cpp
++++ b/src/renderer.cpp
+@@ -1,12 +1,21 @@
+ #include <cstring>
+ #include <stdexcept>
+ #include <vector>
++#include <string>
+ 
+ #define GLFW_INCLUDE_VULKAN
+ #include <GLFW/glfw3.h>
+ 
+ #include <vulkan/vulkan.h>
+ 
++// Fallback defines for portability extension names if headers are older
++#ifndef VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
++#define VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME "VK_KHR_portability_enumeration"
++#endif
++#ifndef VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME
++#define VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME "VK_KHR_portability_subset"
++#endif
++
+ #include <vulkan_app/renderer.hpp>
+ #include <vulkan_app/imgui_layer.hpp>
+ #include <vulkan_app/icosphere.hpp>
+@@ -222,9 +231,28 @@
+     std::uint32_t glfw_count{0U};
+     const char** glfw_ext = glfwGetRequiredInstanceExtensions(&glfw_count);
+     std::vector<const char*> extensions(glfw_ext, glfw_ext + glfw_count);
+-    if (kEnableValidation) {
++    // Enumerate supported instance extensions so we can conditionally enable portability + debug utils
++    std::uint32_t ext_count{0U};
++    vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
++    std::vector<VkExtensionProperties> avail_exts(static_cast<std::size_t>(ext_count));
++    if (ext_count > 0U) {
++        vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, avail_exts.data());
++    }
++    auto has_ext = [&](const char* name) noexcept -> bool {
++        for (const auto &e : avail_exts) {
++            if (std::strcmp(e.extensionName, name) == 0) {
++                return true;
++            }
++        }
++        return false;
++    };
++    if (kEnableValidation && has_ext(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
+         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+     }
++    const bool portability_supported = has_ext(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
++    if (portability_supported) {
++        extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
++    }
+ 
+     const std::vector<const char*> layers{
+         "VK_LAYER_KHRONOS_validation"
+@@ -235,6 +263,9 @@
+     ci.pApplicationInfo = &app_info;
+     ci.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
+     ci.ppEnabledExtensionNames = extensions.data();
++    if (portability_supported) {
++        ci.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
++    }
+     if (kEnableValidation) {
+         ci.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
+         ci.ppEnabledLayerNames = layers.data();
+@@ -321,15 +352,34 @@
+ 
+     VkPhysicalDeviceFeatures features{};
+ 
+-    const char* device_exts[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
++    // Query device extensions to enable portability subset on platforms like macOS (MoltenVK)
++    std::uint32_t dev_ext_count{0U};
++    vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, nullptr);
++    std::vector<VkExtensionProperties> dev_exts(static_cast<std::size_t>(dev_ext_count));
++    if (dev_ext_count > 0U) {
++        vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, dev_exts.data());
++    }
++    auto has_dev_ext = [&](const char* name) noexcept -> bool {
++        for (const auto &e : dev_exts) {
++            if (std::strcmp(e.extensionName, name) == 0) {
++                return true;
++            }
++        }
++        return false;
++    };
++    std::vector<const char*> device_exts;
++    device_exts.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
++    if (has_dev_ext(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
++        device_exts.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
++    }
+ 
+     VkDeviceCreateInfo dci{};
+     dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+     dci.pQueueCreateInfos = queues.data();
+     dci.queueCreateInfoCount = static_cast<std::uint32_t>(queues.size());
+     dci.pEnabledFeatures = &features;
+-    dci.enabledExtensionCount = 1;
+-    dci.ppEnabledExtensionNames = device_exts;
++    dci.enabledExtensionCount = static_cast<std::uint32_t>(device_exts.size());
++    dci.ppEnabledExtensionNames = device_exts.data();
+     if (vkCreateDevice(physical_device_, &dci, nullptr, &device_) != VK_SUCCESS) {
+         throw std::runtime_error{"Failed to create logical device"};
+     }
+@@ -382,7 +432,14 @@
+     sci.imageExtent = extent;
+     sci.imageArrayLayers = 1;
+     sci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+-    sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (present_family_ != graphics_family_) {
++        const std::uint32_t indices[2] = { graphics_family_, present_family_ };
++        sci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
++        sci.queueFamilyIndexCount = 2;
++        sci.pQueueFamilyIndices = indices;
++    } else {
++        sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    }
+     sci.preTransform = caps.currentTransform;
+     sci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+     sci.presentMode = chosen_present;
+
+[2025-09-15T11:08:18] tokens used: 65,171
+[2025-09-15T11:08:18] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index e698aa3ace6e84dacfc408675d317a7f502a3780..889973486c6006e39bf5ee5f152e92732e386270
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,19 +1,21 @@
+-# TODO / Plan
+-Phases:
+-1) Swapchain + forward pipeline + draw icosphere. [done]
+-2) Mesh buffers upload + resize handling. [done]
+-3) ImGui integration with subdivision control. [done]
+-4) G-buffer, SSAO, blur, composite passes. [in-progress]
+-5) Validation, cleanup, docs/tests updates. [todo]
++# TODO — Vulkano Codex
++
++Short-term fixes and next steps. Keep updated as work progresses.
++
++## Done
++- Enable Vulkan portability on macOS (MoltenVK):
++  - Add VK_KHR_portability_enumeration + instance flag.
++  - Add VK_KHR_portability_subset device extension when available.
++  - Use concurrent image sharing when graphics/present queues differ.
++
++## Next
++- SSAO pipeline: G-buffer, SSAO, blur, and compose passes.
++- ImGui controls wiring for SSAO params and mesh subdivisions.
++- Swapchain resize path validation and cleanup ordering.
++- Add end-to-end test harness (headless where possible) and unit tests for math/icosphere.
++- macOS README notes: MoltenVK install, VK_ICD_FILENAMES hints.
++- CI: format (clang-format) and clang-tidy jobs.
++
++## Notes
++- Pushing to origin failed (no permission). Either set upstream to a fork with GITHUB_TOKEN or grant access.
+ 
+-Notes:
+-- Follow AGENTS.md: angle-bracket includes, braces, RAII, const.
+-- Commit and push after each file edit.
+-Next:
+-- Add offscreen G-buffer images + render pass, wire geometry pass to write albedo/normal/depth.
+-- Add fullscreen pipelines for SSAO, blur (separable), and compose.
+-- Generate SSAO kernel + noise textures on CPU and upload to GPU.
+-- Hook ImGui toggles to descriptor updates and constants.
+-Done in this iteration:
+-- Forward shading updated to sample albedo + normal maps with TBN.
+-- Procedural albedo + normal textures generated and uploaded; descriptors wired.
+diff --git a/README.md b/README.md
+index bc3a664c12939d834a81851f35939d9cc7f66e09..db6cb0bd39232b242dbcc5a301069f38b8f40ef5
+--- a/README.md
++++ b/README.md
+@@ -37,5 +37,9 @@
+ - Stats: FPS, frame time, device name, swapchain extent.
+ 
+ ## Notes
+-- On macOS, install MoltenVK and ensure Vulkan loader finds the ICD (e.g., set `VK_ICD_FILENAMES`).
++- macOS (MoltenVK):
++  - Install MoltenVK (via Vulkan SDK or Homebrew) and ensure the Vulkan loader can find the MoltenVK ICD JSON.
++    Example: `export VK_ICD_FILENAMES=/usr/local/share/vulkan/icd.d/MoltenVK_icd.json` (path varies by install).
++  - The app enables `VK_KHR_portability_enumeration` and sets `VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR`, and
++    enables `VK_KHR_portability_subset` on the device when available.
+ - Shaders are compiled to `${build}/shaders/*.spv` if `glslc` is found; otherwise copied as placeholders.
+diff --git a/src/renderer.cpp b/src/renderer.cpp
+index aecf0b6c2661c56daeaf15edd3b4164f228d7622..baaea437cf50cd106ee6acba5e789c9a93793170
+--- a/src/renderer.cpp
++++ b/src/renderer.cpp
+@@ -1,12 +1,21 @@
+ #include <cstring>
+ #include <stdexcept>
+ #include <vector>
++#include <string>
+ 
+ #define GLFW_INCLUDE_VULKAN
+ #include <GLFW/glfw3.h>
+ 
+ #include <vulkan/vulkan.h>
+ 
++// Fallback defines for portability extension names if headers are older
++#ifndef VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
++#define VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME "VK_KHR_portability_enumeration"
++#endif
++#ifndef VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME
++#define VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME "VK_KHR_portability_subset"
++#endif
++
+ #include <vulkan_app/renderer.hpp>
+ #include <vulkan_app/imgui_layer.hpp>
+ #include <vulkan_app/icosphere.hpp>
+@@ -222,9 +231,28 @@
+     std::uint32_t glfw_count{0U};
+     const char** glfw_ext = glfwGetRequiredInstanceExtensions(&glfw_count);
+     std::vector<const char*> extensions(glfw_ext, glfw_ext + glfw_count);
+-    if (kEnableValidation) {
++    // Enumerate supported instance extensions so we can conditionally enable portability + debug utils
++    std::uint32_t ext_count{0U};
++    vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
++    std::vector<VkExtensionProperties> avail_exts(static_cast<std::size_t>(ext_count));
++    if (ext_count > 0U) {
++        vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, avail_exts.data());
++    }
++    auto has_ext = [&](const char* name) noexcept -> bool {
++        for (const auto &e : avail_exts) {
++            if (std::strcmp(e.extensionName, name) == 0) {
++                return true;
++            }
++        }
++        return false;
++    };
++    if (kEnableValidation && has_ext(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
+         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+     }
++    const bool portability_supported = has_ext(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
++    if (portability_supported) {
++        extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
++    }
+ 
+     const std::vector<const char*> layers{
+         "VK_LAYER_KHRONOS_validation"
+@@ -235,6 +263,9 @@
+     ci.pApplicationInfo = &app_info;
+     ci.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
+     ci.ppEnabledExtensionNames = extensions.data();
++    if (portability_supported) {
++        ci.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
++    }
+     if (kEnableValidation) {
+         ci.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
+         ci.ppEnabledLayerNames = layers.data();
+@@ -321,15 +352,34 @@
+ 
+     VkPhysicalDeviceFeatures features{};
+ 
+-    const char* device_exts[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
++    // Query device extensions to enable portability subset on platforms like macOS (MoltenVK)
++    std::uint32_t dev_ext_count{0U};
++    vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, nullptr);
++    std::vector<VkExtensionProperties> dev_exts(static_cast<std::size_t>(dev_ext_count));
++    if (dev_ext_count > 0U) {
++        vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, dev_exts.data());
++    }
++    auto has_dev_ext = [&](const char* name) noexcept -> bool {
++        for (const auto &e : dev_exts) {
++            if (std::strcmp(e.extensionName, name) == 0) {
++                return true;
++            }
++        }
++        return false;
++    };
++    std::vector<const char*> device_exts;
++    device_exts.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
++    if (has_dev_ext(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
++        device_exts.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
++    }
+ 
+     VkDeviceCreateInfo dci{};
+     dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+     dci.pQueueCreateInfos = queues.data();
+     dci.queueCreateInfoCount = static_cast<std::uint32_t>(queues.size());
+     dci.pEnabledFeatures = &features;
+-    dci.enabledExtensionCount = 1;
+-    dci.ppEnabledExtensionNames = device_exts;
++    dci.enabledExtensionCount = static_cast<std::uint32_t>(device_exts.size());
++    dci.ppEnabledExtensionNames = device_exts.data();
+     if (vkCreateDevice(physical_device_, &dci, nullptr, &device_) != VK_SUCCESS) {
+         throw std::runtime_error{"Failed to create logical device"};
+     }
+@@ -382,7 +432,14 @@
+     sci.imageExtent = extent;
+     sci.imageArrayLayers = 1;
+     sci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+-    sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (present_family_ != graphics_family_) {
++        const std::uint32_t indices[2] = { graphics_family_, present_family_ };
++        sci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
++        sci.queueFamilyIndexCount = 2;
++        sci.pQueueFamilyIndices = indices;
++    } else {
++        sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    }
+     sci.preTransform = caps.currentTransform;
+     sci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+     sci.presentMode = chosen_present;
+
+[2025-09-15T11:08:23] exec bash -lc 'git add -A && git commit -m "docs(macOS): document MoltenVK portability requirements and VK_ICD_FILENAMES note" && git push' in /Users/bruno/Documents/Development/bruno/vulkano_codex
