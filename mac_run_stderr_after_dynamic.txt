@@ -1,0 +1,62 @@
+Vulkan: vkQueueSubmit(): pSubmits[0].pSignalSemaphores[0] (VkSemaphore 0x2d000000002d) is being signaled by VkQueue 0x1029ffe38, but it may still be in use by VkSwapchainKHR 0x30000000003.
+Here are the most recently acquired image indices: [0], 1, 2.
+(brackets mark the last use of VkSemaphore 0x2d000000002d in a presentation operation)
+Swapchain image 0 was presented but was not re-acquired, so VkSemaphore 0x2d000000002d may still be in use and cannot be safely reused with image index 2.
+Vulkan insight: One solution is to assign each image its own semaphore. Here are some common methods to ensure that a semaphore passed to vkQueuePresentKHR is not in use and can be safely reused:
+	a) Use a separate semaphore per swapchain image. Index these semaphores using the index of the acquired image.
+	b) Consider the VK_KHR_swapchain_maintenance1 extension. It allows using a VkFence with the presentation operation.
+The Vulkan spec states: Each binary semaphore element of the pSignalSemaphores member of any element of pSubmits must be unsignaled when the semaphore signal operation it defines is executed on the device (https://vulkan.lunarg.com/doc/view/1.4.321.0/mac/antora/spec/latest/chapters/cmdbuffers.html#VUID-vkQueueSubmit-pSignalSemaphores-00067)
+Vulkan: vkQueueSubmit(): pSubmits[0].pSignalSemaphores[0] (VkSemaphore 0x300000000030) is being signaled by VkQueue 0x1029ffe38, but it may still be in use by VkSwapchainKHR 0x30000000003.
+Here are the most recently acquired image indices: 0, [1], 2, 0.
+(brackets mark the last use of VkSemaphore 0x300000000030 in a presentation operation)
+Swapchain image 1 was presented but was not re-acquired, so VkSemaphore 0x300000000030 may still be in use and cannot be safely reused with image index 0.
+Vulkan insight: One solution is to assign each image its own semaphore. Here are some common methods to ensure that a semaphore passed to vkQueuePresentKHR is not in use and can be safely reused:
+	a) Use a separate semaphore per swapchain image. Index these semaphores using the index of the acquired image.
+	b) Consider the VK_KHR_swapchain_maintenance1 extension. It allows using a VkFence with the presentation operation.
+The Vulkan spec states: Each binary semaphore element of the pSignalSemaphores member of any element of pSubmits must be unsignaled when the semaphore signal operation it defines is executed on the device (https://vulkan.lunarg.com/doc/view/1.4.321.0/mac/antora/spec/latest/chapters/cmdbuffers.html#VUID-vkQueueSubmit-pSignalSemaphores-00067)
+Vulkan: vkQueueSubmit(): pSubmits[0].pSignalSemaphores[0] (VkSemaphore 0x300000000030) is being signaled by VkQueue 0x1029ffe38, but it may still be in use by VkSwapchainKHR 0x570000000057.
+Here are the most recently acquired image indices: [0], 1, 2.
+(brackets mark the last use of VkSemaphore 0x300000000030 in a presentation operation)
+Swapchain image 0 was presented but was not re-acquired, so VkSemaphore 0x300000000030 may still be in use and cannot be safely reused with image index 2.
+Vulkan insight: One solution is to assign each image its own semaphore. Here are some common methods to ensure that a semaphore passed to vkQueuePresentKHR is not in use and can be safely reused:
+	a) Use a separate semaphore per swapchain image. Index these semaphores using the index of the acquired image.
+	b) Consider the VK_KHR_swapchain_maintenance1 extension. It allows using a VkFence with the presentation operation.
+The Vulkan spec states: Each binary semaphore element of the pSignalSemaphores member of any element of pSubmits must be unsignaled when the semaphore signal operation it defines is executed on the device (https://vulkan.lunarg.com/doc/view/1.4.321.0/mac/antora/spec/latest/chapters/cmdbuffers.html#VUID-vkQueueSubmit-pSignalSemaphores-00067)
+Vulkan: vkQueueSubmit(): pSubmits[0].pSignalSemaphores[0] (VkSemaphore 0x2d000000002d) is being signaled by VkQueue 0x1029ffe38, but it may still be in use by VkSwapchainKHR 0x570000000057.
+Here are the most recently acquired image indices: 0, [1], 2, 0.
+(brackets mark the last use of VkSemaphore 0x2d000000002d in a presentation operation)
+Swapchain image 1 was presented but was not re-acquired, so VkSemaphore 0x2d000000002d may still be in use and cannot be safely reused with image index 0.
+Vulkan insight: One solution is to assign each image its own semaphore. Here are some common methods to ensure that a semaphore passed to vkQueuePresentKHR is not in use and can be safely reused:
+	a) Use a separate semaphore per swapchain image. Index these semaphores using the index of the acquired image.
+	b) Consider the VK_KHR_swapchain_maintenance1 extension. It allows using a VkFence with the presentation operation.
+The Vulkan spec states: Each binary semaphore element of the pSignalSemaphores member of any element of pSubmits must be unsignaled when the semaphore signal operation it defines is executed on the device (https://vulkan.lunarg.com/doc/view/1.4.321.0/mac/antora/spec/latest/chapters/cmdbuffers.html#VUID-vkQueueSubmit-pSignalSemaphores-00067)
+Vulkan: vkDestroyBuffer(): can't be called on VkBuffer 0x6f000000006f that is currently in use by VkCommandBuffer 0x89d555558.
+The Vulkan spec states: All submitted commands that refer to buffer, either directly or via a VkBufferView, must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.0/mac/antora/spec/latest/chapters/resources.html#VUID-vkDestroyBuffer-buffer-00922)
+Vulkan: vkDestroyBuffer(): can't be called on VkBuffer 0x6b000000006b that is currently in use by VkCommandBuffer 0x89d555558.
+The Vulkan spec states: All submitted commands that refer to buffer, either directly or via a VkBufferView, must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.0/mac/antora/spec/latest/chapters/resources.html#VUID-vkDestroyBuffer-buffer-00922)
+Vulkan: vkDestroyBuffer(): can't be called on VkBuffer 0x6d000000006d that is currently in use by VkCommandBuffer 0x89d555698.
+The Vulkan spec states: All submitted commands that refer to buffer, either directly or via a VkBufferView, must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.0/mac/antora/spec/latest/chapters/resources.html#VUID-vkDestroyBuffer-buffer-00922)
+Vulkan: vkDestroyBuffer(): can't be called on VkBuffer 0x550000000055 that is currently in use by VkCommandBuffer 0x89d555698.
+The Vulkan spec states: All submitted commands that refer to buffer, either directly or via a VkBufferView, must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.0/mac/antora/spec/latest/chapters/resources.html#VUID-vkDestroyBuffer-buffer-00922)
+Vulkan: vkFreeDescriptorSets(): pDescriptorSets[0] can't be called on VkDescriptorSet 0x480000000048 that is currently in use by VkCommandBuffer 0x89d555558.
+The Vulkan spec states: All submitted commands that refer to any element of pDescriptorSets must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.0/mac/antora/spec/latest/chapters/descriptorsets.html#VUID-vkFreeDescriptorSets-pDescriptorSets-00309)
+Vulkan: vkDestroyPipeline(): can't be called on VkPipeline 0x380000000038 that is currently in use by VkCommandBuffer 0x89d555558.
+The Vulkan spec states: All submitted commands that refer to pipeline must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.0/mac/antora/spec/latest/chapters/pipelines.html#VUID-vkDestroyPipeline-pipeline-00765)
+Vulkan: vkDestroyFramebuffer(): can't be called on VkFramebuffer 0x620000000062 that is currently in use by VkCommandBuffer 0x89d555558.
+The Vulkan spec states: All submitted commands that refer to framebuffer must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.0/mac/antora/spec/latest/chapters/renderpass.html#VUID-vkDestroyFramebuffer-framebuffer-00892)
+Vulkan: vkDestroyFramebuffer(): can't be called on VkFramebuffer 0x630000000063 that is currently in use by VkCommandBuffer 0x89d555698.
+The Vulkan spec states: All submitted commands that refer to framebuffer must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.0/mac/antora/spec/latest/chapters/renderpass.html#VUID-vkDestroyFramebuffer-framebuffer-00892)
+Vulkan: vkDestroyRenderPass(): can't be called on VkRenderPass 0x5e000000005e that is currently in use by VkCommandBuffer 0x89d555558.
+The Vulkan spec states: All submitted commands that refer to renderPass must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.0/mac/antora/spec/latest/chapters/renderpass.html#VUID-vkDestroyRenderPass-renderPass-00873)
+Vulkan: vkDestroyPipeline(): can't be called on VkPipeline 0x680000000068 that is currently in use by VkCommandBuffer 0x89d555558.
+The Vulkan spec states: All submitted commands that refer to pipeline must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.0/mac/antora/spec/latest/chapters/pipelines.html#VUID-vkDestroyPipeline-pipeline-00765)
+Vulkan: vkDestroySampler(): sampler can't be called on VkSampler 0x130000000013 that is currently in use by VkDescriptorSet 0x260000000026.
+The Vulkan spec states: All submitted commands that refer to sampler must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.0/mac/antora/spec/latest/chapters/samplers.html#VUID-vkDestroySampler-sampler-01082)
+Vulkan: vkDestroyBuffer(): can't be called on VkBuffer 0x430000000043 that is currently in use by VkCommandBuffer 0x89d555558.
+The Vulkan spec states: All submitted commands that refer to buffer, either directly or via a VkBufferView, must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.0/mac/antora/spec/latest/chapters/resources.html#VUID-vkDestroyBuffer-buffer-00922)
+Vulkan: vkDestroyBuffer(): can't be called on VkBuffer 0x410000000041 that is currently in use by VkCommandBuffer 0x89d555558.
+The Vulkan spec states: All submitted commands that refer to buffer, either directly or via a VkBufferView, must have completed execution (https://vulkan.lunarg.com/doc/view/1.4.321.0/mac/antora/spec/latest/chapters/resources.html#VUID-vkDestroyBuffer-buffer-00922)
+Vulkan: vkDestroyCommandPool(): (VkCommandBuffer 0x89d555558) is in use.
+The Vulkan spec states: All VkCommandBuffer objects allocated from commandPool must not be in the pending state (https://vulkan.lunarg.com/doc/view/1.4.321.0/mac/antora/spec/latest/chapters/cmdbuffers.html#VUID-vkDestroyCommandPool-commandPool-00041)
+Vulkan: vkDestroyCommandPool(): (VkCommandBuffer 0x89d555698) is in use.
+The Vulkan spec states: All VkCommandBuffer objects allocated from commandPool must not be in the pending state (https://vulkan.lunarg.com/doc/view/1.4.321.0/mac/antora/spec/latest/chapters/cmdbuffers.html#VUID-vkDestroyCommandPool-commandPool-00041)

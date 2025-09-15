@@ -1,8 +1,4 @@
-CRITICAL: The code is not running in macos
-ERROR: "Vulkan: vkCreateInstance: Found drivers that contain devices which support the portability subset, but the instance does not enumerate portability drivers! Applications that wish to enumerate portability drivers must set the VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR bit in the VkInstanceCreateInfo flags and enable the VK_KHR_portability_enumeration instance extension.
-        Vulkan: vkCreateInstance: Found no drivers!"
-
-Use the AGENTS.md file at the top level directory
+MAIN STEP: Organise the repo, please
 
 Goal
 
@@ -122,7 +118,8 @@ Acceptance Criteria (must pass)
 	•	Validation layers report no errors in normal usage.
 	•	Code compiles cleanly with C++20 on MSVC or Clang/GCC (CI matrix optional).
 
-Make a commit and push your changes after every single file edit.
+
+Make often commits and push in the end.
 
 Use the .agent/ directory as a scratchpad for your work. Store long term plans and todo lists there. Keep the TODO file updated and start by checking the TODOs.
 
@@ -130,3 +127,5 @@ You will need to write end to end and unit tests for the project. But make sure 
 testing.
 
 Use the GITHUB_TOKEN environment variable to access github
+
+Make a toplevel folder for the application with all the necessary running (binary!) files inside. Use an appropriate folder structure.

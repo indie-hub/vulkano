@@ -1,22 +1,22 @@
-Start testing: Sep 15 11:58 BST
+Start testing: Sep 15 13:42 BST
 ----------------------------------------------------------
 1/1 Testing: icosphere_tests
 1/1 Test: icosphere_tests
 Command: "/Users/bruno/Documents/Development/bruno/vulkano_codex/build/bin/icosphere_tests"
 Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build
-"icosphere_tests" start time: Sep 15 11:58 BST
+"icosphere_tests" start time: Sep 15 13:42 BST
 Output:
 ----------------------------------------------------------
-Randomness seeded to: 818425942
+Randomness seeded to: 1727241599
 ===============================================================================
 All tests passed (4 assertions in 1 test case)
 
 <end of output>
-Test time =   0.35 sec
+Test time =   0.30 sec
 ----------------------------------------------------------
 Test Passed.
-"icosphere_tests" end time: Sep 15 11:58 BST
+"icosphere_tests" end time: Sep 15 13:42 BST
 "icosphere_tests" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-End testing: Sep 15 11:58 BST
+End testing: Sep 15 13:42 BST

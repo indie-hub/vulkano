@@ -411,9 +411,9 @@ CMakeFiles/imgui_backend.dir/clean:
 # Target rules for target CMakeFiles/vulkan_app.dir
 
 # All Build rule for target.
-CMakeFiles/vulkan_app.dir/all: CMakeFiles/imgui_backend.dir/all
 CMakeFiles/vulkan_app.dir/all: _deps/glm-build/glm/CMakeFiles/glm.dir/all
 CMakeFiles/vulkan_app.dir/all: _deps/glfw-build/src/CMakeFiles/glfw.dir/all
+CMakeFiles/vulkan_app.dir/all: CMakeFiles/imgui_backend.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/vulkan_app.dir/build.make CMakeFiles/vulkan_app.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/vulkan_app.dir/build.make CMakeFiles/vulkan_app.dir/build
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=95,96 "Built target vulkan_app"
@@ -445,11 +445,11 @@ CMakeFiles/vulkan_app.dir/clean:
 # Target rules for target CMakeFiles/vulkan_app_example.dir
 
 # All Build rule for target.
+CMakeFiles/vulkan_app_example.dir/all: _deps/glm-build/glm/CMakeFiles/glm.dir/all
+CMakeFiles/vulkan_app_example.dir/all: _deps/glfw-build/src/CMakeFiles/glfw.dir/all
 CMakeFiles/vulkan_app_example.dir/all: CMakeFiles/imgui_backend.dir/all
 CMakeFiles/vulkan_app_example.dir/all: CMakeFiles/vulkan_app.dir/all
 CMakeFiles/vulkan_app_example.dir/all: CMakeFiles/shaders.dir/all
-CMakeFiles/vulkan_app_example.dir/all: _deps/glm-build/glm/CMakeFiles/glm.dir/all
-CMakeFiles/vulkan_app_example.dir/all: _deps/glfw-build/src/CMakeFiles/glfw.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/vulkan_app_example.dir/build.make CMakeFiles/vulkan_app_example.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/vulkan_app_example.dir/build.make CMakeFiles/vulkan_app_example.dir/build
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=97 "Built target vulkan_app_example"
@@ -1409,12 +1409,12 @@ CMakeFiles/ContinuousSubmit.dir/clean:
 # Target rules for target CMakeFiles/icosphere_tests.dir
 
 # All Build rule for target.
-CMakeFiles/icosphere_tests.dir/all: CMakeFiles/imgui_backend.dir/all
-CMakeFiles/icosphere_tests.dir/all: CMakeFiles/vulkan_app.dir/all
 CMakeFiles/icosphere_tests.dir/all: _deps/glm-build/glm/CMakeFiles/glm.dir/all
 CMakeFiles/icosphere_tests.dir/all: _deps/glfw-build/src/CMakeFiles/glfw.dir/all
 CMakeFiles/icosphere_tests.dir/all: _deps/catch2-build/src/CMakeFiles/Catch2.dir/all
 CMakeFiles/icosphere_tests.dir/all: _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/all
+CMakeFiles/icosphere_tests.dir/all: CMakeFiles/imgui_backend.dir/all
+CMakeFiles/icosphere_tests.dir/all: CMakeFiles/vulkan_app.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/icosphere_tests.dir/build.make CMakeFiles/icosphere_tests.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/icosphere_tests.dir/build.make CMakeFiles/icosphere_tests.dir/build
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=66 "Built target icosphere_tests"

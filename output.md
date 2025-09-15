@@ -1,4 +1,4 @@
-[2025-09-15T11:03:33] OpenAI Codex v0.34.0 (research preview)
+[2025-09-15T12:59:27] OpenAI Codex v0.34.0 (research preview)
 --------
 workdir: /Users/bruno/Documents/Development/bruno/vulkano_codex
 model: gpt-5
@@ -8,12 +8,8 @@ sandbox: danger-full-access
 reasoning effort: medium
 reasoning summaries: auto
 --------
-[2025-09-15T11:03:33] User instructions:
-CRITICAL: The code is not running in macos
-ERROR: "Vulkan: vkCreateInstance: Found drivers that contain devices which support the portability subset, but the instance does not enumerate portability drivers! Applications that wish to enumerate portability drivers must set the VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR bit in the VkInstanceCreateInfo flags and enable the VK_KHR_portability_enumeration instance extension.
-        Vulkan: vkCreateInstance: Found no drivers!"
-
-Use the AGENTS.md file at the top level directory
+[2025-09-15T12:59:27] User instructions:
+MAIN STEP: Organise the repo, please
 
 Goal
 
@@ -133,7 +129,8 @@ Acceptance Criteria (must pass)
 	•	Validation layers report no errors in normal usage.
 	•	Code compiles cleanly with C++20 on MSVC or Clang/GCC (CI matrix optional).
 
-Make a commit and push your changes after every single file edit.
+
+Make often commits and push in the end.
 
 Use the .agent/ directory as a scratchpad for your work. Store long term plans and todo lists there. Keep the TODO file updated and start by checking the TODOs.
 
@@ -142,166 +139,121 @@ testing.
 
 Use the GITHUB_TOKEN environment variable to access github
 
+Make a toplevel folder for the application with all the necessary running (binary!) files inside. Use an appropriate folder structure.
 
-[2025-09-15T11:03:43] thinking
 
-**Addressing commit practices**
+[2025-09-15T12:59:43] thinking
 
-I'm thinking about the user’s needs: making a commit and pushing changes after each file edit. That’s crucial, especially considering the tools and environment we’re working within. It feels like a big project, and I see a focus on fixing portability issues and adapting Vulkan instance creation. While the guidelines suggest angle-bracket includes, I think I should first concentrate on addressing the critical macOS fix while adhering to the user’s request about commits.
-**Exploring git command alternatives**
+**Organizing the repo**
 
-I realize that our tools don’t include a dedicated git tool, but we can invoke shell commands instead, so running git commands should be fine. Since we're in a full-access mode, I think it's best to commit after every patch application. I want to use the .agent directory for managing my tasks, creating a TODO.md file to outline what needs to be done. Also, while I know we should write tests, I’ll start with initial tests like Catch2, though I’m unsure if the project uses C++. There’s a mention of "vulkano_codex," which could be a Rust library.
-[2025-09-15T11:03:55] codex
-**Exploring git command alternatives**
+I need to organize the repository for the user’s minimal production-quality Vulkan application, which is quite a big project. The main step is to scaffold the repository structure, and I see that AGENTS.md provides some guidelines, including using angle-bracket includes and separating header and cpp files. They clearly say not to write code in header files, except for inline templates. I need to set up directories like /include, /src, /tests, and include placeholders for shaders and assets, as well as configure external dependencies.
+**Setting up the application folder**
 
-I realize that our tools don’t include a dedicated git tool, but we can invoke shell commands instead, so running git commands should be fine. Since we're in a full-access mode, I think it's best to commit after every patch application. I want to use the .agent directory for managing my tasks, creating a TODO.md file to outline what needs to be done. Also, while I know we should write tests, I’ll start with initial tests like Catch2, though I’m unsure if the project uses C++. There’s a mention of "vulkano_codex," which could be a Rust library.
-[2025-09-15T11:03:55] codex
+I need to create a top-level folder for the application that contains all necessary binary files, and it sounds like apps/vulkano_viewer or app/viewer could be good options. The binary output will be directed to bin/<config> based on the CMake configuration. 
 
-I’m going to inspect the repository to locate the Vulkan instance creation code and project setup, then patch it to enable portability enumeration for macOS (MoltenVK). I’ll also add a TODO scratchpad in `.agent/` per your guidelines.
-[2025-09-15T11:03:56] exec bash -lc 'ls -la' in /Users/bruno/Documents/Development/bruno/vulkano_codex
-[2025-09-15T11:03:56] bash -lc 'ls -la' succeeded in 18ms:
-total 120
-drwxr-xr-x@ 20 bruno  staff    640 15 Sep 12:03 .
-drwxr-xr-x@ 24 bruno  staff    768 15 Sep 10:59 ..
+They also want a .agent directory for scratchpad and TODOs, so I’ll make .agent/TODO.md and possibly PLAN.md. However, it seems that the update_plan tool isn't available, even though earlier instructions mentioned access to it. I'll still move forward by creating the plan in the .agent directory and using the shell command to create files with apply_patch.
+**Organizing the repository**
+
+I need to be clear and concise while providing preamble messages before tool calls. The plan is to scaffold the repository structure, including CMake and CI configurations along with some placeholders. I see AGENTS.md mentions using angle bracket includes, so in our code, those will be <vulkano/...>. 
+
+I think I’ll go with the project name "VulkanoCodex," making the repo path bruno/vulkano_codex. We'll save headers in include/vulkano/*.hpp and implementation files in src/*.cpp. For now, I’ll write minimal code to set up a skeleton that opens a window with Vulkan and ImGui.
+**Scaffolding the project structure**
+
+I’m focusing on creating a scaffolding structure for the application, which includes CMake and a basic app skeleton that compiles and opens a window with Vulkan and GLFW. I'll add stub modules for features like the icosphere, renderer, ImGui layer, and pipelines with skeleton classes and TODOs included.
+
+I also need to set up tests using Catch2 via FetchContent and format files. For the CI workflow, I plan to achieve a minimal build on Ubuntu, Windows, and maybe macOS with MoltenVK. Setting up CI with Vulkan dependencies can be tricky, but I think we can initially configure it to build using the preinstalled Vulkan SDK. I’ll ensure to install necessary packages like libvulkan-dev and GLFW dev.
+**Configuring the CI and project structure**
+
+For Ubuntu, I'll install libvulkan-dev and glslangValidator. On Windows, we can use Chocolatey to install the Vulkan SDK, but it may take time. To simplify, I can make CI optional or focus on linting and formatting. However, AGENTS requires CI, so I'll build a configuration that adapts based on the presence of the VULKAN_SDK variable. 
+
+I'll integrate actions for installing the Vulkan SDK, handle shader compilation, and format the code according to the guidelines. For test coverage, I'll implement simple tests with Catch2 and ensure everything is structured properly before proceeding.
+[2025-09-15T13:00:50] codex
+**Setting up the application folder**
+
+I need to create a top-level folder for the application that contains all necessary binary files, and it sounds like apps/vulkano_viewer or app/viewer could be good options. The binary output will be directed to bin/<config> based on the CMake configuration. 
+
+They also want a .agent directory for scratchpad and TODOs, so I’ll make .agent/TODO.md and possibly PLAN.md. However, it seems that the update_plan tool isn't available, even though earlier instructions mentioned access to it. I'll still move forward by creating the plan in the .agent directory and using the shell command to create files with apply_patch.
+[2025-09-15T13:00:50] codex
+**Organizing the repository**
+
+I need to be clear and concise while providing preamble messages before tool calls. The plan is to scaffold the repository structure, including CMake and CI configurations along with some placeholders. I see AGENTS.md mentions using angle bracket includes, so in our code, those will be <vulkano/...>. 
+
+I think I’ll go with the project name "VulkanoCodex," making the repo path bruno/vulkano_codex. We'll save headers in include/vulkano/*.hpp and implementation files in src/*.cpp. For now, I’ll write minimal code to set up a skeleton that opens a window with Vulkan and ImGui.
+[2025-09-15T13:00:50] codex
+**Scaffolding the project structure**
+
+I’m focusing on creating a scaffolding structure for the application, which includes CMake and a basic app skeleton that compiles and opens a window with Vulkan and GLFW. I'll add stub modules for features like the icosphere, renderer, ImGui layer, and pipelines with skeleton classes and TODOs included.
+
+I also need to set up tests using Catch2 via FetchContent and format files. For the CI workflow, I plan to achieve a minimal build on Ubuntu, Windows, and maybe macOS with MoltenVK. Setting up CI with Vulkan dependencies can be tricky, but I think we can initially configure it to build using the preinstalled Vulkan SDK. I’ll ensure to install necessary packages like libvulkan-dev and GLFW dev.
+[2025-09-15T13:00:50] codex
+**Configuring the CI and project structure**
+
+For Ubuntu, I'll install libvulkan-dev and glslangValidator. On Windows, we can use Chocolatey to install the Vulkan SDK, but it may take time. To simplify, I can make CI optional or focus on linting and formatting. However, AGENTS requires CI, so I'll build a configuration that adapts based on the presence of the VULKAN_SDK variable. 
+
+I'll integrate actions for installing the Vulkan SDK, handle shader compilation, and format the code according to the guidelines. For test coverage, I'll implement simple tests with Catch2 and ensure everything is structured properly before proceeding.
+[2025-09-15T13:00:50] codex
+
+I’m going to scaffold the repository: CMake, source/include/tests/docs, CI, tools, and a minimal Vulkan+GLFW app skeleton with placeholders. Then I’ll add formatting/tidy config and a TODO plan.
+[2025-09-15T13:00:51] exec bash -lc 'ls -la' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T13:00:51] bash -lc 'ls -la' succeeded in 20ms:
+total 240
+drwxr-xr-x@ 30 bruno  staff    960 15 Sep 13:59 .
+drwxr-xr-x@ 25 bruno  staff    800 15 Sep 13:54 ..
 drwxr-xr-x@  4 bruno  staff    128 15 Sep 11:40 .agent
 -rw-r--r--@  1 bruno  staff    405 15 Sep 11:05 .clang-format
 -rw-r--r--@  1 bruno  staff    375 15 Sep 11:07 .clang-tidy
-drwxr-xr-x@ 14 bruno  staff    448 15 Sep 11:58 .git
+drwxr-xr-x@ 14 bruno  staff    448 15 Sep 13:42 .git
 -rw-r--r--@  1 bruno  staff    349 15 Sep 10:59 .gitignore
-drwxr-xr-x  10 bruno  staff    320 15 Sep 12:03 .idea
--rw-r--r--@  1 bruno  staff  11422 15 Sep 11:33 AGENTS.md
-drwxr-xr-x@ 13 bruno  staff    416 15 Sep 11:58 build
-drwxr-xr-x  19 bruno  staff    608 15 Sep 12:02 cmake-build-debug
--rw-r--r--@  1 bruno  staff   4451 15 Sep 11:46 CMakeLists.txt
--rw-r--r--   1 bruno  staff   8025 15 Sep 12:03 code_task.txt
+drwxr-xr-x  10 bruno  staff    320 15 Sep 13:59 .idea
+-rw-r--r--@  1 bruno  staff  11625 15 Sep 13:32 AGENTS.md
+drwxr-xr-x@ 13 bruno  staff    416 15 Sep 13:41 build
+-rw-r--r--@  1 bruno  staff   1576 15 Sep 13:39 CHANGELOG.md
+drwxr-xr-x  19 bruno  staff    608 15 Sep 13:43 cmake-build-debug
+-rw-r--r--@  1 bruno  staff   4708 15 Sep 12:13 CMakeLists.txt
+-rw-r--r--   1 bruno  staff   7640 15 Sep 13:59 code_task.txt
+drwxr-xr-x@  4 bruno  staff    128 15 Sep 13:39 docs
+-rw-r--r--   1 bruno  staff      0 15 Sep 13:54 gt_token.txt
+-rw-r--r--@  1 bruno  staff    134 15 Sep 13:23 imgui.ini
 drwxr-xr-x@  3 bruno  staff     96 15 Sep 10:59 include
 -rw-r--r--@  1 bruno  staff   1064 15 Sep 10:59 LICENSE
--rw-r--r--   1 bruno  staff  10479 15 Sep 12:03 output.txt
--rw-r--r--@  1 bruno  staff   1299 15 Sep 11:14 README.md
-drwxr-xr-x@  9 bruno  staff    288 15 Sep 11:30 shaders
-drwxr-xr-x@  8 bruno  staff    256 15 Sep 11:12 src
-[2025-09-15T11:03:56] tokens used: 5,623
-[2025-09-15T11:03:59] exec bash -lc "rg --files src include tests | sed -n '1,200p'" in /Users/bruno/Documents/Development/bruno/vulkano_codex
-[2025-09-15T11:03:59] bash -lc "rg --files src include tests | sed -n '1,200p'" succeeded in 44ms:
-tests/icosphere_tests.cpp
+[2025-09-15T13:00:51] tokens used: 6,740
+
+[2025-09-15T13:00:54] thinking
+
+**Inspecting project structure**
+
+I’m noticing there’s already some content within the project, including directories like include, src, shaders, and tests, along with the CMakeLists.txt file and a vulkano directory. It feels important to inspect the current structure so I can understand it better. I want to make sure everything is organized properly and adjust as needed. Let’s see what’s inside!
+[2025-09-15T13:00:56] exec bash -lc 'rg --files -n' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T13:00:56] bash -lc 'rg --files -n' succeeded in 59ms:
+mac_run_stderr_after_dynamic.txt
+CMakeLists.txt
+mac_run_stderr.txt
+mac_run_stdout_after_dynamic.txt
+README.md
 src/renderer.cpp
 src/main.cpp
 src/application.cpp
 src/imgui_layer.cpp
 src/camera.cpp
 src/icosphere.cpp
-include/vulkan_app/camera.hpp
-include/vulkan_app/icosphere.hpp
-include/vulkan_app/types.hpp
-include/vulkan_app/renderer.hpp
-include/vulkan_app/application.hpp
-include/vulkan_app/imgui_layer.hpp
-[2025-09-15T11:03:59] tokens used: 6,396
-[2025-09-15T11:04:00] exec bash -lc "sed -n '1,200p' src/renderer.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
-[2025-09-15T11:04:00] bash -lc "sed -n '1,200p' src/renderer.cpp" succeeded in 23ms:
-#include <cstring>
-#include <stdexcept>
-#include <vector>
+gt_token.txt
+AGENTS.md
+imgui.ini
+output.md
+code_task.txt
+CHANGELOG.md
+LICENSE
+run_log.txt
+mac_run_stdout.txt
+[2025-09-15T13:00:56] tokens used: 7,711
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
+[2025-09-15T13:01:02] thinking
 
-#include <vulkan/vulkan.h>
+**Organizing the repository**
 
-#include <vulkan_app/renderer.hpp>
-#include <vulkan_app/imgui_layer.hpp>
-#include <vulkan_app/icosphere.hpp>
-#include <vulkan_app/types.hpp>
-
-namespace vulkan_app {
-
-namespace {
-#ifndef NDEBUG
-constexpr bool kEnableValidation{true};
-#else
-[2025-09-15T11:04:01] tokens used: 6,682
-[2025-09-15T11:04:02] exec bash -lc "sed -n '200,500p' src/renderer.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
-[2025-09-15T11:04:02] bash -lc "sed -n '200,500p' src/renderer.cpp" succeeded in 20ms:
-    }
-    if (debug_messenger_ != VK_NULL_HANDLE) {
-        auto destroyFn = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(
-            vkGetInstanceProcAddr(instance_, "vkDestroyDebugUtilsMessengerEXT"));
-        if (destroyFn != nullptr) {
-            destroyFn(instance_, debug_messenger_, nullptr);
-        }
-    }
-    if (instance_ != VK_NULL_HANDLE) {
-        vkDestroyInstance(instance_, nullptr);
-    }
-}
-
-void Renderer::init_instance() {
-    VkApplicationInfo app_info{};
-    app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    app_info.pApplicationName = "vulkan_app";
-    app_info.applicationVersion = VK_MAKE_API_VERSION(0, 0, 1, 0);
-    app_info.pEngineName = "vulkan_app";
-    app_info.engineVersion = VK_MAKE_API_VERSION(0, 0, 1, 0);
-[2025-09-15T11:04:02] tokens used: 9,051
-[2025-09-15T11:04:06] exec bash -lc "sed -n '500,1000p' src/renderer.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
-[2025-09-15T11:04:06] bash -lc "sed -n '500,1000p' src/renderer.cpp" succeeded in 21ms:
-    if (index_buffer_ != VK_NULL_HANDLE) {
-        vkCmdBindIndexBuffer(cmd, index_buffer_, 0, VK_INDEX_TYPE_UINT32);
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 0, 1, &desc_sets_[image_index], 0, nullptr);
-        glm::mat4 model{1.0F};
-        vkCmdPushConstants(cmd, pipeline_layout_, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &model);
-        vkCmdDrawIndexed(cmd, index_count_, 1, 0, 0, 0);
-    }
-    // ImGui overlay (if attached)
-    if (imgui_layer_ != nullptr) {
-        imgui_layer_->render(cmd);
-    }
-    vkCmdEndRenderPass(cmd);
-    vkEndCommandBuffer(cmd);
-
-    VkSemaphore wait_sems[] = { image_available_[current_frame_] };
-    VkPipelineStageFlags wait_stages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-    VkSemaphore signal_sems[] = { render_finished_[current_frame_] };
-    VkSubmitInfo si{};
-    si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    si.waitSemaphoreCount = 1;
-[2025-09-15T11:04:06] tokens used: 12,041
-[2025-09-15T11:04:11] exec bash -lc "rg -n \"create_device\\(|device extensions|VK_KHR_portability_subset|VK_KHR_portability_enumeration|Instance\" src/renderer.cpp | sed -n '1,200p'" in /Users/bruno/Documents/Development/bruno/vulkano_codex
-[2025-09-15T11:04:11] bash -lc "rg -n \"create_device\\(|device extensions|VK_KHR_portability_subset|VK_KHR_portability_enumeration|Instance\" src/renderer.cpp | sed -n '1,200p'" succeeded in 38ms:
-161:    create_device();
-203:            vkGetInstanceProcAddr(instance_, "vkDestroyDebugUtilsMessengerEXT"));
-209:        vkDestroyInstance(instance_, nullptr);
-223:    const char** glfw_ext = glfwGetRequiredInstanceExtensions(&glfw_count);
-233:    VkInstanceCreateInfo ci{};
-255:    if (vkCreateInstance(&ci, nullptr, &instance_) != VK_SUCCESS) {
-261:            vkGetInstanceProcAddr(instance_, "vkCreateDebugUtilsMessengerEXT"));
-290:void Renderer::create_device() {
-[2025-09-15T11:04:11] tokens used: 15,249
-[2025-09-15T11:04:13] exec bash -lc "sed -n '290,420p' src/renderer.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
-[2025-09-15T11:04:13] bash -lc "sed -n '290,420p' src/renderer.cpp" succeeded in 24ms:
-void Renderer::create_device() {
-    // Query queue families
-    std::uint32_t family_count{0U};
-    vkGetPhysicalDeviceQueueFamilyProperties(physical_device_, &family_count, nullptr);
-    std::vector<VkQueueFamilyProperties> families(family_count);
-    vkGetPhysicalDeviceQueueFamilyProperties(physical_device_, &family_count, families.data());
-
-    // Select graphics and present families
-    bool graphics_found{false};
-    bool present_found{false};
-    for (std::uint32_t i{0U}; i < family_count; ++i) {
-        if (!graphics_found && (families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0U) {
-            graphics_family_ = i; graphics_found = true;
-        }
-        VkBool32 present_support{VK_FALSE};
-        vkGetPhysicalDeviceSurfaceSupportKHR(physical_device_, i, surface_, &present_support);
-        if (!present_found && present_support == VK_TRUE) {
-            present_family_ = i; present_found = true;
-        }
-    }
-[2025-09-15T11:04:13] tokens used: 15,603
-[2025-09-15T11:04:31] exec bash -lc "sed -n '1,220p' CMakeLists.txt" in /Users/bruno/Documents/Development/bruno/vulkano_codex
-[2025-09-15T11:04:31] bash -lc "sed -n '1,220p' CMakeLists.txt" succeeded in 24ms:
+I see that there’s already a CMakeLists file, and I have directories like include/vulkan_app and src/, but it looks like things are a bit messy with two implementations. I need to arrange everything, deduplicate, standardize the names, and align the folder structure with AGENTS.md. I might consolidate into a single src/include/tests structure and remove the extra vulkano/ subproject, but I want to be careful not to delete any files destructively. So archiving vulkano/ into an attic folder could be an option. I’ll also check the current CMakeLists.txt.
+[2025-09-15T13:01:06] exec bash -lc "sed -n '1,220p' CMakeLists.txt" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T13:01:06] bash -lc "sed -n '1,220p' CMakeLists.txt" succeeded in 26ms:
 cmake_minimum_required(VERSION 3.25)
 project(vulkan_app VERSION 0.1.0 LANGUAGES CXX)
 
@@ -322,3518 +274,3054 @@ FetchContent_Declare(
   glm
   GIT_REPOSITORY https://github.com/g-truc/glm.git
   GIT_TAG 1.0.1
-[2025-09-15T11:04:31] tokens used: 17,889
+[2025-09-15T13:01:06] tokens used: 10,871
 
-[2025-09-15T11:04:36] thinking
+[2025-09-15T13:01:09] thinking
 
-**Adjusting CMake settings**
+**Consolidating repo structure**
 
-Alright, it looks like CMake is set up, but for macOS, we should link to MoltenVK. If the Vulkan loader comes from LunarG or MoltenVK via Homebrew, linking should work fine. I think I was considering adjusting `CMAKE_EXE_LINKER_FLAGS` for path settings, but that might not be necessary. 
+The repository already has a similar structure in place. I see there's a "vulkano" folder that seems to be a second attempt. It looks like I need to consolidate and clean things up to align with AGENTS.md requirements, specifically checking that the includes use angle brackets and ensuring headers use the format #include "...". I'll start by inspecting one of the headers to see what's currently there.
+[2025-09-15T13:01:10] exec bash -lc "sed -n '1,200p' include/vulkan_app/application.hpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T13:01:10] bash -lc "sed -n '1,200p' include/vulkan_app/application.hpp" succeeded in 25ms:
+#pragma once
 
-The error seems to happen during instance creation from portability enumeration, which I'll need to fix in the code. I also need to ensure that includes follow the angle bracket style, and we'll run tests afterward. 
+#include <vector>
 
-In the `init_instance()`, I’ll plan to append `VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME` to the extensions. We need to check if it's present beforehand, but it's safe to include. If unsupported, it might cause instance creation to fail, especially since it’s not available on Windows or Linux. We need to guard against that.
-**Refining instance extension handling**
+#include <vulkan/vulkan.h>
+#include <GLFW/glfw3.h>
 
-I need to properly enumerate available instance extensions using `vkEnumerateInstanceExtensionProperties(nullptr, ...)`, and it turns out I can do this even before instance creation—great! So I'll query the instance extension properties and add the debug utils and portability enumeration only if they're supported. 
+#include <vulkan_app/camera.hpp>
+#include <vulkan_app/renderer.hpp>
+#include <vulkan_app/imgui_layer.hpp>
+#include <vulkan_app/types.hpp>
 
-Currently, I add the debug extension without checking for support when `kEnableValidation` is on, which isn’t ideal. I’ll create a function to verify if the extension is present to avoid potential failures later on.
+namespace vulkan_app {
 
-I'll ensure to set `ci.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR` when `VK_KHR_portability_enumeration` is enabled. Also, for mac, I might need the "VK_KHR_get_physical_device_properties2" extension, but it's not necessary for the instance itself.
+/**
+ * @brief Top-level application that owns the window, renderer, and UI state.
+ *
+ * Creates GLFW window and Vulkan renderer, integrates ImGui, and drives the
+ * main loop. Exposes runtime controls for subdivisions, lighting, material, and
+ * SSAO; triggers mesh regeneration when the subdivision level changes.
+[2025-09-15T13:01:10] tokens used: 23,048
 
-For device extensions, I'll include 'VK_KHR_portability_subset' if it's supported, meaning I need to enumerate the device extension properties for the chosen physical device before creating it.
-**Clarifying physical device picking**
+[2025-09-15T13:01:15] thinking
 
-I realize that I can only know the `physical_device` after selecting it, which must happen before `create_device`. So, I can enumerate for 'VK_KHR_portability_subset' during `create_device`.
+**Reviewing header practices**
 
-In the `pick_physical_device`, especially for Mac, I might need to filter by the portability subset property, though that's not strictly needed.
+I see the header uses angle brackets for project headers, which is a good practice. However, there's a note that says, "Do NOT write code in headers," which seems valid. There's also "pragma once," but AGENTS suggests preferring angle includes over quoted includes, and I notice angle brackets are being used here. I’ll quickly check the source files to ensure the formatting and braces are consistent. Let’s keep everything tidy!
+[2025-09-15T13:01:18] exec bash -lc "sed -n '1,240p' src/main.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T13:01:18] bash -lc "sed -n '1,240p' src/main.cpp" succeeded in 23ms:
+#include <vulkan_app/application.hpp>
 
-Additionally, for swapchain creation on Mac, it’s crucial to manage `imageSharingMode` or queue family indices if they're different. Right now, we're setting it to exclusive, which could lead to errors if the present family differs from the graphics family. Vulkan specifies that using exclusive mode requires one queue family or proper ownership transfers, and while many samples opt for concurrent mode when families differ, I need to reconsider how we're handling this.
-**Updating queue handling and extensions**
+int main() {
+    vulkan_app::Application app{};
+    app.run();
+    return 0;
+}
+[2025-09-15T13:01:18] tokens used: 23,661
+[2025-09-15T13:01:21] exec bash -lc "sed -n '1,260p' src/application.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T13:01:21] bash -lc "sed -n '1,260p' src/application.cpp" succeeded in 27ms:
+#include <stdexcept>
+#include <vector>
 
-If the present and graphics families differ, it could lead to issues, but they often work. To be cautious, I’ll switch to concurrent mode when they differ, setting the queue family indices accordingly. 
+#include <vulkan/vulkan.h>
+#include <GLFW/glfw3.h>
+#include <imgui.h>
 
-I'll implement this change by checking if `present_family_ != graphics_family_`, then setting `sharingMode` to `CONCURRENT` and adjusting `queueFamilyIndexCount` and `pQueueFamilyIndices`.
+#include <vulkan_app/application.hpp>
+#include <vulkan_app/icosphere.hpp>
 
-For Mac systems, enabling the 'VK_KHR_portability_subset' device extension is important, so I'll add that too. After making these code changes, I'll need to run a build to validate everything. Since approvals can be slow, I’ll proactively build. I know that building might require network access to fetch dependencies, but that should be fine.
+namespace vulkan_app {
+namespace {
+} // namespace
 
-Also, I must remember to commit after every file edit, so I'll apply the patch to `renderer.cpp`, followed by `git add`, `commit`, and then push. I should check if there’s a remote linked to my repo.
-[2025-09-15T11:04:52] codex
-**Refining instance extension handling**
+Application::Application() {
+    init_window();
+    renderer = std::make_unique<Renderer>(window);
+    // Create ImGui layer and attach to renderer for overlay rendering
+    imgui = std::make_unique<ImGuiLayer>(window,
+                                         renderer->instance(),
+[2025-09-15T13:01:21] tokens used: 23,865
+[2025-09-15T13:01:25] exec bash -lc "sed -n '1,260p' src/renderer.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T13:01:25] bash -lc "sed -n '1,260p' src/renderer.cpp" succeeded in 18ms:
+#include <cstring>
+#include <stdexcept>
+#include <vector>
+#include <string>
+#include <filesystem>
 
-I need to properly enumerate available instance extensions using `vkEnumerateInstanceExtensionProperties(nullptr, ...)`, and it turns out I can do this even before instance creation—great! So I'll query the instance extension properties and add the debug utils and portability enumeration only if they're supported. 
+#define GLFW_INCLUDE_VULKAN
+#include <GLFW/glfw3.h>
 
-Currently, I add the debug extension without checking for support when `kEnableValidation` is on, which isn’t ideal. I’ll create a function to verify if the extension is present to avoid potential failures later on.
+#include <vulkan/vulkan.h>
 
-I'll ensure to set `ci.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR` when `VK_KHR_portability_enumeration` is enabled. Also, for mac, I might need the "VK_KHR_get_physical_device_properties2" extension, but it's not necessary for the instance itself.
+// Fallback defines for portability extension names if headers are older
+#ifndef VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
+#define VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME "VK_KHR_portability_enumeration"
+#endif
+#ifndef VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME
+#define VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME "VK_KHR_portability_subset"
+#endif
 
-For device extensions, I'll include 'VK_KHR_portability_subset' if it's supported, meaning I need to enumerate the device extension properties for the chosen physical device before creating it.
-[2025-09-15T11:04:52] codex
-**Clarifying physical device picking**
+#include <vulkan_app/renderer.hpp>
+[2025-09-15T13:01:25] tokens used: 24,805
+[2025-09-15T13:01:31] exec bash -lc "sed -n '1,240p' include/vulkan_app/renderer.hpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T13:01:31] bash -lc "sed -n '1,240p' include/vulkan_app/renderer.hpp" succeeded in 23ms:
+#pragma once
 
-I realize that I can only know the `physical_device` after selecting it, which must happen before `create_device`. So, I can enumerate for 'VK_KHR_portability_subset' during `create_device`.
+#include <cstdint>
+#include <memory>
+#include <vector>
 
-In the `pick_physical_device`, especially for Mac, I might need to filter by the portability subset property, though that's not strictly needed.
+#include <glm/glm.hpp>
+#include <vulkan/vulkan.h>
 
-Additionally, for swapchain creation on Mac, it’s crucial to manage `imageSharingMode` or queue family indices if they're different. Right now, we're setting it to exclusive, which could lead to errors if the present family differs from the graphics family. Vulkan specifies that using exclusive mode requires one queue family or proper ownership transfers, and while many samples opt for concurrent mode when families differ, I need to reconsider how we're handling this.
-[2025-09-15T11:04:52] codex
-**Updating queue handling and extensions**
+struct GLFWwindow;
 
-If the present and graphics families differ, it could lead to issues, but they often work. To be cautious, I’ll switch to concurrent mode when they differ, setting the queue family indices accordingly. 
+namespace vulkan_app {
 
-I'll implement this change by checking if `present_family_ != graphics_family_`, then setting `sharingMode` to `CONCURRENT` and adjusting `queueFamilyIndexCount` and `pQueueFamilyIndices`.
+struct Vertex;
+struct Mesh;
+struct CameraUBO;
+struct Light;
+struct Material;
+struct SsaoParams;
+class ImGuiLayer;
+[2025-09-15T13:01:31] tokens used: 27,890
+[2025-09-15T13:01:34] exec bash -lc "sed -n '1,200p' tests/icosphere_tests.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T13:01:34] bash -lc "sed -n '1,200p' tests/icosphere_tests.cpp" succeeded in 23ms:
+#include <catch2/catch_all.hpp>
 
-For Mac systems, enabling the 'VK_KHR_portability_subset' device extension is important, so I'll add that too. After making these code changes, I'll need to run a build to validate everything. Since approvals can be slow, I’ll proactively build. I know that building might require network access to fetch dependencies, but that should be fine.
+#include <vulkan_app/icosphere.hpp>
 
-Also, I must remember to commit after every file edit, so I'll apply the patch to `renderer.cpp`, followed by `git add`, `commit`, and then push. I should check if there’s a remote linked to my repo.
-[2025-09-15T11:04:53] exec bash -lc 'git remote -v || true' in /Users/bruno/Documents/Development/bruno/vulkano_codex
-[2025-09-15T11:04:53] bash -lc 'git remote -v || true' succeeded in 31ms:
+TEST_CASE("Icosphere vertex and index counts", "[icosphere]") {
+    const auto mesh0 {vulkan_app::make_icosphere(0)};
+    REQUIRE(mesh0.vertices.size() == 12);
+    REQUIRE(mesh0.indices.size() == 60);
+
+    const auto mesh1 {vulkan_app::make_icosphere(1)};
+    REQUIRE(mesh1.vertices.size() == 42);
+    REQUIRE(mesh1.indices.size() == 240);
+}
+[2025-09-15T13:01:34] tokens used: 29,347
+
+[2025-09-15T13:01:37] thinking
+
+**Checking repo organization**
+
+The repository appears to be well-organized overall. However, I noticed there’s duplication within "vulkano/src" and another app, which could be something to address. I see that there are existing documentation files, like ARCHITECTURE.md and SHADERS.md, that might be helpful. I'm considering quickly reviewing include/vulkan_app/types.hpp and icosphere.hpp to understand their purpose better and see if they tie into what's duplicated. Let's dive in and clarify this!
+[2025-09-15T13:01:39] exec bash -lc "sed -n '1,260p' include/vulkan_app/icosphere.hpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T13:01:39] bash -lc "sed -n '1,260p' include/vulkan_app/icosphere.hpp" succeeded in 26ms:
+#pragma once
+
+#include <array>
+#include <cstdint>
+#include <vector>
+
+#include <glm/glm.hpp>
+
+namespace vulkan_app {
+
+/**
+ * @brief Vertex for sphere rendering with tangent-space basis.
+ *
+ * Contains position, normal, UV, and TBN vectors used for normal mapping.
+ */
+struct Vertex final {
+    glm::vec3 position{};
+    glm::vec3 normal{};
+    glm::vec2 uv{};
+    glm::vec3 tangent{};
+[2025-09-15T13:01:39] tokens used: 29,616
+[2025-09-15T13:01:43] exec bash -lc "sed -n '1,320p' include/vulkan_app/types.hpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T13:01:43] bash -lc "sed -n '1,320p' include/vulkan_app/types.hpp" succeeded in 24ms:
+#pragma once
+
+#include <array>
+#include <cstdint>
+
+#include <glm/glm.hpp>
+
+namespace vulkan_app {
+
+/**
+ * @brief Uniform buffer for camera matrices and position.
+ */
+struct CameraUBO final {
+    glm::mat4 view{};
+    glm::mat4 proj{};
+    glm::mat4 viewProj{};
+    glm::vec3 cameraPos{};
+    float pad0{0.0F};
+};
+
+[2025-09-15T13:01:43] tokens used: 30,048
+
+[2025-09-15T13:01:51] thinking
+
+**Reviewing code structure**
+
+Overall, the code is meeting many requirements. The main actions involve consolidating, adding CI, updating the .agent/TODO, and ensuring correct output directories. CMake already sets these to build/bin and compiles shaders properly, which is a relief. We need a top-level folder for the application that contains the binary files, possibly named "apps/vulkan_app_example" with assets included. There’s also a mention of another folder for executables and shader assets. It's looking good, and there are docs available too!
+[2025-09-15T13:01:54] exec bash -lc 'ls -la .agent && rg -n "" .agent -S || true' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T13:01:54] bash -lc 'ls -la .agent && rg -n "" .agent -S || true' succeeded in 51ms:
+total 16
+drwxr-xr-x@  4 bruno  staff   128 15 Sep 11:40 .
+drwxr-xr-x@ 30 bruno  staff   960 15 Sep 13:59 ..
+-rw-r--r--@  1 bruno  staff   807 15 Sep 11:48 plan.md
+-rw-r--r--@  1 bruno  staff  1527 15 Sep 13:47 TODO.md
+.agent/TODO.md:1:# TODO — Vulkano Codex
+.agent/TODO.md:2:
+.agent/TODO.md:3:High-level plan to reach acceptance criteria.
+.agent/TODO.md:4:
+.agent/TODO.md:5:1) Bootstrap project
+.agent/TODO.md:6:- CMake project with options (validation, wayland, imgui docking)
+.agent/TODO.md:7:- FetchContent: GLFW, GLM, Catch2, stb (header-only), ImGui (+ backends)
+.agent/TODO.md:8:- Baseline .clang-format/.clang-tidy; CI stub
+.agent/TODO.md:9:
+.agent/TODO.md:10:2) Core engine scaffolding
+.agent/TODO.md:11:- VulkanContext: instance, debug utils, physical/logical device, queues
+.agent/TODO.md:12:- Swapchain: surface, formats, image views, recreate on resize
+.agent/TODO.md:13:- VMA allocator: buffers/images helper
+.agent/TODO.md:14:- Frame graph-ish: render passes for GBuffer, SSAO, Blur, Compose
+.agent/TODO.md:15:- ImGuiLayer: init, new frame, render draw data
+[2025-09-15T13:01:54] tokens used: 30,854
+
+[2025-09-15T13:02:09] thinking
+
+**Organizing the project structure**
+
+I need to handle the "vulkan_app" folder appropriately. The idea is to create an "apps/vulkan_viewer" directory for the main app's executable and configuration files. Currently, there's an example file in src/main.cpp, which is fine for now, but I should consider deleting or archiving the "vulkano" folder to reduce confusion. While the guidelines warn against destructive actions, I can fully access the sandbox. I think moving "vulkano/" to an "attic/" folder to preserve history and adding a README file makes more sense.
+**Configuring the build process**
+
+I'm planning to add a YAML file that will help install the Vulkan SDK using the action 'jurplel/install-vulkan-sdk@v1' and handle the dependencies. After that, I'll configure and build the project, followed by running ctest. I might also want to run clang-format and clang-tidy, but it could be a minimal run without a compilation database path. It's essential to maintain consistent output directories and adhere to code style guidelines, like always using curly braces and ensuring includes don’t use quotes.
+[2025-09-15T13:02:14] codex
+**Configuring the build process**
+
+I'm planning to add a YAML file that will help install the Vulkan SDK using the action 'jurplel/install-vulkan-sdk@v1' and handle the dependencies. After that, I'll configure and build the project, followed by running ctest. I might also want to run clang-format and clang-tidy, but it could be a minimal run without a compilation database path. It's essential to maintain consistent output directories and adhere to code style guidelines, like always using curly braces and ensuring includes don’t use quotes.
+[2025-09-15T13:02:15] exec bash -lc "rg -n \"#include \\\"\" | sed -n '1,120p'" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T13:02:15] bash -lc "rg -n \"#include \\\"\" | sed -n '1,120p'" succeeded in 180ms:
+output.md:283:The repository already has a similar structure in place. I see there's a "vulkano" folder that seems to be a second attempt. It looks like I need to consolidate and clean things up to align with AGENTS.md requirements, specifically checking that the includes use angle brackets and ensuring headers use the format #include "...". I'll start by inspecting one of the headers to see what's currently there.
+AGENTS.md:24:* **Directive:** Always use angle brackets (`#include <...>`) for all project and system headers. Quoted includes (`#include "..."`) are prohibited.
+build/_deps/catch2-src/extras/catch_amalgamated.cpp:15:#include "catch_amalgamated.hpp"
+build/CMakeFiles/CMakeConfigureLog.yaml:104:        #include "..." search starts here:
+build/CMakeFiles/CMakeConfigureLog.yaml:196:        ignore line: [#include "..." search starts here:]
+build/CMakeFiles/CMakeConfigureLog.yaml:359:        #include "..." search starts here:
+build/CMakeFiles/CMakeConfigureLog.yaml:447:        ignore line: [#include "..." search starts here:]
+vulkano/build/_deps/catch2-src/extras/catch_amalgamated.cpp:16:#include "catch_amalgamated.hpp"
+vulkano/build/CMakeFiles/CMakeConfigureLog.yaml:104:        #include "..." search starts here:
+vulkano/build/CMakeFiles/CMakeConfigureLog.yaml:196:        ignore line: [#include "..." search starts here:]
+vulkano/build/CMakeFiles/CMakeConfigureLog.yaml:359:        #include "..." search starts here:
+vulkano/build/CMakeFiles/CMakeConfigureLog.yaml:447:        ignore line: [#include "..." search starts here:]
+vulkano/build/_deps/glm-src/glm/fwd.hpp:3:#include "detail/qualifier.hpp"
+vulkano/build/_deps/glm-src/glm/gtx/type_aligned.hpp:17:#include "../gtc/type_precision.hpp"
+vulkano/build/_deps/glm-src/glm/gtx/type_aligned.hpp:18:#include "../gtc/quaternion.hpp"
+vulkano/build/_deps/glm-src/glm/gtx/type_aligned.hpp:980:#include "type_aligned.inl"
+vulkano/build/_deps/imgui-src/imgui_draw.cpp:34:#include "imgui.h"
+vulkano/build/_deps/imgui-src/imgui_draw.cpp:36:#include "imgui_internal.h"
+vulkano/build/_deps/imgui-src/imgui_draw.cpp:38:#include "misc/freetype/imgui_freetype.h"
+vulkano/build/_deps/imgui-src/imgui_draw.cpp:126:#include "imstb_rectpack.h"
+[2025-09-15T13:02:15] tokens used: 32,613
+
+[2025-09-15T13:02:28] thinking
+
+**Checking Git Status**
+
+I'm thinking about running “git status” to check if the remote repository is present. That’s a critical step for ensuring everything is in sync before making any updates or pushing changes. It's always good to know what the current state is, right? I want to make sure my next steps are based on accurate information, so I’ll definitely keep that in mind as I move forward with the task.
+[2025-09-15T13:02:30] exec bash -lc 'git remote -v || true && git status --porcelain=v1 -b' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T13:02:30] bash -lc 'git remote -v || true && git status --porcelain=v1 -b' succeeded in 109ms:
 origin	https://github.com/indie-hub/vulkano.git (fetch)
 origin	https://github.com/indie-hub/vulkano.git (push)
-[2025-09-15T11:04:53] tokens used: 20,167
+## feat/imgui-integration
+ M .agent/TODO.md
+ M .idea/vcs.xml
+ M AGENTS.md
+ M build/CMakeCache.txt
+ M build/CMakeFiles/Makefile2
+ M build/CMakeFiles/icosphere_tests.dir/build.make
+ M build/CMakeFiles/icosphere_tests.dir/flags.make
+ M build/CMakeFiles/icosphere_tests.dir/link.txt
+ M build/CMakeFiles/imgui_backend.dir/flags.make
+ M build/CMakeFiles/vulkan_app.dir/flags.make
+ M build/CMakeFiles/vulkan_app_example.dir/flags.make
+ M build/CMakeFiles/vulkan_app_example.dir/link.txt
+ M build/CTestTestfile.cmake
+ M build/Testing/Temporary/CTestCostData.txt
+ M build/Testing/Temporary/LastTest.log
+ M build/_deps/catch2-build/cmake_install.cmake
+ M build/_deps/catch2-build/src/CMakeFiles/Catch2.dir/build.make
+[2025-09-15T13:02:30] tokens used: 34,758
 
-[2025-09-15T11:04:57] thinking
+[2025-09-15T13:02:32] thinking
 
-**Planning implementation steps**
+**Checking .gitignore configuration**
 
-I'll start by implementing the commit and then attempt to push. If that fails, I'll just move on. I also want to create a `.agent/TODO.md` scratchpad where I can jot down initial TODO content. Finally, there’s a plan to implement a patch to `src/renderer.cpp`. I’m curious to see how smoothly everything will go and I'll keep an eye on any issues that might pop up during these steps!
-[2025-09-15T11:04:59] codex
+I'm currently on the branch feat/imgui-integration with the origin set. I've noticed that there are quite a few changes in the build directory being tracked. I believe that the .gitignore file should prevent the build directory from being tracked, but it seems like it isn't doing its job. So, I need to take a look at the .gitignore file to see what's going on there.
+[2025-09-15T13:02:34] exec bash -lc "sed -n '1,200p' .gitignore" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T13:02:34] bash -lc "sed -n '1,200p' .gitignore" succeeded in 22ms:
+# Prerequisites
+*.d
 
-Next, I’ll patch `src/renderer.cpp` to: enable portability enumeration on macOS (VK_KHR_portability_enumeration + instance flag), include VK_KHR_portability_subset in device extensions when available, and make swapchain sharing concurrent when graphics/present queues differ. I’ll then commit this change.
-[2025-09-15T11:05:14] apply_patch auto_approved=true:
-M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/renderer.cpp
-@@ -3,2 +3,3 @@
- #include <vector>
-+#include <string>
- 
-@@ -224,5 +225,24 @@
-     std::vector<const char*> extensions(glfw_ext, glfw_ext + glfw_count);
--    if (kEnableValidation) {
-+    // Enumerate supported instance extensions so we can conditionally enable portability + debug utils
-+    std::uint32_t ext_count{0U};
-+    vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
-+    std::vector<VkExtensionProperties> avail_exts(static_cast<std::size_t>(ext_count));
-+    if (ext_count > 0U) {
-+        vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, avail_exts.data());
-+    }
-+    auto has_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : avail_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    if (kEnableValidation && has_ext(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
-         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-     }
-+    const bool portability_supported = has_ext(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    if (portability_supported) {
-+        extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    }
- 
-@@ -237,2 +257,5 @@
-     ci.ppEnabledExtensionNames = extensions.data();
-+    if (portability_supported) {
-+        ci.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-+    }
-     if (kEnableValidation) {
-@@ -323,3 +346,22 @@
- 
--    const char* device_exts[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-+    // Query device extensions to enable portability subset on platforms like macOS (MoltenVK)
-+    std::uint32_t dev_ext_count{0U};
-+    vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, nullptr);
-+    std::vector<VkExtensionProperties> dev_exts(static_cast<std::size_t>(dev_ext_count));
-+    if (dev_ext_count > 0U) {
-+        vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, dev_exts.data());
-+    }
-+    auto has_dev_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : dev_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    std::vector<const char*> device_exts;
-+    device_exts.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-+    if (has_dev_ext(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
-+        device_exts.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
-+    }
- 
-@@ -330,4 +372,4 @@
-     dci.pEnabledFeatures = &features;
--    dci.enabledExtensionCount = 1;
--    dci.ppEnabledExtensionNames = device_exts;
-+    dci.enabledExtensionCount = static_cast<std::uint32_t>(device_exts.size());
-+    dci.ppEnabledExtensionNames = device_exts.data();
-     if (vkCreateDevice(physical_device_, &dci, nullptr, &device_) != VK_SUCCESS) {
-@@ -384,3 +426,10 @@
-     sci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
--    sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    if (present_family_ != graphics_family_) {
-+        const std::uint32_t indices[2] = { graphics_family_, present_family_ };
-+        sci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-+        sci.queueFamilyIndexCount = 2;
-+        sci.pQueueFamilyIndices = indices;
-+    } else {
-+        sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    }
-     sci.preTransform = caps.currentTransform;
-[2025-09-15T11:05:14] apply_patch(auto_approved=true) exited 0 in 23ms:
-Success. Updated the following files:
-M src/renderer.cpp
-[2025-09-15T11:05:14] turn diff:
-diff --git a/src/renderer.cpp b/src/renderer.cpp
-index aecf0b6c2661c56daeaf15edd3b4164f228d7622..3c9558e84cc8b4b6a1316f9d61cc24de739d5df5
---- a/src/renderer.cpp
-+++ b/src/renderer.cpp
-@@ -1,6 +1,7 @@
- #include <cstring>
- #include <stdexcept>
- #include <vector>
-+#include <string>
- 
- #define GLFW_INCLUDE_VULKAN
- #include <GLFW/glfw3.h>
-@@ -222,9 +223,28 @@
-     std::uint32_t glfw_count{0U};
-     const char** glfw_ext = glfwGetRequiredInstanceExtensions(&glfw_count);
-     std::vector<const char*> extensions(glfw_ext, glfw_ext + glfw_count);
--    if (kEnableValidation) {
-+    // Enumerate supported instance extensions so we can conditionally enable portability + debug utils
-+    std::uint32_t ext_count{0U};
-+    vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
-+    std::vector<VkExtensionProperties> avail_exts(static_cast<std::size_t>(ext_count));
-+    if (ext_count > 0U) {
-+        vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, avail_exts.data());
-+    }
-+    auto has_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : avail_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    if (kEnableValidation && has_ext(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
-         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-     }
-+    const bool portability_supported = has_ext(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    if (portability_supported) {
-+        extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    }
- 
-     const std::vector<const char*> layers{
-         "VK_LAYER_KHRONOS_validation"
-@@ -235,6 +255,9 @@
-     ci.pApplicationInfo = &app_info;
-     ci.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
-     ci.ppEnabledExtensionNames = extensions.data();
-+    if (portability_supported) {
-+        ci.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-+    }
-     if (kEnableValidation) {
-         ci.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
-         ci.ppEnabledLayerNames = layers.data();
-@@ -321,15 +344,34 @@
- 
-     VkPhysicalDeviceFeatures features{};
- 
--    const char* device_exts[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-+    // Query device extensions to enable portability subset on platforms like macOS (MoltenVK)
-+    std::uint32_t dev_ext_count{0U};
-+    vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, nullptr);
-+    std::vector<VkExtensionProperties> dev_exts(static_cast<std::size_t>(dev_ext_count));
-+    if (dev_ext_count > 0U) {
-+        vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, dev_exts.data());
-+    }
-+    auto has_dev_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : dev_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    std::vector<const char*> device_exts;
-+    device_exts.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-+    if (has_dev_ext(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
-+        device_exts.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
-+    }
- 
-     VkDeviceCreateInfo dci{};
-     dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-     dci.pQueueCreateInfos = queues.data();
-     dci.queueCreateInfoCount = static_cast<std::uint32_t>(queues.size());
-     dci.pEnabledFeatures = &features;
--    dci.enabledExtensionCount = 1;
--    dci.ppEnabledExtensionNames = device_exts;
-+    dci.enabledExtensionCount = static_cast<std::uint32_t>(device_exts.size());
-+    dci.ppEnabledExtensionNames = device_exts.data();
-     if (vkCreateDevice(physical_device_, &dci, nullptr, &device_) != VK_SUCCESS) {
-         throw std::runtime_error{"Failed to create logical device"};
-     }
-@@ -382,7 +424,14 @@
-     sci.imageExtent = extent;
-     sci.imageArrayLayers = 1;
-     sci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
--    sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    if (present_family_ != graphics_family_) {
-+        const std::uint32_t indices[2] = { graphics_family_, present_family_ };
-+        sci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-+        sci.queueFamilyIndexCount = 2;
-+        sci.pQueueFamilyIndices = indices;
-+    } else {
-+        sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    }
-     sci.preTransform = caps.currentTransform;
-     sci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-     sci.presentMode = chosen_present;
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
 
-[2025-09-15T11:05:14] tokens used: 22,298
-[2025-09-15T11:05:14] turn diff:
-diff --git a/src/renderer.cpp b/src/renderer.cpp
-index aecf0b6c2661c56daeaf15edd3b4164f228d7622..3c9558e84cc8b4b6a1316f9d61cc24de739d5df5
---- a/src/renderer.cpp
-+++ b/src/renderer.cpp
-@@ -1,6 +1,7 @@
- #include <cstring>
- #include <stdexcept>
- #include <vector>
-+#include <string>
- 
- #define GLFW_INCLUDE_VULKAN
- #include <GLFW/glfw3.h>
-@@ -222,9 +223,28 @@
-     std::uint32_t glfw_count{0U};
-     const char** glfw_ext = glfwGetRequiredInstanceExtensions(&glfw_count);
-     std::vector<const char*> extensions(glfw_ext, glfw_ext + glfw_count);
--    if (kEnableValidation) {
-+    // Enumerate supported instance extensions so we can conditionally enable portability + debug utils
-+    std::uint32_t ext_count{0U};
-+    vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
-+    std::vector<VkExtensionProperties> avail_exts(static_cast<std::size_t>(ext_count));
-+    if (ext_count > 0U) {
-+        vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, avail_exts.data());
-+    }
-+    auto has_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : avail_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    if (kEnableValidation && has_ext(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
-         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-     }
-+    const bool portability_supported = has_ext(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    if (portability_supported) {
-+        extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    }
- 
-     const std::vector<const char*> layers{
-         "VK_LAYER_KHRONOS_validation"
-@@ -235,6 +255,9 @@
-     ci.pApplicationInfo = &app_info;
-     ci.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
-     ci.ppEnabledExtensionNames = extensions.data();
-+    if (portability_supported) {
-+        ci.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-+    }
-     if (kEnableValidation) {
-         ci.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
-         ci.ppEnabledLayerNames = layers.data();
-@@ -321,15 +344,34 @@
- 
-     VkPhysicalDeviceFeatures features{};
- 
--    const char* device_exts[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-+    // Query device extensions to enable portability subset on platforms like macOS (MoltenVK)
-+    std::uint32_t dev_ext_count{0U};
-+    vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, nullptr);
-+    std::vector<VkExtensionProperties> dev_exts(static_cast<std::size_t>(dev_ext_count));
-+    if (dev_ext_count > 0U) {
-+        vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, dev_exts.data());
-+    }
-+    auto has_dev_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : dev_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    std::vector<const char*> device_exts;
-+    device_exts.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-+    if (has_dev_ext(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
-+        device_exts.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
-+    }
- 
-     VkDeviceCreateInfo dci{};
-     dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-     dci.pQueueCreateInfos = queues.data();
-     dci.queueCreateInfoCount = static_cast<std::uint32_t>(queues.size());
-     dci.pEnabledFeatures = &features;
--    dci.enabledExtensionCount = 1;
--    dci.ppEnabledExtensionNames = device_exts;
-+    dci.enabledExtensionCount = static_cast<std::uint32_t>(device_exts.size());
-+    dci.ppEnabledExtensionNames = device_exts.data();
-     if (vkCreateDevice(physical_device_, &dci, nullptr, &device_) != VK_SUCCESS) {
-         throw std::runtime_error{"Failed to create logical device"};
-     }
-@@ -382,7 +424,14 @@
-     sci.imageExtent = extent;
-     sci.imageArrayLayers = 1;
-     sci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
--    sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    if (present_family_ != graphics_family_) {
-+        const std::uint32_t indices[2] = { graphics_family_, present_family_ };
-+        sci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-+        sci.queueFamilyIndexCount = 2;
-+        sci.pQueueFamilyIndices = indices;
-+    } else {
-+        sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    }
-     sci.preTransform = caps.currentTransform;
-     sci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-     sci.presentMode = chosen_present;
+# Precompiled Headers
+*.gch
+*.pch
 
-[2025-09-15T11:05:16] exec bash -lc 'git add -A && git commit -m "fix: enable VK_KHR_portability_enumeration and device portability subset; handle concurrent swapchain sharing on macOS" && git push' in /Users/bruno/Documents/Development/bruno/vulkano_codex
-[2025-09-15T11:05:16] bash -lc 'git add -A && git commit -m "fix: enable VK_KHR_portability_enumeration and device portability subset; handle concurrent swapchain sharing on macOS" && git push' exited 128 in 808ms:
-warning: adding embedded git repository: build/_deps/catch2-src
-hint: You've added another git repository inside your current repository.
-hint: Clones of the outer repository will not contain the contents of
-hint: the embedded repository and will not know how to obtain it.
-hint: If you meant to add a submodule, use:
-hint: 
-hint: 	git submodule add <url> build/_deps/catch2-src
-hint: 
-hint: If you added this path by mistake, you can remove it from the
-hint: index with:
-hint: 
-hint: 	git rm --cached build/_deps/catch2-src
-hint: 
-hint: See "git help submodule" for more information.
-warning: adding embedded git repository: build/_deps/glfw-src
-warning: adding embedded git repository: build/_deps/glm-src
-warning: adding embedded git repository: build/_deps/imgui-src
-[feat/imgui-integration 8132f62] fix: enable VK_KHR_portability_enumeration and device portability subset; handle concurrent swapchain sharing on macOS
- 819 files changed, 311182 insertions(+), 5 deletions(-)
- create mode 100644 .idea/.gitignore
-[2025-09-15T11:05:16] tokens used: 24,188
-[2025-09-15T11:05:16] turn diff:
-diff --git a/src/renderer.cpp b/src/renderer.cpp
-index aecf0b6c2661c56daeaf15edd3b4164f228d7622..3c9558e84cc8b4b6a1316f9d61cc24de739d5df5
---- a/src/renderer.cpp
-+++ b/src/renderer.cpp
-@@ -1,6 +1,7 @@
- #include <cstring>
- #include <stdexcept>
- #include <vector>
-+#include <string>
- 
- #define GLFW_INCLUDE_VULKAN
- #include <GLFW/glfw3.h>
-@@ -222,9 +223,28 @@
-     std::uint32_t glfw_count{0U};
-     const char** glfw_ext = glfwGetRequiredInstanceExtensions(&glfw_count);
-     std::vector<const char*> extensions(glfw_ext, glfw_ext + glfw_count);
--    if (kEnableValidation) {
-+    // Enumerate supported instance extensions so we can conditionally enable portability + debug utils
-+    std::uint32_t ext_count{0U};
-+    vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
-+    std::vector<VkExtensionProperties> avail_exts(static_cast<std::size_t>(ext_count));
-+    if (ext_count > 0U) {
-+        vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, avail_exts.data());
-+    }
-+    auto has_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : avail_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    if (kEnableValidation && has_ext(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
-         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-     }
-+    const bool portability_supported = has_ext(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    if (portability_supported) {
-+        extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    }
- 
-     const std::vector<const char*> layers{
-         "VK_LAYER_KHRONOS_validation"
-@@ -235,6 +255,9 @@
-     ci.pApplicationInfo = &app_info;
-     ci.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
-     ci.ppEnabledExtensionNames = extensions.data();
-+    if (portability_supported) {
-+        ci.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-+    }
-     if (kEnableValidation) {
-         ci.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
-         ci.ppEnabledLayerNames = layers.data();
-@@ -321,15 +344,34 @@
- 
-     VkPhysicalDeviceFeatures features{};
- 
--    const char* device_exts[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-+    // Query device extensions to enable portability subset on platforms like macOS (MoltenVK)
-+    std::uint32_t dev_ext_count{0U};
-+    vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, nullptr);
-+    std::vector<VkExtensionProperties> dev_exts(static_cast<std::size_t>(dev_ext_count));
-+    if (dev_ext_count > 0U) {
-+        vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, dev_exts.data());
-+    }
-+    auto has_dev_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : dev_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    std::vector<const char*> device_exts;
-+    device_exts.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-+    if (has_dev_ext(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
-+        device_exts.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
-+    }
- 
-     VkDeviceCreateInfo dci{};
-     dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-     dci.pQueueCreateInfos = queues.data();
-     dci.queueCreateInfoCount = static_cast<std::uint32_t>(queues.size());
-     dci.pEnabledFeatures = &features;
--    dci.enabledExtensionCount = 1;
--    dci.ppEnabledExtensionNames = device_exts;
-+    dci.enabledExtensionCount = static_cast<std::uint32_t>(device_exts.size());
-+    dci.ppEnabledExtensionNames = device_exts.data();
-     if (vkCreateDevice(physical_device_, &dci, nullptr, &device_) != VK_SUCCESS) {
-         throw std::runtime_error{"Failed to create logical device"};
-     }
-@@ -382,7 +424,14 @@
-     sci.imageExtent = extent;
-     sci.imageArrayLayers = 1;
-     sci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
--    sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    if (present_family_ != graphics_family_) {
-+        const std::uint32_t indices[2] = { graphics_family_, present_family_ };
-+        sci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-+        sci.queueFamilyIndexCount = 2;
-+        sci.pQueueFamilyIndices = indices;
-+    } else {
-+        sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    }
-     sci.preTransform = caps.currentTransform;
-     sci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-     sci.presentMode = chosen_present;
+# Linker files
+*.ilk
 
+# Debugger Files
+*.pdb
 
-[2025-09-15T11:05:18] thinking
+# Compiled Dynamic libraries
+[2025-09-15T13:02:34] tokens used: 36,704
 
-**Troubleshooting Git issues**
+[2025-09-15T13:02:42] thinking
 
-I just encountered a push failure because there’s no upstream branch set. It looks like I need to set the upstream for my current branch, which is "feat/imgui-integration." To fix this, I can use `git rev-parse` to check my current branch. Then, I’ll run the push command with the "set-upstream" option to establish that connection. Let's get this sorted out!
-[2025-09-15T11:05:20] exec bash -lc 'git push --set-upstream origin $(git rev-parse --abbrev-ref HEAD)' in /Users/bruno/Documents/Development/bruno/vulkano_codex
-[2025-09-15T11:05:21] bash -lc 'git push --set-upstream origin $(git rev-parse --abbrev-ref HEAD)' exited 128 in 356ms:
-remote: Permission to indie-hub/vulkano.git denied to brunooliveirafvr.
-fatal: unable to access 'https://github.com/indie-hub/vulkano.git/': The requested URL returned error: 403
-[2025-09-15T11:05:21] tokens used: 27,055
-[2025-09-15T11:05:21] turn diff:
-diff --git a/src/renderer.cpp b/src/renderer.cpp
-index aecf0b6c2661c56daeaf15edd3b4164f228d7622..3c9558e84cc8b4b6a1316f9d61cc24de739d5df5
---- a/src/renderer.cpp
-+++ b/src/renderer.cpp
-@@ -1,6 +1,7 @@
- #include <cstring>
- #include <stdexcept>
- #include <vector>
-+#include <string>
- 
- #define GLFW_INCLUDE_VULKAN
- #include <GLFW/glfw3.h>
-@@ -222,9 +223,28 @@
-     std::uint32_t glfw_count{0U};
-     const char** glfw_ext = glfwGetRequiredInstanceExtensions(&glfw_count);
-     std::vector<const char*> extensions(glfw_ext, glfw_ext + glfw_count);
--    if (kEnableValidation) {
-+    // Enumerate supported instance extensions so we can conditionally enable portability + debug utils
-+    std::uint32_t ext_count{0U};
-+    vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
-+    std::vector<VkExtensionProperties> avail_exts(static_cast<std::size_t>(ext_count));
-+    if (ext_count > 0U) {
-+        vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, avail_exts.data());
-+    }
-+    auto has_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : avail_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    if (kEnableValidation && has_ext(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
-         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-     }
-+    const bool portability_supported = has_ext(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    if (portability_supported) {
-+        extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    }
- 
-     const std::vector<const char*> layers{
-         "VK_LAYER_KHRONOS_validation"
-@@ -235,6 +255,9 @@
-     ci.pApplicationInfo = &app_info;
-     ci.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
-     ci.ppEnabledExtensionNames = extensions.data();
-+    if (portability_supported) {
-+        ci.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-+    }
-     if (kEnableValidation) {
-         ci.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
-         ci.ppEnabledLayerNames = layers.data();
-@@ -321,15 +344,34 @@
- 
-     VkPhysicalDeviceFeatures features{};
- 
--    const char* device_exts[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-+    // Query device extensions to enable portability subset on platforms like macOS (MoltenVK)
-+    std::uint32_t dev_ext_count{0U};
-+    vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, nullptr);
-+    std::vector<VkExtensionProperties> dev_exts(static_cast<std::size_t>(dev_ext_count));
-+    if (dev_ext_count > 0U) {
-+        vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, dev_exts.data());
-+    }
-+    auto has_dev_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : dev_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    std::vector<const char*> device_exts;
-+    device_exts.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-+    if (has_dev_ext(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
-+        device_exts.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
-+    }
- 
-     VkDeviceCreateInfo dci{};
-     dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-     dci.pQueueCreateInfos = queues.data();
-     dci.queueCreateInfoCount = static_cast<std::uint32_t>(queues.size());
-     dci.pEnabledFeatures = &features;
--    dci.enabledExtensionCount = 1;
--    dci.ppEnabledExtensionNames = device_exts;
-+    dci.enabledExtensionCount = static_cast<std::uint32_t>(device_exts.size());
-+    dci.ppEnabledExtensionNames = device_exts.data();
-     if (vkCreateDevice(physical_device_, &dci, nullptr, &device_) != VK_SUCCESS) {
-         throw std::runtime_error{"Failed to create logical device"};
-     }
-@@ -382,7 +424,14 @@
-     sci.imageExtent = extent;
-     sci.imageArrayLayers = 1;
-     sci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
--    sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    if (present_family_ != graphics_family_) {
-+        const std::uint32_t indices[2] = { graphics_family_, present_family_ };
-+        sci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-+        sci.queueFamilyIndexCount = 2;
-+        sci.pQueueFamilyIndices = indices;
-+    } else {
-+        sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    }
-     sci.preTransform = caps.currentTransform;
-     sci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-     sci.presentMode = chosen_present;
+**Updating .gitignore and CMake**
 
-[2025-09-15T11:05:25] exec bash -lc 'cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug && cmake --build build -j 4' in /Users/bruno/Documents/Development/bruno/vulkano_codex
-[2025-09-15T11:05:27] bash -lc 'cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug && cmake --build build -j 4' exited 2 in 2.52s:
-CMake Deprecation Warning at build/_deps/glm-src/CMakeLists.txt:1 (cmake_minimum_required):
-  Compatibility with CMake < 3.10 will be removed from a future version of
-  CMake.
+I’m realizing that the current .gitignore is insufficient; it doesn’t ignore the build/ directory, and CMake generated files are still tracked as modified. I need to add specific ignores for various build and IDE directories. I’ll include items like build/, cmake-build-*/, and .vscode/, among others. 
 
-  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
-  to tell CMake that the project requires at least <min> but has been updated
-  to work with policies introduced by <max> or earlier.
+Next, I’ll ensure the CMake configuration writes outputs into the bin/<config> directory, adapting the settings for multi-config builds. I also want to enforce tools like clang-format and clang-tidy. Let's dive into this now!
+[2025-09-15T13:02:44] exec bash -lc "sed -n '1,200p' .clang-format && echo '---' && sed -n '1,200p' .clang-tidy" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T13:02:44] bash -lc "sed -n '1,200p' .clang-format && echo '---' && sed -n '1,200p' .clang-tidy" succeeded in 30ms:
+BasedOnStyle: LLVM
+IndentWidth: 4
+ColumnLimit: 120
+BreakBeforeBraces: Allman
+AllowShortFunctionsOnASingleLine: None
+DerivePointerAlignment: false
+PointerAlignment: Left
+IncludeBlocks: Regroup
+SortIncludes: true
+SpaceBeforeParens: ControlStatements
+AlwaysBreakAfterControlStatementKeywords: true
+BraceWrapping:
+  AfterControlStatement: true
+  AfterFunction: true
+  AfterNamespace: true
+  BeforeElse: true
 
-
-CMake Deprecation Warning at build/_deps/glm-src/CMakeLists.txt:2 (cmake_policy):
-  Compatibility with CMake < 3.10 will be removed from a future version of
-  CMake.
-
-  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
-  to tell CMake that the project requires at least <min> but has been updated
-  to work with policies introduced by <max> or earlier.
-
-
--- GLM: Version 1.0.1
--- GLM: Disable -Wc++98-compat warnings
-[2025-09-15T11:05:27] tokens used: 27,406
-[2025-09-15T11:05:27] turn diff:
-diff --git a/src/renderer.cpp b/src/renderer.cpp
-index aecf0b6c2661c56daeaf15edd3b4164f228d7622..3c9558e84cc8b4b6a1316f9d61cc24de739d5df5
---- a/src/renderer.cpp
-+++ b/src/renderer.cpp
-@@ -1,6 +1,7 @@
- #include <cstring>
- #include <stdexcept>
- #include <vector>
-+#include <string>
- 
- #define GLFW_INCLUDE_VULKAN
- #include <GLFW/glfw3.h>
-@@ -222,9 +223,28 @@
-     std::uint32_t glfw_count{0U};
-     const char** glfw_ext = glfwGetRequiredInstanceExtensions(&glfw_count);
-     std::vector<const char*> extensions(glfw_ext, glfw_ext + glfw_count);
--    if (kEnableValidation) {
-+    // Enumerate supported instance extensions so we can conditionally enable portability + debug utils
-+    std::uint32_t ext_count{0U};
-+    vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
-+    std::vector<VkExtensionProperties> avail_exts(static_cast<std::size_t>(ext_count));
-+    if (ext_count > 0U) {
-+        vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, avail_exts.data());
-+    }
-+    auto has_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : avail_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    if (kEnableValidation && has_ext(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
-         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-     }
-+    const bool portability_supported = has_ext(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    if (portability_supported) {
-+        extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    }
- 
-     const std::vector<const char*> layers{
-         "VK_LAYER_KHRONOS_validation"
-@@ -235,6 +255,9 @@
-     ci.pApplicationInfo = &app_info;
-     ci.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
-     ci.ppEnabledExtensionNames = extensions.data();
-+    if (portability_supported) {
-+        ci.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-+    }
-     if (kEnableValidation) {
-         ci.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
-         ci.ppEnabledLayerNames = layers.data();
-@@ -321,15 +344,34 @@
- 
-     VkPhysicalDeviceFeatures features{};
- 
--    const char* device_exts[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-+    // Query device extensions to enable portability subset on platforms like macOS (MoltenVK)
-+    std::uint32_t dev_ext_count{0U};
-+    vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, nullptr);
-+    std::vector<VkExtensionProperties> dev_exts(static_cast<std::size_t>(dev_ext_count));
-+    if (dev_ext_count > 0U) {
-+        vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, dev_exts.data());
-+    }
-+    auto has_dev_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : dev_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    std::vector<const char*> device_exts;
-+    device_exts.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-+    if (has_dev_ext(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
-+        device_exts.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
-+    }
- 
-     VkDeviceCreateInfo dci{};
-     dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-     dci.pQueueCreateInfos = queues.data();
-     dci.queueCreateInfoCount = static_cast<std::uint32_t>(queues.size());
-     dci.pEnabledFeatures = &features;
--    dci.enabledExtensionCount = 1;
--    dci.ppEnabledExtensionNames = device_exts;
-+    dci.enabledExtensionCount = static_cast<std::uint32_t>(device_exts.size());
-+    dci.ppEnabledExtensionNames = device_exts.data();
-     if (vkCreateDevice(physical_device_, &dci, nullptr, &device_) != VK_SUCCESS) {
-         throw std::runtime_error{"Failed to create logical device"};
-     }
-@@ -382,7 +424,14 @@
-     sci.imageExtent = extent;
-     sci.imageArrayLayers = 1;
-     sci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
--    sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    if (present_family_ != graphics_family_) {
-+        const std::uint32_t indices[2] = { graphics_family_, present_family_ };
-+        sci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-+        sci.queueFamilyIndexCount = 2;
-+        sci.pQueueFamilyIndices = indices;
-+    } else {
-+        sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    }
-     sci.preTransform = caps.currentTransform;
-     sci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-     sci.presentMode = chosen_present;
-
-
-[2025-09-15T11:05:30] thinking
-
-**Evaluating Vulkan macros**
-
-I’m dealing with the macro constant VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME, which needs including <vulkan/vulkan_beta.h> or newer headers. To be cautious, I’ll create a fallback by defining our own macro if it’s not already defined. 
-
-I should add these fallback definitions near the includes to ensure everything works smoothly. Also, I need to check if I should include <vulkan/vulkan_core.h>, which already contains <vulkan/vulkan.h>. The macros I need may not be available, so I'll make these adjustments.
-[2025-09-15T11:05:33] apply_patch auto_approved=true:
-M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/renderer.cpp
-@@ -10,2 +10,10 @@
- 
-+// Fallback defines for portability extension names if headers are older
-+#ifndef VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME "VK_KHR_portability_enumeration"
-+#endif
-+#ifndef VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME "VK_KHR_portability_subset"
-+#endif
-+
- #include <vulkan_app/renderer.hpp>
-[2025-09-15T11:05:33] apply_patch(auto_approved=true) exited 0 in 45ms:
-Success. Updated the following files:
-M src/renderer.cpp
-[2025-09-15T11:05:33] turn diff:
-diff --git a/src/renderer.cpp b/src/renderer.cpp
-index aecf0b6c2661c56daeaf15edd3b4164f228d7622..baaea437cf50cd106ee6acba5e789c9a93793170
---- a/src/renderer.cpp
-+++ b/src/renderer.cpp
-@@ -1,12 +1,21 @@
- #include <cstring>
- #include <stdexcept>
- #include <vector>
-+#include <string>
- 
- #define GLFW_INCLUDE_VULKAN
- #include <GLFW/glfw3.h>
- 
- #include <vulkan/vulkan.h>
- 
-+// Fallback defines for portability extension names if headers are older
-+#ifndef VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME "VK_KHR_portability_enumeration"
-+#endif
-+#ifndef VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME "VK_KHR_portability_subset"
-+#endif
-+
- #include <vulkan_app/renderer.hpp>
- #include <vulkan_app/imgui_layer.hpp>
- #include <vulkan_app/icosphere.hpp>
-@@ -222,9 +231,28 @@
-     std::uint32_t glfw_count{0U};
-     const char** glfw_ext = glfwGetRequiredInstanceExtensions(&glfw_count);
-     std::vector<const char*> extensions(glfw_ext, glfw_ext + glfw_count);
--    if (kEnableValidation) {
-+    // Enumerate supported instance extensions so we can conditionally enable portability + debug utils
-+    std::uint32_t ext_count{0U};
-+    vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
-+    std::vector<VkExtensionProperties> avail_exts(static_cast<std::size_t>(ext_count));
-+    if (ext_count > 0U) {
-+        vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, avail_exts.data());
-+    }
-+    auto has_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : avail_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    if (kEnableValidation && has_ext(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
-         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-     }
-+    const bool portability_supported = has_ext(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    if (portability_supported) {
-+        extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    }
- 
-     const std::vector<const char*> layers{
-         "VK_LAYER_KHRONOS_validation"
-@@ -235,6 +263,9 @@
-     ci.pApplicationInfo = &app_info;
-     ci.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
-     ci.ppEnabledExtensionNames = extensions.data();
-+    if (portability_supported) {
-+        ci.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-+    }
-     if (kEnableValidation) {
-         ci.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
-         ci.ppEnabledLayerNames = layers.data();
-@@ -321,15 +352,34 @@
- 
-     VkPhysicalDeviceFeatures features{};
- 
--    const char* device_exts[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-+    // Query device extensions to enable portability subset on platforms like macOS (MoltenVK)
-+    std::uint32_t dev_ext_count{0U};
-+    vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, nullptr);
-+    std::vector<VkExtensionProperties> dev_exts(static_cast<std::size_t>(dev_ext_count));
-+    if (dev_ext_count > 0U) {
-+        vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, dev_exts.data());
-+    }
-+    auto has_dev_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : dev_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    std::vector<const char*> device_exts;
-+    device_exts.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-+    if (has_dev_ext(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
-+        device_exts.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
-+    }
- 
-     VkDeviceCreateInfo dci{};
-     dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-     dci.pQueueCreateInfos = queues.data();
-     dci.queueCreateInfoCount = static_cast<std::uint32_t>(queues.size());
-     dci.pEnabledFeatures = &features;
--    dci.enabledExtensionCount = 1;
--    dci.ppEnabledExtensionNames = device_exts;
-+    dci.enabledExtensionCount = static_cast<std::uint32_t>(device_exts.size());
-+    dci.ppEnabledExtensionNames = device_exts.data();
-     if (vkCreateDevice(physical_device_, &dci, nullptr, &device_) != VK_SUCCESS) {
-         throw std::runtime_error{"Failed to create logical device"};
-     }
-@@ -382,7 +432,14 @@
-     sci.imageExtent = extent;
-     sci.imageArrayLayers = 1;
-     sci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
--    sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    if (present_family_ != graphics_family_) {
-+        const std::uint32_t indices[2] = { graphics_family_, present_family_ };
-+        sci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-+        sci.queueFamilyIndexCount = 2;
-+        sci.pQueueFamilyIndices = indices;
-+    } else {
-+        sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    }
-     sci.preTransform = caps.currentTransform;
-     sci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-     sci.presentMode = chosen_present;
-
-[2025-09-15T11:05:33] tokens used: 28,782
-[2025-09-15T11:05:33] turn diff:
-diff --git a/src/renderer.cpp b/src/renderer.cpp
-index aecf0b6c2661c56daeaf15edd3b4164f228d7622..baaea437cf50cd106ee6acba5e789c9a93793170
---- a/src/renderer.cpp
-+++ b/src/renderer.cpp
-@@ -1,12 +1,21 @@
- #include <cstring>
- #include <stdexcept>
- #include <vector>
-+#include <string>
- 
- #define GLFW_INCLUDE_VULKAN
- #include <GLFW/glfw3.h>
- 
- #include <vulkan/vulkan.h>
- 
-+// Fallback defines for portability extension names if headers are older
-+#ifndef VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME "VK_KHR_portability_enumeration"
-+#endif
-+#ifndef VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME "VK_KHR_portability_subset"
-+#endif
-+
- #include <vulkan_app/renderer.hpp>
- #include <vulkan_app/imgui_layer.hpp>
- #include <vulkan_app/icosphere.hpp>
-@@ -222,9 +231,28 @@
-     std::uint32_t glfw_count{0U};
-     const char** glfw_ext = glfwGetRequiredInstanceExtensions(&glfw_count);
-     std::vector<const char*> extensions(glfw_ext, glfw_ext + glfw_count);
--    if (kEnableValidation) {
-+    // Enumerate supported instance extensions so we can conditionally enable portability + debug utils
-+    std::uint32_t ext_count{0U};
-+    vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
-+    std::vector<VkExtensionProperties> avail_exts(static_cast<std::size_t>(ext_count));
-+    if (ext_count > 0U) {
-+        vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, avail_exts.data());
-+    }
-+    auto has_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : avail_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    if (kEnableValidation && has_ext(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
-         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-     }
-+    const bool portability_supported = has_ext(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    if (portability_supported) {
-+        extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    }
- 
-     const std::vector<const char*> layers{
-         "VK_LAYER_KHRONOS_validation"
-@@ -235,6 +263,9 @@
-     ci.pApplicationInfo = &app_info;
-     ci.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
-     ci.ppEnabledExtensionNames = extensions.data();
-+    if (portability_supported) {
-+        ci.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-+    }
-     if (kEnableValidation) {
-         ci.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
-         ci.ppEnabledLayerNames = layers.data();
-@@ -321,15 +352,34 @@
- 
-     VkPhysicalDeviceFeatures features{};
- 
--    const char* device_exts[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-+    // Query device extensions to enable portability subset on platforms like macOS (MoltenVK)
-+    std::uint32_t dev_ext_count{0U};
-+    vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, nullptr);
-+    std::vector<VkExtensionProperties> dev_exts(static_cast<std::size_t>(dev_ext_count));
-+    if (dev_ext_count > 0U) {
-+        vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, dev_exts.data());
-+    }
-+    auto has_dev_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : dev_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    std::vector<const char*> device_exts;
-+    device_exts.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-+    if (has_dev_ext(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
-+        device_exts.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
-+    }
- 
-     VkDeviceCreateInfo dci{};
-     dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-     dci.pQueueCreateInfos = queues.data();
-     dci.queueCreateInfoCount = static_cast<std::uint32_t>(queues.size());
-     dci.pEnabledFeatures = &features;
--    dci.enabledExtensionCount = 1;
--    dci.ppEnabledExtensionNames = device_exts;
-+    dci.enabledExtensionCount = static_cast<std::uint32_t>(device_exts.size());
-+    dci.ppEnabledExtensionNames = device_exts.data();
-     if (vkCreateDevice(physical_device_, &dci, nullptr, &device_) != VK_SUCCESS) {
-         throw std::runtime_error{"Failed to create logical device"};
-     }
-@@ -382,7 +432,14 @@
-     sci.imageExtent = extent;
-     sci.imageArrayLayers = 1;
-     sci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
--    sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    if (present_family_ != graphics_family_) {
-+        const std::uint32_t indices[2] = { graphics_family_, present_family_ };
-+        sci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-+        sci.queueFamilyIndexCount = 2;
-+        sci.pQueueFamilyIndices = indices;
-+    } else {
-+        sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    }
-     sci.preTransform = caps.currentTransform;
-     sci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-     sci.presentMode = chosen_present;
-
-[2025-09-15T11:05:35] exec bash -lc 'git add -A && git commit -m "fix: add fallback defines for portability extension names for older Vulkan headers" && git push' in /Users/bruno/Documents/Development/bruno/vulkano_codex
-[2025-09-15T11:05:35] bash -lc 'git add -A && git commit -m "fix: add fallback defines for portability extension names for older Vulkan headers" && git push' exited 128 in 360ms:
-[feat/imgui-integration 3567557] fix: add fallback defines for portability extension names for older Vulkan headers
- 103 files changed, 759 insertions(+), 9850 deletions(-)
- create mode 100644 build/CMakeFiles/Progress/1
- create mode 100644 build/CMakeFiles/Progress/10
- create mode 100644 build/CMakeFiles/Progress/100
- create mode 100644 build/CMakeFiles/Progress/11
- create mode 100644 build/CMakeFiles/Progress/12
- create mode 100644 build/CMakeFiles/Progress/13
- create mode 100644 build/CMakeFiles/Progress/14
- create mode 100644 build/CMakeFiles/Progress/15
- create mode 100644 build/CMakeFiles/Progress/16
- create mode 100644 build/CMakeFiles/Progress/17
- create mode 100644 build/CMakeFiles/Progress/18
- create mode 100644 build/CMakeFiles/Progress/19
- create mode 100644 build/CMakeFiles/Progress/2
- create mode 100644 build/CMakeFiles/Progress/20
- create mode 100644 build/CMakeFiles/Progress/21
- create mode 100644 build/CMakeFiles/Progress/22
- create mode 100644 build/CMakeFiles/Progress/23
- create mode 100644 build/CMakeFiles/Progress/24
-[2025-09-15T11:05:35] tokens used: 29,152
-[2025-09-15T11:05:35] turn diff:
-diff --git a/src/renderer.cpp b/src/renderer.cpp
-index aecf0b6c2661c56daeaf15edd3b4164f228d7622..baaea437cf50cd106ee6acba5e789c9a93793170
---- a/src/renderer.cpp
-+++ b/src/renderer.cpp
-@@ -1,12 +1,21 @@
- #include <cstring>
- #include <stdexcept>
- #include <vector>
-+#include <string>
- 
- #define GLFW_INCLUDE_VULKAN
- #include <GLFW/glfw3.h>
- 
- #include <vulkan/vulkan.h>
- 
-+// Fallback defines for portability extension names if headers are older
-+#ifndef VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME "VK_KHR_portability_enumeration"
-+#endif
-+#ifndef VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME "VK_KHR_portability_subset"
-+#endif
-+
- #include <vulkan_app/renderer.hpp>
- #include <vulkan_app/imgui_layer.hpp>
- #include <vulkan_app/icosphere.hpp>
-@@ -222,9 +231,28 @@
-     std::uint32_t glfw_count{0U};
-     const char** glfw_ext = glfwGetRequiredInstanceExtensions(&glfw_count);
-     std::vector<const char*> extensions(glfw_ext, glfw_ext + glfw_count);
--    if (kEnableValidation) {
-+    // Enumerate supported instance extensions so we can conditionally enable portability + debug utils
-+    std::uint32_t ext_count{0U};
-+    vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
-+    std::vector<VkExtensionProperties> avail_exts(static_cast<std::size_t>(ext_count));
-+    if (ext_count > 0U) {
-+        vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, avail_exts.data());
-+    }
-+    auto has_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : avail_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    if (kEnableValidation && has_ext(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
-         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-     }
-+    const bool portability_supported = has_ext(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    if (portability_supported) {
-+        extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    }
- 
-     const std::vector<const char*> layers{
-         "VK_LAYER_KHRONOS_validation"
-@@ -235,6 +263,9 @@
-     ci.pApplicationInfo = &app_info;
-     ci.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
-     ci.ppEnabledExtensionNames = extensions.data();
-+    if (portability_supported) {
-+        ci.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-+    }
-     if (kEnableValidation) {
-         ci.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
-         ci.ppEnabledLayerNames = layers.data();
-@@ -321,15 +352,34 @@
- 
-     VkPhysicalDeviceFeatures features{};
- 
--    const char* device_exts[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-+    // Query device extensions to enable portability subset on platforms like macOS (MoltenVK)
-+    std::uint32_t dev_ext_count{0U};
-+    vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, nullptr);
-+    std::vector<VkExtensionProperties> dev_exts(static_cast<std::size_t>(dev_ext_count));
-+    if (dev_ext_count > 0U) {
-+        vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, dev_exts.data());
-+    }
-+    auto has_dev_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : dev_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    std::vector<const char*> device_exts;
-+    device_exts.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-+    if (has_dev_ext(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
-+        device_exts.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
-+    }
- 
-     VkDeviceCreateInfo dci{};
-     dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-     dci.pQueueCreateInfos = queues.data();
-     dci.queueCreateInfoCount = static_cast<std::uint32_t>(queues.size());
-     dci.pEnabledFeatures = &features;
--    dci.enabledExtensionCount = 1;
--    dci.ppEnabledExtensionNames = device_exts;
-+    dci.enabledExtensionCount = static_cast<std::uint32_t>(device_exts.size());
-+    dci.ppEnabledExtensionNames = device_exts.data();
-     if (vkCreateDevice(physical_device_, &dci, nullptr, &device_) != VK_SUCCESS) {
-         throw std::runtime_error{"Failed to create logical device"};
-     }
-@@ -382,7 +432,14 @@
-     sci.imageExtent = extent;
-     sci.imageArrayLayers = 1;
-     sci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
--    sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    if (present_family_ != graphics_family_) {
-+        const std::uint32_t indices[2] = { graphics_family_, present_family_ };
-+        sci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-+        sci.queueFamilyIndexCount = 2;
-+        sci.pQueueFamilyIndices = indices;
-+    } else {
-+        sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    }
-     sci.preTransform = caps.currentTransform;
-     sci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-     sci.presentMode = chosen_present;
-
-[2025-09-15T11:05:37] exec bash -lc 'cmake --build build -j 4' in /Users/bruno/Documents/Development/bruno/vulkano_codex
-[2025-09-15T11:05:38] bash -lc 'cmake --build build -j 4' succeeded in 1.19s:
-[  3%] Built target shaders
-[  4%] Built target glm
-[ 10%] Built target glfw
-[ 12%] Built target boing
-[ 13%] Built target gears
-[ 16%] Built target imgui_backend
-[ 18%] Built target heightmap
-[ 18%] Built target offscreen
-[ 20%] Built target particles
-[ 22%] Built target sharing
-[ 23%] Built target simple
-[ 24%] Built target splitview
-[ 26%] Built target wave
-[ 27%] Built target clipboard
-[ 28%] Built target events
-[ 32%] Built target msaa
-[ 32%] Built target glfwinfo
-[ 34%] Built target iconify
-[ 36%] Built target monitors
-[ 36%] Built target reopen
-[2025-09-15T11:05:38] tokens used: 30,842
-[2025-09-15T11:05:39] turn diff:
-diff --git a/src/renderer.cpp b/src/renderer.cpp
-index aecf0b6c2661c56daeaf15edd3b4164f228d7622..baaea437cf50cd106ee6acba5e789c9a93793170
---- a/src/renderer.cpp
-+++ b/src/renderer.cpp
-@@ -1,12 +1,21 @@
- #include <cstring>
- #include <stdexcept>
- #include <vector>
-+#include <string>
- 
- #define GLFW_INCLUDE_VULKAN
- #include <GLFW/glfw3.h>
- 
- #include <vulkan/vulkan.h>
- 
-+// Fallback defines for portability extension names if headers are older
-+#ifndef VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME "VK_KHR_portability_enumeration"
-+#endif
-+#ifndef VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME "VK_KHR_portability_subset"
-+#endif
-+
- #include <vulkan_app/renderer.hpp>
- #include <vulkan_app/imgui_layer.hpp>
- #include <vulkan_app/icosphere.hpp>
-@@ -222,9 +231,28 @@
-     std::uint32_t glfw_count{0U};
-     const char** glfw_ext = glfwGetRequiredInstanceExtensions(&glfw_count);
-     std::vector<const char*> extensions(glfw_ext, glfw_ext + glfw_count);
--    if (kEnableValidation) {
-+    // Enumerate supported instance extensions so we can conditionally enable portability + debug utils
-+    std::uint32_t ext_count{0U};
-+    vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
-+    std::vector<VkExtensionProperties> avail_exts(static_cast<std::size_t>(ext_count));
-+    if (ext_count > 0U) {
-+        vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, avail_exts.data());
-+    }
-+    auto has_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : avail_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    if (kEnableValidation && has_ext(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
-         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-     }
-+    const bool portability_supported = has_ext(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    if (portability_supported) {
-+        extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    }
- 
-     const std::vector<const char*> layers{
-         "VK_LAYER_KHRONOS_validation"
-@@ -235,6 +263,9 @@
-     ci.pApplicationInfo = &app_info;
-     ci.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
-     ci.ppEnabledExtensionNames = extensions.data();
-+    if (portability_supported) {
-+        ci.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-+    }
-     if (kEnableValidation) {
-         ci.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
-         ci.ppEnabledLayerNames = layers.data();
-@@ -321,15 +352,34 @@
- 
-     VkPhysicalDeviceFeatures features{};
- 
--    const char* device_exts[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-+    // Query device extensions to enable portability subset on platforms like macOS (MoltenVK)
-+    std::uint32_t dev_ext_count{0U};
-+    vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, nullptr);
-+    std::vector<VkExtensionProperties> dev_exts(static_cast<std::size_t>(dev_ext_count));
-+    if (dev_ext_count > 0U) {
-+        vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, dev_exts.data());
-+    }
-+    auto has_dev_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : dev_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    std::vector<const char*> device_exts;
-+    device_exts.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-+    if (has_dev_ext(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
-+        device_exts.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
-+    }
- 
-     VkDeviceCreateInfo dci{};
-     dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-     dci.pQueueCreateInfos = queues.data();
-     dci.queueCreateInfoCount = static_cast<std::uint32_t>(queues.size());
-     dci.pEnabledFeatures = &features;
--    dci.enabledExtensionCount = 1;
--    dci.ppEnabledExtensionNames = device_exts;
-+    dci.enabledExtensionCount = static_cast<std::uint32_t>(device_exts.size());
-+    dci.ppEnabledExtensionNames = device_exts.data();
-     if (vkCreateDevice(physical_device_, &dci, nullptr, &device_) != VK_SUCCESS) {
-         throw std::runtime_error{"Failed to create logical device"};
-     }
-@@ -382,7 +432,14 @@
-     sci.imageExtent = extent;
-     sci.imageArrayLayers = 1;
-     sci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
--    sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    if (present_family_ != graphics_family_) {
-+        const std::uint32_t indices[2] = { graphics_family_, present_family_ };
-+        sci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-+        sci.queueFamilyIndexCount = 2;
-+        sci.pQueueFamilyIndices = indices;
-+    } else {
-+        sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    }
-     sci.preTransform = caps.currentTransform;
-     sci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-     sci.presentMode = chosen_present;
-
-
-[2025-09-15T11:05:41] thinking
-
-**Running binary on macOS**
-
-The build has succeeded, which is great news! Now, I’m focusing on running the binary to test it on macOS. I think it might need the Vulkan environment set up, but I’ll first try executing `build/bin/vulkan_app_example` to check if that previous portability error has been resolved. Fingers crossed! Let’s see how this goes. I'm curious about the results!
-[2025-09-15T11:05:44] exec bash -lc "./build/bin/vulkan_app_example > run_log.txt 2>&1 || true; tail -n +1 run_log.txt | sed -n '1,200p'" in /Users/bruno/Documents/Development/bruno/vulkano_codex
-[2025-09-15T11:07:44] bash -lc "./build/bin/vulkan_app_example > run_log.txt 2>&1 || true; tail -n +1 run_log.txt | sed -n '1,200p'" exited -1 in 0ms:
-error: command timed out
-[2025-09-15T11:07:44] tokens used: 31,523
-[2025-09-15T11:07:44] turn diff:
-diff --git a/src/renderer.cpp b/src/renderer.cpp
-index aecf0b6c2661c56daeaf15edd3b4164f228d7622..baaea437cf50cd106ee6acba5e789c9a93793170
---- a/src/renderer.cpp
-+++ b/src/renderer.cpp
-@@ -1,12 +1,21 @@
- #include <cstring>
- #include <stdexcept>
- #include <vector>
-+#include <string>
- 
- #define GLFW_INCLUDE_VULKAN
- #include <GLFW/glfw3.h>
- 
- #include <vulkan/vulkan.h>
- 
-+// Fallback defines for portability extension names if headers are older
-+#ifndef VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME "VK_KHR_portability_enumeration"
-+#endif
-+#ifndef VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME "VK_KHR_portability_subset"
-+#endif
-+
- #include <vulkan_app/renderer.hpp>
- #include <vulkan_app/imgui_layer.hpp>
- #include <vulkan_app/icosphere.hpp>
-@@ -222,9 +231,28 @@
-     std::uint32_t glfw_count{0U};
-     const char** glfw_ext = glfwGetRequiredInstanceExtensions(&glfw_count);
-     std::vector<const char*> extensions(glfw_ext, glfw_ext + glfw_count);
--    if (kEnableValidation) {
-+    // Enumerate supported instance extensions so we can conditionally enable portability + debug utils
-+    std::uint32_t ext_count{0U};
-+    vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
-+    std::vector<VkExtensionProperties> avail_exts(static_cast<std::size_t>(ext_count));
-+    if (ext_count > 0U) {
-+        vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, avail_exts.data());
-+    }
-+    auto has_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : avail_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    if (kEnableValidation && has_ext(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
-         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-     }
-+    const bool portability_supported = has_ext(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    if (portability_supported) {
-+        extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    }
- 
-     const std::vector<const char*> layers{
-         "VK_LAYER_KHRONOS_validation"
-@@ -235,6 +263,9 @@
-     ci.pApplicationInfo = &app_info;
-     ci.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
-     ci.ppEnabledExtensionNames = extensions.data();
-+    if (portability_supported) {
-+        ci.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-+    }
-     if (kEnableValidation) {
-         ci.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
-         ci.ppEnabledLayerNames = layers.data();
-@@ -321,15 +352,34 @@
- 
-     VkPhysicalDeviceFeatures features{};
- 
--    const char* device_exts[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-+    // Query device extensions to enable portability subset on platforms like macOS (MoltenVK)
-+    std::uint32_t dev_ext_count{0U};
-+    vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, nullptr);
-+    std::vector<VkExtensionProperties> dev_exts(static_cast<std::size_t>(dev_ext_count));
-+    if (dev_ext_count > 0U) {
-+        vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, dev_exts.data());
-+    }
-+    auto has_dev_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : dev_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    std::vector<const char*> device_exts;
-+    device_exts.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-+    if (has_dev_ext(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
-+        device_exts.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
-+    }
- 
-     VkDeviceCreateInfo dci{};
-     dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-     dci.pQueueCreateInfos = queues.data();
-     dci.queueCreateInfoCount = static_cast<std::uint32_t>(queues.size());
-     dci.pEnabledFeatures = &features;
--    dci.enabledExtensionCount = 1;
--    dci.ppEnabledExtensionNames = device_exts;
-+    dci.enabledExtensionCount = static_cast<std::uint32_t>(device_exts.size());
-+    dci.ppEnabledExtensionNames = device_exts.data();
-     if (vkCreateDevice(physical_device_, &dci, nullptr, &device_) != VK_SUCCESS) {
-         throw std::runtime_error{"Failed to create logical device"};
-     }
-@@ -382,7 +432,14 @@
-     sci.imageExtent = extent;
-     sci.imageArrayLayers = 1;
-     sci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
--    sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    if (present_family_ != graphics_family_) {
-+        const std::uint32_t indices[2] = { graphics_family_, present_family_ };
-+        sci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-+        sci.queueFamilyIndexCount = 2;
-+        sci.pQueueFamilyIndices = indices;
-+    } else {
-+        sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    }
-     sci.preTransform = caps.currentTransform;
-     sci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-     sci.presentMode = chosen_present;
-
-[2025-09-15T11:07:49] exec bash -lc "sed -n '1,200p' README.md" in /Users/bruno/Documents/Development/bruno/vulkano_codex
-[2025-09-15T11:07:49] bash -lc "sed -n '1,200p' README.md" succeeded in 34ms:
+---
+Checks: >-
+  clang-analyzer-*,
+[2025-09-15T13:02:44] tokens used: 37,243
+[2025-09-15T13:02:47] exec bash -lc "sed -n '1,240p' README.md" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T13:02:47] bash -lc "sed -n '1,240p' README.md" succeeded in 20ms:
 # Vulkano Codex
 
 Modern C++20 Vulkan 1.2 application that opens a GLFW window and renders a dynamically-subdividable icosphere with per-pixel Phong shading, tangent-space normal mapping, and SSAO. Includes an ImGui UI for runtime controls.
 
+See also:
+- `docs/ARCHITECTURE.md` for a high-level overview of modules and the render pipeline.
+- `docs/SHADERS.md` for shader stage IO and pass details (G-buffer, SSAO, blur, compose).
+- `CHANGELOG.md` for notable changes.
+
 ## Build
 
 Prerequisites: Vulkan SDK (for headers, loader, and `glslc`), a C++20 compiler, and CMake 3.25+.
+On Windows, install the Vulkan SDK and ensure `glslc` is on PATH; on Linux, install via your distro or LunarG;
+on macOS, install MoltenVK via the SDK or Homebrew.
 
 Options:
 - `ENABLE_VALIDATION=ON` to enable Vulkan validation layers in Debug.
 - `ENABLE_GLFW_WAYLAND=ON` on Wayland Linux if needed.
 - `ENABLE_IMGUI_DOCKING=ON` to enable ImGui docking (build-time flag only).
 
-Build:
-```
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DENABLE_VALIDATION=ON
-cmake --build build --config Release
-```
+[2025-09-15T13:02:47] tokens used: 37,617
 
-## Run
-[2025-09-15T11:07:49] tokens used: 31,734
-[2025-09-15T11:07:49] turn diff:
-diff --git a/src/renderer.cpp b/src/renderer.cpp
-index aecf0b6c2661c56daeaf15edd3b4164f228d7622..baaea437cf50cd106ee6acba5e789c9a93793170
---- a/src/renderer.cpp
-+++ b/src/renderer.cpp
-@@ -1,12 +1,21 @@
- #include <cstring>
- #include <stdexcept>
- #include <vector>
-+#include <string>
+[2025-09-15T13:02:54] thinking
+
+**Organizing the repo**
+
+The repository is pretty advanced. When I think about "organizing the repo," that likely involves cleaning up the gitignore file and CI while unifying the "vulkano" subdirectory. I’ll need to add a CI workflow in .github, update the gitignore, create tool scripts, and maybe add documentation. There's a possibility to move the "vulkano/" directory to an attic or mark it as deprecated, along with a README for clarification. I’ll also set up an assets folder structure with README files. Let's implement these changes!
+[2025-09-15T13:02:55] codex
+
+Next, I’ll add CI, improve CMake output dirs, expand .gitignore, and add tools/docs scaffolding.
+[2025-09-15T13:03:00] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/CMakeLists.txt
+@@ -7,5 +7,6 @@
  
- #define GLFW_INCLUDE_VULKAN
- #include <GLFW/glfw3.h>
+-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
++# Place build outputs under bin/<Config> and lib/<Config>
++set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/$<CONFIG>)
  
- #include <vulkan/vulkan.h>
- 
-+// Fallback defines for portability extension names if headers are older
-+#ifndef VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME "VK_KHR_portability_enumeration"
-+#endif
-+#ifndef VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME "VK_KHR_portability_subset"
-+#endif
-+
- #include <vulkan_app/renderer.hpp>
- #include <vulkan_app/imgui_layer.hpp>
- #include <vulkan_app/icosphere.hpp>
-@@ -222,9 +231,28 @@
-     std::uint32_t glfw_count{0U};
-     const char** glfw_ext = glfwGetRequiredInstanceExtensions(&glfw_count);
-     std::vector<const char*> extensions(glfw_ext, glfw_ext + glfw_count);
--    if (kEnableValidation) {
-+    // Enumerate supported instance extensions so we can conditionally enable portability + debug utils
-+    std::uint32_t ext_count{0U};
-+    vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
-+    std::vector<VkExtensionProperties> avail_exts(static_cast<std::size_t>(ext_count));
-+    if (ext_count > 0U) {
-+        vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, avail_exts.data());
-+    }
-+    auto has_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : avail_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    if (kEnableValidation && has_ext(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
-         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-     }
-+    const bool portability_supported = has_ext(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    if (portability_supported) {
-+        extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    }
- 
-     const std::vector<const char*> layers{
-         "VK_LAYER_KHRONOS_validation"
-@@ -235,6 +263,9 @@
-     ci.pApplicationInfo = &app_info;
-     ci.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
-     ci.ppEnabledExtensionNames = extensions.data();
-+    if (portability_supported) {
-+        ci.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-+    }
-     if (kEnableValidation) {
-         ci.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
-         ci.ppEnabledLayerNames = layers.data();
-@@ -321,15 +352,34 @@
- 
-     VkPhysicalDeviceFeatures features{};
- 
--    const char* device_exts[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-+    // Query device extensions to enable portability subset on platforms like macOS (MoltenVK)
-+    std::uint32_t dev_ext_count{0U};
-+    vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, nullptr);
-+    std::vector<VkExtensionProperties> dev_exts(static_cast<std::size_t>(dev_ext_count));
-+    if (dev_ext_count > 0U) {
-+        vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, dev_exts.data());
-+    }
-+    auto has_dev_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : dev_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    std::vector<const char*> device_exts;
-+    device_exts.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-+    if (has_dev_ext(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
-+        device_exts.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
-+    }
- 
-     VkDeviceCreateInfo dci{};
-     dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-     dci.pQueueCreateInfos = queues.data();
-     dci.queueCreateInfoCount = static_cast<std::uint32_t>(queues.size());
-     dci.pEnabledFeatures = &features;
--    dci.enabledExtensionCount = 1;
--    dci.ppEnabledExtensionNames = device_exts;
-+    dci.enabledExtensionCount = static_cast<std::uint32_t>(device_exts.size());
-+    dci.ppEnabledExtensionNames = device_exts.data();
-     if (vkCreateDevice(physical_device_, &dci, nullptr, &device_) != VK_SUCCESS) {
-         throw std::runtime_error{"Failed to create logical device"};
-     }
-@@ -382,7 +432,14 @@
-     sci.imageExtent = extent;
-     sci.imageArrayLayers = 1;
-     sci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
--    sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    if (present_family_ != graphics_family_) {
-+        const std::uint32_t indices[2] = { graphics_family_, present_family_ };
-+        sci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-+        sci.queueFamilyIndexCount = 2;
-+        sci.pQueueFamilyIndices = indices;
-+    } else {
-+        sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    }
-     sci.preTransform = caps.currentTransform;
-     sci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-     sci.presentMode = chosen_present;
-
-
-[2025-09-15T11:07:54] thinking
-
-**Improving macOS Notes**
-
-I see that we need to enhance the macOS notes by explaining that portability enumeration is enabled. Users might need to set the VK_ICD_FILENAMES to the MoltenVK ICD JSON path and install the loader, so updating the README is essential. Additionally, we should create a .agent/TODO.md file for initial tasks, focusing on the primary objective of fixing the mac error. I'll create the file and commit it as part of our progress!
-[2025-09-15T11:08:00] apply_patch auto_approved=true:
-A /Users/bruno/Documents/Development/bruno/vulkano_codex/.agent/TODO.md
-# TODO — Vulkano Codex
-
-Short-term fixes and next steps. Keep updated as work progresses.
-
-## Done
-- Enable Vulkan portability on macOS (MoltenVK):
-  - Add VK_KHR_portability_enumeration + instance flag.
-  - Add VK_KHR_portability_subset device extension when available.
-  - Use concurrent image sharing when graphics/present queues differ.
-
-## Next
-- SSAO pipeline: G-buffer, SSAO, blur, and compose passes.
-- ImGui controls wiring for SSAO params and mesh subdivisions.
-- Swapchain resize path validation and cleanup ordering.
-- Add end-to-end test harness (headless where possible) and unit tests for math/icosphere.
-- macOS README notes: MoltenVK install, VK_ICD_FILENAMES hints.
-- CI: format (clang-format) and clang-tidy jobs.
-
-## Notes
-- Pushing to origin failed (no permission). Either set upstream to a fork with GITHUB_TOKEN or grant access.
-
-[2025-09-15T11:08:00] apply_patch(auto_approved=true) exited 0 in 42ms:
+[2025-09-15T13:03:00] apply_patch(auto_approved=true) exited 0 in 23ms:
 Success. Updated the following files:
-A .agent/TODO.md
-[2025-09-15T11:08:00] turn diff:
-diff --git a/.agent/TODO.md b/.agent/TODO.md
-index e698aa3ace6e84dacfc408675d317a7f502a3780..889973486c6006e39bf5ee5f152e92732e386270
---- a/.agent/TODO.md
-+++ b/.agent/TODO.md
-@@ -1,19 +1,21 @@
--# TODO / Plan
--Phases:
--1) Swapchain + forward pipeline + draw icosphere. [done]
--2) Mesh buffers upload + resize handling. [done]
--3) ImGui integration with subdivision control. [done]
--4) G-buffer, SSAO, blur, composite passes. [in-progress]
--5) Validation, cleanup, docs/tests updates. [todo]
-+# TODO — Vulkano Codex
-+
-+Short-term fixes and next steps. Keep updated as work progresses.
-+
-+## Done
-+- Enable Vulkan portability on macOS (MoltenVK):
-+  - Add VK_KHR_portability_enumeration + instance flag.
-+  - Add VK_KHR_portability_subset device extension when available.
-+  - Use concurrent image sharing when graphics/present queues differ.
-+
-+## Next
-+- SSAO pipeline: G-buffer, SSAO, blur, and compose passes.
-+- ImGui controls wiring for SSAO params and mesh subdivisions.
-+- Swapchain resize path validation and cleanup ordering.
-+- Add end-to-end test harness (headless where possible) and unit tests for math/icosphere.
-+- macOS README notes: MoltenVK install, VK_ICD_FILENAMES hints.
-+- CI: format (clang-format) and clang-tidy jobs.
-+
-+## Notes
-+- Pushing to origin failed (no permission). Either set upstream to a fork with GITHUB_TOKEN or grant access.
+M CMakeLists.txt
+[2025-09-15T13:03:00] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index a00cebdc5db41d364de9c2f32ae8e8e5e2706ef7..42accaba99cb3bb95459a43550e771bd87b100b5
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -5,9 +5,10 @@
+ option(ENABLE_GLFW_WAYLAND "Enable GLFW Wayland backend on Linux" OFF)
+ option(ENABLE_IMGUI_DOCKING "Enable ImGui docking" OFF)
  
--Notes:
--- Follow AGENTS.md: angle-bracket includes, braces, RAII, const.
--- Commit and push after each file edit.
--Next:
--- Add offscreen G-buffer images + render pass, wire geometry pass to write albedo/normal/depth.
--- Add fullscreen pipelines for SSAO, blur (separable), and compose.
--- Generate SSAO kernel + noise textures on CPU and upload to GPU.
--- Hook ImGui toggles to descriptor updates and constants.
--Done in this iteration:
--- Forward shading updated to sample albedo + normal maps with TBN.
--- Procedural albedo + normal textures generated and uploaded; descriptors wired.
-diff --git a/src/renderer.cpp b/src/renderer.cpp
-index aecf0b6c2661c56daeaf15edd3b4164f228d7622..baaea437cf50cd106ee6acba5e789c9a93793170
---- a/src/renderer.cpp
-+++ b/src/renderer.cpp
-@@ -1,12 +1,21 @@
- #include <cstring>
- #include <stdexcept>
- #include <vector>
-+#include <string>
+-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
++# Place build outputs under bin/<Config> and lib/<Config>
++set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/$<CONFIG>)
  
- #define GLFW_INCLUDE_VULKAN
- #include <GLFW/glfw3.h>
- 
- #include <vulkan/vulkan.h>
- 
-+// Fallback defines for portability extension names if headers are older
-+#ifndef VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME "VK_KHR_portability_enumeration"
-+#endif
-+#ifndef VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME "VK_KHR_portability_subset"
-+#endif
-+
- #include <vulkan_app/renderer.hpp>
- #include <vulkan_app/imgui_layer.hpp>
- #include <vulkan_app/icosphere.hpp>
-@@ -222,9 +231,28 @@
-     std::uint32_t glfw_count{0U};
-     const char** glfw_ext = glfwGetRequiredInstanceExtensions(&glfw_count);
-     std::vector<const char*> extensions(glfw_ext, glfw_ext + glfw_count);
--    if (kEnableValidation) {
-+    // Enumerate supported instance extensions so we can conditionally enable portability + debug utils
-+    std::uint32_t ext_count{0U};
-+    vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
-+    std::vector<VkExtensionProperties> avail_exts(static_cast<std::size_t>(ext_count));
-+    if (ext_count > 0U) {
-+        vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, avail_exts.data());
-+    }
-+    auto has_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : avail_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    if (kEnableValidation && has_ext(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
-         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-     }
-+    const bool portability_supported = has_ext(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    if (portability_supported) {
-+        extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    }
- 
-     const std::vector<const char*> layers{
-         "VK_LAYER_KHRONOS_validation"
-@@ -235,6 +263,9 @@
-     ci.pApplicationInfo = &app_info;
-     ci.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
-     ci.ppEnabledExtensionNames = extensions.data();
-+    if (portability_supported) {
-+        ci.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-+    }
-     if (kEnableValidation) {
-         ci.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
-         ci.ppEnabledLayerNames = layers.data();
-@@ -321,15 +352,34 @@
- 
-     VkPhysicalDeviceFeatures features{};
- 
--    const char* device_exts[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-+    // Query device extensions to enable portability subset on platforms like macOS (MoltenVK)
-+    std::uint32_t dev_ext_count{0U};
-+    vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, nullptr);
-+    std::vector<VkExtensionProperties> dev_exts(static_cast<std::size_t>(dev_ext_count));
-+    if (dev_ext_count > 0U) {
-+        vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, dev_exts.data());
-+    }
-+    auto has_dev_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : dev_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    std::vector<const char*> device_exts;
-+    device_exts.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-+    if (has_dev_ext(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
-+        device_exts.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
-+    }
- 
-     VkDeviceCreateInfo dci{};
-     dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-     dci.pQueueCreateInfos = queues.data();
-     dci.queueCreateInfoCount = static_cast<std::uint32_t>(queues.size());
-     dci.pEnabledFeatures = &features;
--    dci.enabledExtensionCount = 1;
--    dci.ppEnabledExtensionNames = device_exts;
-+    dci.enabledExtensionCount = static_cast<std::uint32_t>(device_exts.size());
-+    dci.ppEnabledExtensionNames = device_exts.data();
-     if (vkCreateDevice(physical_device_, &dci, nullptr, &device_) != VK_SUCCESS) {
-         throw std::runtime_error{"Failed to create logical device"};
-     }
-@@ -382,7 +432,14 @@
-     sci.imageExtent = extent;
-     sci.imageArrayLayers = 1;
-     sci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
--    sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    if (present_family_ != graphics_family_) {
-+        const std::uint32_t indices[2] = { graphics_family_, present_family_ };
-+        sci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-+        sci.queueFamilyIndexCount = 2;
-+        sci.pQueueFamilyIndices = indices;
-+    } else {
-+        sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    }
-     sci.preTransform = caps.currentTransform;
-     sci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-     sci.presentMode = chosen_present;
+ set(CMAKE_CXX_STANDARD 20)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-[2025-09-15T11:08:00] tokens used: 60,894
-[2025-09-15T11:08:00] turn diff:
-diff --git a/.agent/TODO.md b/.agent/TODO.md
-index e698aa3ace6e84dacfc408675d317a7f502a3780..889973486c6006e39bf5ee5f152e92732e386270
---- a/.agent/TODO.md
-+++ b/.agent/TODO.md
-@@ -1,19 +1,21 @@
--# TODO / Plan
--Phases:
--1) Swapchain + forward pipeline + draw icosphere. [done]
--2) Mesh buffers upload + resize handling. [done]
--3) ImGui integration with subdivision control. [done]
--4) G-buffer, SSAO, blur, composite passes. [in-progress]
--5) Validation, cleanup, docs/tests updates. [todo]
-+# TODO — Vulkano Codex
-+
-+Short-term fixes and next steps. Keep updated as work progresses.
-+
-+## Done
-+- Enable Vulkan portability on macOS (MoltenVK):
-+  - Add VK_KHR_portability_enumeration + instance flag.
-+  - Add VK_KHR_portability_subset device extension when available.
-+  - Use concurrent image sharing when graphics/present queues differ.
-+
-+## Next
-+- SSAO pipeline: G-buffer, SSAO, blur, and compose passes.
-+- ImGui controls wiring for SSAO params and mesh subdivisions.
-+- Swapchain resize path validation and cleanup ordering.
-+- Add end-to-end test harness (headless where possible) and unit tests for math/icosphere.
-+- macOS README notes: MoltenVK install, VK_ICD_FILENAMES hints.
-+- CI: format (clang-format) and clang-tidy jobs.
-+
-+## Notes
-+- Pushing to origin failed (no permission). Either set upstream to a fork with GITHUB_TOKEN or grant access.
+[2025-09-15T13:03:00] tokens used: 39,090
+[2025-09-15T13:03:00] turn diff:
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index a00cebdc5db41d364de9c2f32ae8e8e5e2706ef7..42accaba99cb3bb95459a43550e771bd87b100b5
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -5,9 +5,10 @@
+ option(ENABLE_GLFW_WAYLAND "Enable GLFW Wayland backend on Linux" OFF)
+ option(ENABLE_IMGUI_DOCKING "Enable ImGui docking" OFF)
  
--Notes:
--- Follow AGENTS.md: angle-bracket includes, braces, RAII, const.
--- Commit and push after each file edit.
--Next:
--- Add offscreen G-buffer images + render pass, wire geometry pass to write albedo/normal/depth.
--- Add fullscreen pipelines for SSAO, blur (separable), and compose.
--- Generate SSAO kernel + noise textures on CPU and upload to GPU.
--- Hook ImGui toggles to descriptor updates and constants.
--Done in this iteration:
--- Forward shading updated to sample albedo + normal maps with TBN.
--- Procedural albedo + normal textures generated and uploaded; descriptors wired.
-diff --git a/src/renderer.cpp b/src/renderer.cpp
-index aecf0b6c2661c56daeaf15edd3b4164f228d7622..baaea437cf50cd106ee6acba5e789c9a93793170
---- a/src/renderer.cpp
-+++ b/src/renderer.cpp
-@@ -1,12 +1,21 @@
- #include <cstring>
- #include <stdexcept>
- #include <vector>
-+#include <string>
+-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
++# Place build outputs under bin/<Config> and lib/<Config>
++set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/$<CONFIG>)
  
- #define GLFW_INCLUDE_VULKAN
- #include <GLFW/glfw3.h>
- 
- #include <vulkan/vulkan.h>
- 
-+// Fallback defines for portability extension names if headers are older
-+#ifndef VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME "VK_KHR_portability_enumeration"
-+#endif
-+#ifndef VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME "VK_KHR_portability_subset"
-+#endif
-+
- #include <vulkan_app/renderer.hpp>
- #include <vulkan_app/imgui_layer.hpp>
- #include <vulkan_app/icosphere.hpp>
-@@ -222,9 +231,28 @@
-     std::uint32_t glfw_count{0U};
-     const char** glfw_ext = glfwGetRequiredInstanceExtensions(&glfw_count);
-     std::vector<const char*> extensions(glfw_ext, glfw_ext + glfw_count);
--    if (kEnableValidation) {
-+    // Enumerate supported instance extensions so we can conditionally enable portability + debug utils
-+    std::uint32_t ext_count{0U};
-+    vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
-+    std::vector<VkExtensionProperties> avail_exts(static_cast<std::size_t>(ext_count));
-+    if (ext_count > 0U) {
-+        vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, avail_exts.data());
-+    }
-+    auto has_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : avail_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    if (kEnableValidation && has_ext(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
-         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-     }
-+    const bool portability_supported = has_ext(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    if (portability_supported) {
-+        extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    }
- 
-     const std::vector<const char*> layers{
-         "VK_LAYER_KHRONOS_validation"
-@@ -235,6 +263,9 @@
-     ci.pApplicationInfo = &app_info;
-     ci.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
-     ci.ppEnabledExtensionNames = extensions.data();
-+    if (portability_supported) {
-+        ci.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-+    }
-     if (kEnableValidation) {
-         ci.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
-         ci.ppEnabledLayerNames = layers.data();
-@@ -321,15 +352,34 @@
- 
-     VkPhysicalDeviceFeatures features{};
- 
--    const char* device_exts[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-+    // Query device extensions to enable portability subset on platforms like macOS (MoltenVK)
-+    std::uint32_t dev_ext_count{0U};
-+    vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, nullptr);
-+    std::vector<VkExtensionProperties> dev_exts(static_cast<std::size_t>(dev_ext_count));
-+    if (dev_ext_count > 0U) {
-+        vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, dev_exts.data());
-+    }
-+    auto has_dev_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : dev_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    std::vector<const char*> device_exts;
-+    device_exts.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-+    if (has_dev_ext(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
-+        device_exts.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
-+    }
- 
-     VkDeviceCreateInfo dci{};
-     dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-     dci.pQueueCreateInfos = queues.data();
-     dci.queueCreateInfoCount = static_cast<std::uint32_t>(queues.size());
-     dci.pEnabledFeatures = &features;
--    dci.enabledExtensionCount = 1;
--    dci.ppEnabledExtensionNames = device_exts;
-+    dci.enabledExtensionCount = static_cast<std::uint32_t>(device_exts.size());
-+    dci.ppEnabledExtensionNames = device_exts.data();
-     if (vkCreateDevice(physical_device_, &dci, nullptr, &device_) != VK_SUCCESS) {
-         throw std::runtime_error{"Failed to create logical device"};
-     }
-@@ -382,7 +432,14 @@
-     sci.imageExtent = extent;
-     sci.imageArrayLayers = 1;
-     sci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
--    sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    if (present_family_ != graphics_family_) {
-+        const std::uint32_t indices[2] = { graphics_family_, present_family_ };
-+        sci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-+        sci.queueFamilyIndexCount = 2;
-+        sci.pQueueFamilyIndices = indices;
-+    } else {
-+        sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    }
-     sci.preTransform = caps.currentTransform;
-     sci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-     sci.presentMode = chosen_present;
+ set(CMAKE_CXX_STANDARD 20)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-[2025-09-15T11:08:02] exec bash -lc 'git add -A && git commit -m "chore(agent): add .agent/TODO.md with macOS portability fix and next steps" && git push' in /Users/bruno/Documents/Development/bruno/vulkano_codex
-[2025-09-15T11:08:02] bash -lc 'git add -A && git commit -m "chore(agent): add .agent/TODO.md with macOS portability fix and next steps" && git push' exited 128 in 168ms:
-[feat/imgui-integration 419a654] chore(agent): add .agent/TODO.md with macOS portability fix and next steps
- 106 files changed, 10851 insertions(+), 119 deletions(-)
- delete mode 100644 build/CMakeFiles/Progress/1
- delete mode 100644 build/CMakeFiles/Progress/10
- delete mode 100644 build/CMakeFiles/Progress/100
- delete mode 100644 build/CMakeFiles/Progress/11
- delete mode 100644 build/CMakeFiles/Progress/12
- delete mode 100644 build/CMakeFiles/Progress/13
- delete mode 100644 build/CMakeFiles/Progress/14
- delete mode 100644 build/CMakeFiles/Progress/15
- delete mode 100644 build/CMakeFiles/Progress/16
- delete mode 100644 build/CMakeFiles/Progress/17
- delete mode 100644 build/CMakeFiles/Progress/18
- delete mode 100644 build/CMakeFiles/Progress/19
- delete mode 100644 build/CMakeFiles/Progress/2
- delete mode 100644 build/CMakeFiles/Progress/20
- delete mode 100644 build/CMakeFiles/Progress/21
- delete mode 100644 build/CMakeFiles/Progress/22
- delete mode 100644 build/CMakeFiles/Progress/23
- delete mode 100644 build/CMakeFiles/Progress/24
-[2025-09-15T11:08:02] tokens used: 61,897
-[2025-09-15T11:08:02] turn diff:
-diff --git a/.agent/TODO.md b/.agent/TODO.md
-index e698aa3ace6e84dacfc408675d317a7f502a3780..889973486c6006e39bf5ee5f152e92732e386270
---- a/.agent/TODO.md
-+++ b/.agent/TODO.md
-@@ -1,19 +1,21 @@
--# TODO / Plan
--Phases:
--1) Swapchain + forward pipeline + draw icosphere. [done]
--2) Mesh buffers upload + resize handling. [done]
--3) ImGui integration with subdivision control. [done]
--4) G-buffer, SSAO, blur, composite passes. [in-progress]
--5) Validation, cleanup, docs/tests updates. [todo]
-+# TODO — Vulkano Codex
-+
-+Short-term fixes and next steps. Keep updated as work progresses.
-+
-+## Done
-+- Enable Vulkan portability on macOS (MoltenVK):
-+  - Add VK_KHR_portability_enumeration + instance flag.
-+  - Add VK_KHR_portability_subset device extension when available.
-+  - Use concurrent image sharing when graphics/present queues differ.
-+
-+## Next
-+- SSAO pipeline: G-buffer, SSAO, blur, and compose passes.
-+- ImGui controls wiring for SSAO params and mesh subdivisions.
-+- Swapchain resize path validation and cleanup ordering.
-+- Add end-to-end test harness (headless where possible) and unit tests for math/icosphere.
-+- macOS README notes: MoltenVK install, VK_ICD_FILENAMES hints.
-+- CI: format (clang-format) and clang-tidy jobs.
-+
-+## Notes
-+- Pushing to origin failed (no permission). Either set upstream to a fork with GITHUB_TOKEN or grant access.
- 
--Notes:
--- Follow AGENTS.md: angle-bracket includes, braces, RAII, const.
--- Commit and push after each file edit.
--Next:
--- Add offscreen G-buffer images + render pass, wire geometry pass to write albedo/normal/depth.
--- Add fullscreen pipelines for SSAO, blur (separable), and compose.
--- Generate SSAO kernel + noise textures on CPU and upload to GPU.
--- Hook ImGui toggles to descriptor updates and constants.
--Done in this iteration:
--- Forward shading updated to sample albedo + normal maps with TBN.
--- Procedural albedo + normal textures generated and uploaded; descriptors wired.
-diff --git a/src/renderer.cpp b/src/renderer.cpp
-index aecf0b6c2661c56daeaf15edd3b4164f228d7622..baaea437cf50cd106ee6acba5e789c9a93793170
---- a/src/renderer.cpp
-+++ b/src/renderer.cpp
-@@ -1,12 +1,21 @@
- #include <cstring>
- #include <stdexcept>
- #include <vector>
-+#include <string>
- 
- #define GLFW_INCLUDE_VULKAN
- #include <GLFW/glfw3.h>
- 
- #include <vulkan/vulkan.h>
- 
-+// Fallback defines for portability extension names if headers are older
-+#ifndef VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME "VK_KHR_portability_enumeration"
-+#endif
-+#ifndef VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME "VK_KHR_portability_subset"
-+#endif
-+
- #include <vulkan_app/renderer.hpp>
- #include <vulkan_app/imgui_layer.hpp>
- #include <vulkan_app/icosphere.hpp>
-@@ -222,9 +231,28 @@
-     std::uint32_t glfw_count{0U};
-     const char** glfw_ext = glfwGetRequiredInstanceExtensions(&glfw_count);
-     std::vector<const char*> extensions(glfw_ext, glfw_ext + glfw_count);
--    if (kEnableValidation) {
-+    // Enumerate supported instance extensions so we can conditionally enable portability + debug utils
-+    std::uint32_t ext_count{0U};
-+    vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
-+    std::vector<VkExtensionProperties> avail_exts(static_cast<std::size_t>(ext_count));
-+    if (ext_count > 0U) {
-+        vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, avail_exts.data());
-+    }
-+    auto has_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : avail_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    if (kEnableValidation && has_ext(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
-         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-     }
-+    const bool portability_supported = has_ext(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    if (portability_supported) {
-+        extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    }
- 
-     const std::vector<const char*> layers{
-         "VK_LAYER_KHRONOS_validation"
-@@ -235,6 +263,9 @@
-     ci.pApplicationInfo = &app_info;
-     ci.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
-     ci.ppEnabledExtensionNames = extensions.data();
-+    if (portability_supported) {
-+        ci.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-+    }
-     if (kEnableValidation) {
-         ci.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
-         ci.ppEnabledLayerNames = layers.data();
-@@ -321,15 +352,34 @@
- 
-     VkPhysicalDeviceFeatures features{};
- 
--    const char* device_exts[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-+    // Query device extensions to enable portability subset on platforms like macOS (MoltenVK)
-+    std::uint32_t dev_ext_count{0U};
-+    vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, nullptr);
-+    std::vector<VkExtensionProperties> dev_exts(static_cast<std::size_t>(dev_ext_count));
-+    if (dev_ext_count > 0U) {
-+        vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, dev_exts.data());
-+    }
-+    auto has_dev_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : dev_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    std::vector<const char*> device_exts;
-+    device_exts.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-+    if (has_dev_ext(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
-+        device_exts.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
-+    }
- 
-     VkDeviceCreateInfo dci{};
-     dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-     dci.pQueueCreateInfos = queues.data();
-     dci.queueCreateInfoCount = static_cast<std::uint32_t>(queues.size());
-     dci.pEnabledFeatures = &features;
--    dci.enabledExtensionCount = 1;
--    dci.ppEnabledExtensionNames = device_exts;
-+    dci.enabledExtensionCount = static_cast<std::uint32_t>(device_exts.size());
-+    dci.ppEnabledExtensionNames = device_exts.data();
-     if (vkCreateDevice(physical_device_, &dci, nullptr, &device_) != VK_SUCCESS) {
-         throw std::runtime_error{"Failed to create logical device"};
-     }
-@@ -382,7 +432,14 @@
-     sci.imageExtent = extent;
-     sci.imageArrayLayers = 1;
-     sci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
--    sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    if (present_family_ != graphics_family_) {
-+        const std::uint32_t indices[2] = { graphics_family_, present_family_ };
-+        sci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-+        sci.queueFamilyIndexCount = 2;
-+        sci.pQueueFamilyIndices = indices;
-+    } else {
-+        sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    }
-     sci.preTransform = caps.currentTransform;
-     sci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-     sci.presentMode = chosen_present;
 
-[2025-09-15T11:08:10] tokens used: 63,832
-[2025-09-15T11:08:10] turn diff:
-diff --git a/.agent/TODO.md b/.agent/TODO.md
-index e698aa3ace6e84dacfc408675d317a7f502a3780..889973486c6006e39bf5ee5f152e92732e386270
---- a/.agent/TODO.md
-+++ b/.agent/TODO.md
-@@ -1,19 +1,21 @@
--# TODO / Plan
--Phases:
--1) Swapchain + forward pipeline + draw icosphere. [done]
--2) Mesh buffers upload + resize handling. [done]
--3) ImGui integration with subdivision control. [done]
--4) G-buffer, SSAO, blur, composite passes. [in-progress]
--5) Validation, cleanup, docs/tests updates. [todo]
-+# TODO — Vulkano Codex
-+
-+Short-term fixes and next steps. Keep updated as work progresses.
-+
-+## Done
-+- Enable Vulkan portability on macOS (MoltenVK):
-+  - Add VK_KHR_portability_enumeration + instance flag.
-+  - Add VK_KHR_portability_subset device extension when available.
-+  - Use concurrent image sharing when graphics/present queues differ.
-+
-+## Next
-+- SSAO pipeline: G-buffer, SSAO, blur, and compose passes.
-+- ImGui controls wiring for SSAO params and mesh subdivisions.
-+- Swapchain resize path validation and cleanup ordering.
-+- Add end-to-end test harness (headless where possible) and unit tests for math/icosphere.
-+- macOS README notes: MoltenVK install, VK_ICD_FILENAMES hints.
-+- CI: format (clang-format) and clang-tidy jobs.
-+
-+## Notes
-+- Pushing to origin failed (no permission). Either set upstream to a fork with GITHUB_TOKEN or grant access.
- 
--Notes:
--- Follow AGENTS.md: angle-bracket includes, braces, RAII, const.
--- Commit and push after each file edit.
--Next:
--- Add offscreen G-buffer images + render pass, wire geometry pass to write albedo/normal/depth.
--- Add fullscreen pipelines for SSAO, blur (separable), and compose.
--- Generate SSAO kernel + noise textures on CPU and upload to GPU.
--- Hook ImGui toggles to descriptor updates and constants.
--Done in this iteration:
--- Forward shading updated to sample albedo + normal maps with TBN.
--- Procedural albedo + normal textures generated and uploaded; descriptors wired.
-diff --git a/src/renderer.cpp b/src/renderer.cpp
-index aecf0b6c2661c56daeaf15edd3b4164f228d7622..baaea437cf50cd106ee6acba5e789c9a93793170
---- a/src/renderer.cpp
-+++ b/src/renderer.cpp
-@@ -1,12 +1,21 @@
- #include <cstring>
- #include <stdexcept>
- #include <vector>
-+#include <string>
- 
- #define GLFW_INCLUDE_VULKAN
- #include <GLFW/glfw3.h>
- 
- #include <vulkan/vulkan.h>
- 
-+// Fallback defines for portability extension names if headers are older
-+#ifndef VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME "VK_KHR_portability_enumeration"
-+#endif
-+#ifndef VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME "VK_KHR_portability_subset"
-+#endif
-+
- #include <vulkan_app/renderer.hpp>
- #include <vulkan_app/imgui_layer.hpp>
- #include <vulkan_app/icosphere.hpp>
-@@ -222,9 +231,28 @@
-     std::uint32_t glfw_count{0U};
-     const char** glfw_ext = glfwGetRequiredInstanceExtensions(&glfw_count);
-     std::vector<const char*> extensions(glfw_ext, glfw_ext + glfw_count);
--    if (kEnableValidation) {
-+    // Enumerate supported instance extensions so we can conditionally enable portability + debug utils
-+    std::uint32_t ext_count{0U};
-+    vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
-+    std::vector<VkExtensionProperties> avail_exts(static_cast<std::size_t>(ext_count));
-+    if (ext_count > 0U) {
-+        vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, avail_exts.data());
-+    }
-+    auto has_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : avail_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    if (kEnableValidation && has_ext(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
-         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-     }
-+    const bool portability_supported = has_ext(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    if (portability_supported) {
-+        extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    }
- 
-     const std::vector<const char*> layers{
-         "VK_LAYER_KHRONOS_validation"
-@@ -235,6 +263,9 @@
-     ci.pApplicationInfo = &app_info;
-     ci.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
-     ci.ppEnabledExtensionNames = extensions.data();
-+    if (portability_supported) {
-+        ci.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-+    }
-     if (kEnableValidation) {
-         ci.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
-         ci.ppEnabledLayerNames = layers.data();
-@@ -321,15 +352,34 @@
- 
-     VkPhysicalDeviceFeatures features{};
- 
--    const char* device_exts[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-+    // Query device extensions to enable portability subset on platforms like macOS (MoltenVK)
-+    std::uint32_t dev_ext_count{0U};
-+    vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, nullptr);
-+    std::vector<VkExtensionProperties> dev_exts(static_cast<std::size_t>(dev_ext_count));
-+    if (dev_ext_count > 0U) {
-+        vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, dev_exts.data());
-+    }
-+    auto has_dev_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : dev_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    std::vector<const char*> device_exts;
-+    device_exts.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-+    if (has_dev_ext(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
-+        device_exts.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
-+    }
- 
-     VkDeviceCreateInfo dci{};
-     dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-     dci.pQueueCreateInfos = queues.data();
-     dci.queueCreateInfoCount = static_cast<std::uint32_t>(queues.size());
-     dci.pEnabledFeatures = &features;
--    dci.enabledExtensionCount = 1;
--    dci.ppEnabledExtensionNames = device_exts;
-+    dci.enabledExtensionCount = static_cast<std::uint32_t>(device_exts.size());
-+    dci.ppEnabledExtensionNames = device_exts.data();
-     if (vkCreateDevice(physical_device_, &dci, nullptr, &device_) != VK_SUCCESS) {
-         throw std::runtime_error{"Failed to create logical device"};
-     }
-@@ -382,7 +432,14 @@
-     sci.imageExtent = extent;
-     sci.imageArrayLayers = 1;
-     sci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
--    sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    if (present_family_ != graphics_family_) {
-+        const std::uint32_t indices[2] = { graphics_family_, present_family_ };
-+        sci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-+        sci.queueFamilyIndexCount = 2;
-+        sci.pQueueFamilyIndices = indices;
-+    } else {
-+        sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    }
-     sci.preTransform = caps.currentTransform;
-     sci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-     sci.presentMode = chosen_present;
+[2025-09-15T13:03:02] thinking
 
-[2025-09-15T11:08:14] exec bash -lc "sed -n '1,220p' README.md | nl -ba | sed -n '1,220p'" in /Users/bruno/Documents/Development/bruno/vulkano_codex
-[2025-09-15T11:08:14] bash -lc "sed -n '1,220p' README.md | nl -ba | sed -n '1,220p'" succeeded in 31ms:
-     1	# Vulkano Codex
-     2	
-     3	Modern C++20 Vulkan 1.2 application that opens a GLFW window and renders a dynamically-subdividable icosphere with per-pixel Phong shading, tangent-space normal mapping, and SSAO. Includes an ImGui UI for runtime controls.
-     4	
-     5	## Build
-     6	
-     7	Prerequisites: Vulkan SDK (for headers, loader, and `glslc`), a C++20 compiler, and CMake 3.25+.
-     8	
-     9	Options:
-    10	- `ENABLE_VALIDATION=ON` to enable Vulkan validation layers in Debug.
-    11	- `ENABLE_GLFW_WAYLAND=ON` on Wayland Linux if needed.
-    12	- `ENABLE_IMGUI_DOCKING=ON` to enable ImGui docking (build-time flag only).
-    13	
-    14	Build:
-    15	```
-    16	cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DENABLE_VALIDATION=ON
-    17	cmake --build build --config Release
-    18	```
-    19	
-    20	## Run
-[2025-09-15T11:08:14] tokens used: 64,259
-[2025-09-15T11:08:14] turn diff:
-diff --git a/.agent/TODO.md b/.agent/TODO.md
-index e698aa3ace6e84dacfc408675d317a7f502a3780..889973486c6006e39bf5ee5f152e92732e386270
---- a/.agent/TODO.md
-+++ b/.agent/TODO.md
-@@ -1,19 +1,21 @@
--# TODO / Plan
--Phases:
--1) Swapchain + forward pipeline + draw icosphere. [done]
--2) Mesh buffers upload + resize handling. [done]
--3) ImGui integration with subdivision control. [done]
--4) G-buffer, SSAO, blur, composite passes. [in-progress]
--5) Validation, cleanup, docs/tests updates. [todo]
-+# TODO — Vulkano Codex
-+
-+Short-term fixes and next steps. Keep updated as work progresses.
-+
-+## Done
-+- Enable Vulkan portability on macOS (MoltenVK):
-+  - Add VK_KHR_portability_enumeration + instance flag.
-+  - Add VK_KHR_portability_subset device extension when available.
-+  - Use concurrent image sharing when graphics/present queues differ.
-+
-+## Next
-+- SSAO pipeline: G-buffer, SSAO, blur, and compose passes.
-+- ImGui controls wiring for SSAO params and mesh subdivisions.
-+- Swapchain resize path validation and cleanup ordering.
-+- Add end-to-end test harness (headless where possible) and unit tests for math/icosphere.
-+- macOS README notes: MoltenVK install, VK_ICD_FILENAMES hints.
-+- CI: format (clang-format) and clang-tidy jobs.
-+
-+## Notes
-+- Pushing to origin failed (no permission). Either set upstream to a fork with GITHUB_TOKEN or grant access.
- 
--Notes:
--- Follow AGENTS.md: angle-bracket includes, braces, RAII, const.
--- Commit and push after each file edit.
--Next:
--- Add offscreen G-buffer images + render pass, wire geometry pass to write albedo/normal/depth.
--- Add fullscreen pipelines for SSAO, blur (separable), and compose.
--- Generate SSAO kernel + noise textures on CPU and upload to GPU.
--- Hook ImGui toggles to descriptor updates and constants.
--Done in this iteration:
--- Forward shading updated to sample albedo + normal maps with TBN.
--- Procedural albedo + normal textures generated and uploaded; descriptors wired.
-diff --git a/src/renderer.cpp b/src/renderer.cpp
-index aecf0b6c2661c56daeaf15edd3b4164f228d7622..baaea437cf50cd106ee6acba5e789c9a93793170
---- a/src/renderer.cpp
-+++ b/src/renderer.cpp
-@@ -1,12 +1,21 @@
- #include <cstring>
- #include <stdexcept>
- #include <vector>
-+#include <string>
- 
- #define GLFW_INCLUDE_VULKAN
- #include <GLFW/glfw3.h>
- 
- #include <vulkan/vulkan.h>
- 
-+// Fallback defines for portability extension names if headers are older
-+#ifndef VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME "VK_KHR_portability_enumeration"
-+#endif
-+#ifndef VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME "VK_KHR_portability_subset"
-+#endif
-+
- #include <vulkan_app/renderer.hpp>
- #include <vulkan_app/imgui_layer.hpp>
- #include <vulkan_app/icosphere.hpp>
-@@ -222,9 +231,28 @@
-     std::uint32_t glfw_count{0U};
-     const char** glfw_ext = glfwGetRequiredInstanceExtensions(&glfw_count);
-     std::vector<const char*> extensions(glfw_ext, glfw_ext + glfw_count);
--    if (kEnableValidation) {
-+    // Enumerate supported instance extensions so we can conditionally enable portability + debug utils
-+    std::uint32_t ext_count{0U};
-+    vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
-+    std::vector<VkExtensionProperties> avail_exts(static_cast<std::size_t>(ext_count));
-+    if (ext_count > 0U) {
-+        vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, avail_exts.data());
-+    }
-+    auto has_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : avail_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    if (kEnableValidation && has_ext(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
-         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-     }
-+    const bool portability_supported = has_ext(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    if (portability_supported) {
-+        extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    }
- 
-     const std::vector<const char*> layers{
-         "VK_LAYER_KHRONOS_validation"
-@@ -235,6 +263,9 @@
-     ci.pApplicationInfo = &app_info;
-     ci.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
-     ci.ppEnabledExtensionNames = extensions.data();
-+    if (portability_supported) {
-+        ci.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-+    }
-     if (kEnableValidation) {
-         ci.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
-         ci.ppEnabledLayerNames = layers.data();
-@@ -321,15 +352,34 @@
- 
-     VkPhysicalDeviceFeatures features{};
- 
--    const char* device_exts[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-+    // Query device extensions to enable portability subset on platforms like macOS (MoltenVK)
-+    std::uint32_t dev_ext_count{0U};
-+    vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, nullptr);
-+    std::vector<VkExtensionProperties> dev_exts(static_cast<std::size_t>(dev_ext_count));
-+    if (dev_ext_count > 0U) {
-+        vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, dev_exts.data());
-+    }
-+    auto has_dev_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : dev_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    std::vector<const char*> device_exts;
-+    device_exts.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-+    if (has_dev_ext(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
-+        device_exts.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
-+    }
- 
-     VkDeviceCreateInfo dci{};
-     dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-     dci.pQueueCreateInfos = queues.data();
-     dci.queueCreateInfoCount = static_cast<std::uint32_t>(queues.size());
-     dci.pEnabledFeatures = &features;
--    dci.enabledExtensionCount = 1;
--    dci.ppEnabledExtensionNames = device_exts;
-+    dci.enabledExtensionCount = static_cast<std::uint32_t>(device_exts.size());
-+    dci.ppEnabledExtensionNames = device_exts.data();
-     if (vkCreateDevice(physical_device_, &dci, nullptr, &device_) != VK_SUCCESS) {
-         throw std::runtime_error{"Failed to create logical device"};
-     }
-@@ -382,7 +432,14 @@
-     sci.imageExtent = extent;
-     sci.imageArrayLayers = 1;
-     sci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
--    sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    if (present_family_ != graphics_family_) {
-+        const std::uint32_t indices[2] = { graphics_family_, present_family_ };
-+        sci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-+        sci.queueFamilyIndexCount = 2;
-+        sci.pQueueFamilyIndices = indices;
-+    } else {
-+        sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    }
-     sci.preTransform = caps.currentTransform;
-     sci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-     sci.presentMode = chosen_present;
+**Updating .gitignore**
 
-[2025-09-15T11:08:18] apply_patch auto_approved=true:
-M /Users/bruno/Documents/Development/bruno/vulkano_codex/README.md
-@@ -39,3 +39,7 @@
- ## Notes
--- On macOS, install MoltenVK and ensure Vulkan loader finds the ICD (e.g., set `VK_ICD_FILENAMES`).
-+- macOS (MoltenVK):
-+  - Install MoltenVK (via Vulkan SDK or Homebrew) and ensure the Vulkan loader can find the MoltenVK ICD JSON.
-+    Example: `export VK_ICD_FILENAMES=/usr/local/share/vulkan/icd.d/MoltenVK_icd.json` (path varies by install).
-+  - The app enables `VK_KHR_portability_enumeration` and sets `VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR`, and
-+    enables `VK_KHR_portability_subset` on the device when available.
- - Shaders are compiled to `${build}/shaders/*.spv` if `glslc` is found; otherwise copied as placeholders.
-[2025-09-15T11:08:18] apply_patch(auto_approved=true) exited 0 in 46ms:
+I need to update the .gitignore file to ensure it ignores build files, IDE configurations, and outputs. This is important to keep my repository clean and organized, avoiding unnecessary clutter in version control. Ignoring these files will help streamline the codebase and focus on the essential files that matter for collaboration. It’s a small but crucial step to maintain a neat project environment, ensuring everything's just right for everyone involved!
+[2025-09-15T13:03:06] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/.gitignore
+@@ -41 +41,25 @@
+ *.dwo
++
++# CMake build directories
++build/
++cmake-build-*/
++
++# CMake files
++CMakeCache.txt
++CMakeFiles/
++cmake_install.cmake
++CTestTestfile.cmake
++Testing/
++compile_commands.json
++
++# IDE/editor
++.idea/
++.vscode/
++.DS_Store
++
++# Generated binaries and libs (if built outside build/)
++bin/
++lib/
++
++# Shader outputs
++shaders/*.spv
+[2025-09-15T13:03:07] apply_patch(auto_approved=true) exited 0 in 32ms:
 Success. Updated the following files:
-M README.md
-[2025-09-15T11:08:18] turn diff:
+M .gitignore
+[2025-09-15T13:03:07] turn diff:
+diff --git a/.gitignore b/.gitignore
+index d4fb28184f4c459bb7776d255262d8f9a1b7d511..58d745f5ebbae2de30c7e884b37f8f8608fa5dad
+--- a/.gitignore
++++ b/.gitignore
+@@ -39,3 +39,27 @@
+ 
+ # debug information files
+ *.dwo
++
++# CMake build directories
++build/
++cmake-build-*/
++
++# CMake files
++CMakeCache.txt
++CMakeFiles/
++cmake_install.cmake
++CTestTestfile.cmake
++Testing/
++compile_commands.json
++
++# IDE/editor
++.idea/
++.vscode/
++.DS_Store
++
++# Generated binaries and libs (if built outside build/)
++bin/
++lib/
++
++# Shader outputs
++shaders/*.spv
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index a00cebdc5db41d364de9c2f32ae8e8e5e2706ef7..42accaba99cb3bb95459a43550e771bd87b100b5
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -5,9 +5,10 @@
+ option(ENABLE_GLFW_WAYLAND "Enable GLFW Wayland backend on Linux" OFF)
+ option(ENABLE_IMGUI_DOCKING "Enable ImGui docking" OFF)
+ 
+-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
++# Place build outputs under bin/<Config> and lib/<Config>
++set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/$<CONFIG>)
+ 
+ set(CMAKE_CXX_STANDARD 20)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+[2025-09-15T13:03:07] tokens used: 39,637
+[2025-09-15T13:03:07] turn diff:
+diff --git a/.gitignore b/.gitignore
+index d4fb28184f4c459bb7776d255262d8f9a1b7d511..58d745f5ebbae2de30c7e884b37f8f8608fa5dad
+--- a/.gitignore
++++ b/.gitignore
+@@ -39,3 +39,27 @@
+ 
+ # debug information files
+ *.dwo
++
++# CMake build directories
++build/
++cmake-build-*/
++
++# CMake files
++CMakeCache.txt
++CMakeFiles/
++cmake_install.cmake
++CTestTestfile.cmake
++Testing/
++compile_commands.json
++
++# IDE/editor
++.idea/
++.vscode/
++.DS_Store
++
++# Generated binaries and libs (if built outside build/)
++bin/
++lib/
++
++# Shader outputs
++shaders/*.spv
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index a00cebdc5db41d364de9c2f32ae8e8e5e2706ef7..42accaba99cb3bb95459a43550e771bd87b100b5
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -5,9 +5,10 @@
+ option(ENABLE_GLFW_WAYLAND "Enable GLFW Wayland backend on Linux" OFF)
+ option(ENABLE_IMGUI_DOCKING "Enable ImGui docking" OFF)
+ 
+-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
++# Place build outputs under bin/<Config> and lib/<Config>
++set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/$<CONFIG>)
+ 
+ set(CMAKE_CXX_STANDARD 20)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+[2025-09-15T13:03:17] apply_patch auto_approved=true:
+A /Users/bruno/Documents/Development/bruno/vulkano_codex/.github/workflows/ci.yml
+name: CI
+
+on:
+  push:
+    branches: [ main, master, develop, feat/**, fix/** ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+jobs:
+  build:
+    name: Build and Test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        build_type: [Release]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Vulkan SDK
+        uses: jurplel/install-vulkan-sdk@v1
+        with:
+          version: latest
+          cache: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DENABLE_VALIDATION=ON
+
+      - name: Build
+        run: cmake --build build --config ${{ matrix.build_type }} --parallel
+
+      - name: Test
+        run: ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure
+
+[2025-09-15T13:03:17] apply_patch(auto_approved=true) exited 0 in 65ms:
+Success. Updated the following files:
+A .github/workflows/ci.yml
+[2025-09-15T13:03:17] turn diff:
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..a5d85e267dec53b294c956b04bfe1156495412ab
+--- /dev/null
++++ b/.github/workflows/ci.yml
+@@ -0,0 +1,41 @@
++name: CI
++
++on:
++  push:
++    branches: [ main, master, develop, feat/**, fix/** ]
++  pull_request:
++    branches: [ main, master, develop ]
++
++jobs:
++  build:
++    name: Build and Test
++    runs-on: ${{ matrix.os }}
++    strategy:
++      fail-fast: false
++      matrix:
++        os: [ubuntu-latest, windows-latest, macos-latest]
++        build_type: [Release]
++
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++
++      - name: Install Vulkan SDK
++        uses: jurplel/install-vulkan-sdk@v1
++        with:
++          version: latest
++          cache: true
++          github-token: ${{ secrets.GITHUB_TOKEN }}
++
++      - name: Configure
++        run: |
++          cmake -S . -B build \
++            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
++            -DENABLE_VALIDATION=ON
++
++      - name: Build
++        run: cmake --build build --config ${{ matrix.build_type }} --parallel
++
++      - name: Test
++        run: ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure
++
+diff --git a/.gitignore b/.gitignore
+index d4fb28184f4c459bb7776d255262d8f9a1b7d511..58d745f5ebbae2de30c7e884b37f8f8608fa5dad
+--- a/.gitignore
++++ b/.gitignore
+@@ -39,3 +39,27 @@
+ 
+ # debug information files
+ *.dwo
++
++# CMake build directories
++build/
++cmake-build-*/
++
++# CMake files
++CMakeCache.txt
++CMakeFiles/
++cmake_install.cmake
++CTestTestfile.cmake
++Testing/
++compile_commands.json
++
++# IDE/editor
++.idea/
++.vscode/
++.DS_Store
++
++# Generated binaries and libs (if built outside build/)
++bin/
++lib/
++
++# Shader outputs
++shaders/*.spv
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index a00cebdc5db41d364de9c2f32ae8e8e5e2706ef7..42accaba99cb3bb95459a43550e771bd87b100b5
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -5,9 +5,10 @@
+ option(ENABLE_GLFW_WAYLAND "Enable GLFW Wayland backend on Linux" OFF)
+ option(ENABLE_IMGUI_DOCKING "Enable ImGui docking" OFF)
+ 
+-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
++# Place build outputs under bin/<Config> and lib/<Config>
++set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/$<CONFIG>)
+ 
+ set(CMAKE_CXX_STANDARD 20)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+[2025-09-15T13:03:17] tokens used: 40,225
+[2025-09-15T13:03:17] turn diff:
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..a5d85e267dec53b294c956b04bfe1156495412ab
+--- /dev/null
++++ b/.github/workflows/ci.yml
+@@ -0,0 +1,41 @@
++name: CI
++
++on:
++  push:
++    branches: [ main, master, develop, feat/**, fix/** ]
++  pull_request:
++    branches: [ main, master, develop ]
++
++jobs:
++  build:
++    name: Build and Test
++    runs-on: ${{ matrix.os }}
++    strategy:
++      fail-fast: false
++      matrix:
++        os: [ubuntu-latest, windows-latest, macos-latest]
++        build_type: [Release]
++
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++
++      - name: Install Vulkan SDK
++        uses: jurplel/install-vulkan-sdk@v1
++        with:
++          version: latest
++          cache: true
++          github-token: ${{ secrets.GITHUB_TOKEN }}
++
++      - name: Configure
++        run: |
++          cmake -S . -B build \
++            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
++            -DENABLE_VALIDATION=ON
++
++      - name: Build
++        run: cmake --build build --config ${{ matrix.build_type }} --parallel
++
++      - name: Test
++        run: ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure
++
+diff --git a/.gitignore b/.gitignore
+index d4fb28184f4c459bb7776d255262d8f9a1b7d511..58d745f5ebbae2de30c7e884b37f8f8608fa5dad
+--- a/.gitignore
++++ b/.gitignore
+@@ -39,3 +39,27 @@
+ 
+ # debug information files
+ *.dwo
++
++# CMake build directories
++build/
++cmake-build-*/
++
++# CMake files
++CMakeCache.txt
++CMakeFiles/
++cmake_install.cmake
++CTestTestfile.cmake
++Testing/
++compile_commands.json
++
++# IDE/editor
++.idea/
++.vscode/
++.DS_Store
++
++# Generated binaries and libs (if built outside build/)
++bin/
++lib/
++
++# Shader outputs
++shaders/*.spv
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index a00cebdc5db41d364de9c2f32ae8e8e5e2706ef7..42accaba99cb3bb95459a43550e771bd87b100b5
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -5,9 +5,10 @@
+ option(ENABLE_GLFW_WAYLAND "Enable GLFW Wayland backend on Linux" OFF)
+ option(ENABLE_IMGUI_DOCKING "Enable ImGui docking" OFF)
+ 
+-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
++# Place build outputs under bin/<Config> and lib/<Config>
++set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/$<CONFIG>)
+ 
+ set(CMAKE_CXX_STANDARD 20)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+[2025-09-15T13:03:24] apply_patch auto_approved=true:
+A /Users/bruno/Documents/Development/bruno/vulkano_codex/tools/format_all.sh
+#!/usr/bin/env bash
+set -euo pipefail
+
+shopt -s globstar
+
+files=(
+  include/**/*.hpp
+  src/**/*.cpp
+  tests/**/*.cpp
+)
+
+if ! command -v clang-format >/dev/null 2>&1; then
+  echo "clang-format not found" >&2
+  exit 1
+fi
+
+clang-format -i "${files[@]}"
+
+[2025-09-15T13:03:24] apply_patch(auto_approved=true) exited 0 in 80ms:
+Success. Updated the following files:
+A tools/format_all.sh
+[2025-09-15T13:03:24] turn diff:
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..a5d85e267dec53b294c956b04bfe1156495412ab
+--- /dev/null
++++ b/.github/workflows/ci.yml
+@@ -0,0 +1,41 @@
++name: CI
++
++on:
++  push:
++    branches: [ main, master, develop, feat/**, fix/** ]
++  pull_request:
++    branches: [ main, master, develop ]
++
++jobs:
++  build:
++    name: Build and Test
++    runs-on: ${{ matrix.os }}
++    strategy:
++      fail-fast: false
++      matrix:
++        os: [ubuntu-latest, windows-latest, macos-latest]
++        build_type: [Release]
++
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++
++      - name: Install Vulkan SDK
++        uses: jurplel/install-vulkan-sdk@v1
++        with:
++          version: latest
++          cache: true
++          github-token: ${{ secrets.GITHUB_TOKEN }}
++
++      - name: Configure
++        run: |
++          cmake -S . -B build \
++            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
++            -DENABLE_VALIDATION=ON
++
++      - name: Build
++        run: cmake --build build --config ${{ matrix.build_type }} --parallel
++
++      - name: Test
++        run: ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure
++
+diff --git a/.gitignore b/.gitignore
+index d4fb28184f4c459bb7776d255262d8f9a1b7d511..58d745f5ebbae2de30c7e884b37f8f8608fa5dad
+--- a/.gitignore
++++ b/.gitignore
+@@ -39,3 +39,27 @@
+ 
+ # debug information files
+ *.dwo
++
++# CMake build directories
++build/
++cmake-build-*/
++
++# CMake files
++CMakeCache.txt
++CMakeFiles/
++cmake_install.cmake
++CTestTestfile.cmake
++Testing/
++compile_commands.json
++
++# IDE/editor
++.idea/
++.vscode/
++.DS_Store
++
++# Generated binaries and libs (if built outside build/)
++bin/
++lib/
++
++# Shader outputs
++shaders/*.spv
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index a00cebdc5db41d364de9c2f32ae8e8e5e2706ef7..42accaba99cb3bb95459a43550e771bd87b100b5
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -5,9 +5,10 @@
+ option(ENABLE_GLFW_WAYLAND "Enable GLFW Wayland backend on Linux" OFF)
+ option(ENABLE_IMGUI_DOCKING "Enable ImGui docking" OFF)
+ 
+-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
++# Place build outputs under bin/<Config> and lib/<Config>
++set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/$<CONFIG>)
+ 
+ set(CMAKE_CXX_STANDARD 20)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+diff --git a/tools/format_all.sh b/tools/format_all.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..c63915a8ce9845337a66099f7a925cb26ba8c1b8
+--- /dev/null
++++ b/tools/format_all.sh
+@@ -0,0 +1,18 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++shopt -s globstar
++
++files=(
++  include/**/*.hpp
++  src/**/*.cpp
++  tests/**/*.cpp
++)
++
++if ! command -v clang-format >/dev/null 2>&1; then
++  echo "clang-format not found" >&2
++  exit 1
++fi
++
++clang-format -i "${files[@]}"
++
+
+[2025-09-15T13:03:24] tokens used: 40,884
+[2025-09-15T13:03:24] turn diff:
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..a5d85e267dec53b294c956b04bfe1156495412ab
+--- /dev/null
++++ b/.github/workflows/ci.yml
+@@ -0,0 +1,41 @@
++name: CI
++
++on:
++  push:
++    branches: [ main, master, develop, feat/**, fix/** ]
++  pull_request:
++    branches: [ main, master, develop ]
++
++jobs:
++  build:
++    name: Build and Test
++    runs-on: ${{ matrix.os }}
++    strategy:
++      fail-fast: false
++      matrix:
++        os: [ubuntu-latest, windows-latest, macos-latest]
++        build_type: [Release]
++
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++
++      - name: Install Vulkan SDK
++        uses: jurplel/install-vulkan-sdk@v1
++        with:
++          version: latest
++          cache: true
++          github-token: ${{ secrets.GITHUB_TOKEN }}
++
++      - name: Configure
++        run: |
++          cmake -S . -B build \
++            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
++            -DENABLE_VALIDATION=ON
++
++      - name: Build
++        run: cmake --build build --config ${{ matrix.build_type }} --parallel
++
++      - name: Test
++        run: ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure
++
+diff --git a/.gitignore b/.gitignore
+index d4fb28184f4c459bb7776d255262d8f9a1b7d511..58d745f5ebbae2de30c7e884b37f8f8608fa5dad
+--- a/.gitignore
++++ b/.gitignore
+@@ -39,3 +39,27 @@
+ 
+ # debug information files
+ *.dwo
++
++# CMake build directories
++build/
++cmake-build-*/
++
++# CMake files
++CMakeCache.txt
++CMakeFiles/
++cmake_install.cmake
++CTestTestfile.cmake
++Testing/
++compile_commands.json
++
++# IDE/editor
++.idea/
++.vscode/
++.DS_Store
++
++# Generated binaries and libs (if built outside build/)
++bin/
++lib/
++
++# Shader outputs
++shaders/*.spv
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index a00cebdc5db41d364de9c2f32ae8e8e5e2706ef7..42accaba99cb3bb95459a43550e771bd87b100b5
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -5,9 +5,10 @@
+ option(ENABLE_GLFW_WAYLAND "Enable GLFW Wayland backend on Linux" OFF)
+ option(ENABLE_IMGUI_DOCKING "Enable ImGui docking" OFF)
+ 
+-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
++# Place build outputs under bin/<Config> and lib/<Config>
++set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/$<CONFIG>)
+ 
+ set(CMAKE_CXX_STANDARD 20)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+diff --git a/tools/format_all.sh b/tools/format_all.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..c63915a8ce9845337a66099f7a925cb26ba8c1b8
+--- /dev/null
++++ b/tools/format_all.sh
+@@ -0,0 +1,18 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++shopt -s globstar
++
++files=(
++  include/**/*.hpp
++  src/**/*.cpp
++  tests/**/*.cpp
++)
++
++if ! command -v clang-format >/dev/null 2>&1; then
++  echo "clang-format not found" >&2
++  exit 1
++fi
++
++clang-format -i "${files[@]}"
++
+
+[2025-09-15T13:03:39] apply_patch auto_approved=true:
+A /Users/bruno/Documents/Development/bruno/vulkano_codex/tools/run_tidy.sh
+#!/usr/bin/env bash
+set -euo pipefail
+
+if ! command -v run-clang-tidy >/dev/null 2>&1 && ! command -v clang-tidy >/dev/null 2>&1; then
+  echo "clang-tidy or run-clang-tidy not found" >&2
+  exit 1
+fi
+
+build_dir=${1:-build}
+
+if [[ ! -f "$build_dir/compile_commands.json" ]]; then
+  echo "compile_commands.json not found in $build_dir. Configure with -DCMAKE_EXPORT_COMPILE_COMMANDS=ON" >&2
+  exit 1
+fi
+
+if command -v run-clang-tidy >/dev/null 2>&1; then
+  run-clang-tidy -p "$build_dir"
+else
+  clang-tidy $(jq -r '.[].file' "$build_dir/compile_commands.json") -p "$build_dir"
+fi
+
+[2025-09-15T13:03:39] apply_patch(auto_approved=true) exited 0 in 98ms:
+Success. Updated the following files:
+A tools/run_tidy.sh
+[2025-09-15T13:03:39] turn diff:
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..a5d85e267dec53b294c956b04bfe1156495412ab
+--- /dev/null
++++ b/.github/workflows/ci.yml
+@@ -0,0 +1,41 @@
++name: CI
++
++on:
++  push:
++    branches: [ main, master, develop, feat/**, fix/** ]
++  pull_request:
++    branches: [ main, master, develop ]
++
++jobs:
++  build:
++    name: Build and Test
++    runs-on: ${{ matrix.os }}
++    strategy:
++      fail-fast: false
++      matrix:
++        os: [ubuntu-latest, windows-latest, macos-latest]
++        build_type: [Release]
++
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++
++      - name: Install Vulkan SDK
++        uses: jurplel/install-vulkan-sdk@v1
++        with:
++          version: latest
++          cache: true
++          github-token: ${{ secrets.GITHUB_TOKEN }}
++
++      - name: Configure
++        run: |
++          cmake -S . -B build \
++            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
++            -DENABLE_VALIDATION=ON
++
++      - name: Build
++        run: cmake --build build --config ${{ matrix.build_type }} --parallel
++
++      - name: Test
++        run: ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure
++
+diff --git a/.gitignore b/.gitignore
+index d4fb28184f4c459bb7776d255262d8f9a1b7d511..58d745f5ebbae2de30c7e884b37f8f8608fa5dad
+--- a/.gitignore
++++ b/.gitignore
+@@ -39,3 +39,27 @@
+ 
+ # debug information files
+ *.dwo
++
++# CMake build directories
++build/
++cmake-build-*/
++
++# CMake files
++CMakeCache.txt
++CMakeFiles/
++cmake_install.cmake
++CTestTestfile.cmake
++Testing/
++compile_commands.json
++
++# IDE/editor
++.idea/
++.vscode/
++.DS_Store
++
++# Generated binaries and libs (if built outside build/)
++bin/
++lib/
++
++# Shader outputs
++shaders/*.spv
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index a00cebdc5db41d364de9c2f32ae8e8e5e2706ef7..42accaba99cb3bb95459a43550e771bd87b100b5
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -5,9 +5,10 @@
+ option(ENABLE_GLFW_WAYLAND "Enable GLFW Wayland backend on Linux" OFF)
+ option(ENABLE_IMGUI_DOCKING "Enable ImGui docking" OFF)
+ 
+-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
++# Place build outputs under bin/<Config> and lib/<Config>
++set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/$<CONFIG>)
+ 
+ set(CMAKE_CXX_STANDARD 20)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+diff --git a/tools/format_all.sh b/tools/format_all.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..c63915a8ce9845337a66099f7a925cb26ba8c1b8
+--- /dev/null
++++ b/tools/format_all.sh
+@@ -0,0 +1,18 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++shopt -s globstar
++
++files=(
++  include/**/*.hpp
++  src/**/*.cpp
++  tests/**/*.cpp
++)
++
++if ! command -v clang-format >/dev/null 2>&1; then
++  echo "clang-format not found" >&2
++  exit 1
++fi
++
++clang-format -i "${files[@]}"
++
+diff --git a/tools/run_tidy.sh b/tools/run_tidy.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..824525857cdfc075caf08813d702c065d38e4502
+--- /dev/null
++++ b/tools/run_tidy.sh
+@@ -0,0 +1,21 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++if ! command -v run-clang-tidy >/dev/null 2>&1 && ! command -v clang-tidy >/dev/null 2>&1; then
++  echo "clang-tidy or run-clang-tidy not found" >&2
++  exit 1
++fi
++
++build_dir=${1:-build}
++
++if [[ ! -f "$build_dir/compile_commands.json" ]]; then
++  echo "compile_commands.json not found in $build_dir. Configure with -DCMAKE_EXPORT_COMPILE_COMMANDS=ON" >&2
++  exit 1
++fi
++
++if command -v run-clang-tidy >/dev/null 2>&1; then
++  run-clang-tidy -p "$build_dir"
++else
++  clang-tidy $(jq -r '.[].file' "$build_dir/compile_commands.json") -p "$build_dir"
++fi
++
+
+[2025-09-15T13:03:39] tokens used: 41,339
+[2025-09-15T13:03:39] turn diff:
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..a5d85e267dec53b294c956b04bfe1156495412ab
+--- /dev/null
++++ b/.github/workflows/ci.yml
+@@ -0,0 +1,41 @@
++name: CI
++
++on:
++  push:
++    branches: [ main, master, develop, feat/**, fix/** ]
++  pull_request:
++    branches: [ main, master, develop ]
++
++jobs:
++  build:
++    name: Build and Test
++    runs-on: ${{ matrix.os }}
++    strategy:
++      fail-fast: false
++      matrix:
++        os: [ubuntu-latest, windows-latest, macos-latest]
++        build_type: [Release]
++
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++
++      - name: Install Vulkan SDK
++        uses: jurplel/install-vulkan-sdk@v1
++        with:
++          version: latest
++          cache: true
++          github-token: ${{ secrets.GITHUB_TOKEN }}
++
++      - name: Configure
++        run: |
++          cmake -S . -B build \
++            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
++            -DENABLE_VALIDATION=ON
++
++      - name: Build
++        run: cmake --build build --config ${{ matrix.build_type }} --parallel
++
++      - name: Test
++        run: ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure
++
+diff --git a/.gitignore b/.gitignore
+index d4fb28184f4c459bb7776d255262d8f9a1b7d511..58d745f5ebbae2de30c7e884b37f8f8608fa5dad
+--- a/.gitignore
++++ b/.gitignore
+@@ -39,3 +39,27 @@
+ 
+ # debug information files
+ *.dwo
++
++# CMake build directories
++build/
++cmake-build-*/
++
++# CMake files
++CMakeCache.txt
++CMakeFiles/
++cmake_install.cmake
++CTestTestfile.cmake
++Testing/
++compile_commands.json
++
++# IDE/editor
++.idea/
++.vscode/
++.DS_Store
++
++# Generated binaries and libs (if built outside build/)
++bin/
++lib/
++
++# Shader outputs
++shaders/*.spv
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index a00cebdc5db41d364de9c2f32ae8e8e5e2706ef7..42accaba99cb3bb95459a43550e771bd87b100b5
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -5,9 +5,10 @@
+ option(ENABLE_GLFW_WAYLAND "Enable GLFW Wayland backend on Linux" OFF)
+ option(ENABLE_IMGUI_DOCKING "Enable ImGui docking" OFF)
+ 
+-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
++# Place build outputs under bin/<Config> and lib/<Config>
++set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/$<CONFIG>)
+ 
+ set(CMAKE_CXX_STANDARD 20)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+diff --git a/tools/format_all.sh b/tools/format_all.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..c63915a8ce9845337a66099f7a925cb26ba8c1b8
+--- /dev/null
++++ b/tools/format_all.sh
+@@ -0,0 +1,18 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++shopt -s globstar
++
++files=(
++  include/**/*.hpp
++  src/**/*.cpp
++  tests/**/*.cpp
++)
++
++if ! command -v clang-format >/dev/null 2>&1; then
++  echo "clang-format not found" >&2
++  exit 1
++fi
++
++clang-format -i "${files[@]}"
++
+diff --git a/tools/run_tidy.sh b/tools/run_tidy.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..824525857cdfc075caf08813d702c065d38e4502
+--- /dev/null
++++ b/tools/run_tidy.sh
+@@ -0,0 +1,21 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++if ! command -v run-clang-tidy >/dev/null 2>&1 && ! command -v clang-tidy >/dev/null 2>&1; then
++  echo "clang-tidy or run-clang-tidy not found" >&2
++  exit 1
++fi
++
++build_dir=${1:-build}
++
++if [[ ! -f "$build_dir/compile_commands.json" ]]; then
++  echo "compile_commands.json not found in $build_dir. Configure with -DCMAKE_EXPORT_COMPILE_COMMANDS=ON" >&2
++  exit 1
++fi
++
++if command -v run-clang-tidy >/dev/null 2>&1; then
++  run-clang-tidy -p "$build_dir"
++else
++  clang-tidy $(jq -r '.[].file' "$build_dir/compile_commands.json") -p "$build_dir"
++fi
++
+
+[2025-09-15T13:03:43] apply_patch auto_approved=true:
+A /Users/bruno/Documents/Development/bruno/vulkano_codex/tools/build_debug.sh
+#!/usr/bin/env bash
+set -euo pipefail
+
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DENABLE_VALIDATION=ON
+cmake --build build --config Debug --parallel
+
+[2025-09-15T13:03:43] apply_patch(auto_approved=true) exited 0 in 95ms:
+Success. Updated the following files:
+A tools/build_debug.sh
+[2025-09-15T13:03:43] turn diff:
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..a5d85e267dec53b294c956b04bfe1156495412ab
+--- /dev/null
++++ b/.github/workflows/ci.yml
+@@ -0,0 +1,41 @@
++name: CI
++
++on:
++  push:
++    branches: [ main, master, develop, feat/**, fix/** ]
++  pull_request:
++    branches: [ main, master, develop ]
++
++jobs:
++  build:
++    name: Build and Test
++    runs-on: ${{ matrix.os }}
++    strategy:
++      fail-fast: false
++      matrix:
++        os: [ubuntu-latest, windows-latest, macos-latest]
++        build_type: [Release]
++
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++
++      - name: Install Vulkan SDK
++        uses: jurplel/install-vulkan-sdk@v1
++        with:
++          version: latest
++          cache: true
++          github-token: ${{ secrets.GITHUB_TOKEN }}
++
++      - name: Configure
++        run: |
++          cmake -S . -B build \
++            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
++            -DENABLE_VALIDATION=ON
++
++      - name: Build
++        run: cmake --build build --config ${{ matrix.build_type }} --parallel
++
++      - name: Test
++        run: ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure
++
+diff --git a/.gitignore b/.gitignore
+index d4fb28184f4c459bb7776d255262d8f9a1b7d511..58d745f5ebbae2de30c7e884b37f8f8608fa5dad
+--- a/.gitignore
++++ b/.gitignore
+@@ -39,3 +39,27 @@
+ 
+ # debug information files
+ *.dwo
++
++# CMake build directories
++build/
++cmake-build-*/
++
++# CMake files
++CMakeCache.txt
++CMakeFiles/
++cmake_install.cmake
++CTestTestfile.cmake
++Testing/
++compile_commands.json
++
++# IDE/editor
++.idea/
++.vscode/
++.DS_Store
++
++# Generated binaries and libs (if built outside build/)
++bin/
++lib/
++
++# Shader outputs
++shaders/*.spv
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index a00cebdc5db41d364de9c2f32ae8e8e5e2706ef7..42accaba99cb3bb95459a43550e771bd87b100b5
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -5,9 +5,10 @@
+ option(ENABLE_GLFW_WAYLAND "Enable GLFW Wayland backend on Linux" OFF)
+ option(ENABLE_IMGUI_DOCKING "Enable ImGui docking" OFF)
+ 
+-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
++# Place build outputs under bin/<Config> and lib/<Config>
++set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/$<CONFIG>)
+ 
+ set(CMAKE_CXX_STANDARD 20)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+diff --git a/tools/build_debug.sh b/tools/build_debug.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..adcd885f0c59bcdef5bd62f1ebf3659be9d7e1a1
+--- /dev/null
++++ b/tools/build_debug.sh
+@@ -0,0 +1,6 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DENABLE_VALIDATION=ON
++cmake --build build --config Debug --parallel
++
+diff --git a/tools/format_all.sh b/tools/format_all.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..c63915a8ce9845337a66099f7a925cb26ba8c1b8
+--- /dev/null
++++ b/tools/format_all.sh
+@@ -0,0 +1,18 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++shopt -s globstar
++
++files=(
++  include/**/*.hpp
++  src/**/*.cpp
++  tests/**/*.cpp
++)
++
++if ! command -v clang-format >/dev/null 2>&1; then
++  echo "clang-format not found" >&2
++  exit 1
++fi
++
++clang-format -i "${files[@]}"
++
+diff --git a/tools/run_tidy.sh b/tools/run_tidy.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..824525857cdfc075caf08813d702c065d38e4502
+--- /dev/null
++++ b/tools/run_tidy.sh
+@@ -0,0 +1,21 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++if ! command -v run-clang-tidy >/dev/null 2>&1 && ! command -v clang-tidy >/dev/null 2>&1; then
++  echo "clang-tidy or run-clang-tidy not found" >&2
++  exit 1
++fi
++
++build_dir=${1:-build}
++
++if [[ ! -f "$build_dir/compile_commands.json" ]]; then
++  echo "compile_commands.json not found in $build_dir. Configure with -DCMAKE_EXPORT_COMPILE_COMMANDS=ON" >&2
++  exit 1
++fi
++
++if command -v run-clang-tidy >/dev/null 2>&1; then
++  run-clang-tidy -p "$build_dir"
++else
++  clang-tidy $(jq -r '.[].file' "$build_dir/compile_commands.json") -p "$build_dir"
++fi
++
+
+[2025-09-15T13:03:43] tokens used: 41,807
+[2025-09-15T13:03:43] turn diff:
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..a5d85e267dec53b294c956b04bfe1156495412ab
+--- /dev/null
++++ b/.github/workflows/ci.yml
+@@ -0,0 +1,41 @@
++name: CI
++
++on:
++  push:
++    branches: [ main, master, develop, feat/**, fix/** ]
++  pull_request:
++    branches: [ main, master, develop ]
++
++jobs:
++  build:
++    name: Build and Test
++    runs-on: ${{ matrix.os }}
++    strategy:
++      fail-fast: false
++      matrix:
++        os: [ubuntu-latest, windows-latest, macos-latest]
++        build_type: [Release]
++
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++
++      - name: Install Vulkan SDK
++        uses: jurplel/install-vulkan-sdk@v1
++        with:
++          version: latest
++          cache: true
++          github-token: ${{ secrets.GITHUB_TOKEN }}
++
++      - name: Configure
++        run: |
++          cmake -S . -B build \
++            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
++            -DENABLE_VALIDATION=ON
++
++      - name: Build
++        run: cmake --build build --config ${{ matrix.build_type }} --parallel
++
++      - name: Test
++        run: ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure
++
+diff --git a/.gitignore b/.gitignore
+index d4fb28184f4c459bb7776d255262d8f9a1b7d511..58d745f5ebbae2de30c7e884b37f8f8608fa5dad
+--- a/.gitignore
++++ b/.gitignore
+@@ -39,3 +39,27 @@
+ 
+ # debug information files
+ *.dwo
++
++# CMake build directories
++build/
++cmake-build-*/
++
++# CMake files
++CMakeCache.txt
++CMakeFiles/
++cmake_install.cmake
++CTestTestfile.cmake
++Testing/
++compile_commands.json
++
++# IDE/editor
++.idea/
++.vscode/
++.DS_Store
++
++# Generated binaries and libs (if built outside build/)
++bin/
++lib/
++
++# Shader outputs
++shaders/*.spv
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index a00cebdc5db41d364de9c2f32ae8e8e5e2706ef7..42accaba99cb3bb95459a43550e771bd87b100b5
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -5,9 +5,10 @@
+ option(ENABLE_GLFW_WAYLAND "Enable GLFW Wayland backend on Linux" OFF)
+ option(ENABLE_IMGUI_DOCKING "Enable ImGui docking" OFF)
+ 
+-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
++# Place build outputs under bin/<Config> and lib/<Config>
++set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/$<CONFIG>)
+ 
+ set(CMAKE_CXX_STANDARD 20)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+diff --git a/tools/build_debug.sh b/tools/build_debug.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..adcd885f0c59bcdef5bd62f1ebf3659be9d7e1a1
+--- /dev/null
++++ b/tools/build_debug.sh
+@@ -0,0 +1,6 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DENABLE_VALIDATION=ON
++cmake --build build --config Debug --parallel
++
+diff --git a/tools/format_all.sh b/tools/format_all.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..c63915a8ce9845337a66099f7a925cb26ba8c1b8
+--- /dev/null
++++ b/tools/format_all.sh
+@@ -0,0 +1,18 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++shopt -s globstar
++
++files=(
++  include/**/*.hpp
++  src/**/*.cpp
++  tests/**/*.cpp
++)
++
++if ! command -v clang-format >/dev/null 2>&1; then
++  echo "clang-format not found" >&2
++  exit 1
++fi
++
++clang-format -i "${files[@]}"
++
+diff --git a/tools/run_tidy.sh b/tools/run_tidy.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..824525857cdfc075caf08813d702c065d38e4502
+--- /dev/null
++++ b/tools/run_tidy.sh
+@@ -0,0 +1,21 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++if ! command -v run-clang-tidy >/dev/null 2>&1 && ! command -v clang-tidy >/dev/null 2>&1; then
++  echo "clang-tidy or run-clang-tidy not found" >&2
++  exit 1
++fi
++
++build_dir=${1:-build}
++
++if [[ ! -f "$build_dir/compile_commands.json" ]]; then
++  echo "compile_commands.json not found in $build_dir. Configure with -DCMAKE_EXPORT_COMPILE_COMMANDS=ON" >&2
++  exit 1
++fi
++
++if command -v run-clang-tidy >/dev/null 2>&1; then
++  run-clang-tidy -p "$build_dir"
++else
++  clang-tidy $(jq -r '.[].file' "$build_dir/compile_commands.json") -p "$build_dir"
++fi
++
+
+
+[2025-09-15T13:03:46] thinking
+
+**Creating assets directory**
+
+I need to create an assets directory and include a placeholder README file in it. This will help provide structure and documentation for whatever project I'm working on. It's essential to have clear information right from the start, so people know what to expect from the assets. I'm thinking of what to include in the README to make it informative yet concise. Let's get this set up so we can build on it later!
+[2025-09-15T13:03:48] apply_patch auto_approved=true:
+A /Users/bruno/Documents/Development/bruno/vulkano_codex/assets/README.md
+Place demo assets here.
+
+- textures/albedo.png (sRGB)
+- textures/normal.png (linear)
+
+The application will fall back to procedural placeholders if not present in a future milestone.
+
+[2025-09-15T13:03:48] apply_patch(auto_approved=true) exited 0 in 102ms:
+Success. Updated the following files:
+A assets/README.md
+[2025-09-15T13:03:48] turn diff:
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..a5d85e267dec53b294c956b04bfe1156495412ab
+--- /dev/null
++++ b/.github/workflows/ci.yml
+@@ -0,0 +1,41 @@
++name: CI
++
++on:
++  push:
++    branches: [ main, master, develop, feat/**, fix/** ]
++  pull_request:
++    branches: [ main, master, develop ]
++
++jobs:
++  build:
++    name: Build and Test
++    runs-on: ${{ matrix.os }}
++    strategy:
++      fail-fast: false
++      matrix:
++        os: [ubuntu-latest, windows-latest, macos-latest]
++        build_type: [Release]
++
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++
++      - name: Install Vulkan SDK
++        uses: jurplel/install-vulkan-sdk@v1
++        with:
++          version: latest
++          cache: true
++          github-token: ${{ secrets.GITHUB_TOKEN }}
++
++      - name: Configure
++        run: |
++          cmake -S . -B build \
++            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
++            -DENABLE_VALIDATION=ON
++
++      - name: Build
++        run: cmake --build build --config ${{ matrix.build_type }} --parallel
++
++      - name: Test
++        run: ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure
++
+diff --git a/.gitignore b/.gitignore
+index d4fb28184f4c459bb7776d255262d8f9a1b7d511..58d745f5ebbae2de30c7e884b37f8f8608fa5dad
+--- a/.gitignore
++++ b/.gitignore
+@@ -39,3 +39,27 @@
+ 
+ # debug information files
+ *.dwo
++
++# CMake build directories
++build/
++cmake-build-*/
++
++# CMake files
++CMakeCache.txt
++CMakeFiles/
++cmake_install.cmake
++CTestTestfile.cmake
++Testing/
++compile_commands.json
++
++# IDE/editor
++.idea/
++.vscode/
++.DS_Store
++
++# Generated binaries and libs (if built outside build/)
++bin/
++lib/
++
++# Shader outputs
++shaders/*.spv
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index a00cebdc5db41d364de9c2f32ae8e8e5e2706ef7..42accaba99cb3bb95459a43550e771bd87b100b5
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -5,9 +5,10 @@
+ option(ENABLE_GLFW_WAYLAND "Enable GLFW Wayland backend on Linux" OFF)
+ option(ENABLE_IMGUI_DOCKING "Enable ImGui docking" OFF)
+ 
+-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
++# Place build outputs under bin/<Config> and lib/<Config>
++set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/$<CONFIG>)
+ 
+ set(CMAKE_CXX_STANDARD 20)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+diff --git a/assets/README.md b/assets/README.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..1ea17dda875c5f12bd6ac0c478988f45dc154ddc
+--- /dev/null
++++ b/assets/README.md
+@@ -0,0 +1,7 @@
++Place demo assets here.
++
++- textures/albedo.png (sRGB)
++- textures/normal.png (linear)
++
++The application will fall back to procedural placeholders if not present in a future milestone.
++
+diff --git a/tools/build_debug.sh b/tools/build_debug.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..adcd885f0c59bcdef5bd62f1ebf3659be9d7e1a1
+--- /dev/null
++++ b/tools/build_debug.sh
+@@ -0,0 +1,6 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DENABLE_VALIDATION=ON
++cmake --build build --config Debug --parallel
++
+diff --git a/tools/format_all.sh b/tools/format_all.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..c63915a8ce9845337a66099f7a925cb26ba8c1b8
+--- /dev/null
++++ b/tools/format_all.sh
+@@ -0,0 +1,18 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++shopt -s globstar
++
++files=(
++  include/**/*.hpp
++  src/**/*.cpp
++  tests/**/*.cpp
++)
++
++if ! command -v clang-format >/dev/null 2>&1; then
++  echo "clang-format not found" >&2
++  exit 1
++fi
++
++clang-format -i "${files[@]}"
++
+diff --git a/tools/run_tidy.sh b/tools/run_tidy.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..824525857cdfc075caf08813d702c065d38e4502
+--- /dev/null
++++ b/tools/run_tidy.sh
+@@ -0,0 +1,21 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++if ! command -v run-clang-tidy >/dev/null 2>&1 && ! command -v clang-tidy >/dev/null 2>&1; then
++  echo "clang-tidy or run-clang-tidy not found" >&2
++  exit 1
++fi
++
++build_dir=${1:-build}
++
++if [[ ! -f "$build_dir/compile_commands.json" ]]; then
++  echo "compile_commands.json not found in $build_dir. Configure with -DCMAKE_EXPORT_COMPILE_COMMANDS=ON" >&2
++  exit 1
++fi
++
++if command -v run-clang-tidy >/dev/null 2>&1; then
++  run-clang-tidy -p "$build_dir"
++else
++  clang-tidy $(jq -r '.[].file' "$build_dir/compile_commands.json") -p "$build_dir"
++fi
++
+
+[2025-09-15T13:03:48] tokens used: 42,146
+[2025-09-15T13:03:48] turn diff:
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..a5d85e267dec53b294c956b04bfe1156495412ab
+--- /dev/null
++++ b/.github/workflows/ci.yml
+@@ -0,0 +1,41 @@
++name: CI
++
++on:
++  push:
++    branches: [ main, master, develop, feat/**, fix/** ]
++  pull_request:
++    branches: [ main, master, develop ]
++
++jobs:
++  build:
++    name: Build and Test
++    runs-on: ${{ matrix.os }}
++    strategy:
++      fail-fast: false
++      matrix:
++        os: [ubuntu-latest, windows-latest, macos-latest]
++        build_type: [Release]
++
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++
++      - name: Install Vulkan SDK
++        uses: jurplel/install-vulkan-sdk@v1
++        with:
++          version: latest
++          cache: true
++          github-token: ${{ secrets.GITHUB_TOKEN }}
++
++      - name: Configure
++        run: |
++          cmake -S . -B build \
++            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
++            -DENABLE_VALIDATION=ON
++
++      - name: Build
++        run: cmake --build build --config ${{ matrix.build_type }} --parallel
++
++      - name: Test
++        run: ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure
++
+diff --git a/.gitignore b/.gitignore
+index d4fb28184f4c459bb7776d255262d8f9a1b7d511..58d745f5ebbae2de30c7e884b37f8f8608fa5dad
+--- a/.gitignore
++++ b/.gitignore
+@@ -39,3 +39,27 @@
+ 
+ # debug information files
+ *.dwo
++
++# CMake build directories
++build/
++cmake-build-*/
++
++# CMake files
++CMakeCache.txt
++CMakeFiles/
++cmake_install.cmake
++CTestTestfile.cmake
++Testing/
++compile_commands.json
++
++# IDE/editor
++.idea/
++.vscode/
++.DS_Store
++
++# Generated binaries and libs (if built outside build/)
++bin/
++lib/
++
++# Shader outputs
++shaders/*.spv
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index a00cebdc5db41d364de9c2f32ae8e8e5e2706ef7..42accaba99cb3bb95459a43550e771bd87b100b5
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -5,9 +5,10 @@
+ option(ENABLE_GLFW_WAYLAND "Enable GLFW Wayland backend on Linux" OFF)
+ option(ENABLE_IMGUI_DOCKING "Enable ImGui docking" OFF)
+ 
+-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
++# Place build outputs under bin/<Config> and lib/<Config>
++set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/$<CONFIG>)
+ 
+ set(CMAKE_CXX_STANDARD 20)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+diff --git a/assets/README.md b/assets/README.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..1ea17dda875c5f12bd6ac0c478988f45dc154ddc
+--- /dev/null
++++ b/assets/README.md
+@@ -0,0 +1,7 @@
++Place demo assets here.
++
++- textures/albedo.png (sRGB)
++- textures/normal.png (linear)
++
++The application will fall back to procedural placeholders if not present in a future milestone.
++
+diff --git a/tools/build_debug.sh b/tools/build_debug.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..adcd885f0c59bcdef5bd62f1ebf3659be9d7e1a1
+--- /dev/null
++++ b/tools/build_debug.sh
+@@ -0,0 +1,6 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DENABLE_VALIDATION=ON
++cmake --build build --config Debug --parallel
++
+diff --git a/tools/format_all.sh b/tools/format_all.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..c63915a8ce9845337a66099f7a925cb26ba8c1b8
+--- /dev/null
++++ b/tools/format_all.sh
+@@ -0,0 +1,18 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++shopt -s globstar
++
++files=(
++  include/**/*.hpp
++  src/**/*.cpp
++  tests/**/*.cpp
++)
++
++if ! command -v clang-format >/dev/null 2>&1; then
++  echo "clang-format not found" >&2
++  exit 1
++fi
++
++clang-format -i "${files[@]}"
++
+diff --git a/tools/run_tidy.sh b/tools/run_tidy.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..824525857cdfc075caf08813d702c065d38e4502
+--- /dev/null
++++ b/tools/run_tidy.sh
+@@ -0,0 +1,21 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++if ! command -v run-clang-tidy >/dev/null 2>&1 && ! command -v clang-tidy >/dev/null 2>&1; then
++  echo "clang-tidy or run-clang-tidy not found" >&2
++  exit 1
++fi
++
++build_dir=${1:-build}
++
++if [[ ! -f "$build_dir/compile_commands.json" ]]; then
++  echo "compile_commands.json not found in $build_dir. Configure with -DCMAKE_EXPORT_COMPILE_COMMANDS=ON" >&2
++  exit 1
++fi
++
++if command -v run-clang-tidy >/dev/null 2>&1; then
++  run-clang-tidy -p "$build_dir"
++else
++  clang-tidy $(jq -r '.[].file' "$build_dir/compile_commands.json") -p "$build_dir"
++fi
++
+
+
+[2025-09-15T13:03:50] thinking
+
+**Considering README for deprecation**
+
+I'm thinking about adding a README file in the stray vulkano/ folder to mark it as deprecated. This will help avoid confusion for anyone who may stumble upon that directory in the future. It’s important to provide clear communication, so people know that this folder is no longer relevant. I want to ensure that anyone accessing it understands its status right away! Let’s get that README added soon!
+[2025-09-15T13:03:55] apply_patch auto_approved=true:
+A /Users/bruno/Documents/Development/bruno/vulkano_codex/vulkano/README.md
+This folder contains an older prototype and is not part of the current CMake build.
+
+Please use the top-level `include/`, `src/`, `tests/`, and `CMakeLists.txt` as the canonical codebase.
+
+[2025-09-15T13:03:55] apply_patch(auto_approved=true) exited 0 in 82ms:
+Success. Updated the following files:
+A vulkano/README.md
+[2025-09-15T13:03:55] turn diff:
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..a5d85e267dec53b294c956b04bfe1156495412ab
+--- /dev/null
++++ b/.github/workflows/ci.yml
+@@ -0,0 +1,41 @@
++name: CI
++
++on:
++  push:
++    branches: [ main, master, develop, feat/**, fix/** ]
++  pull_request:
++    branches: [ main, master, develop ]
++
++jobs:
++  build:
++    name: Build and Test
++    runs-on: ${{ matrix.os }}
++    strategy:
++      fail-fast: false
++      matrix:
++        os: [ubuntu-latest, windows-latest, macos-latest]
++        build_type: [Release]
++
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++
++      - name: Install Vulkan SDK
++        uses: jurplel/install-vulkan-sdk@v1
++        with:
++          version: latest
++          cache: true
++          github-token: ${{ secrets.GITHUB_TOKEN }}
++
++      - name: Configure
++        run: |
++          cmake -S . -B build \
++            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
++            -DENABLE_VALIDATION=ON
++
++      - name: Build
++        run: cmake --build build --config ${{ matrix.build_type }} --parallel
++
++      - name: Test
++        run: ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure
++
+diff --git a/.gitignore b/.gitignore
+index d4fb28184f4c459bb7776d255262d8f9a1b7d511..58d745f5ebbae2de30c7e884b37f8f8608fa5dad
+--- a/.gitignore
++++ b/.gitignore
+@@ -39,3 +39,27 @@
+ 
+ # debug information files
+ *.dwo
++
++# CMake build directories
++build/
++cmake-build-*/
++
++# CMake files
++CMakeCache.txt
++CMakeFiles/
++cmake_install.cmake
++CTestTestfile.cmake
++Testing/
++compile_commands.json
++
++# IDE/editor
++.idea/
++.vscode/
++.DS_Store
++
++# Generated binaries and libs (if built outside build/)
++bin/
++lib/
++
++# Shader outputs
++shaders/*.spv
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index a00cebdc5db41d364de9c2f32ae8e8e5e2706ef7..42accaba99cb3bb95459a43550e771bd87b100b5
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -5,9 +5,10 @@
+ option(ENABLE_GLFW_WAYLAND "Enable GLFW Wayland backend on Linux" OFF)
+ option(ENABLE_IMGUI_DOCKING "Enable ImGui docking" OFF)
+ 
+-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
++# Place build outputs under bin/<Config> and lib/<Config>
++set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/$<CONFIG>)
+ 
+ set(CMAKE_CXX_STANDARD 20)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+diff --git a/assets/README.md b/assets/README.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..1ea17dda875c5f12bd6ac0c478988f45dc154ddc
+--- /dev/null
++++ b/assets/README.md
+@@ -0,0 +1,7 @@
++Place demo assets here.
++
++- textures/albedo.png (sRGB)
++- textures/normal.png (linear)
++
++The application will fall back to procedural placeholders if not present in a future milestone.
++
+diff --git a/tools/build_debug.sh b/tools/build_debug.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..adcd885f0c59bcdef5bd62f1ebf3659be9d7e1a1
+--- /dev/null
++++ b/tools/build_debug.sh
+@@ -0,0 +1,6 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DENABLE_VALIDATION=ON
++cmake --build build --config Debug --parallel
++
+diff --git a/tools/format_all.sh b/tools/format_all.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..c63915a8ce9845337a66099f7a925cb26ba8c1b8
+--- /dev/null
++++ b/tools/format_all.sh
+@@ -0,0 +1,18 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++shopt -s globstar
++
++files=(
++  include/**/*.hpp
++  src/**/*.cpp
++  tests/**/*.cpp
++)
++
++if ! command -v clang-format >/dev/null 2>&1; then
++  echo "clang-format not found" >&2
++  exit 1
++fi
++
++clang-format -i "${files[@]}"
++
+diff --git a/tools/run_tidy.sh b/tools/run_tidy.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..824525857cdfc075caf08813d702c065d38e4502
+--- /dev/null
++++ b/tools/run_tidy.sh
+@@ -0,0 +1,21 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++if ! command -v run-clang-tidy >/dev/null 2>&1 && ! command -v clang-tidy >/dev/null 2>&1; then
++  echo "clang-tidy or run-clang-tidy not found" >&2
++  exit 1
++fi
++
++build_dir=${1:-build}
++
++if [[ ! -f "$build_dir/compile_commands.json" ]]; then
++  echo "compile_commands.json not found in $build_dir. Configure with -DCMAKE_EXPORT_COMPILE_COMMANDS=ON" >&2
++  exit 1
++fi
++
++if command -v run-clang-tidy >/dev/null 2>&1; then
++  run-clang-tidy -p "$build_dir"
++else
++  clang-tidy $(jq -r '.[].file' "$build_dir/compile_commands.json") -p "$build_dir"
++fi
++
+diff --git a/vulkano/README.md b/vulkano/README.md
+index 99e76cbabe1dcb9cd743c91fa03b86a05af98973..03673ef9254850124d4a0ee66aaa4a1a8a5dc565
+--- a/vulkano/README.md
++++ b/vulkano/README.md
+@@ -1,27 +1,4 @@
+-# Vulkano Codex
+-
+-Minimal, production-quality Vulkan C++20 application showcasing an icosphere with normal mapping and SSAO, with runtime subdivision control via ImGui.
+-
+-Status: Initial scaffold with icosphere generator and tests. Rendering and SSAO passes to follow.
+-
+-Requirements
+-- C++20 compiler (MSVC, Clang, or GCC)
+-- CMake >= 3.25
+-- Vulkan SDK (headers, loader; glslc optional)
+-
+-Build
+-```
+-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+-cmake --build build --config Debug -j
+-ctest --test-dir build --output-on-failure
+-```
+-
+-Run
+-```
+-./build/bin/Debug/vulkano_app
+-```
++This folder contains an older prototype and is not part of the current CMake build.
+ 
+-Notes
+-- On macOS: install MoltenVK (via Vulkan SDK), ensure the loader is configured. Some features may vary.
+-- Validation layers can be toggled with `-DENABLE_VALIDATION=ON`.
++Please use the top-level `include/`, `src/`, `tests/`, and `CMakeLists.txt` as the canonical codebase.
+ 
+
+[2025-09-15T13:03:55] tokens used: 42,374
+[2025-09-15T13:03:55] turn diff:
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..a5d85e267dec53b294c956b04bfe1156495412ab
+--- /dev/null
++++ b/.github/workflows/ci.yml
+@@ -0,0 +1,41 @@
++name: CI
++
++on:
++  push:
++    branches: [ main, master, develop, feat/**, fix/** ]
++  pull_request:
++    branches: [ main, master, develop ]
++
++jobs:
++  build:
++    name: Build and Test
++    runs-on: ${{ matrix.os }}
++    strategy:
++      fail-fast: false
++      matrix:
++        os: [ubuntu-latest, windows-latest, macos-latest]
++        build_type: [Release]
++
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++
++      - name: Install Vulkan SDK
++        uses: jurplel/install-vulkan-sdk@v1
++        with:
++          version: latest
++          cache: true
++          github-token: ${{ secrets.GITHUB_TOKEN }}
++
++      - name: Configure
++        run: |
++          cmake -S . -B build \
++            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
++            -DENABLE_VALIDATION=ON
++
++      - name: Build
++        run: cmake --build build --config ${{ matrix.build_type }} --parallel
++
++      - name: Test
++        run: ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure
++
+diff --git a/.gitignore b/.gitignore
+index d4fb28184f4c459bb7776d255262d8f9a1b7d511..58d745f5ebbae2de30c7e884b37f8f8608fa5dad
+--- a/.gitignore
++++ b/.gitignore
+@@ -39,3 +39,27 @@
+ 
+ # debug information files
+ *.dwo
++
++# CMake build directories
++build/
++cmake-build-*/
++
++# CMake files
++CMakeCache.txt
++CMakeFiles/
++cmake_install.cmake
++CTestTestfile.cmake
++Testing/
++compile_commands.json
++
++# IDE/editor
++.idea/
++.vscode/
++.DS_Store
++
++# Generated binaries and libs (if built outside build/)
++bin/
++lib/
++
++# Shader outputs
++shaders/*.spv
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index a00cebdc5db41d364de9c2f32ae8e8e5e2706ef7..42accaba99cb3bb95459a43550e771bd87b100b5
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -5,9 +5,10 @@
+ option(ENABLE_GLFW_WAYLAND "Enable GLFW Wayland backend on Linux" OFF)
+ option(ENABLE_IMGUI_DOCKING "Enable ImGui docking" OFF)
+ 
+-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
++# Place build outputs under bin/<Config> and lib/<Config>
++set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/$<CONFIG>)
+ 
+ set(CMAKE_CXX_STANDARD 20)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+diff --git a/assets/README.md b/assets/README.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..1ea17dda875c5f12bd6ac0c478988f45dc154ddc
+--- /dev/null
++++ b/assets/README.md
+@@ -0,0 +1,7 @@
++Place demo assets here.
++
++- textures/albedo.png (sRGB)
++- textures/normal.png (linear)
++
++The application will fall back to procedural placeholders if not present in a future milestone.
++
+diff --git a/tools/build_debug.sh b/tools/build_debug.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..adcd885f0c59bcdef5bd62f1ebf3659be9d7e1a1
+--- /dev/null
++++ b/tools/build_debug.sh
+@@ -0,0 +1,6 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DENABLE_VALIDATION=ON
++cmake --build build --config Debug --parallel
++
+diff --git a/tools/format_all.sh b/tools/format_all.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..c63915a8ce9845337a66099f7a925cb26ba8c1b8
+--- /dev/null
++++ b/tools/format_all.sh
+@@ -0,0 +1,18 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++shopt -s globstar
++
++files=(
++  include/**/*.hpp
++  src/**/*.cpp
++  tests/**/*.cpp
++)
++
++if ! command -v clang-format >/dev/null 2>&1; then
++  echo "clang-format not found" >&2
++  exit 1
++fi
++
++clang-format -i "${files[@]}"
++
+diff --git a/tools/run_tidy.sh b/tools/run_tidy.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..824525857cdfc075caf08813d702c065d38e4502
+--- /dev/null
++++ b/tools/run_tidy.sh
+@@ -0,0 +1,21 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++if ! command -v run-clang-tidy >/dev/null 2>&1 && ! command -v clang-tidy >/dev/null 2>&1; then
++  echo "clang-tidy or run-clang-tidy not found" >&2
++  exit 1
++fi
++
++build_dir=${1:-build}
++
++if [[ ! -f "$build_dir/compile_commands.json" ]]; then
++  echo "compile_commands.json not found in $build_dir. Configure with -DCMAKE_EXPORT_COMPILE_COMMANDS=ON" >&2
++  exit 1
++fi
++
++if command -v run-clang-tidy >/dev/null 2>&1; then
++  run-clang-tidy -p "$build_dir"
++else
++  clang-tidy $(jq -r '.[].file' "$build_dir/compile_commands.json") -p "$build_dir"
++fi
++
+diff --git a/vulkano/README.md b/vulkano/README.md
+index 99e76cbabe1dcb9cd743c91fa03b86a05af98973..03673ef9254850124d4a0ee66aaa4a1a8a5dc565
+--- a/vulkano/README.md
++++ b/vulkano/README.md
+@@ -1,27 +1,4 @@
+-# Vulkano Codex
+-
+-Minimal, production-quality Vulkan C++20 application showcasing an icosphere with normal mapping and SSAO, with runtime subdivision control via ImGui.
+-
+-Status: Initial scaffold with icosphere generator and tests. Rendering and SSAO passes to follow.
+-
+-Requirements
+-- C++20 compiler (MSVC, Clang, or GCC)
+-- CMake >= 3.25
+-- Vulkan SDK (headers, loader; glslc optional)
+-
+-Build
+-```
+-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+-cmake --build build --config Debug -j
+-ctest --test-dir build --output-on-failure
+-```
+-
+-Run
+-```
+-./build/bin/Debug/vulkano_app
+-```
++This folder contains an older prototype and is not part of the current CMake build.
+ 
+-Notes
+-- On macOS: install MoltenVK (via Vulkan SDK), ensure the loader is configured. Some features may vary.
+-- Validation layers can be toggled with `-DENABLE_VALIDATION=ON`.
++Please use the top-level `include/`, `src/`, `tests/`, and `CMakeLists.txt` as the canonical codebase.
+ 
+
+
+[2025-09-15T13:03:58] thinking
+
+**Updating documentation**
+
+I'm thinking about adding a README for module instructions. We already have a README.md at the root and docs/ARCHITECTURE.md, which might make a separate README unnecessary. I’ll also update the .agent/TODO.md to reflect that this organizational task is completed and outline the next steps. It's crucial to keep everything organized, so I’ll double-check everything before finalizing.
+[2025-09-15T13:04:09] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/.agent/TODO.md
+@@ -39,6 +39,14 @@
+ 
+-Milestone 1 (this commit):
+-- Project skeleton, build system, icosphere generator + tests
+-- Renderer/ImGui stubs; shaders placeholders
++Milestone 1 (organized repo):
++- Project skeleton settled; unified CMake, per-config bin/lib outputs
++- CI added (Linux/Windows/macOS with Vulkan SDK)
++- .gitignore expanded; tools scripts for format/tidy/build
++- Icosphere generator + tests in place
++- Renderer/ImGui scaffolding; shader compile step in CMake
+ 
+ Next milestones tracked here as we implement passes.
++
++Upcoming (M2):
++- SSAO G-buffer layout and attachments; basic full-screen pipeline
++- Texture loader (stb) and procedural fallbacks
++- ImGui controls wiring for lighting/material/SSAO
+[2025-09-15T13:04:09] apply_patch(auto_approved=true) exited 0 in 87ms:
+Success. Updated the following files:
+M .agent/TODO.md
+[2025-09-15T13:04:09] turn diff:
 diff --git a/.agent/TODO.md b/.agent/TODO.md
-index e698aa3ace6e84dacfc408675d317a7f502a3780..889973486c6006e39bf5ee5f152e92732e386270
+index 49fd6a20eda5422dd29d3a98d93b96c664aaf053..cccf54e5c89e2b6362da8ec2c4270592bdea8b76
 --- a/.agent/TODO.md
 +++ b/.agent/TODO.md
-@@ -1,19 +1,21 @@
--# TODO / Plan
--Phases:
--1) Swapchain + forward pipeline + draw icosphere. [done]
--2) Mesh buffers upload + resize handling. [done]
--3) ImGui integration with subdivision control. [done]
--4) G-buffer, SSAO, blur, composite passes. [in-progress]
--5) Validation, cleanup, docs/tests updates. [todo]
-+# TODO — Vulkano Codex
+@@ -37,8 +37,16 @@
+ - README with build/run instructions (Windows/Linux/macOS)
+ - Notes on Vulkan SDK/MoltenVK
+ 
+-Milestone 1 (this commit):
+-- Project skeleton, build system, icosphere generator + tests
+-- Renderer/ImGui stubs; shaders placeholders
++Milestone 1 (organized repo):
++- Project skeleton settled; unified CMake, per-config bin/lib outputs
++- CI added (Linux/Windows/macOS with Vulkan SDK)
++- .gitignore expanded; tools scripts for format/tidy/build
++- Icosphere generator + tests in place
++- Renderer/ImGui scaffolding; shader compile step in CMake
+ 
+ Next milestones tracked here as we implement passes.
 +
-+Short-term fixes and next steps. Keep updated as work progresses.
++Upcoming (M2):
++- SSAO G-buffer layout and attachments; basic full-screen pipeline
++- Texture loader (stb) and procedural fallbacks
++- ImGui controls wiring for lighting/material/SSAO
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..a5d85e267dec53b294c956b04bfe1156495412ab
+--- /dev/null
++++ b/.github/workflows/ci.yml
+@@ -0,0 +1,41 @@
++name: CI
 +
-+## Done
-+- Enable Vulkan portability on macOS (MoltenVK):
-+  - Add VK_KHR_portability_enumeration + instance flag.
-+  - Add VK_KHR_portability_subset device extension when available.
-+  - Use concurrent image sharing when graphics/present queues differ.
++on:
++  push:
++    branches: [ main, master, develop, feat/**, fix/** ]
++  pull_request:
++    branches: [ main, master, develop ]
 +
-+## Next
-+- SSAO pipeline: G-buffer, SSAO, blur, and compose passes.
-+- ImGui controls wiring for SSAO params and mesh subdivisions.
-+- Swapchain resize path validation and cleanup ordering.
-+- Add end-to-end test harness (headless where possible) and unit tests for math/icosphere.
-+- macOS README notes: MoltenVK install, VK_ICD_FILENAMES hints.
-+- CI: format (clang-format) and clang-tidy jobs.
++jobs:
++  build:
++    name: Build and Test
++    runs-on: ${{ matrix.os }}
++    strategy:
++      fail-fast: false
++      matrix:
++        os: [ubuntu-latest, windows-latest, macos-latest]
++        build_type: [Release]
 +
-+## Notes
-+- Pushing to origin failed (no permission). Either set upstream to a fork with GITHUB_TOKEN or grant access.
- 
--Notes:
--- Follow AGENTS.md: angle-bracket includes, braces, RAII, const.
--- Commit and push after each file edit.
--Next:
--- Add offscreen G-buffer images + render pass, wire geometry pass to write albedo/normal/depth.
--- Add fullscreen pipelines for SSAO, blur (separable), and compose.
--- Generate SSAO kernel + noise textures on CPU and upload to GPU.
--- Hook ImGui toggles to descriptor updates and constants.
--Done in this iteration:
--- Forward shading updated to sample albedo + normal maps with TBN.
--- Procedural albedo + normal textures generated and uploaded; descriptors wired.
-diff --git a/README.md b/README.md
-index bc3a664c12939d834a81851f35939d9cc7f66e09..db6cb0bd39232b242dbcc5a301069f38b8f40ef5
---- a/README.md
-+++ b/README.md
-@@ -37,5 +37,9 @@
- - Stats: FPS, frame time, device name, swapchain extent.
- 
- ## Notes
--- On macOS, install MoltenVK and ensure Vulkan loader finds the ICD (e.g., set `VK_ICD_FILENAMES`).
-+- macOS (MoltenVK):
-+  - Install MoltenVK (via Vulkan SDK or Homebrew) and ensure the Vulkan loader can find the MoltenVK ICD JSON.
-+    Example: `export VK_ICD_FILENAMES=/usr/local/share/vulkan/icd.d/MoltenVK_icd.json` (path varies by install).
-+  - The app enables `VK_KHR_portability_enumeration` and sets `VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR`, and
-+    enables `VK_KHR_portability_subset` on the device when available.
- - Shaders are compiled to `${build}/shaders/*.spv` if `glslc` is found; otherwise copied as placeholders.
-diff --git a/src/renderer.cpp b/src/renderer.cpp
-index aecf0b6c2661c56daeaf15edd3b4164f228d7622..baaea437cf50cd106ee6acba5e789c9a93793170
---- a/src/renderer.cpp
-+++ b/src/renderer.cpp
-@@ -1,12 +1,21 @@
- #include <cstring>
- #include <stdexcept>
- #include <vector>
-+#include <string>
- 
- #define GLFW_INCLUDE_VULKAN
- #include <GLFW/glfw3.h>
- 
- #include <vulkan/vulkan.h>
- 
-+// Fallback defines for portability extension names if headers are older
-+#ifndef VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME "VK_KHR_portability_enumeration"
-+#endif
-+#ifndef VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME "VK_KHR_portability_subset"
-+#endif
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
 +
- #include <vulkan_app/renderer.hpp>
- #include <vulkan_app/imgui_layer.hpp>
- #include <vulkan_app/icosphere.hpp>
-@@ -222,9 +231,28 @@
-     std::uint32_t glfw_count{0U};
-     const char** glfw_ext = glfwGetRequiredInstanceExtensions(&glfw_count);
-     std::vector<const char*> extensions(glfw_ext, glfw_ext + glfw_count);
--    if (kEnableValidation) {
-+    // Enumerate supported instance extensions so we can conditionally enable portability + debug utils
-+    std::uint32_t ext_count{0U};
-+    vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
-+    std::vector<VkExtensionProperties> avail_exts(static_cast<std::size_t>(ext_count));
-+    if (ext_count > 0U) {
-+        vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, avail_exts.data());
-+    }
-+    auto has_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : avail_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    if (kEnableValidation && has_ext(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
-         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-     }
-+    const bool portability_supported = has_ext(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    if (portability_supported) {
-+        extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    }
++      - name: Install Vulkan SDK
++        uses: jurplel/install-vulkan-sdk@v1
++        with:
++          version: latest
++          cache: true
++          github-token: ${{ secrets.GITHUB_TOKEN }}
++
++      - name: Configure
++        run: |
++          cmake -S . -B build \
++            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
++            -DENABLE_VALIDATION=ON
++
++      - name: Build
++        run: cmake --build build --config ${{ matrix.build_type }} --parallel
++
++      - name: Test
++        run: ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure
++
+diff --git a/.gitignore b/.gitignore
+index d4fb28184f4c459bb7776d255262d8f9a1b7d511..58d745f5ebbae2de30c7e884b37f8f8608fa5dad
+--- a/.gitignore
++++ b/.gitignore
+@@ -39,3 +39,27 @@
  
-     const std::vector<const char*> layers{
-         "VK_LAYER_KHRONOS_validation"
-@@ -235,6 +263,9 @@
-     ci.pApplicationInfo = &app_info;
-     ci.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
-     ci.ppEnabledExtensionNames = extensions.data();
-+    if (portability_supported) {
-+        ci.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-+    }
-     if (kEnableValidation) {
-         ci.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
-         ci.ppEnabledLayerNames = layers.data();
-@@ -321,15 +352,34 @@
+ # debug information files
+ *.dwo
++
++# CMake build directories
++build/
++cmake-build-*/
++
++# CMake files
++CMakeCache.txt
++CMakeFiles/
++cmake_install.cmake
++CTestTestfile.cmake
++Testing/
++compile_commands.json
++
++# IDE/editor
++.idea/
++.vscode/
++.DS_Store
++
++# Generated binaries and libs (if built outside build/)
++bin/
++lib/
++
++# Shader outputs
++shaders/*.spv
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index a00cebdc5db41d364de9c2f32ae8e8e5e2706ef7..42accaba99cb3bb95459a43550e771bd87b100b5
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -5,9 +5,10 @@
+ option(ENABLE_GLFW_WAYLAND "Enable GLFW Wayland backend on Linux" OFF)
+ option(ENABLE_IMGUI_DOCKING "Enable ImGui docking" OFF)
  
-     VkPhysicalDeviceFeatures features{};
+-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
++# Place build outputs under bin/<Config> and lib/<Config>
++set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/$<CONFIG>)
  
--    const char* device_exts[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-+    // Query device extensions to enable portability subset on platforms like macOS (MoltenVK)
-+    std::uint32_t dev_ext_count{0U};
-+    vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, nullptr);
-+    std::vector<VkExtensionProperties> dev_exts(static_cast<std::size_t>(dev_ext_count));
-+    if (dev_ext_count > 0U) {
-+        vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, dev_exts.data());
-+    }
-+    auto has_dev_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : dev_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    std::vector<const char*> device_exts;
-+    device_exts.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-+    if (has_dev_ext(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
-+        device_exts.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
-+    }
+ set(CMAKE_CXX_STANDARD 20)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+diff --git a/assets/README.md b/assets/README.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..1ea17dda875c5f12bd6ac0c478988f45dc154ddc
+--- /dev/null
++++ b/assets/README.md
+@@ -0,0 +1,7 @@
++Place demo assets here.
++
++- textures/albedo.png (sRGB)
++- textures/normal.png (linear)
++
++The application will fall back to procedural placeholders if not present in a future milestone.
++
+diff --git a/tools/build_debug.sh b/tools/build_debug.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..adcd885f0c59bcdef5bd62f1ebf3659be9d7e1a1
+--- /dev/null
++++ b/tools/build_debug.sh
+@@ -0,0 +1,6 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DENABLE_VALIDATION=ON
++cmake --build build --config Debug --parallel
++
+diff --git a/tools/format_all.sh b/tools/format_all.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..c63915a8ce9845337a66099f7a925cb26ba8c1b8
+--- /dev/null
++++ b/tools/format_all.sh
+@@ -0,0 +1,18 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++shopt -s globstar
++
++files=(
++  include/**/*.hpp
++  src/**/*.cpp
++  tests/**/*.cpp
++)
++
++if ! command -v clang-format >/dev/null 2>&1; then
++  echo "clang-format not found" >&2
++  exit 1
++fi
++
++clang-format -i "${files[@]}"
++
+diff --git a/tools/run_tidy.sh b/tools/run_tidy.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..824525857cdfc075caf08813d702c065d38e4502
+--- /dev/null
++++ b/tools/run_tidy.sh
+@@ -0,0 +1,21 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++if ! command -v run-clang-tidy >/dev/null 2>&1 && ! command -v clang-tidy >/dev/null 2>&1; then
++  echo "clang-tidy or run-clang-tidy not found" >&2
++  exit 1
++fi
++
++build_dir=${1:-build}
++
++if [[ ! -f "$build_dir/compile_commands.json" ]]; then
++  echo "compile_commands.json not found in $build_dir. Configure with -DCMAKE_EXPORT_COMPILE_COMMANDS=ON" >&2
++  exit 1
++fi
++
++if command -v run-clang-tidy >/dev/null 2>&1; then
++  run-clang-tidy -p "$build_dir"
++else
++  clang-tidy $(jq -r '.[].file' "$build_dir/compile_commands.json") -p "$build_dir"
++fi
++
+diff --git a/vulkano/README.md b/vulkano/README.md
+index 99e76cbabe1dcb9cd743c91fa03b86a05af98973..03673ef9254850124d4a0ee66aaa4a1a8a5dc565
+--- a/vulkano/README.md
++++ b/vulkano/README.md
+@@ -1,27 +1,4 @@
+-# Vulkano Codex
+-
+-Minimal, production-quality Vulkan C++20 application showcasing an icosphere with normal mapping and SSAO, with runtime subdivision control via ImGui.
+-
+-Status: Initial scaffold with icosphere generator and tests. Rendering and SSAO passes to follow.
+-
+-Requirements
+-- C++20 compiler (MSVC, Clang, or GCC)
+-- CMake >= 3.25
+-- Vulkan SDK (headers, loader; glslc optional)
+-
+-Build
+-```
+-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+-cmake --build build --config Debug -j
+-ctest --test-dir build --output-on-failure
+-```
+-
+-Run
+-```
+-./build/bin/Debug/vulkano_app
+-```
++This folder contains an older prototype and is not part of the current CMake build.
  
-     VkDeviceCreateInfo dci{};
-     dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-     dci.pQueueCreateInfos = queues.data();
-     dci.queueCreateInfoCount = static_cast<std::uint32_t>(queues.size());
-     dci.pEnabledFeatures = &features;
--    dci.enabledExtensionCount = 1;
--    dci.ppEnabledExtensionNames = device_exts;
-+    dci.enabledExtensionCount = static_cast<std::uint32_t>(device_exts.size());
-+    dci.ppEnabledExtensionNames = device_exts.data();
-     if (vkCreateDevice(physical_device_, &dci, nullptr, &device_) != VK_SUCCESS) {
-         throw std::runtime_error{"Failed to create logical device"};
-     }
-@@ -382,7 +432,14 @@
-     sci.imageExtent = extent;
-     sci.imageArrayLayers = 1;
-     sci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
--    sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    if (present_family_ != graphics_family_) {
-+        const std::uint32_t indices[2] = { graphics_family_, present_family_ };
-+        sci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-+        sci.queueFamilyIndexCount = 2;
-+        sci.pQueueFamilyIndices = indices;
-+    } else {
-+        sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    }
-     sci.preTransform = caps.currentTransform;
-     sci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-     sci.presentMode = chosen_present;
+-Notes
+-- On macOS: install MoltenVK (via Vulkan SDK), ensure the loader is configured. Some features may vary.
+-- Validation layers can be toggled with `-DENABLE_VALIDATION=ON`.
++Please use the top-level `include/`, `src/`, `tests/`, and `CMakeLists.txt` as the canonical codebase.
+ 
 
-[2025-09-15T11:08:18] tokens used: 65,171
-[2025-09-15T11:08:18] turn diff:
+[2025-09-15T13:04:09] tokens used: 42,767
+[2025-09-15T13:04:09] turn diff:
 diff --git a/.agent/TODO.md b/.agent/TODO.md
-index e698aa3ace6e84dacfc408675d317a7f502a3780..889973486c6006e39bf5ee5f152e92732e386270
+index 49fd6a20eda5422dd29d3a98d93b96c664aaf053..cccf54e5c89e2b6362da8ec2c4270592bdea8b76
 --- a/.agent/TODO.md
 +++ b/.agent/TODO.md
-@@ -1,19 +1,21 @@
--# TODO / Plan
--Phases:
--1) Swapchain + forward pipeline + draw icosphere. [done]
--2) Mesh buffers upload + resize handling. [done]
--3) ImGui integration with subdivision control. [done]
--4) G-buffer, SSAO, blur, composite passes. [in-progress]
--5) Validation, cleanup, docs/tests updates. [todo]
-+# TODO — Vulkano Codex
+@@ -37,8 +37,16 @@
+ - README with build/run instructions (Windows/Linux/macOS)
+ - Notes on Vulkan SDK/MoltenVK
+ 
+-Milestone 1 (this commit):
+-- Project skeleton, build system, icosphere generator + tests
+-- Renderer/ImGui stubs; shaders placeholders
++Milestone 1 (organized repo):
++- Project skeleton settled; unified CMake, per-config bin/lib outputs
++- CI added (Linux/Windows/macOS with Vulkan SDK)
++- .gitignore expanded; tools scripts for format/tidy/build
++- Icosphere generator + tests in place
++- Renderer/ImGui scaffolding; shader compile step in CMake
+ 
+ Next milestones tracked here as we implement passes.
 +
-+Short-term fixes and next steps. Keep updated as work progresses.
++Upcoming (M2):
++- SSAO G-buffer layout and attachments; basic full-screen pipeline
++- Texture loader (stb) and procedural fallbacks
++- ImGui controls wiring for lighting/material/SSAO
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+new file mode 100644
+index 0000000000000000000000000000000000000000..a5d85e267dec53b294c956b04bfe1156495412ab
+--- /dev/null
++++ b/.github/workflows/ci.yml
+@@ -0,0 +1,41 @@
++name: CI
 +
-+## Done
-+- Enable Vulkan portability on macOS (MoltenVK):
-+  - Add VK_KHR_portability_enumeration + instance flag.
-+  - Add VK_KHR_portability_subset device extension when available.
-+  - Use concurrent image sharing when graphics/present queues differ.
++on:
++  push:
++    branches: [ main, master, develop, feat/**, fix/** ]
++  pull_request:
++    branches: [ main, master, develop ]
 +
-+## Next
-+- SSAO pipeline: G-buffer, SSAO, blur, and compose passes.
-+- ImGui controls wiring for SSAO params and mesh subdivisions.
-+- Swapchain resize path validation and cleanup ordering.
-+- Add end-to-end test harness (headless where possible) and unit tests for math/icosphere.
-+- macOS README notes: MoltenVK install, VK_ICD_FILENAMES hints.
-+- CI: format (clang-format) and clang-tidy jobs.
++jobs:
++  build:
++    name: Build and Test
++    runs-on: ${{ matrix.os }}
++    strategy:
++      fail-fast: false
++      matrix:
++        os: [ubuntu-latest, windows-latest, macos-latest]
++        build_type: [Release]
 +
-+## Notes
-+- Pushing to origin failed (no permission). Either set upstream to a fork with GITHUB_TOKEN or grant access.
- 
--Notes:
--- Follow AGENTS.md: angle-bracket includes, braces, RAII, const.
--- Commit and push after each file edit.
--Next:
--- Add offscreen G-buffer images + render pass, wire geometry pass to write albedo/normal/depth.
--- Add fullscreen pipelines for SSAO, blur (separable), and compose.
--- Generate SSAO kernel + noise textures on CPU and upload to GPU.
--- Hook ImGui toggles to descriptor updates and constants.
--Done in this iteration:
--- Forward shading updated to sample albedo + normal maps with TBN.
--- Procedural albedo + normal textures generated and uploaded; descriptors wired.
-diff --git a/README.md b/README.md
-index bc3a664c12939d834a81851f35939d9cc7f66e09..db6cb0bd39232b242dbcc5a301069f38b8f40ef5
---- a/README.md
-+++ b/README.md
-@@ -37,5 +37,9 @@
- - Stats: FPS, frame time, device name, swapchain extent.
- 
- ## Notes
--- On macOS, install MoltenVK and ensure Vulkan loader finds the ICD (e.g., set `VK_ICD_FILENAMES`).
-+- macOS (MoltenVK):
-+  - Install MoltenVK (via Vulkan SDK or Homebrew) and ensure the Vulkan loader can find the MoltenVK ICD JSON.
-+    Example: `export VK_ICD_FILENAMES=/usr/local/share/vulkan/icd.d/MoltenVK_icd.json` (path varies by install).
-+  - The app enables `VK_KHR_portability_enumeration` and sets `VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR`, and
-+    enables `VK_KHR_portability_subset` on the device when available.
- - Shaders are compiled to `${build}/shaders/*.spv` if `glslc` is found; otherwise copied as placeholders.
-diff --git a/src/renderer.cpp b/src/renderer.cpp
-index aecf0b6c2661c56daeaf15edd3b4164f228d7622..baaea437cf50cd106ee6acba5e789c9a93793170
---- a/src/renderer.cpp
-+++ b/src/renderer.cpp
-@@ -1,12 +1,21 @@
- #include <cstring>
- #include <stdexcept>
- #include <vector>
-+#include <string>
- 
- #define GLFW_INCLUDE_VULKAN
- #include <GLFW/glfw3.h>
- 
- #include <vulkan/vulkan.h>
- 
-+// Fallback defines for portability extension names if headers are older
-+#ifndef VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME "VK_KHR_portability_enumeration"
-+#endif
-+#ifndef VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME "VK_KHR_portability_subset"
-+#endif
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
 +
- #include <vulkan_app/renderer.hpp>
- #include <vulkan_app/imgui_layer.hpp>
- #include <vulkan_app/icosphere.hpp>
-@@ -222,9 +231,28 @@
-     std::uint32_t glfw_count{0U};
-     const char** glfw_ext = glfwGetRequiredInstanceExtensions(&glfw_count);
-     std::vector<const char*> extensions(glfw_ext, glfw_ext + glfw_count);
--    if (kEnableValidation) {
-+    // Enumerate supported instance extensions so we can conditionally enable portability + debug utils
-+    std::uint32_t ext_count{0U};
-+    vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
-+    std::vector<VkExtensionProperties> avail_exts(static_cast<std::size_t>(ext_count));
-+    if (ext_count > 0U) {
-+        vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, avail_exts.data());
-+    }
-+    auto has_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : avail_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    if (kEnableValidation && has_ext(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
-         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-     }
-+    const bool portability_supported = has_ext(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    if (portability_supported) {
-+        extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    }
- 
-     const std::vector<const char*> layers{
-         "VK_LAYER_KHRONOS_validation"
-@@ -235,6 +263,9 @@
-     ci.pApplicationInfo = &app_info;
-     ci.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
-     ci.ppEnabledExtensionNames = extensions.data();
-+    if (portability_supported) {
-+        ci.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-+    }
-     if (kEnableValidation) {
-         ci.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
-         ci.ppEnabledLayerNames = layers.data();
-@@ -321,15 +352,34 @@
- 
-     VkPhysicalDeviceFeatures features{};
- 
--    const char* device_exts[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-+    // Query device extensions to enable portability subset on platforms like macOS (MoltenVK)
-+    std::uint32_t dev_ext_count{0U};
-+    vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, nullptr);
-+    std::vector<VkExtensionProperties> dev_exts(static_cast<std::size_t>(dev_ext_count));
-+    if (dev_ext_count > 0U) {
-+        vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, dev_exts.data());
-+    }
-+    auto has_dev_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : dev_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    std::vector<const char*> device_exts;
-+    device_exts.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-+    if (has_dev_ext(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
-+        device_exts.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
-+    }
- 
-     VkDeviceCreateInfo dci{};
-     dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-     dci.pQueueCreateInfos = queues.data();
-     dci.queueCreateInfoCount = static_cast<std::uint32_t>(queues.size());
-     dci.pEnabledFeatures = &features;
--    dci.enabledExtensionCount = 1;
--    dci.ppEnabledExtensionNames = device_exts;
-+    dci.enabledExtensionCount = static_cast<std::uint32_t>(device_exts.size());
-+    dci.ppEnabledExtensionNames = device_exts.data();
-     if (vkCreateDevice(physical_device_, &dci, nullptr, &device_) != VK_SUCCESS) {
-         throw std::runtime_error{"Failed to create logical device"};
-     }
-@@ -382,7 +432,14 @@
-     sci.imageExtent = extent;
-     sci.imageArrayLayers = 1;
-     sci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
--    sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    if (present_family_ != graphics_family_) {
-+        const std::uint32_t indices[2] = { graphics_family_, present_family_ };
-+        sci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-+        sci.queueFamilyIndexCount = 2;
-+        sci.pQueueFamilyIndices = indices;
-+    } else {
-+        sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    }
-     sci.preTransform = caps.currentTransform;
-     sci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-     sci.presentMode = chosen_present;
-
-[2025-09-15T11:08:23] exec bash -lc 'git add -A && git commit -m "docs(macOS): document MoltenVK portability requirements and VK_ICD_FILENAMES note" && git push' in /Users/bruno/Documents/Development/bruno/vulkano_codex
-[2025-09-15T11:08:23] bash -lc 'git add -A && git commit -m "docs(macOS): document MoltenVK portability requirements and VK_ICD_FILENAMES note" && git push' exited 128 in 106ms:
-[feat/imgui-integration 78c2b76] docs(macOS): document MoltenVK portability requirements and VK_ICD_FILENAMES note
- 2 files changed, 927 insertions(+), 1 deletion(-)
-fatal: The current branch feat/imgui-integration has no upstream branch.
-To push the current branch and set the remote as upstream, use
-
-    git push --set-upstream origin feat/imgui-integration
-
-To have this happen automatically for branches without a tracking
-upstream, see 'push.autoSetupRemote' in 'git help config'.
-
-[2025-09-15T11:08:23] tokens used: 68,612
-[2025-09-15T11:08:23] turn diff:
-diff --git a/.agent/TODO.md b/.agent/TODO.md
-index e698aa3ace6e84dacfc408675d317a7f502a3780..889973486c6006e39bf5ee5f152e92732e386270
---- a/.agent/TODO.md
-+++ b/.agent/TODO.md
-@@ -1,19 +1,21 @@
--# TODO / Plan
--Phases:
--1) Swapchain + forward pipeline + draw icosphere. [done]
--2) Mesh buffers upload + resize handling. [done]
--3) ImGui integration with subdivision control. [done]
--4) G-buffer, SSAO, blur, composite passes. [in-progress]
--5) Validation, cleanup, docs/tests updates. [todo]
-+# TODO — Vulkano Codex
++      - name: Install Vulkan SDK
++        uses: jurplel/install-vulkan-sdk@v1
++        with:
++          version: latest
++          cache: true
++          github-token: ${{ secrets.GITHUB_TOKEN }}
 +
-+Short-term fixes and next steps. Keep updated as work progresses.
++      - name: Configure
++        run: |
++          cmake -S . -B build \
++            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
++            -DENABLE_VALIDATION=ON
 +
-+## Done
-+- Enable Vulkan portability on macOS (MoltenVK):
-+  - Add VK_KHR_portability_enumeration + instance flag.
-+  - Add VK_KHR_portability_subset device extension when available.
-+  - Use concurrent image sharing when graphics/present queues differ.
++      - name: Build
++        run: cmake --build build --config ${{ matrix.build_type }} --parallel
 +
-+## Next
-+- SSAO pipeline: G-buffer, SSAO, blur, and compose passes.
-+- ImGui controls wiring for SSAO params and mesh subdivisions.
-+- Swapchain resize path validation and cleanup ordering.
-+- Add end-to-end test harness (headless where possible) and unit tests for math/icosphere.
-+- macOS README notes: MoltenVK install, VK_ICD_FILENAMES hints.
-+- CI: format (clang-format) and clang-tidy jobs.
++      - name: Test
++        run: ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure
 +
-+## Notes
-+- Pushing to origin failed (no permission). Either set upstream to a fork with GITHUB_TOKEN or grant access.
+diff --git a/.gitignore b/.gitignore
+index d4fb28184f4c459bb7776d255262d8f9a1b7d511..58d745f5ebbae2de30c7e884b37f8f8608fa5dad
+--- a/.gitignore
++++ b/.gitignore
+@@ -39,3 +39,27 @@
  
--Notes:
--- Follow AGENTS.md: angle-bracket includes, braces, RAII, const.
--- Commit and push after each file edit.
--Next:
--- Add offscreen G-buffer images + render pass, wire geometry pass to write albedo/normal/depth.
--- Add fullscreen pipelines for SSAO, blur (separable), and compose.
--- Generate SSAO kernel + noise textures on CPU and upload to GPU.
--- Hook ImGui toggles to descriptor updates and constants.
--Done in this iteration:
--- Forward shading updated to sample albedo + normal maps with TBN.
--- Procedural albedo + normal textures generated and uploaded; descriptors wired.
-diff --git a/README.md b/README.md
-index bc3a664c12939d834a81851f35939d9cc7f66e09..db6cb0bd39232b242dbcc5a301069f38b8f40ef5
---- a/README.md
-+++ b/README.md
-@@ -37,5 +37,9 @@
- - Stats: FPS, frame time, device name, swapchain extent.
- 
- ## Notes
--- On macOS, install MoltenVK and ensure Vulkan loader finds the ICD (e.g., set `VK_ICD_FILENAMES`).
-+- macOS (MoltenVK):
-+  - Install MoltenVK (via Vulkan SDK or Homebrew) and ensure the Vulkan loader can find the MoltenVK ICD JSON.
-+    Example: `export VK_ICD_FILENAMES=/usr/local/share/vulkan/icd.d/MoltenVK_icd.json` (path varies by install).
-+  - The app enables `VK_KHR_portability_enumeration` and sets `VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR`, and
-+    enables `VK_KHR_portability_subset` on the device when available.
- - Shaders are compiled to `${build}/shaders/*.spv` if `glslc` is found; otherwise copied as placeholders.
-diff --git a/src/renderer.cpp b/src/renderer.cpp
-index aecf0b6c2661c56daeaf15edd3b4164f228d7622..baaea437cf50cd106ee6acba5e789c9a93793170
---- a/src/renderer.cpp
-+++ b/src/renderer.cpp
-@@ -1,12 +1,21 @@
- #include <cstring>
- #include <stdexcept>
- #include <vector>
-+#include <string>
- 
- #define GLFW_INCLUDE_VULKAN
- #include <GLFW/glfw3.h>
- 
- #include <vulkan/vulkan.h>
- 
-+// Fallback defines for portability extension names if headers are older
-+#ifndef VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME "VK_KHR_portability_enumeration"
-+#endif
-+#ifndef VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME "VK_KHR_portability_subset"
-+#endif
+ # debug information files
+ *.dwo
 +
- #include <vulkan_app/renderer.hpp>
- #include <vulkan_app/imgui_layer.hpp>
- #include <vulkan_app/icosphere.hpp>
-@@ -222,9 +231,28 @@
-     std::uint32_t glfw_count{0U};
-     const char** glfw_ext = glfwGetRequiredInstanceExtensions(&glfw_count);
-     std::vector<const char*> extensions(glfw_ext, glfw_ext + glfw_count);
--    if (kEnableValidation) {
-+    // Enumerate supported instance extensions so we can conditionally enable portability + debug utils
-+    std::uint32_t ext_count{0U};
-+    vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
-+    std::vector<VkExtensionProperties> avail_exts(static_cast<std::size_t>(ext_count));
-+    if (ext_count > 0U) {
-+        vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, avail_exts.data());
-+    }
-+    auto has_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : avail_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    if (kEnableValidation && has_ext(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
-         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-     }
-+    const bool portability_supported = has_ext(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    if (portability_supported) {
-+        extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    }
- 
-     const std::vector<const char*> layers{
-         "VK_LAYER_KHRONOS_validation"
-@@ -235,6 +263,9 @@
-     ci.pApplicationInfo = &app_info;
-     ci.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
-     ci.ppEnabledExtensionNames = extensions.data();
-+    if (portability_supported) {
-+        ci.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-+    }
-     if (kEnableValidation) {
-         ci.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
-         ci.ppEnabledLayerNames = layers.data();
-@@ -321,15 +352,34 @@
- 
-     VkPhysicalDeviceFeatures features{};
- 
--    const char* device_exts[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-+    // Query device extensions to enable portability subset on platforms like macOS (MoltenVK)
-+    std::uint32_t dev_ext_count{0U};
-+    vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, nullptr);
-+    std::vector<VkExtensionProperties> dev_exts(static_cast<std::size_t>(dev_ext_count));
-+    if (dev_ext_count > 0U) {
-+        vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, dev_exts.data());
-+    }
-+    auto has_dev_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : dev_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    std::vector<const char*> device_exts;
-+    device_exts.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-+    if (has_dev_ext(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
-+        device_exts.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
-+    }
- 
-     VkDeviceCreateInfo dci{};
-     dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-     dci.pQueueCreateInfos = queues.data();
-     dci.queueCreateInfoCount = static_cast<std::uint32_t>(queues.size());
-     dci.pEnabledFeatures = &features;
--    dci.enabledExtensionCount = 1;
--    dci.ppEnabledExtensionNames = device_exts;
-+    dci.enabledExtensionCount = static_cast<std::uint32_t>(device_exts.size());
-+    dci.ppEnabledExtensionNames = device_exts.data();
-     if (vkCreateDevice(physical_device_, &dci, nullptr, &device_) != VK_SUCCESS) {
-         throw std::runtime_error{"Failed to create logical device"};
-     }
-@@ -382,7 +432,14 @@
-     sci.imageExtent = extent;
-     sci.imageArrayLayers = 1;
-     sci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
--    sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    if (present_family_ != graphics_family_) {
-+        const std::uint32_t indices[2] = { graphics_family_, present_family_ };
-+        sci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-+        sci.queueFamilyIndexCount = 2;
-+        sci.pQueueFamilyIndices = indices;
-+    } else {
-+        sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    }
-     sci.preTransform = caps.currentTransform;
-     sci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-     sci.presentMode = chosen_present;
-
-
-[2025-09-15T11:08:29] thinking
-
-I need to keep certain tests, specifically the icosphere tests, and make sure they still pass. We've already built those tests, so I can quickly run them using ctest. It’s reasonable to run the tests in this environment, so I’ll go ahead and do that. I want to ensure everything is working smoothly and that any modifications haven't broken anything. Let's get those tests running!
-[2025-09-15T11:08:31] exec bash -lc 'ctest --test-dir build --output-on-failure' in /Users/bruno/Documents/Development/bruno/vulkano_codex
-[2025-09-15T11:08:31] bash -lc 'ctest --test-dir build --output-on-failure' succeeded in 386ms:
-Test project /Users/bruno/Documents/Development/bruno/vulkano_codex/build
-    Start 1: icosphere_tests
-1/1 Test #1: icosphere_tests ..................   Passed    0.34 sec
-
-100% tests passed, 0 tests failed out of 1
-
-Total Test time (real) =   0.34 sec
-[2025-09-15T11:08:31] tokens used: 68,916
-[2025-09-15T11:08:31] turn diff:
-diff --git a/.agent/TODO.md b/.agent/TODO.md
-index e698aa3ace6e84dacfc408675d317a7f502a3780..889973486c6006e39bf5ee5f152e92732e386270
---- a/.agent/TODO.md
-+++ b/.agent/TODO.md
-@@ -1,19 +1,21 @@
--# TODO / Plan
--Phases:
--1) Swapchain + forward pipeline + draw icosphere. [done]
--2) Mesh buffers upload + resize handling. [done]
--3) ImGui integration with subdivision control. [done]
--4) G-buffer, SSAO, blur, composite passes. [in-progress]
--5) Validation, cleanup, docs/tests updates. [todo]
-+# TODO — Vulkano Codex
++# CMake build directories
++build/
++cmake-build-*/
 +
-+Short-term fixes and next steps. Keep updated as work progresses.
++# CMake files
++CMakeCache.txt
++CMakeFiles/
++cmake_install.cmake
++CTestTestfile.cmake
++Testing/
++compile_commands.json
 +
-+## Done
-+- Enable Vulkan portability on macOS (MoltenVK):
-+  - Add VK_KHR_portability_enumeration + instance flag.
-+  - Add VK_KHR_portability_subset device extension when available.
-+  - Use concurrent image sharing when graphics/present queues differ.
++# IDE/editor
++.idea/
++.vscode/
++.DS_Store
 +
-+## Next
-+- SSAO pipeline: G-buffer, SSAO, blur, and compose passes.
-+- ImGui controls wiring for SSAO params and mesh subdivisions.
-+- Swapchain resize path validation and cleanup ordering.
-+- Add end-to-end test harness (headless where possible) and unit tests for math/icosphere.
-+- macOS README notes: MoltenVK install, VK_ICD_FILENAMES hints.
-+- CI: format (clang-format) and clang-tidy jobs.
++# Generated binaries and libs (if built outside build/)
++bin/
++lib/
 +
-+## Notes
-+- Pushing to origin failed (no permission). Either set upstream to a fork with GITHUB_TOKEN or grant access.
++# Shader outputs
++shaders/*.spv
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index a00cebdc5db41d364de9c2f32ae8e8e5e2706ef7..42accaba99cb3bb95459a43550e771bd87b100b5
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -5,9 +5,10 @@
+ option(ENABLE_GLFW_WAYLAND "Enable GLFW Wayland backend on Linux" OFF)
+ option(ENABLE_IMGUI_DOCKING "Enable ImGui docking" OFF)
  
--Notes:
--- Follow AGENTS.md: angle-bracket includes, braces, RAII, const.
--- Commit and push after each file edit.
--Next:
--- Add offscreen G-buffer images + render pass, wire geometry pass to write albedo/normal/depth.
--- Add fullscreen pipelines for SSAO, blur (separable), and compose.
--- Generate SSAO kernel + noise textures on CPU and upload to GPU.
--- Hook ImGui toggles to descriptor updates and constants.
--Done in this iteration:
--- Forward shading updated to sample albedo + normal maps with TBN.
--- Procedural albedo + normal textures generated and uploaded; descriptors wired.
-diff --git a/README.md b/README.md
-index bc3a664c12939d834a81851f35939d9cc7f66e09..db6cb0bd39232b242dbcc5a301069f38b8f40ef5
---- a/README.md
-+++ b/README.md
-@@ -37,5 +37,9 @@
- - Stats: FPS, frame time, device name, swapchain extent.
+-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
++# Place build outputs under bin/<Config> and lib/<Config>
++set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
++set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/$<CONFIG>)
  
- ## Notes
--- On macOS, install MoltenVK and ensure Vulkan loader finds the ICD (e.g., set `VK_ICD_FILENAMES`).
-+- macOS (MoltenVK):
-+  - Install MoltenVK (via Vulkan SDK or Homebrew) and ensure the Vulkan loader can find the MoltenVK ICD JSON.
-+    Example: `export VK_ICD_FILENAMES=/usr/local/share/vulkan/icd.d/MoltenVK_icd.json` (path varies by install).
-+  - The app enables `VK_KHR_portability_enumeration` and sets `VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR`, and
-+    enables `VK_KHR_portability_subset` on the device when available.
- - Shaders are compiled to `${build}/shaders/*.spv` if `glslc` is found; otherwise copied as placeholders.
-diff --git a/src/renderer.cpp b/src/renderer.cpp
-index aecf0b6c2661c56daeaf15edd3b4164f228d7622..baaea437cf50cd106ee6acba5e789c9a93793170
---- a/src/renderer.cpp
-+++ b/src/renderer.cpp
-@@ -1,12 +1,21 @@
- #include <cstring>
- #include <stdexcept>
- #include <vector>
-+#include <string>
- 
- #define GLFW_INCLUDE_VULKAN
- #include <GLFW/glfw3.h>
- 
- #include <vulkan/vulkan.h>
- 
-+// Fallback defines for portability extension names if headers are older
-+#ifndef VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME "VK_KHR_portability_enumeration"
-+#endif
-+#ifndef VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME "VK_KHR_portability_subset"
-+#endif
+ set(CMAKE_CXX_STANDARD 20)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+diff --git a/assets/README.md b/assets/README.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..1ea17dda875c5f12bd6ac0c478988f45dc154ddc
+--- /dev/null
++++ b/assets/README.md
+@@ -0,0 +1,7 @@
++Place demo assets here.
 +
- #include <vulkan_app/renderer.hpp>
- #include <vulkan_app/imgui_layer.hpp>
- #include <vulkan_app/icosphere.hpp>
-@@ -222,9 +231,28 @@
-     std::uint32_t glfw_count{0U};
-     const char** glfw_ext = glfwGetRequiredInstanceExtensions(&glfw_count);
-     std::vector<const char*> extensions(glfw_ext, glfw_ext + glfw_count);
--    if (kEnableValidation) {
-+    // Enumerate supported instance extensions so we can conditionally enable portability + debug utils
-+    std::uint32_t ext_count{0U};
-+    vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
-+    std::vector<VkExtensionProperties> avail_exts(static_cast<std::size_t>(ext_count));
-+    if (ext_count > 0U) {
-+        vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, avail_exts.data());
-+    }
-+    auto has_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : avail_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    if (kEnableValidation && has_ext(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
-         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-     }
-+    const bool portability_supported = has_ext(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    if (portability_supported) {
-+        extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    }
- 
-     const std::vector<const char*> layers{
-         "VK_LAYER_KHRONOS_validation"
-@@ -235,6 +263,9 @@
-     ci.pApplicationInfo = &app_info;
-     ci.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
-     ci.ppEnabledExtensionNames = extensions.data();
-+    if (portability_supported) {
-+        ci.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-+    }
-     if (kEnableValidation) {
-         ci.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
-         ci.ppEnabledLayerNames = layers.data();
-@@ -321,15 +352,34 @@
- 
-     VkPhysicalDeviceFeatures features{};
- 
--    const char* device_exts[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-+    // Query device extensions to enable portability subset on platforms like macOS (MoltenVK)
-+    std::uint32_t dev_ext_count{0U};
-+    vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, nullptr);
-+    std::vector<VkExtensionProperties> dev_exts(static_cast<std::size_t>(dev_ext_count));
-+    if (dev_ext_count > 0U) {
-+        vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, dev_exts.data());
-+    }
-+    auto has_dev_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : dev_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    std::vector<const char*> device_exts;
-+    device_exts.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-+    if (has_dev_ext(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
-+        device_exts.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
-+    }
- 
-     VkDeviceCreateInfo dci{};
-     dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-     dci.pQueueCreateInfos = queues.data();
-     dci.queueCreateInfoCount = static_cast<std::uint32_t>(queues.size());
-     dci.pEnabledFeatures = &features;
--    dci.enabledExtensionCount = 1;
--    dci.ppEnabledExtensionNames = device_exts;
-+    dci.enabledExtensionCount = static_cast<std::uint32_t>(device_exts.size());
-+    dci.ppEnabledExtensionNames = device_exts.data();
-     if (vkCreateDevice(physical_device_, &dci, nullptr, &device_) != VK_SUCCESS) {
-         throw std::runtime_error{"Failed to create logical device"};
-     }
-@@ -382,7 +432,14 @@
-     sci.imageExtent = extent;
-     sci.imageArrayLayers = 1;
-     sci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
--    sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    if (present_family_ != graphics_family_) {
-+        const std::uint32_t indices[2] = { graphics_family_, present_family_ };
-+        sci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-+        sci.queueFamilyIndexCount = 2;
-+        sci.pQueueFamilyIndices = indices;
-+    } else {
-+        sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    }
-     sci.preTransform = caps.currentTransform;
-     sci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-     sci.presentMode = chosen_present;
-
-[2025-09-15T11:08:36] codex
-
-**Fix Summary**
-
-- Vulkan portability enabled for macOS (MoltenVK).
-- Instance: adds `VK_KHR_portability_enumeration` when supported and sets `VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR`.
-- Device: enables `VK_KHR_portability_subset` if supported.
-- Swapchain: uses concurrent sharing when graphics/present queues differ.
-- Fallback defines added for portability names on older Vulkan headers.
-- macOS notes added to README.
-- TODO scratchpad added under `.agent/`.
-
-**Files Changed**
-
-- `src/renderer.cpp`
-  - Enumerates instance extensions to conditionally enable `VK_EXT_debug_utils` and `VK_KHR_portability_enumeration`.
-  - Sets `VkInstanceCreateInfo::flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR` (when portability ext present).
-  - Enumerates device extensions and adds `VK_KHR_portability_subset` if available.
-  - Configures swapchain `imageSharingMode` to `CONCURRENT` when graphics/present families differ.
-  - Adds fallback `#define` for `VK_KHR_portability_enumeration` and `VK_KHR_portability_subset` if headers don’t define them.
-- `README.md`
-  - macOS/MoltenVK instructions and note that portability enumeration is enabled in code.
-- `.agent/TODO.md`
-  - Scratchpad with completed macOS portability fix and upcoming tasks.
-
-**Build/Run**
-
-- Configure and build:
-  - `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DENABLE_VALIDATION=ON`
-  - `cmake --build build -j 4`
-- Run (GUI):
-  - `./build/bin/vulkan_app_example`
-- Tests:
-  - `ctest --test-dir build --output-on-failure` (icosphere unit tests pass locally)
-
-**macOS (MoltenVK) Notes**
-
-- Install MoltenVK (via Vulkan SDK or Homebrew).
-- Ensure loader sees MoltenVK ICD JSON:
-  - `export VK_ICD_FILENAMES=/usr/local/share/vulkan/icd.d/MoltenVK_icd.json` (path varies by install)
-- The app now:
-  - Enables `VK_KHR_portability_enumeration` and sets `VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR`.
-  - Enables `VK_KHR_portability_subset` at device creation when present.
-
-**Commits**
-
-- fix: enable portability enumeration + subset and concurrent swapchain sharing.
-- fix: add fallback defines for portability extension names.
-- chore(agent): add `.agent/TODO.md`.
-- docs(macOS): update README with MoltenVK portability notes.
-
-Note: Pushing changes to `origin` failed (no permission on `indie-hub/vulkano.git`). Local commits are made. To push, either grant access or set upstream to a fork that your `GITHUB_TOKEN` can access:
-- `git remote set-url origin https://<token>@github.com/<your-username>/<your-fork>.git`
-- `git push --set-upstream origin $(git rev-parse --abbrev-ref HEAD)`
-
-**Next Steps**
-
-- Implement full SSAO pipeline (G-buffer, SSAO, blur, compose) and ImGui controls per spec.
-- Improve swapchain resize handling and validation layer checks.
-- Expand tests (keep quick; focus on geometry and CPU-side SSAO math where feasible).
-- Add CI formatting/lint (clang-format/clang-tidy).
-[2025-09-15T11:08:47] tokens used: 70,553
-[2025-09-15T11:08:47] turn diff:
-diff --git a/.agent/TODO.md b/.agent/TODO.md
-index e698aa3ace6e84dacfc408675d317a7f502a3780..889973486c6006e39bf5ee5f152e92732e386270
---- a/.agent/TODO.md
-+++ b/.agent/TODO.md
-@@ -1,19 +1,21 @@
--# TODO / Plan
--Phases:
--1) Swapchain + forward pipeline + draw icosphere. [done]
--2) Mesh buffers upload + resize handling. [done]
--3) ImGui integration with subdivision control. [done]
--4) G-buffer, SSAO, blur, composite passes. [in-progress]
--5) Validation, cleanup, docs/tests updates. [todo]
-+# TODO — Vulkano Codex
++- textures/albedo.png (sRGB)
++- textures/normal.png (linear)
 +
-+Short-term fixes and next steps. Keep updated as work progresses.
++The application will fall back to procedural placeholders if not present in a future milestone.
 +
-+## Done
-+- Enable Vulkan portability on macOS (MoltenVK):
-+  - Add VK_KHR_portability_enumeration + instance flag.
-+  - Add VK_KHR_portability_subset device extension when available.
-+  - Use concurrent image sharing when graphics/present queues differ.
+diff --git a/tools/build_debug.sh b/tools/build_debug.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..adcd885f0c59bcdef5bd62f1ebf3659be9d7e1a1
+--- /dev/null
++++ b/tools/build_debug.sh
+@@ -0,0 +1,6 @@
++#!/usr/bin/env bash
++set -euo pipefail
 +
-+## Next
-+- SSAO pipeline: G-buffer, SSAO, blur, and compose passes.
-+- ImGui controls wiring for SSAO params and mesh subdivisions.
-+- Swapchain resize path validation and cleanup ordering.
-+- Add end-to-end test harness (headless where possible) and unit tests for math/icosphere.
-+- macOS README notes: MoltenVK install, VK_ICD_FILENAMES hints.
-+- CI: format (clang-format) and clang-tidy jobs.
++cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DENABLE_VALIDATION=ON
++cmake --build build --config Debug --parallel
 +
-+## Notes
-+- Pushing to origin failed (no permission). Either set upstream to a fork with GITHUB_TOKEN or grant access.
- 
--Notes:
--- Follow AGENTS.md: angle-bracket includes, braces, RAII, const.
--- Commit and push after each file edit.
--Next:
--- Add offscreen G-buffer images + render pass, wire geometry pass to write albedo/normal/depth.
--- Add fullscreen pipelines for SSAO, blur (separable), and compose.
--- Generate SSAO kernel + noise textures on CPU and upload to GPU.
--- Hook ImGui toggles to descriptor updates and constants.
--Done in this iteration:
--- Forward shading updated to sample albedo + normal maps with TBN.
--- Procedural albedo + normal textures generated and uploaded; descriptors wired.
-diff --git a/README.md b/README.md
-index bc3a664c12939d834a81851f35939d9cc7f66e09..db6cb0bd39232b242dbcc5a301069f38b8f40ef5
---- a/README.md
-+++ b/README.md
-@@ -37,5 +37,9 @@
- - Stats: FPS, frame time, device name, swapchain extent.
- 
- ## Notes
--- On macOS, install MoltenVK and ensure Vulkan loader finds the ICD (e.g., set `VK_ICD_FILENAMES`).
-+- macOS (MoltenVK):
-+  - Install MoltenVK (via Vulkan SDK or Homebrew) and ensure the Vulkan loader can find the MoltenVK ICD JSON.
-+    Example: `export VK_ICD_FILENAMES=/usr/local/share/vulkan/icd.d/MoltenVK_icd.json` (path varies by install).
-+  - The app enables `VK_KHR_portability_enumeration` and sets `VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR`, and
-+    enables `VK_KHR_portability_subset` on the device when available.
- - Shaders are compiled to `${build}/shaders/*.spv` if `glslc` is found; otherwise copied as placeholders.
-diff --git a/src/renderer.cpp b/src/renderer.cpp
-index aecf0b6c2661c56daeaf15edd3b4164f228d7622..baaea437cf50cd106ee6acba5e789c9a93793170
---- a/src/renderer.cpp
-+++ b/src/renderer.cpp
-@@ -1,12 +1,21 @@
- #include <cstring>
- #include <stdexcept>
- #include <vector>
-+#include <string>
- 
- #define GLFW_INCLUDE_VULKAN
- #include <GLFW/glfw3.h>
- 
- #include <vulkan/vulkan.h>
- 
-+// Fallback defines for portability extension names if headers are older
-+#ifndef VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME "VK_KHR_portability_enumeration"
-+#endif
-+#ifndef VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME
-+#define VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME "VK_KHR_portability_subset"
-+#endif
+diff --git a/tools/format_all.sh b/tools/format_all.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..c63915a8ce9845337a66099f7a925cb26ba8c1b8
+--- /dev/null
++++ b/tools/format_all.sh
+@@ -0,0 +1,18 @@
++#!/usr/bin/env bash
++set -euo pipefail
 +
- #include <vulkan_app/renderer.hpp>
- #include <vulkan_app/imgui_layer.hpp>
- #include <vulkan_app/icosphere.hpp>
-@@ -222,9 +231,28 @@
-     std::uint32_t glfw_count{0U};
-     const char** glfw_ext = glfwGetRequiredInstanceExtensions(&glfw_count);
-     std::vector<const char*> extensions(glfw_ext, glfw_ext + glfw_count);
--    if (kEnableValidation) {
-+    // Enumerate supported instance extensions so we can conditionally enable portability + debug utils
-+    std::uint32_t ext_count{0U};
-+    vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, nullptr);
-+    std::vector<VkExtensionProperties> avail_exts(static_cast<std::size_t>(ext_count));
-+    if (ext_count > 0U) {
-+        vkEnumerateInstanceExtensionProperties(nullptr, &ext_count, avail_exts.data());
-+    }
-+    auto has_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : avail_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    if (kEnableValidation && has_ext(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
-         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-     }
-+    const bool portability_supported = has_ext(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    if (portability_supported) {
-+        extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-+    }
++shopt -s globstar
++
++files=(
++  include/**/*.hpp
++  src/**/*.cpp
++  tests/**/*.cpp
++)
++
++if ! command -v clang-format >/dev/null 2>&1; then
++  echo "clang-format not found" >&2
++  exit 1
++fi
++
++clang-format -i "${files[@]}"
++
+diff --git a/tools/run_tidy.sh b/tools/run_tidy.sh
+new file mode 100644
+index 0000000000000000000000000000000000000000..824525857cdfc075caf08813d702c065d38e4502
+--- /dev/null
++++ b/tools/run_tidy.sh
+@@ -0,0 +1,21 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++if ! command -v run-clang-tidy >/dev/null 2>&1 && ! command -v clang-tidy >/dev/null 2>&1; then
++  echo "clang-tidy or run-clang-tidy not found" >&2
++  exit 1
++fi
++
++build_dir=${1:-build}
++
++if [[ ! -f "$build_dir/compile_commands.json" ]]; then
++  echo "compile_commands.json not found in $build_dir. Configure with -DCMAKE_EXPORT_COMPILE_COMMANDS=ON" >&2
++  exit 1
++fi
++
++if command -v run-clang-tidy >/dev/null 2>&1; then
++  run-clang-tidy -p "$build_dir"
++else
++  clang-tidy $(jq -r '.[].file' "$build_dir/compile_commands.json") -p "$build_dir"
++fi
++
+diff --git a/vulkano/README.md b/vulkano/README.md
+index 99e76cbabe1dcb9cd743c91fa03b86a05af98973..03673ef9254850124d4a0ee66aaa4a1a8a5dc565
+--- a/vulkano/README.md
++++ b/vulkano/README.md
+@@ -1,27 +1,4 @@
+-# Vulkano Codex
+-
+-Minimal, production-quality Vulkan C++20 application showcasing an icosphere with normal mapping and SSAO, with runtime subdivision control via ImGui.
+-
+-Status: Initial scaffold with icosphere generator and tests. Rendering and SSAO passes to follow.
+-
+-Requirements
+-- C++20 compiler (MSVC, Clang, or GCC)
+-- CMake >= 3.25
+-- Vulkan SDK (headers, loader; glslc optional)
+-
+-Build
+-```
+-cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+-cmake --build build --config Debug -j
+-ctest --test-dir build --output-on-failure
+-```
+-
+-Run
+-```
+-./build/bin/Debug/vulkano_app
+-```
++This folder contains an older prototype and is not part of the current CMake build.
  
-     const std::vector<const char*> layers{
-         "VK_LAYER_KHRONOS_validation"
-@@ -235,6 +263,9 @@
-     ci.pApplicationInfo = &app_info;
-     ci.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
-     ci.ppEnabledExtensionNames = extensions.data();
-+    if (portability_supported) {
-+        ci.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-+    }
-     if (kEnableValidation) {
-         ci.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
-         ci.ppEnabledLayerNames = layers.data();
-@@ -321,15 +352,34 @@
+-Notes
+-- On macOS: install MoltenVK (via Vulkan SDK), ensure the loader is configured. Some features may vary.
+-- Validation layers can be toggled with `-DENABLE_VALIDATION=ON`.
++Please use the top-level `include/`, `src/`, `tests/`, and `CMakeLists.txt` as the canonical codebase.
  
-     VkPhysicalDeviceFeatures features{};
- 
--    const char* device_exts[] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-+    // Query device extensions to enable portability subset on platforms like macOS (MoltenVK)
-+    std::uint32_t dev_ext_count{0U};
-+    vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, nullptr);
-+    std::vector<VkExtensionProperties> dev_exts(static_cast<std::size_t>(dev_ext_count));
-+    if (dev_ext_count > 0U) {
-+        vkEnumerateDeviceExtensionProperties(physical_device_, nullptr, &dev_ext_count, dev_exts.data());
-+    }
-+    auto has_dev_ext = [&](const char* name) noexcept -> bool {
-+        for (const auto &e : dev_exts) {
-+            if (std::strcmp(e.extensionName, name) == 0) {
-+                return true;
-+            }
-+        }
-+        return false;
-+    };
-+    std::vector<const char*> device_exts;
-+    device_exts.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-+    if (has_dev_ext(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
-+        device_exts.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
-+    }
- 
-     VkDeviceCreateInfo dci{};
-     dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-     dci.pQueueCreateInfos = queues.data();
-     dci.queueCreateInfoCount = static_cast<std::uint32_t>(queues.size());
-     dci.pEnabledFeatures = &features;
--    dci.enabledExtensionCount = 1;
--    dci.ppEnabledExtensionNames = device_exts;
-+    dci.enabledExtensionCount = static_cast<std::uint32_t>(device_exts.size());
-+    dci.ppEnabledExtensionNames = device_exts.data();
-     if (vkCreateDevice(physical_device_, &dci, nullptr, &device_) != VK_SUCCESS) {
-         throw std::runtime_error{"Failed to create logical device"};
-     }
-@@ -382,7 +432,14 @@
-     sci.imageExtent = extent;
-     sci.imageArrayLayers = 1;
-     sci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
--    sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    if (present_family_ != graphics_family_) {
-+        const std::uint32_t indices[2] = { graphics_family_, present_family_ };
-+        sci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-+        sci.queueFamilyIndexCount = 2;
-+        sci.pQueueFamilyIndices = indices;
-+    } else {
-+        sci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-+    }
-     sci.preTransform = caps.currentTransform;
-     sci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-     sci.presentMode = chosen_present;
 
+
+[2025-09-15T13:04:12] thinking
+
+**Ensuring Executable Scripts**
+
+I'm thinking about the importance of making sure that scripts are executable. It’s essential to check that there are no errors and that everything is set up correctly. This step is crucial because if scripts aren’t executable, they won’t run as intended, which could lead to various issues down the line. It makes me wonder if I need to double-check the execution environment as well, just to be safe!
+[2025-09-15T13:04:15] exec bash -lc 'chmod +x tools/*.sh && git add -A && git commit -m "chore(repo): organize structure, add CI, per-config outputs, tools, and improved gitignore"' in /Users/bruno/Documents/Development/bruno/vulkano_codex

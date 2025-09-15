@@ -6,7 +6,7 @@ C_DEFINES =
 
 C_INCLUDES = -I/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glfw-src/deps -I/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glfw-src/include
 
-C_FLAGSarm64 = -g -std=gnu99 -arch arm64
+C_FLAGSarm64 = -O3 -DNDEBUG -std=gnu99 -arch arm64
 
-C_FLAGS = -g -std=gnu99 -arch arm64
+C_FLAGS = -O3 -DNDEBUG -std=gnu99 -arch arm64
 

@@ -95,9 +95,9 @@ icosphere_tests_EXTERNAL_OBJECTS =
 
 bin/icosphere_tests: CMakeFiles/icosphere_tests.dir/tests/icosphere_tests.cpp.o
 bin/icosphere_tests: CMakeFiles/icosphere_tests.dir/build.make
-bin/icosphere_tests: lib/libCatch2Maind.a
+bin/icosphere_tests: lib/libCatch2Main.a
 bin/icosphere_tests: lib/libvulkan_app.a
-bin/icosphere_tests: lib/libCatch2d.a
+bin/icosphere_tests: lib/libCatch2.a
 bin/icosphere_tests: lib/libglm.a
 bin/icosphere_tests: lib/libimgui_backend.a
 bin/icosphere_tests: lib/libglfw3.a

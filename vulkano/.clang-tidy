@@ -1,0 +1,15 @@
+Checks: >
+  clang-diagnostic-*,
+  bugprone-*,
+  modernize-*,
+  performance-*,
+  readability-*,
+  cppcoreguidelines-avoid-goto,
+  cppcoreguidelines-interfaces-global-init,
+  cppcoreguidelines-non-private-member-variables-in-classes,
+  cppcoreguidelines-pro-type-const-cast,
+  cppcoreguidelines-pro-type-static-cast-downcast,
+  cppcoreguidelines-slicing,
+  misc-*
+WarningsAsErrors: '*'
+HeaderFilterRegex: '^(include/|src/)'

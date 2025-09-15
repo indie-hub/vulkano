@@ -1,3 +1,3 @@
 file(REMOVE_RECURSE
-  "../../../lib/libCatch2Maind.a"
+  "../../../lib/libCatch2Main.a"
 )

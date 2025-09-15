@@ -29,6 +29,9 @@
 * **Use `constexpr` and `consteval` Where Appropriate**: Prefer compile-time constants and evaluation when possible to improve safety, clarity, and performance.
 * **Use `noexcept` Whenever Possible**: Mark functions `noexcept` when they are guaranteed not to throw, to improve optimisations and clarity of intent.
 * **Prefer std::arrays**: Always `std::arrays` when possible
+* **Avoid long methods**: Split long functions into smaller ones.
+* **Prefer well-defined design patterns** 
+* **DO NOT WRITE CODE IN HEADER FILES**: always put implementation in a separate `.cpp` file.
 
 
 ---

@@ -39,3 +39,27 @@
 
 # debug information files
 *.dwo
+
+# CMake build directories
+build/
+cmake-build-*/
+
+# CMake files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+Testing/
+compile_commands.json
+
+# IDE/editor
+.idea/
+.vscode/
+.DS_Store
+
+# Generated binaries and libs (if built outside build/)
+bin/
+lib/
+
+# Shader outputs
+shaders/*.spv

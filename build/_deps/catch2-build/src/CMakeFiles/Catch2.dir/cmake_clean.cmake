@@ -1,6 +1,6 @@
 file(REMOVE_RECURSE
-  "../../../lib/libCatch2d.a"
-  "../../../lib/libCatch2d.pdb"
+  "../../../lib/libCatch2.a"
+  "../../../lib/libCatch2.pdb"
   "CMakeFiles/Catch2.dir/catch2/benchmark/catch_chronometer.cpp.o"
   "CMakeFiles/Catch2.dir/catch2/benchmark/catch_chronometer.cpp.o.d"
   "CMakeFiles/Catch2.dir/catch2/benchmark/detail/catch_benchmark_function.cpp.o"
