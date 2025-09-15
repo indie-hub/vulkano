@@ -28,7 +28,10 @@ class ImGuiLayer;
  */
 class Renderer final {
 public:
-    /** Initialize Vulkan instance, device, swapchain, pipelines, and resources. */
+    /**
+     * Initialize Vulkan instance, device, swapchain, render pass, pipeline(s), and static resources.
+     * @param window GLFW window used to create the presentation surface.
+     */
     explicit Renderer(GLFWwindow* window);
     /** Destroy Vulkan resources in a safe order. */
     ~Renderer() noexcept;
@@ -39,7 +42,13 @@ public:
     void resize();
     /** Upload new mesh vertex/index buffers to the GPU. */
     void update_mesh(const Mesh& mesh);
-    /** Record and submit rendering for the current frame. */
+    /**
+     * Record and submit rendering for the current frame.
+     * @param camera Camera UBO data (view/proj matrices and camera position).
+     * @param light Light parameters for Phong shading.
+     * @param material Material parameters (albedo and normal map strength).
+     * @param ssao Parameters controlling SSAO kernel, radius, bias, and blur.
+     */
     void draw_frame(const CameraUBO& camera, const Light& light, const Material& material, const SsaoParams& ssao);
     [[nodiscard]] const char* device_name() const noexcept { return device_name_; }
     void attach_imgui(ImGuiLayer* layer) noexcept { imgui_layer_ = layer; }
