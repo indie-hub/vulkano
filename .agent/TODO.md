@@ -14,3 +14,6 @@ Next:
 - Add fullscreen pipelines for SSAO, blur (separable), and compose.
 - Generate SSAO kernel + noise textures on CPU and upload to GPU.
 - Hook ImGui toggles to descriptor updates and constants.
+Done in this iteration:
+- Forward shading updated to sample albedo + normal maps with TBN.
+- Procedural albedo + normal textures generated and uploaded; descriptors wired.
