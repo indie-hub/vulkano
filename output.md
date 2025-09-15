@@ -9324,3 +9324,3147 @@ index 0000000000000000000000000000000000000000..b7771bab388e94eeabd7ead139cadc0d
 +
 
 [2025-09-15T15:57:18] exec bash -lc 'git add -A && git commit -m "feat(vulkan): add VulkanContext stub (conditional); wire into Application when available"' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T15:57:18] bash -lc 'git add -A && git commit -m "feat(vulkan): add VulkanContext stub (conditional); wire into Application when available"' succeeded in 55ms:
+[personal/codex/second_try d2b4d2e] feat(vulkan): add VulkanContext stub (conditional); wire into Application when available
+ 6 files changed, 6653 insertions(+), 2 deletions(-)
+ create mode 100644 include/vulkano/vulkan_context.hpp
+ create mode 100644 src/vulkan_context.cpp
+[2025-09-15T15:57:18] tokens used: 49,000
+[2025-09-15T15:57:18] turn diff:
+diff --git a/.gitignore b/.gitignore
+index 08082907e166289aa572746010a66bfd9566f95d..90fcff7f14bd4769bbcc137279b5a17eea9ddfb7
+--- a/.gitignore
++++ b/.gitignore
+@@ -49,3 +49,4 @@
+ 
+ # App runtime binaries
+ app/bin/
++.idea/
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 1d0b6ac0af4831e6a26f6b01e36f895c347551ba..7f73b15e88179825c32e9b01d514bbc4116b7ef4
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -7,7 +7,9 @@
+         FILES
+             vulkano/app.hpp
+             vulkano/window.hpp
++            vulkano/mesh.hpp
++            vulkano/icosphere.hpp
++            vulkano/vulkan_context.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+-
+diff --git a/include/vulkano/icosphere.hpp b/include/vulkano/icosphere.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..d5ac4b31925b09921af3d237646060cf254cfdc7
+--- /dev/null
++++ b/include/vulkano/icosphere.hpp
+@@ -0,0 +1,25 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++#include <vector>
++
++namespace vulkano {
++
++struct Mesh;
++
++class IcosphereBuilder final {
++public:
++    IcosphereBuilder() = default;
++    ~IcosphereBuilder() = default;
++
++    IcosphereBuilder(const IcosphereBuilder&) = delete;
++    IcosphereBuilder& operator=(const IcosphereBuilder&) = delete;
++    IcosphereBuilder(IcosphereBuilder&&) noexcept = default;
++    IcosphereBuilder& operator=(IcosphereBuilder&&) noexcept = default;
++
++    [[nodiscard]] std::unique_ptr<Mesh> build(std::uint32_t subdivisions) const;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/mesh.hpp b/include/vulkano/mesh.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..966477560a19a957d55c1cd2e5cd348cd8decf05
+--- /dev/null
++++ b/include/vulkano/mesh.hpp
+@@ -0,0 +1,22 @@
++#pragma once
++
++#include <cstdint>
++#include <vector>
++
++namespace vulkano {
++
++struct Vertex final {
++    float position[3];
++    float normal[3];
++    float tangent[3];
++    float bitangent[3];
++    float texcoord[2];
++};
++
++struct Mesh final {
++    std::vector<Vertex> vertices;
++    std::vector<std::uint32_t> indices;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..3df309ea6cd5251c49ded7fcc76a61a6e7722685
+--- /dev/null
++++ b/include/vulkano/vulkan_context.hpp
+@@ -0,0 +1,30 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++
++class VulkanContext final {
++public:
++    VulkanContext() = delete;
++    explicit VulkanContext(const Window& window);
++    ~VulkanContext();
++
++    VulkanContext(const VulkanContext&) = delete;
++    VulkanContext& operator=(const VulkanContext&) = delete;
++    VulkanContext(VulkanContext&&) noexcept;
++    VulkanContext& operator=(VulkanContext&&) noexcept;
++
++    void wait_idle() const noexcept;
++    void draw_frame();
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 989a6f262d2cbfc89cae32d9bf2698ee34e92bcc..00e0900ef418dfddaf6535877b78b3267d055473
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -1,6 +1,7 @@
+ add_library(vulkano STATIC
+     app.cpp
+     window.cpp
++    icosphere.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -15,7 +16,7 @@
+ if (Vulkan_FOUND)
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
++    target_sources(vulkano PRIVATE vulkan_context.cpp)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+-
+diff --git a/src/app.cpp b/src/app.cpp
+index c01ccd7862ed39cf453c7c225b370b47fe271ec8..b119a42382036efeb288e1f40fcb4901a28bd1f6
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,5 +1,6 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -25,9 +26,19 @@
+ }
+ 
+ void Application::main_loop() {
++    // Optional Vulkan context; created lazily if available and enabled
++    std::unique_ptr<VulkanContext> vk { };
++    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+-        // Placeholder: rendering will be added in subsequent steps.
++#if VULKANO_HAS_VULKAN
++        if (!vk && true) {
++            vk = std::make_unique<VulkanContext>(*window);
++        }
++        if (vk) {
++            vk->draw_frame();
++        }
++#endif
+         std::this_thread::sleep_for(std::chrono::milliseconds {16});
+     }
+ }
+diff --git a/src/icosphere.cpp b/src/icosphere.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..c01c581a37130b22a83db3e435c15a133fb97cd5
+--- /dev/null
++++ b/src/icosphere.cpp
+@@ -0,0 +1,220 @@
++#include <vulkano/icosphere.hpp>
++#include <vulkano/mesh.hpp>
++
++#include <array>
++#include <cmath>
++#include <unordered_map>
++
++namespace vulkano {
++
++namespace {
++
++struct Vec3 final {
++    float x {};
++    float y {};
++    float z {};
++};
++
++struct Vec2 final {
++    float u {};
++    float v {};
++};
++
++static inline Vec3 normalize(const Vec3 v) noexcept {
++    const float len = std::sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
++    if (len == 0.0F) {
++        return Vec3 {0.0F, 0.0F, 0.0F};
++    }
++    const float inv = 1.0F / len;
++    return Vec3 {v.x * inv, v.y * inv, v.z * inv};
++}
++
++static inline Vec3 add(const Vec3 a, const Vec3 b) noexcept {
++    return Vec3 {a.x + b.x, a.y + b.y, a.z + b.z};
++}
++
++static inline Vec3 sub(const Vec3 a, const Vec3 b) noexcept {
++    return Vec3 {a.x - b.x, a.y - b.y, a.z - b.z};
++}
++
++static inline Vec3 mul(const Vec3 a, const float s) noexcept {
++    return Vec3 {a.x * s, a.y * s, a.z * s};
++}
++
++static inline Vec3 cross(const Vec3 a, const Vec3 b) noexcept {
++    return Vec3 {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};
++}
++
++static inline float dot(const Vec3 a, const Vec3 b) noexcept {
++    return a.x * b.x + a.y * b.y + a.z * b.z;
++}
++
++static inline Vec2 compute_uv(const Vec3 n) noexcept {
++    // Longitude/latitude mapping
++    const float u = 0.5F + std::atan2(n.z, n.x) / (2.0F * static_cast<float>(M_PI));
++    const float v = 0.5F - std::asin(n.y) / static_cast<float>(M_PI);
++    return Vec2 {u, v};
++}
++
++struct Key final {
++    std::uint32_t a {};
++    std::uint32_t b {};
++};
++
++struct KeyHash final {
++    std::size_t operator()(const Key& k) const noexcept {
++        return (static_cast<std::size_t>(k.a) << 32U) ^ static_cast<std::size_t>(k.b);
++    }
++};
++
++struct KeyEq final {
++    bool operator()(const Key& x, const Key& y) const noexcept {
++        return (x.a == y.a && x.b == y.b) || (x.a == y.b && x.b == y.a);
++    }
++};
++
++} // namespace
++
++std::unique_ptr<Mesh> IcosphereBuilder::build(const std::uint32_t subdivisions) const {
++    auto mesh = std::make_unique<Mesh>();
++    mesh->vertices.clear();
++    mesh->indices.clear();
++
++    // Icosahedron vertices
++    const float t = (1.0F + std::sqrt(5.0F)) * 0.5F;
++    std::vector<Vec3> positions {
++        Vec3 {-1.0F, t, 0.0F},   Vec3 {1.0F, t, 0.0F},    Vec3 {-1.0F, -t, 0.0F},  Vec3 {1.0F, -t, 0.0F},
++        Vec3 {0.0F, -1.0F, t},   Vec3 {0.0F, 1.0F, t},    Vec3 {0.0F, -1.0F, -t},  Vec3 {0.0F, 1.0F, -t},
++        Vec3 {t, 0.0F, -1.0F},   Vec3 {t, 0.0F, 1.0F},    Vec3 {-t, 0.0F, -1.0F},  Vec3 {-t, 0.0F, 1.0F},
++    };
++
++    for (auto& p : positions) {
++        p = normalize(p);
++    }
++
++    std::vector<std::uint32_t> faces {
++        0, 11, 5, 0, 5, 1, 0, 1, 7, 0, 7, 10, 0, 10, 11, 1, 5, 9, 5, 11, 4, 11, 10, 2,
++        10, 7, 6, 7, 1, 8, 3, 9, 4, 3, 4, 2, 3, 2, 6, 3, 6, 8, 3, 8, 9, 4, 9, 5, 2, 4,
++        11, 6, 2, 10, 8, 6, 7, 9, 8, 1,
++    };
++
++    auto midpoint = [&](std::uint32_t a, std::uint32_t b, std::unordered_map<Key, std::uint32_t, KeyHash, KeyEq>& cache) {
++        const Key key {a < b ? a : b, a < b ? b : a};
++        const auto it = cache.find(key);
++        if (it != cache.end()) {
++            return it->second;
++        }
++        const Vec3 mid = normalize(mul(add(positions[a], positions[b]), 0.5F));
++        positions.push_back(mid);
++        const std::uint32_t index = static_cast<std::uint32_t>(positions.size() - 1);
++        cache.emplace(key, index);
++        return index;
++    };
++
++    for (std::uint32_t i = 0; i < subdivisions; ++i) {
++        std::unordered_map<Key, std::uint32_t, KeyHash, KeyEq> cache {};
++        std::vector<std::uint32_t> new_faces {};
++        new_faces.reserve(faces.size() * 4U);
++        for (std::size_t f = 0; f < faces.size(); f += 3) {
++            const std::uint32_t i0 = faces[f + 0];
++            const std::uint32_t i1 = faces[f + 1];
++            const std::uint32_t i2 = faces[f + 2];
++            const std::uint32_t m0 = midpoint(i0, i1, cache);
++            const std::uint32_t m1 = midpoint(i1, i2, cache);
++            const std::uint32_t m2 = midpoint(i2, i0, cache);
++            // Create 4 new faces
++            new_faces.insert(new_faces.end(), {i0, m0, m2, i1, m1, m0, i2, m2, m1, m0, m1, m2});
++        }
++        faces.swap(new_faces);
++    }
++
++    // Convert to Mesh with normals/tangents/bitangents and UVs
++    mesh->vertices.resize(positions.size());
++    for (std::size_t i = 0; i < positions.size(); ++i) {
++        const Vec3 n = normalize(positions[i]);
++        const Vec2 uv = compute_uv(n);
++        Vertex v {};
++        v.position[0] = n.x;
++        v.position[1] = n.y;
++        v.position[2] = n.z;
++        v.normal[0] = n.x;
++        v.normal[1] = n.y;
++        v.normal[2] = n.z;
++        v.tangent[0] = 1.0F;
++        v.tangent[1] = 0.0F;
++        v.tangent[2] = 0.0F;
++        v.bitangent[0] = 0.0F;
++        v.bitangent[1] = 1.0F;
++        v.bitangent[2] = 0.0F;
++        v.texcoord[0] = uv.u;
++        v.texcoord[1] = uv.v;
++        mesh->vertices[i] = v;
++    }
++
++    mesh->indices = faces;
++
++    // Compute tangents/bitangents per triangle (simple accumulation)
++    std::vector<Vec3> tan1(mesh->vertices.size(), Vec3 {0.0F, 0.0F, 0.0F});
++    std::vector<Vec3> tan2(mesh->vertices.size(), Vec3 {0.0F, 0.0F, 0.0F});
++    for (std::size_t i = 0; i + 2 < mesh->indices.size(); i += 3) {
++        const std::uint32_t i0 = mesh->indices[i + 0];
++        const std::uint32_t i1 = mesh->indices[i + 1];
++        const std::uint32_t i2 = mesh->indices[i + 2];
++
++        const Vertex& v0 = mesh->vertices[i0];
++        const Vertex& v1 = mesh->vertices[i1];
++        const Vertex& v2 = mesh->vertices[i2];
++
++        const Vec3 p0 {v0.position[0], v0.position[1], v0.position[2]};
++        const Vec3 p1 {v1.position[0], v1.position[1], v1.position[2]};
++        const Vec3 p2 {v2.position[0], v2.position[1], v2.position[2]};
++
++        const Vec2 w0 {v0.texcoord[0], v0.texcoord[1]};
++        const Vec2 w1 {v1.texcoord[0], v1.texcoord[1]};
++        const Vec2 w2 {v2.texcoord[0], v2.texcoord[1]};
++
++        const float x1 = p1.x - p0.x;
++        const float x2 = p2.x - p0.x;
++        const float y1 = p1.y - p0.y;
++        const float y2 = p2.y - p0.y;
++        const float z1 = p1.z - p0.z;
++        const float z2 = p2.z - p0.z;
++
++        const float s1 = w1.u - w0.u;
++        const float s2 = w2.u - w0.u;
++        const float t1 = w1.v - w0.v;
++        const float t2 = w2.v - w0.v;
++
++        const float r = (s1 * t2 - s2 * t1);
++        const float inv = (std::fabs(r) < 1e-6F) ? 1.0F : (1.0F / r);
++        const Vec3 sdir {(t2 * x1 - t1 * x2) * inv, (t2 * y1 - t1 * y2) * inv, (t2 * z1 - t1 * z2) * inv};
++        const Vec3 tdir {(s1 * x2 - s2 * x1) * inv, (s1 * y2 - s2 * y1) * inv, (s1 * z2 - s2 * z1) * inv};
++
++        tan1[i0] = add(tan1[i0], sdir);
++        tan1[i1] = add(tan1[i1], sdir);
++        tan1[i2] = add(tan1[i2], sdir);
++        tan2[i0] = add(tan2[i0], tdir);
++        tan2[i1] = add(tan2[i1], tdir);
++        tan2[i2] = add(tan2[i2], tdir);
++    }
++
++    for (std::size_t i = 0; i < mesh->vertices.size(); ++i) {
++        const Vec3 n {mesh->vertices[i].normal[0], mesh->vertices[i].normal[1], mesh->vertices[i].normal[2]};
++        Vec3 t = tan1[i];
++        // Gram-Schmidt orthogonalize
++        t = sub(t, mul(n, dot(n, t)));
++        t = normalize(t);
++        const Vec3 b = cross(n, t);
++        mesh->vertices[i].tangent[0] = t.x;
++        mesh->vertices[i].tangent[1] = t.y;
++        mesh->vertices[i].tangent[2] = t.z;
++        mesh->vertices[i].bitangent[0] = b.x;
++        mesh->vertices[i].bitangent[1] = b.y;
++        mesh->vertices[i].bitangent[2] = b.z;
++    }
++
++    return mesh;
++}
++
++} // namespace vulkano
++
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..762599ac965b4abf78af201a25f53525982fcb38
+--- /dev/null
++++ b/src/vulkan_context.cpp
+@@ -0,0 +1,173 @@
++#include <vulkano/vulkan_context.hpp>
++#include <vulkano/window.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <vulkan/vulkan.h>
++#include <GLFW/glfw3.h>
++
++#include <array>
++#include <stdexcept>
++
++namespace vulkano {
++
++struct VulkanContext::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkSurfaceKHR surface {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++
++    Impl() = default;
++    ~Impl() = default;
++};
++
++static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
++    const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
++    // Simple stderr print would go here in future
++    (void)pCallbackData;
++    return VK_FALSE;
++}
++
++static void create_instance(VkInstance* instance) {
++    VkApplicationInfo app_info {};
++    app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
++    app_info.pApplicationName = "vulkano";
++    app_info.applicationVersion = VK_MAKE_VERSION(0, 1, 0);
++    app_info.pEngineName = "vulkano";
++    app_info.engineVersion = VK_MAKE_VERSION(0, 1, 0);
++    app_info.apiVersion = VK_API_VERSION_1_2;
++
++    uint32_t ext_count = 0U;
++    const char** exts = glfwGetRequiredInstanceExtensions(&ext_count);
++    std::array<const char*, 4> extensions {};
++    for (uint32_t i = 0; i < ext_count; ++i) {
++        extensions[i] = exts[i];
++    }
++
++    VkInstanceCreateInfo ci {};
++    ci.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
++    ci.pApplicationInfo = &app_info;
++    ci.enabledExtensionCount = ext_count;
++    ci.ppEnabledExtensionNames = extensions.data();
++
++#ifndef NDEBUG
++    const char* layers[] = {"VK_LAYER_KHRONOS_validation"};
++    ci.enabledLayerCount = 1U;
++    ci.ppEnabledLayerNames = layers;
++#endif
++
++    const VkResult res = vkCreateInstance(&ci, nullptr, instance);
++    if (res != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create Vulkan instance"};
++    }
++}
++
++VulkanContext::VulkanContext(const Window& window)
++    : impl {std::make_unique<Impl>()} {
++    create_instance(&impl->instance);
++    GLFWwindow* glfw_win = static_cast<GLFWwindow*>(window.native_handle());
++    if (glfw_win == nullptr) {
++        throw std::runtime_error {"Invalid GLFW window handle"};
++    }
++    if (glfwCreateWindowSurface(impl->instance, glfw_win, nullptr, &impl->surface) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create Vulkan surface"};
++    }
++    // Physical device selection (very naive)
++    uint32_t count = 0U;
++    vkEnumeratePhysicalDevices(impl->instance, &count, nullptr);
++    if (count == 0U) {
++        throw std::runtime_error {"No Vulkan physical devices found"};
++    }
++    std::vector<VkPhysicalDevice> devices(count);
++    vkEnumeratePhysicalDevices(impl->instance, &count, devices.data());
++    impl->physical_device = devices[0];
++
++    // Queue family selection
++    uint32_t qcount = 0U;
++    vkGetPhysicalDeviceQueueFamilyProperties(impl->physical_device, &qcount, nullptr);
++    std::vector<VkQueueFamilyProperties> qprops(qcount);
++    vkGetPhysicalDeviceQueueFamilyProperties(impl->physical_device, &qcount, qprops.data());
++    uint32_t gfx_index = UINT32_MAX;
++    for (uint32_t i = 0; i < qcount; ++i) {
++        if ((qprops[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0U) {
++            gfx_index = i;
++            break;
++        }
++    }
++    if (gfx_index == UINT32_MAX) {
++        throw std::runtime_error {"No graphics queue family found"};
++    }
++    impl->graphics_queue_family = gfx_index;
++
++    const float priority = 1.0F;
++    VkDeviceQueueCreateInfo qci {};
++    qci.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
++    qci.queueFamilyIndex = gfx_index;
++    qci.queueCount = 1U;
++    qci.pQueuePriorities = &priority;
++
++    VkDeviceCreateInfo dci {};
++    dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
++    dci.queueCreateInfoCount = 1U;
++    dci.pQueueCreateInfos = &qci;
++
++    if (vkCreateDevice(impl->physical_device, &dci, nullptr, &impl->device) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create logical device"};
++    }
++    vkGetDeviceQueue(impl->device, gfx_index, 0U, &impl->graphics_queue);
++}
++
++VulkanContext::~VulkanContext() {
++    if (impl != nullptr) {
++        if (impl->device != VK_NULL_HANDLE) {
++            vkDeviceWaitIdle(impl->device);
++        }
++        if (impl->device != VK_NULL_HANDLE) {
++            vkDestroyDevice(impl->device, nullptr);
++        }
++        if (impl->surface != VK_NULL_HANDLE) {
++            vkDestroySurfaceKHR(impl->instance, impl->surface, nullptr);
++        }
++        if (impl->instance != VK_NULL_HANDLE) {
++            vkDestroyInstance(impl->instance, nullptr);
++        }
++    }
++}
++
++VulkanContext::VulkanContext(VulkanContext&&) noexcept = default;
++VulkanContext& VulkanContext::operator=(VulkanContext&&) noexcept = default;
++
++void VulkanContext::wait_idle() const noexcept {
++    if (impl->device != VK_NULL_HANDLE) {
++        vkDeviceWaitIdle(impl->device);
++    }
++}
++
++void VulkanContext::draw_frame() {
++    // Placeholder: swapchain/present will be added. No-op for now.
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++
++VulkanContext::VulkanContext(const Window&) : impl {nullptr} {
++}
++
++VulkanContext::~VulkanContext() = default;
++VulkanContext::VulkanContext(VulkanContext&&) noexcept = default;
++VulkanContext& VulkanContext::operator=(VulkanContext&&) noexcept = default;
++void VulkanContext::wait_idle() const noexcept {
++}
++void VulkanContext::draw_frame() {
++}
++
++} // namespace vulkano
++
++#endif
++
+diff --git a/tests/icosphere_tests.cpp b/tests/icosphere_tests.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..b7771bab388e94eeabd7ead139cadc0d1b47c9d7
+--- /dev/null
++++ b/tests/icosphere_tests.cpp
+@@ -0,0 +1,28 @@
++#include <catch2/catch_all.hpp>
++
++#include <vulkano/icosphere.hpp>
++#include <vulkano/mesh.hpp>
++
++#include <cmath>
++
++static float length3(const float v[3]) {
++    return std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
++}
++
++TEST_CASE("Icosphere vertex count and normals") {
++    vulkano::IcosphereBuilder builder {};
++
++    for (std::uint32_t s = 0; s <= 3; ++s) {
++        auto mesh = builder.build(s);
++        REQUIRE(mesh != nullptr);
++        // Faces grow by factor 4 each subdivision starting from 20 triangles
++        const std::size_t tri_count = 20ULL * static_cast<std::size_t>(std::pow(4.0, static_cast<int>(s)));
++        REQUIRE(mesh->indices.size() == tri_count * 3ULL);
++        // Normals should be ~unit length
++        for (const auto& v : mesh->vertices) {
++            const float len = length3(v.normal);
++            REQUIRE(len == Approx(1.0F).margin(1e-3F));
++        }
++    }
++}
++
+
+[2025-09-15T15:57:21] exec bash -lc 'cmake --build build -j && ctest --test-dir build -C Debug --output-on-failure' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T15:57:23] bash -lc 'cmake --build build -j && ctest --test-dir build -C Debug --output-on-failure' exited 2 in 1.93s:
+-- Including Cocoa support
+CMake Deprecation Warning at build/_deps/glm-src/CMakeLists.txt:1 (cmake_minimum_required):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+
+
+CMake Deprecation Warning at build/_deps/glm-src/CMakeLists.txt:2 (cmake_policy):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+
+
+-- GLM: Version 1.0.1
+[2025-09-15T15:57:23] tokens used: 49,281
+[2025-09-15T15:57:23] turn diff:
+diff --git a/.gitignore b/.gitignore
+index 08082907e166289aa572746010a66bfd9566f95d..90fcff7f14bd4769bbcc137279b5a17eea9ddfb7
+--- a/.gitignore
++++ b/.gitignore
+@@ -49,3 +49,4 @@
+ 
+ # App runtime binaries
+ app/bin/
++.idea/
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 1d0b6ac0af4831e6a26f6b01e36f895c347551ba..7f73b15e88179825c32e9b01d514bbc4116b7ef4
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -7,7 +7,9 @@
+         FILES
+             vulkano/app.hpp
+             vulkano/window.hpp
++            vulkano/mesh.hpp
++            vulkano/icosphere.hpp
++            vulkano/vulkan_context.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+-
+diff --git a/include/vulkano/icosphere.hpp b/include/vulkano/icosphere.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..d5ac4b31925b09921af3d237646060cf254cfdc7
+--- /dev/null
++++ b/include/vulkano/icosphere.hpp
+@@ -0,0 +1,25 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++#include <vector>
++
++namespace vulkano {
++
++struct Mesh;
++
++class IcosphereBuilder final {
++public:
++    IcosphereBuilder() = default;
++    ~IcosphereBuilder() = default;
++
++    IcosphereBuilder(const IcosphereBuilder&) = delete;
++    IcosphereBuilder& operator=(const IcosphereBuilder&) = delete;
++    IcosphereBuilder(IcosphereBuilder&&) noexcept = default;
++    IcosphereBuilder& operator=(IcosphereBuilder&&) noexcept = default;
++
++    [[nodiscard]] std::unique_ptr<Mesh> build(std::uint32_t subdivisions) const;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/mesh.hpp b/include/vulkano/mesh.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..966477560a19a957d55c1cd2e5cd348cd8decf05
+--- /dev/null
++++ b/include/vulkano/mesh.hpp
+@@ -0,0 +1,22 @@
++#pragma once
++
++#include <cstdint>
++#include <vector>
++
++namespace vulkano {
++
++struct Vertex final {
++    float position[3];
++    float normal[3];
++    float tangent[3];
++    float bitangent[3];
++    float texcoord[2];
++};
++
++struct Mesh final {
++    std::vector<Vertex> vertices;
++    std::vector<std::uint32_t> indices;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..3df309ea6cd5251c49ded7fcc76a61a6e7722685
+--- /dev/null
++++ b/include/vulkano/vulkan_context.hpp
+@@ -0,0 +1,30 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++
++class VulkanContext final {
++public:
++    VulkanContext() = delete;
++    explicit VulkanContext(const Window& window);
++    ~VulkanContext();
++
++    VulkanContext(const VulkanContext&) = delete;
++    VulkanContext& operator=(const VulkanContext&) = delete;
++    VulkanContext(VulkanContext&&) noexcept;
++    VulkanContext& operator=(VulkanContext&&) noexcept;
++
++    void wait_idle() const noexcept;
++    void draw_frame();
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 989a6f262d2cbfc89cae32d9bf2698ee34e92bcc..00e0900ef418dfddaf6535877b78b3267d055473
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -1,6 +1,7 @@
+ add_library(vulkano STATIC
+     app.cpp
+     window.cpp
++    icosphere.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -15,7 +16,7 @@
+ if (Vulkan_FOUND)
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
++    target_sources(vulkano PRIVATE vulkan_context.cpp)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+-
+diff --git a/src/app.cpp b/src/app.cpp
+index c01ccd7862ed39cf453c7c225b370b47fe271ec8..b119a42382036efeb288e1f40fcb4901a28bd1f6
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,5 +1,6 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -25,9 +26,19 @@
+ }
+ 
+ void Application::main_loop() {
++    // Optional Vulkan context; created lazily if available and enabled
++    std::unique_ptr<VulkanContext> vk { };
++    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+-        // Placeholder: rendering will be added in subsequent steps.
++#if VULKANO_HAS_VULKAN
++        if (!vk && true) {
++            vk = std::make_unique<VulkanContext>(*window);
++        }
++        if (vk) {
++            vk->draw_frame();
++        }
++#endif
+         std::this_thread::sleep_for(std::chrono::milliseconds {16});
+     }
+ }
+diff --git a/src/icosphere.cpp b/src/icosphere.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..c01c581a37130b22a83db3e435c15a133fb97cd5
+--- /dev/null
++++ b/src/icosphere.cpp
+@@ -0,0 +1,220 @@
++#include <vulkano/icosphere.hpp>
++#include <vulkano/mesh.hpp>
++
++#include <array>
++#include <cmath>
++#include <unordered_map>
++
++namespace vulkano {
++
++namespace {
++
++struct Vec3 final {
++    float x {};
++    float y {};
++    float z {};
++};
++
++struct Vec2 final {
++    float u {};
++    float v {};
++};
++
++static inline Vec3 normalize(const Vec3 v) noexcept {
++    const float len = std::sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
++    if (len == 0.0F) {
++        return Vec3 {0.0F, 0.0F, 0.0F};
++    }
++    const float inv = 1.0F / len;
++    return Vec3 {v.x * inv, v.y * inv, v.z * inv};
++}
++
++static inline Vec3 add(const Vec3 a, const Vec3 b) noexcept {
++    return Vec3 {a.x + b.x, a.y + b.y, a.z + b.z};
++}
++
++static inline Vec3 sub(const Vec3 a, const Vec3 b) noexcept {
++    return Vec3 {a.x - b.x, a.y - b.y, a.z - b.z};
++}
++
++static inline Vec3 mul(const Vec3 a, const float s) noexcept {
++    return Vec3 {a.x * s, a.y * s, a.z * s};
++}
++
++static inline Vec3 cross(const Vec3 a, const Vec3 b) noexcept {
++    return Vec3 {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};
++}
++
++static inline float dot(const Vec3 a, const Vec3 b) noexcept {
++    return a.x * b.x + a.y * b.y + a.z * b.z;
++}
++
++static inline Vec2 compute_uv(const Vec3 n) noexcept {
++    // Longitude/latitude mapping
++    const float u = 0.5F + std::atan2(n.z, n.x) / (2.0F * static_cast<float>(M_PI));
++    const float v = 0.5F - std::asin(n.y) / static_cast<float>(M_PI);
++    return Vec2 {u, v};
++}
++
++struct Key final {
++    std::uint32_t a {};
++    std::uint32_t b {};
++};
++
++struct KeyHash final {
++    std::size_t operator()(const Key& k) const noexcept {
++        return (static_cast<std::size_t>(k.a) << 32U) ^ static_cast<std::size_t>(k.b);
++    }
++};
++
++struct KeyEq final {
++    bool operator()(const Key& x, const Key& y) const noexcept {
++        return (x.a == y.a && x.b == y.b) || (x.a == y.b && x.b == y.a);
++    }
++};
++
++} // namespace
++
++std::unique_ptr<Mesh> IcosphereBuilder::build(const std::uint32_t subdivisions) const {
++    auto mesh = std::make_unique<Mesh>();
++    mesh->vertices.clear();
++    mesh->indices.clear();
++
++    // Icosahedron vertices
++    const float t = (1.0F + std::sqrt(5.0F)) * 0.5F;
++    std::vector<Vec3> positions {
++        Vec3 {-1.0F, t, 0.0F},   Vec3 {1.0F, t, 0.0F},    Vec3 {-1.0F, -t, 0.0F},  Vec3 {1.0F, -t, 0.0F},
++        Vec3 {0.0F, -1.0F, t},   Vec3 {0.0F, 1.0F, t},    Vec3 {0.0F, -1.0F, -t},  Vec3 {0.0F, 1.0F, -t},
++        Vec3 {t, 0.0F, -1.0F},   Vec3 {t, 0.0F, 1.0F},    Vec3 {-t, 0.0F, -1.0F},  Vec3 {-t, 0.0F, 1.0F},
++    };
++
++    for (auto& p : positions) {
++        p = normalize(p);
++    }
++
++    std::vector<std::uint32_t> faces {
++        0, 11, 5, 0, 5, 1, 0, 1, 7, 0, 7, 10, 0, 10, 11, 1, 5, 9, 5, 11, 4, 11, 10, 2,
++        10, 7, 6, 7, 1, 8, 3, 9, 4, 3, 4, 2, 3, 2, 6, 3, 6, 8, 3, 8, 9, 4, 9, 5, 2, 4,
++        11, 6, 2, 10, 8, 6, 7, 9, 8, 1,
++    };
++
++    auto midpoint = [&](std::uint32_t a, std::uint32_t b, std::unordered_map<Key, std::uint32_t, KeyHash, KeyEq>& cache) {
++        const Key key {a < b ? a : b, a < b ? b : a};
++        const auto it = cache.find(key);
++        if (it != cache.end()) {
++            return it->second;
++        }
++        const Vec3 mid = normalize(mul(add(positions[a], positions[b]), 0.5F));
++        positions.push_back(mid);
++        const std::uint32_t index = static_cast<std::uint32_t>(positions.size() - 1);
++        cache.emplace(key, index);
++        return index;
++    };
++
++    for (std::uint32_t i = 0; i < subdivisions; ++i) {
++        std::unordered_map<Key, std::uint32_t, KeyHash, KeyEq> cache {};
++        std::vector<std::uint32_t> new_faces {};
++        new_faces.reserve(faces.size() * 4U);
++        for (std::size_t f = 0; f < faces.size(); f += 3) {
++            const std::uint32_t i0 = faces[f + 0];
++            const std::uint32_t i1 = faces[f + 1];
++            const std::uint32_t i2 = faces[f + 2];
++            const std::uint32_t m0 = midpoint(i0, i1, cache);
++            const std::uint32_t m1 = midpoint(i1, i2, cache);
++            const std::uint32_t m2 = midpoint(i2, i0, cache);
++            // Create 4 new faces
++            new_faces.insert(new_faces.end(), {i0, m0, m2, i1, m1, m0, i2, m2, m1, m0, m1, m2});
++        }
++        faces.swap(new_faces);
++    }
++
++    // Convert to Mesh with normals/tangents/bitangents and UVs
++    mesh->vertices.resize(positions.size());
++    for (std::size_t i = 0; i < positions.size(); ++i) {
++        const Vec3 n = normalize(positions[i]);
++        const Vec2 uv = compute_uv(n);
++        Vertex v {};
++        v.position[0] = n.x;
++        v.position[1] = n.y;
++        v.position[2] = n.z;
++        v.normal[0] = n.x;
++        v.normal[1] = n.y;
++        v.normal[2] = n.z;
++        v.tangent[0] = 1.0F;
++        v.tangent[1] = 0.0F;
++        v.tangent[2] = 0.0F;
++        v.bitangent[0] = 0.0F;
++        v.bitangent[1] = 1.0F;
++        v.bitangent[2] = 0.0F;
++        v.texcoord[0] = uv.u;
++        v.texcoord[1] = uv.v;
++        mesh->vertices[i] = v;
++    }
++
++    mesh->indices = faces;
++
++    // Compute tangents/bitangents per triangle (simple accumulation)
++    std::vector<Vec3> tan1(mesh->vertices.size(), Vec3 {0.0F, 0.0F, 0.0F});
++    std::vector<Vec3> tan2(mesh->vertices.size(), Vec3 {0.0F, 0.0F, 0.0F});
++    for (std::size_t i = 0; i + 2 < mesh->indices.size(); i += 3) {
++        const std::uint32_t i0 = mesh->indices[i + 0];
++        const std::uint32_t i1 = mesh->indices[i + 1];
++        const std::uint32_t i2 = mesh->indices[i + 2];
++
++        const Vertex& v0 = mesh->vertices[i0];
++        const Vertex& v1 = mesh->vertices[i1];
++        const Vertex& v2 = mesh->vertices[i2];
++
++        const Vec3 p0 {v0.position[0], v0.position[1], v0.position[2]};
++        const Vec3 p1 {v1.position[0], v1.position[1], v1.position[2]};
++        const Vec3 p2 {v2.position[0], v2.position[1], v2.position[2]};
++
++        const Vec2 w0 {v0.texcoord[0], v0.texcoord[1]};
++        const Vec2 w1 {v1.texcoord[0], v1.texcoord[1]};
++        const Vec2 w2 {v2.texcoord[0], v2.texcoord[1]};
++
++        const float x1 = p1.x - p0.x;
++        const float x2 = p2.x - p0.x;
++        const float y1 = p1.y - p0.y;
++        const float y2 = p2.y - p0.y;
++        const float z1 = p1.z - p0.z;
++        const float z2 = p2.z - p0.z;
++
++        const float s1 = w1.u - w0.u;
++        const float s2 = w2.u - w0.u;
++        const float t1 = w1.v - w0.v;
++        const float t2 = w2.v - w0.v;
++
++        const float r = (s1 * t2 - s2 * t1);
++        const float inv = (std::fabs(r) < 1e-6F) ? 1.0F : (1.0F / r);
++        const Vec3 sdir {(t2 * x1 - t1 * x2) * inv, (t2 * y1 - t1 * y2) * inv, (t2 * z1 - t1 * z2) * inv};
++        const Vec3 tdir {(s1 * x2 - s2 * x1) * inv, (s1 * y2 - s2 * y1) * inv, (s1 * z2 - s2 * z1) * inv};
++
++        tan1[i0] = add(tan1[i0], sdir);
++        tan1[i1] = add(tan1[i1], sdir);
++        tan1[i2] = add(tan1[i2], sdir);
++        tan2[i0] = add(tan2[i0], tdir);
++        tan2[i1] = add(tan2[i1], tdir);
++        tan2[i2] = add(tan2[i2], tdir);
++    }
++
++    for (std::size_t i = 0; i < mesh->vertices.size(); ++i) {
++        const Vec3 n {mesh->vertices[i].normal[0], mesh->vertices[i].normal[1], mesh->vertices[i].normal[2]};
++        Vec3 t = tan1[i];
++        // Gram-Schmidt orthogonalize
++        t = sub(t, mul(n, dot(n, t)));
++        t = normalize(t);
++        const Vec3 b = cross(n, t);
++        mesh->vertices[i].tangent[0] = t.x;
++        mesh->vertices[i].tangent[1] = t.y;
++        mesh->vertices[i].tangent[2] = t.z;
++        mesh->vertices[i].bitangent[0] = b.x;
++        mesh->vertices[i].bitangent[1] = b.y;
++        mesh->vertices[i].bitangent[2] = b.z;
++    }
++
++    return mesh;
++}
++
++} // namespace vulkano
++
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..762599ac965b4abf78af201a25f53525982fcb38
+--- /dev/null
++++ b/src/vulkan_context.cpp
+@@ -0,0 +1,173 @@
++#include <vulkano/vulkan_context.hpp>
++#include <vulkano/window.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <vulkan/vulkan.h>
++#include <GLFW/glfw3.h>
++
++#include <array>
++#include <stdexcept>
++
++namespace vulkano {
++
++struct VulkanContext::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkSurfaceKHR surface {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++
++    Impl() = default;
++    ~Impl() = default;
++};
++
++static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
++    const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
++    // Simple stderr print would go here in future
++    (void)pCallbackData;
++    return VK_FALSE;
++}
++
++static void create_instance(VkInstance* instance) {
++    VkApplicationInfo app_info {};
++    app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
++    app_info.pApplicationName = "vulkano";
++    app_info.applicationVersion = VK_MAKE_VERSION(0, 1, 0);
++    app_info.pEngineName = "vulkano";
++    app_info.engineVersion = VK_MAKE_VERSION(0, 1, 0);
++    app_info.apiVersion = VK_API_VERSION_1_2;
++
++    uint32_t ext_count = 0U;
++    const char** exts = glfwGetRequiredInstanceExtensions(&ext_count);
++    std::array<const char*, 4> extensions {};
++    for (uint32_t i = 0; i < ext_count; ++i) {
++        extensions[i] = exts[i];
++    }
++
++    VkInstanceCreateInfo ci {};
++    ci.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
++    ci.pApplicationInfo = &app_info;
++    ci.enabledExtensionCount = ext_count;
++    ci.ppEnabledExtensionNames = extensions.data();
++
++#ifndef NDEBUG
++    const char* layers[] = {"VK_LAYER_KHRONOS_validation"};
++    ci.enabledLayerCount = 1U;
++    ci.ppEnabledLayerNames = layers;
++#endif
++
++    const VkResult res = vkCreateInstance(&ci, nullptr, instance);
++    if (res != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create Vulkan instance"};
++    }
++}
++
++VulkanContext::VulkanContext(const Window& window)
++    : impl {std::make_unique<Impl>()} {
++    create_instance(&impl->instance);
++    GLFWwindow* glfw_win = static_cast<GLFWwindow*>(window.native_handle());
++    if (glfw_win == nullptr) {
++        throw std::runtime_error {"Invalid GLFW window handle"};
++    }
++    if (glfwCreateWindowSurface(impl->instance, glfw_win, nullptr, &impl->surface) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create Vulkan surface"};
++    }
++    // Physical device selection (very naive)
++    uint32_t count = 0U;
++    vkEnumeratePhysicalDevices(impl->instance, &count, nullptr);
++    if (count == 0U) {
++        throw std::runtime_error {"No Vulkan physical devices found"};
++    }
++    std::vector<VkPhysicalDevice> devices(count);
++    vkEnumeratePhysicalDevices(impl->instance, &count, devices.data());
++    impl->physical_device = devices[0];
++
++    // Queue family selection
++    uint32_t qcount = 0U;
++    vkGetPhysicalDeviceQueueFamilyProperties(impl->physical_device, &qcount, nullptr);
++    std::vector<VkQueueFamilyProperties> qprops(qcount);
++    vkGetPhysicalDeviceQueueFamilyProperties(impl->physical_device, &qcount, qprops.data());
++    uint32_t gfx_index = UINT32_MAX;
++    for (uint32_t i = 0; i < qcount; ++i) {
++        if ((qprops[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0U) {
++            gfx_index = i;
++            break;
++        }
++    }
++    if (gfx_index == UINT32_MAX) {
++        throw std::runtime_error {"No graphics queue family found"};
++    }
++    impl->graphics_queue_family = gfx_index;
++
++    const float priority = 1.0F;
++    VkDeviceQueueCreateInfo qci {};
++    qci.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
++    qci.queueFamilyIndex = gfx_index;
++    qci.queueCount = 1U;
++    qci.pQueuePriorities = &priority;
++
++    VkDeviceCreateInfo dci {};
++    dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
++    dci.queueCreateInfoCount = 1U;
++    dci.pQueueCreateInfos = &qci;
++
++    if (vkCreateDevice(impl->physical_device, &dci, nullptr, &impl->device) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create logical device"};
++    }
++    vkGetDeviceQueue(impl->device, gfx_index, 0U, &impl->graphics_queue);
++}
++
++VulkanContext::~VulkanContext() {
++    if (impl != nullptr) {
++        if (impl->device != VK_NULL_HANDLE) {
++            vkDeviceWaitIdle(impl->device);
++        }
++        if (impl->device != VK_NULL_HANDLE) {
++            vkDestroyDevice(impl->device, nullptr);
++        }
++        if (impl->surface != VK_NULL_HANDLE) {
++            vkDestroySurfaceKHR(impl->instance, impl->surface, nullptr);
++        }
++        if (impl->instance != VK_NULL_HANDLE) {
++            vkDestroyInstance(impl->instance, nullptr);
++        }
++    }
++}
++
++VulkanContext::VulkanContext(VulkanContext&&) noexcept = default;
++VulkanContext& VulkanContext::operator=(VulkanContext&&) noexcept = default;
++
++void VulkanContext::wait_idle() const noexcept {
++    if (impl->device != VK_NULL_HANDLE) {
++        vkDeviceWaitIdle(impl->device);
++    }
++}
++
++void VulkanContext::draw_frame() {
++    // Placeholder: swapchain/present will be added. No-op for now.
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++
++VulkanContext::VulkanContext(const Window&) : impl {nullptr} {
++}
++
++VulkanContext::~VulkanContext() = default;
++VulkanContext::VulkanContext(VulkanContext&&) noexcept = default;
++VulkanContext& VulkanContext::operator=(VulkanContext&&) noexcept = default;
++void VulkanContext::wait_idle() const noexcept {
++}
++void VulkanContext::draw_frame() {
++}
++
++} // namespace vulkano
++
++#endif
++
+diff --git a/tests/icosphere_tests.cpp b/tests/icosphere_tests.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..b7771bab388e94eeabd7ead139cadc0d1b47c9d7
+--- /dev/null
++++ b/tests/icosphere_tests.cpp
+@@ -0,0 +1,28 @@
++#include <catch2/catch_all.hpp>
++
++#include <vulkano/icosphere.hpp>
++#include <vulkano/mesh.hpp>
++
++#include <cmath>
++
++static float length3(const float v[3]) {
++    return std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
++}
++
++TEST_CASE("Icosphere vertex count and normals") {
++    vulkano::IcosphereBuilder builder {};
++
++    for (std::uint32_t s = 0; s <= 3; ++s) {
++        auto mesh = builder.build(s);
++        REQUIRE(mesh != nullptr);
++        // Faces grow by factor 4 each subdivision starting from 20 triangles
++        const std::size_t tri_count = 20ULL * static_cast<std::size_t>(std::pow(4.0, static_cast<int>(s)));
++        REQUIRE(mesh->indices.size() == tri_count * 3ULL);
++        // Normals should be ~unit length
++        for (const auto& v : mesh->vertices) {
++            const float len = length3(v.normal);
++            REQUIRE(len == Approx(1.0F).margin(1e-3F));
++        }
++    }
++}
++
+
+
+[2025-09-15T15:57:32] thinking
+
+**Analyzing compilation issues**
+
+I’m noticing that the compiler is failing because, in the Vulkan_FOUND=0 environment, it still attempts to compile `src/vulkan_context.cpp`. We added that file to compile conditionally when Vulkan_FOUND is true, so that's puzzling. There’s some confusion with the preprocessor and whether it recognizes `std::vector`, which could lead to errors because it’s trying to use it without including the necessary header. The undefined template error suggests that VULKANO_HAS_VULKAN might be treated as true when it shouldn't be.
+**Debugging CMake compilation**
+
+In CMake, I set `target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)` when Vulkan isn't found, but it seems we're still building `vulkan_context.cpp`, which implies `Vulkan_FOUND` is true. I wonder if `find_package(Vulkan QUIET)` is picking up MoltenVK headers on macOS, perhaps from Homebrew. We're missing the `<vector>` include at the top of `vulkan_context.cpp` when `VULKANO_HAS_VULKAN` is set to 1, even though we're using `std::vector`. I should patch this to add the `<vector>` include.
+[2025-09-15T15:57:38] codex
+**Debugging CMake compilation**
+
+In CMake, I set `target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)` when Vulkan isn't found, but it seems we're still building `vulkan_context.cpp`, which implies `Vulkan_FOUND` is true. I wonder if `find_package(Vulkan QUIET)` is picking up MoltenVK headers on macOS, perhaps from Homebrew. We're missing the `<vector>` include at the top of `vulkan_context.cpp` when `VULKANO_HAS_VULKAN` is set to 1, even though we're using `std::vector`. I should patch this to add the `<vector>` include.
+[2025-09-15T15:57:44] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp
+@@ -8,2 +8,3 @@
+ #include <array>
++#include <vector>
+ #include <stdexcept>
+@@ -172,2 +173 @@
+ #endif
+-
+[2025-09-15T15:57:44] apply_patch(auto_approved=true) exited 0 in 114ms:
+Success. Updated the following files:
+M src/vulkan_context.cpp
+[2025-09-15T15:57:44] turn diff:
+diff --git a/.gitignore b/.gitignore
+index 08082907e166289aa572746010a66bfd9566f95d..90fcff7f14bd4769bbcc137279b5a17eea9ddfb7
+--- a/.gitignore
++++ b/.gitignore
+@@ -49,3 +49,4 @@
+ 
+ # App runtime binaries
+ app/bin/
++.idea/
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 1d0b6ac0af4831e6a26f6b01e36f895c347551ba..7f73b15e88179825c32e9b01d514bbc4116b7ef4
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -7,7 +7,9 @@
+         FILES
+             vulkano/app.hpp
+             vulkano/window.hpp
++            vulkano/mesh.hpp
++            vulkano/icosphere.hpp
++            vulkano/vulkan_context.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+-
+diff --git a/include/vulkano/icosphere.hpp b/include/vulkano/icosphere.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..d5ac4b31925b09921af3d237646060cf254cfdc7
+--- /dev/null
++++ b/include/vulkano/icosphere.hpp
+@@ -0,0 +1,25 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++#include <vector>
++
++namespace vulkano {
++
++struct Mesh;
++
++class IcosphereBuilder final {
++public:
++    IcosphereBuilder() = default;
++    ~IcosphereBuilder() = default;
++
++    IcosphereBuilder(const IcosphereBuilder&) = delete;
++    IcosphereBuilder& operator=(const IcosphereBuilder&) = delete;
++    IcosphereBuilder(IcosphereBuilder&&) noexcept = default;
++    IcosphereBuilder& operator=(IcosphereBuilder&&) noexcept = default;
++
++    [[nodiscard]] std::unique_ptr<Mesh> build(std::uint32_t subdivisions) const;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/mesh.hpp b/include/vulkano/mesh.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..966477560a19a957d55c1cd2e5cd348cd8decf05
+--- /dev/null
++++ b/include/vulkano/mesh.hpp
+@@ -0,0 +1,22 @@
++#pragma once
++
++#include <cstdint>
++#include <vector>
++
++namespace vulkano {
++
++struct Vertex final {
++    float position[3];
++    float normal[3];
++    float tangent[3];
++    float bitangent[3];
++    float texcoord[2];
++};
++
++struct Mesh final {
++    std::vector<Vertex> vertices;
++    std::vector<std::uint32_t> indices;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..3df309ea6cd5251c49ded7fcc76a61a6e7722685
+--- /dev/null
++++ b/include/vulkano/vulkan_context.hpp
+@@ -0,0 +1,30 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++
++class VulkanContext final {
++public:
++    VulkanContext() = delete;
++    explicit VulkanContext(const Window& window);
++    ~VulkanContext();
++
++    VulkanContext(const VulkanContext&) = delete;
++    VulkanContext& operator=(const VulkanContext&) = delete;
++    VulkanContext(VulkanContext&&) noexcept;
++    VulkanContext& operator=(VulkanContext&&) noexcept;
++
++    void wait_idle() const noexcept;
++    void draw_frame();
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 989a6f262d2cbfc89cae32d9bf2698ee34e92bcc..00e0900ef418dfddaf6535877b78b3267d055473
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -1,6 +1,7 @@
+ add_library(vulkano STATIC
+     app.cpp
+     window.cpp
++    icosphere.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -15,7 +16,7 @@
+ if (Vulkan_FOUND)
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
++    target_sources(vulkano PRIVATE vulkan_context.cpp)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+-
+diff --git a/src/app.cpp b/src/app.cpp
+index c01ccd7862ed39cf453c7c225b370b47fe271ec8..b119a42382036efeb288e1f40fcb4901a28bd1f6
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,5 +1,6 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -25,9 +26,19 @@
+ }
+ 
+ void Application::main_loop() {
++    // Optional Vulkan context; created lazily if available and enabled
++    std::unique_ptr<VulkanContext> vk { };
++    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+-        // Placeholder: rendering will be added in subsequent steps.
++#if VULKANO_HAS_VULKAN
++        if (!vk && true) {
++            vk = std::make_unique<VulkanContext>(*window);
++        }
++        if (vk) {
++            vk->draw_frame();
++        }
++#endif
+         std::this_thread::sleep_for(std::chrono::milliseconds {16});
+     }
+ }
+diff --git a/src/icosphere.cpp b/src/icosphere.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..c01c581a37130b22a83db3e435c15a133fb97cd5
+--- /dev/null
++++ b/src/icosphere.cpp
+@@ -0,0 +1,220 @@
++#include <vulkano/icosphere.hpp>
++#include <vulkano/mesh.hpp>
++
++#include <array>
++#include <cmath>
++#include <unordered_map>
++
++namespace vulkano {
++
++namespace {
++
++struct Vec3 final {
++    float x {};
++    float y {};
++    float z {};
++};
++
++struct Vec2 final {
++    float u {};
++    float v {};
++};
++
++static inline Vec3 normalize(const Vec3 v) noexcept {
++    const float len = std::sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
++    if (len == 0.0F) {
++        return Vec3 {0.0F, 0.0F, 0.0F};
++    }
++    const float inv = 1.0F / len;
++    return Vec3 {v.x * inv, v.y * inv, v.z * inv};
++}
++
++static inline Vec3 add(const Vec3 a, const Vec3 b) noexcept {
++    return Vec3 {a.x + b.x, a.y + b.y, a.z + b.z};
++}
++
++static inline Vec3 sub(const Vec3 a, const Vec3 b) noexcept {
++    return Vec3 {a.x - b.x, a.y - b.y, a.z - b.z};
++}
++
++static inline Vec3 mul(const Vec3 a, const float s) noexcept {
++    return Vec3 {a.x * s, a.y * s, a.z * s};
++}
++
++static inline Vec3 cross(const Vec3 a, const Vec3 b) noexcept {
++    return Vec3 {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};
++}
++
++static inline float dot(const Vec3 a, const Vec3 b) noexcept {
++    return a.x * b.x + a.y * b.y + a.z * b.z;
++}
++
++static inline Vec2 compute_uv(const Vec3 n) noexcept {
++    // Longitude/latitude mapping
++    const float u = 0.5F + std::atan2(n.z, n.x) / (2.0F * static_cast<float>(M_PI));
++    const float v = 0.5F - std::asin(n.y) / static_cast<float>(M_PI);
++    return Vec2 {u, v};
++}
++
++struct Key final {
++    std::uint32_t a {};
++    std::uint32_t b {};
++};
++
++struct KeyHash final {
++    std::size_t operator()(const Key& k) const noexcept {
++        return (static_cast<std::size_t>(k.a) << 32U) ^ static_cast<std::size_t>(k.b);
++    }
++};
++
++struct KeyEq final {
++    bool operator()(const Key& x, const Key& y) const noexcept {
++        return (x.a == y.a && x.b == y.b) || (x.a == y.b && x.b == y.a);
++    }
++};
++
++} // namespace
++
++std::unique_ptr<Mesh> IcosphereBuilder::build(const std::uint32_t subdivisions) const {
++    auto mesh = std::make_unique<Mesh>();
++    mesh->vertices.clear();
++    mesh->indices.clear();
++
++    // Icosahedron vertices
++    const float t = (1.0F + std::sqrt(5.0F)) * 0.5F;
++    std::vector<Vec3> positions {
++        Vec3 {-1.0F, t, 0.0F},   Vec3 {1.0F, t, 0.0F},    Vec3 {-1.0F, -t, 0.0F},  Vec3 {1.0F, -t, 0.0F},
++        Vec3 {0.0F, -1.0F, t},   Vec3 {0.0F, 1.0F, t},    Vec3 {0.0F, -1.0F, -t},  Vec3 {0.0F, 1.0F, -t},
++        Vec3 {t, 0.0F, -1.0F},   Vec3 {t, 0.0F, 1.0F},    Vec3 {-t, 0.0F, -1.0F},  Vec3 {-t, 0.0F, 1.0F},
++    };
++
++    for (auto& p : positions) {
++        p = normalize(p);
++    }
++
++    std::vector<std::uint32_t> faces {
++        0, 11, 5, 0, 5, 1, 0, 1, 7, 0, 7, 10, 0, 10, 11, 1, 5, 9, 5, 11, 4, 11, 10, 2,
++        10, 7, 6, 7, 1, 8, 3, 9, 4, 3, 4, 2, 3, 2, 6, 3, 6, 8, 3, 8, 9, 4, 9, 5, 2, 4,
++        11, 6, 2, 10, 8, 6, 7, 9, 8, 1,
++    };
++
++    auto midpoint = [&](std::uint32_t a, std::uint32_t b, std::unordered_map<Key, std::uint32_t, KeyHash, KeyEq>& cache) {
++        const Key key {a < b ? a : b, a < b ? b : a};
++        const auto it = cache.find(key);
++        if (it != cache.end()) {
++            return it->second;
++        }
++        const Vec3 mid = normalize(mul(add(positions[a], positions[b]), 0.5F));
++        positions.push_back(mid);
++        const std::uint32_t index = static_cast<std::uint32_t>(positions.size() - 1);
++        cache.emplace(key, index);
++        return index;
++    };
++
++    for (std::uint32_t i = 0; i < subdivisions; ++i) {
++        std::unordered_map<Key, std::uint32_t, KeyHash, KeyEq> cache {};
++        std::vector<std::uint32_t> new_faces {};
++        new_faces.reserve(faces.size() * 4U);
++        for (std::size_t f = 0; f < faces.size(); f += 3) {
++            const std::uint32_t i0 = faces[f + 0];
++            const std::uint32_t i1 = faces[f + 1];
++            const std::uint32_t i2 = faces[f + 2];
++            const std::uint32_t m0 = midpoint(i0, i1, cache);
++            const std::uint32_t m1 = midpoint(i1, i2, cache);
++            const std::uint32_t m2 = midpoint(i2, i0, cache);
++            // Create 4 new faces
++            new_faces.insert(new_faces.end(), {i0, m0, m2, i1, m1, m0, i2, m2, m1, m0, m1, m2});
++        }
++        faces.swap(new_faces);
++    }
++
++    // Convert to Mesh with normals/tangents/bitangents and UVs
++    mesh->vertices.resize(positions.size());
++    for (std::size_t i = 0; i < positions.size(); ++i) {
++        const Vec3 n = normalize(positions[i]);
++        const Vec2 uv = compute_uv(n);
++        Vertex v {};
++        v.position[0] = n.x;
++        v.position[1] = n.y;
++        v.position[2] = n.z;
++        v.normal[0] = n.x;
++        v.normal[1] = n.y;
++        v.normal[2] = n.z;
++        v.tangent[0] = 1.0F;
++        v.tangent[1] = 0.0F;
++        v.tangent[2] = 0.0F;
++        v.bitangent[0] = 0.0F;
++        v.bitangent[1] = 1.0F;
++        v.bitangent[2] = 0.0F;
++        v.texcoord[0] = uv.u;
++        v.texcoord[1] = uv.v;
++        mesh->vertices[i] = v;
++    }
++
++    mesh->indices = faces;
++
++    // Compute tangents/bitangents per triangle (simple accumulation)
++    std::vector<Vec3> tan1(mesh->vertices.size(), Vec3 {0.0F, 0.0F, 0.0F});
++    std::vector<Vec3> tan2(mesh->vertices.size(), Vec3 {0.0F, 0.0F, 0.0F});
++    for (std::size_t i = 0; i + 2 < mesh->indices.size(); i += 3) {
++        const std::uint32_t i0 = mesh->indices[i + 0];
++        const std::uint32_t i1 = mesh->indices[i + 1];
++        const std::uint32_t i2 = mesh->indices[i + 2];
++
++        const Vertex& v0 = mesh->vertices[i0];
++        const Vertex& v1 = mesh->vertices[i1];
++        const Vertex& v2 = mesh->vertices[i2];
++
++        const Vec3 p0 {v0.position[0], v0.position[1], v0.position[2]};
++        const Vec3 p1 {v1.position[0], v1.position[1], v1.position[2]};
++        const Vec3 p2 {v2.position[0], v2.position[1], v2.position[2]};
++
++        const Vec2 w0 {v0.texcoord[0], v0.texcoord[1]};
++        const Vec2 w1 {v1.texcoord[0], v1.texcoord[1]};
++        const Vec2 w2 {v2.texcoord[0], v2.texcoord[1]};
++
++        const float x1 = p1.x - p0.x;
++        const float x2 = p2.x - p0.x;
++        const float y1 = p1.y - p0.y;
++        const float y2 = p2.y - p0.y;
++        const float z1 = p1.z - p0.z;
++        const float z2 = p2.z - p0.z;
++
++        const float s1 = w1.u - w0.u;
++        const float s2 = w2.u - w0.u;
++        const float t1 = w1.v - w0.v;
++        const float t2 = w2.v - w0.v;
++
++        const float r = (s1 * t2 - s2 * t1);
++        const float inv = (std::fabs(r) < 1e-6F) ? 1.0F : (1.0F / r);
++        const Vec3 sdir {(t2 * x1 - t1 * x2) * inv, (t2 * y1 - t1 * y2) * inv, (t2 * z1 - t1 * z2) * inv};
++        const Vec3 tdir {(s1 * x2 - s2 * x1) * inv, (s1 * y2 - s2 * y1) * inv, (s1 * z2 - s2 * z1) * inv};
++
++        tan1[i0] = add(tan1[i0], sdir);
++        tan1[i1] = add(tan1[i1], sdir);
++        tan1[i2] = add(tan1[i2], sdir);
++        tan2[i0] = add(tan2[i0], tdir);
++        tan2[i1] = add(tan2[i1], tdir);
++        tan2[i2] = add(tan2[i2], tdir);
++    }
++
++    for (std::size_t i = 0; i < mesh->vertices.size(); ++i) {
++        const Vec3 n {mesh->vertices[i].normal[0], mesh->vertices[i].normal[1], mesh->vertices[i].normal[2]};
++        Vec3 t = tan1[i];
++        // Gram-Schmidt orthogonalize
++        t = sub(t, mul(n, dot(n, t)));
++        t = normalize(t);
++        const Vec3 b = cross(n, t);
++        mesh->vertices[i].tangent[0] = t.x;
++        mesh->vertices[i].tangent[1] = t.y;
++        mesh->vertices[i].tangent[2] = t.z;
++        mesh->vertices[i].bitangent[0] = b.x;
++        mesh->vertices[i].bitangent[1] = b.y;
++        mesh->vertices[i].bitangent[2] = b.z;
++    }
++
++    return mesh;
++}
++
++} // namespace vulkano
++
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..11d9dd5186fb9c4bd3f932a6849a391c1398f1b5
+--- /dev/null
++++ b/src/vulkan_context.cpp
+@@ -0,0 +1,173 @@
++#include <vulkano/vulkan_context.hpp>
++#include <vulkano/window.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <vulkan/vulkan.h>
++#include <GLFW/glfw3.h>
++
++#include <array>
++#include <vector>
++#include <stdexcept>
++
++namespace vulkano {
++
++struct VulkanContext::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkSurfaceKHR surface {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++
++    Impl() = default;
++    ~Impl() = default;
++};
++
++static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
++    const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
++    // Simple stderr print would go here in future
++    (void)pCallbackData;
++    return VK_FALSE;
++}
++
++static void create_instance(VkInstance* instance) {
++    VkApplicationInfo app_info {};
++    app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
++    app_info.pApplicationName = "vulkano";
++    app_info.applicationVersion = VK_MAKE_VERSION(0, 1, 0);
++    app_info.pEngineName = "vulkano";
++    app_info.engineVersion = VK_MAKE_VERSION(0, 1, 0);
++    app_info.apiVersion = VK_API_VERSION_1_2;
++
++    uint32_t ext_count = 0U;
++    const char** exts = glfwGetRequiredInstanceExtensions(&ext_count);
++    std::array<const char*, 4> extensions {};
++    for (uint32_t i = 0; i < ext_count; ++i) {
++        extensions[i] = exts[i];
++    }
++
++    VkInstanceCreateInfo ci {};
++    ci.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
++    ci.pApplicationInfo = &app_info;
++    ci.enabledExtensionCount = ext_count;
++    ci.ppEnabledExtensionNames = extensions.data();
++
++#ifndef NDEBUG
++    const char* layers[] = {"VK_LAYER_KHRONOS_validation"};
++    ci.enabledLayerCount = 1U;
++    ci.ppEnabledLayerNames = layers;
++#endif
++
++    const VkResult res = vkCreateInstance(&ci, nullptr, instance);
++    if (res != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create Vulkan instance"};
++    }
++}
++
++VulkanContext::VulkanContext(const Window& window)
++    : impl {std::make_unique<Impl>()} {
++    create_instance(&impl->instance);
++    GLFWwindow* glfw_win = static_cast<GLFWwindow*>(window.native_handle());
++    if (glfw_win == nullptr) {
++        throw std::runtime_error {"Invalid GLFW window handle"};
++    }
++    if (glfwCreateWindowSurface(impl->instance, glfw_win, nullptr, &impl->surface) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create Vulkan surface"};
++    }
++    // Physical device selection (very naive)
++    uint32_t count = 0U;
++    vkEnumeratePhysicalDevices(impl->instance, &count, nullptr);
++    if (count == 0U) {
++        throw std::runtime_error {"No Vulkan physical devices found"};
++    }
++    std::vector<VkPhysicalDevice> devices(count);
++    vkEnumeratePhysicalDevices(impl->instance, &count, devices.data());
++    impl->physical_device = devices[0];
++
++    // Queue family selection
++    uint32_t qcount = 0U;
++    vkGetPhysicalDeviceQueueFamilyProperties(impl->physical_device, &qcount, nullptr);
++    std::vector<VkQueueFamilyProperties> qprops(qcount);
++    vkGetPhysicalDeviceQueueFamilyProperties(impl->physical_device, &qcount, qprops.data());
++    uint32_t gfx_index = UINT32_MAX;
++    for (uint32_t i = 0; i < qcount; ++i) {
++        if ((qprops[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0U) {
++            gfx_index = i;
++            break;
++        }
++    }
++    if (gfx_index == UINT32_MAX) {
++        throw std::runtime_error {"No graphics queue family found"};
++    }
++    impl->graphics_queue_family = gfx_index;
++
++    const float priority = 1.0F;
++    VkDeviceQueueCreateInfo qci {};
++    qci.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
++    qci.queueFamilyIndex = gfx_index;
++    qci.queueCount = 1U;
++    qci.pQueuePriorities = &priority;
++
++    VkDeviceCreateInfo dci {};
++    dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
++    dci.queueCreateInfoCount = 1U;
++    dci.pQueueCreateInfos = &qci;
++
++    if (vkCreateDevice(impl->physical_device, &dci, nullptr, &impl->device) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create logical device"};
++    }
++    vkGetDeviceQueue(impl->device, gfx_index, 0U, &impl->graphics_queue);
++}
++
++VulkanContext::~VulkanContext() {
++    if (impl != nullptr) {
++        if (impl->device != VK_NULL_HANDLE) {
++            vkDeviceWaitIdle(impl->device);
++        }
++        if (impl->device != VK_NULL_HANDLE) {
++            vkDestroyDevice(impl->device, nullptr);
++        }
++        if (impl->surface != VK_NULL_HANDLE) {
++            vkDestroySurfaceKHR(impl->instance, impl->surface, nullptr);
++        }
++        if (impl->instance != VK_NULL_HANDLE) {
++            vkDestroyInstance(impl->instance, nullptr);
++        }
++    }
++}
++
++VulkanContext::VulkanContext(VulkanContext&&) noexcept = default;
++VulkanContext& VulkanContext::operator=(VulkanContext&&) noexcept = default;
++
++void VulkanContext::wait_idle() const noexcept {
++    if (impl->device != VK_NULL_HANDLE) {
++        vkDeviceWaitIdle(impl->device);
++    }
++}
++
++void VulkanContext::draw_frame() {
++    // Placeholder: swapchain/present will be added. No-op for now.
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++
++VulkanContext::VulkanContext(const Window&) : impl {nullptr} {
++}
++
++VulkanContext::~VulkanContext() = default;
++VulkanContext::VulkanContext(VulkanContext&&) noexcept = default;
++VulkanContext& VulkanContext::operator=(VulkanContext&&) noexcept = default;
++void VulkanContext::wait_idle() const noexcept {
++}
++void VulkanContext::draw_frame() {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/tests/icosphere_tests.cpp b/tests/icosphere_tests.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..b7771bab388e94eeabd7ead139cadc0d1b47c9d7
+--- /dev/null
++++ b/tests/icosphere_tests.cpp
+@@ -0,0 +1,28 @@
++#include <catch2/catch_all.hpp>
++
++#include <vulkano/icosphere.hpp>
++#include <vulkano/mesh.hpp>
++
++#include <cmath>
++
++static float length3(const float v[3]) {
++    return std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
++}
++
++TEST_CASE("Icosphere vertex count and normals") {
++    vulkano::IcosphereBuilder builder {};
++
++    for (std::uint32_t s = 0; s <= 3; ++s) {
++        auto mesh = builder.build(s);
++        REQUIRE(mesh != nullptr);
++        // Faces grow by factor 4 each subdivision starting from 20 triangles
++        const std::size_t tri_count = 20ULL * static_cast<std::size_t>(std::pow(4.0, static_cast<int>(s)));
++        REQUIRE(mesh->indices.size() == tri_count * 3ULL);
++        // Normals should be ~unit length
++        for (const auto& v : mesh->vertices) {
++            const float len = length3(v.normal);
++            REQUIRE(len == Approx(1.0F).margin(1e-3F));
++        }
++    }
++}
++
+
+[2025-09-15T15:57:44] tokens used: 50,612
+[2025-09-15T15:57:44] turn diff:
+diff --git a/.gitignore b/.gitignore
+index 08082907e166289aa572746010a66bfd9566f95d..90fcff7f14bd4769bbcc137279b5a17eea9ddfb7
+--- a/.gitignore
++++ b/.gitignore
+@@ -49,3 +49,4 @@
+ 
+ # App runtime binaries
+ app/bin/
++.idea/
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 1d0b6ac0af4831e6a26f6b01e36f895c347551ba..7f73b15e88179825c32e9b01d514bbc4116b7ef4
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -7,7 +7,9 @@
+         FILES
+             vulkano/app.hpp
+             vulkano/window.hpp
++            vulkano/mesh.hpp
++            vulkano/icosphere.hpp
++            vulkano/vulkan_context.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+-
+diff --git a/include/vulkano/icosphere.hpp b/include/vulkano/icosphere.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..d5ac4b31925b09921af3d237646060cf254cfdc7
+--- /dev/null
++++ b/include/vulkano/icosphere.hpp
+@@ -0,0 +1,25 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++#include <vector>
++
++namespace vulkano {
++
++struct Mesh;
++
++class IcosphereBuilder final {
++public:
++    IcosphereBuilder() = default;
++    ~IcosphereBuilder() = default;
++
++    IcosphereBuilder(const IcosphereBuilder&) = delete;
++    IcosphereBuilder& operator=(const IcosphereBuilder&) = delete;
++    IcosphereBuilder(IcosphereBuilder&&) noexcept = default;
++    IcosphereBuilder& operator=(IcosphereBuilder&&) noexcept = default;
++
++    [[nodiscard]] std::unique_ptr<Mesh> build(std::uint32_t subdivisions) const;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/mesh.hpp b/include/vulkano/mesh.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..966477560a19a957d55c1cd2e5cd348cd8decf05
+--- /dev/null
++++ b/include/vulkano/mesh.hpp
+@@ -0,0 +1,22 @@
++#pragma once
++
++#include <cstdint>
++#include <vector>
++
++namespace vulkano {
++
++struct Vertex final {
++    float position[3];
++    float normal[3];
++    float tangent[3];
++    float bitangent[3];
++    float texcoord[2];
++};
++
++struct Mesh final {
++    std::vector<Vertex> vertices;
++    std::vector<std::uint32_t> indices;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..3df309ea6cd5251c49ded7fcc76a61a6e7722685
+--- /dev/null
++++ b/include/vulkano/vulkan_context.hpp
+@@ -0,0 +1,30 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++
++class VulkanContext final {
++public:
++    VulkanContext() = delete;
++    explicit VulkanContext(const Window& window);
++    ~VulkanContext();
++
++    VulkanContext(const VulkanContext&) = delete;
++    VulkanContext& operator=(const VulkanContext&) = delete;
++    VulkanContext(VulkanContext&&) noexcept;
++    VulkanContext& operator=(VulkanContext&&) noexcept;
++
++    void wait_idle() const noexcept;
++    void draw_frame();
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 989a6f262d2cbfc89cae32d9bf2698ee34e92bcc..00e0900ef418dfddaf6535877b78b3267d055473
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -1,6 +1,7 @@
+ add_library(vulkano STATIC
+     app.cpp
+     window.cpp
++    icosphere.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -15,7 +16,7 @@
+ if (Vulkan_FOUND)
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
++    target_sources(vulkano PRIVATE vulkan_context.cpp)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+-
+diff --git a/src/app.cpp b/src/app.cpp
+index c01ccd7862ed39cf453c7c225b370b47fe271ec8..b119a42382036efeb288e1f40fcb4901a28bd1f6
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,5 +1,6 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -25,9 +26,19 @@
+ }
+ 
+ void Application::main_loop() {
++    // Optional Vulkan context; created lazily if available and enabled
++    std::unique_ptr<VulkanContext> vk { };
++    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+-        // Placeholder: rendering will be added in subsequent steps.
++#if VULKANO_HAS_VULKAN
++        if (!vk && true) {
++            vk = std::make_unique<VulkanContext>(*window);
++        }
++        if (vk) {
++            vk->draw_frame();
++        }
++#endif
+         std::this_thread::sleep_for(std::chrono::milliseconds {16});
+     }
+ }
+diff --git a/src/icosphere.cpp b/src/icosphere.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..c01c581a37130b22a83db3e435c15a133fb97cd5
+--- /dev/null
++++ b/src/icosphere.cpp
+@@ -0,0 +1,220 @@
++#include <vulkano/icosphere.hpp>
++#include <vulkano/mesh.hpp>
++
++#include <array>
++#include <cmath>
++#include <unordered_map>
++
++namespace vulkano {
++
++namespace {
++
++struct Vec3 final {
++    float x {};
++    float y {};
++    float z {};
++};
++
++struct Vec2 final {
++    float u {};
++    float v {};
++};
++
++static inline Vec3 normalize(const Vec3 v) noexcept {
++    const float len = std::sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
++    if (len == 0.0F) {
++        return Vec3 {0.0F, 0.0F, 0.0F};
++    }
++    const float inv = 1.0F / len;
++    return Vec3 {v.x * inv, v.y * inv, v.z * inv};
++}
++
++static inline Vec3 add(const Vec3 a, const Vec3 b) noexcept {
++    return Vec3 {a.x + b.x, a.y + b.y, a.z + b.z};
++}
++
++static inline Vec3 sub(const Vec3 a, const Vec3 b) noexcept {
++    return Vec3 {a.x - b.x, a.y - b.y, a.z - b.z};
++}
++
++static inline Vec3 mul(const Vec3 a, const float s) noexcept {
++    return Vec3 {a.x * s, a.y * s, a.z * s};
++}
++
++static inline Vec3 cross(const Vec3 a, const Vec3 b) noexcept {
++    return Vec3 {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};
++}
++
++static inline float dot(const Vec3 a, const Vec3 b) noexcept {
++    return a.x * b.x + a.y * b.y + a.z * b.z;
++}
++
++static inline Vec2 compute_uv(const Vec3 n) noexcept {
++    // Longitude/latitude mapping
++    const float u = 0.5F + std::atan2(n.z, n.x) / (2.0F * static_cast<float>(M_PI));
++    const float v = 0.5F - std::asin(n.y) / static_cast<float>(M_PI);
++    return Vec2 {u, v};
++}
++
++struct Key final {
++    std::uint32_t a {};
++    std::uint32_t b {};
++};
++
++struct KeyHash final {
++    std::size_t operator()(const Key& k) const noexcept {
++        return (static_cast<std::size_t>(k.a) << 32U) ^ static_cast<std::size_t>(k.b);
++    }
++};
++
++struct KeyEq final {
++    bool operator()(const Key& x, const Key& y) const noexcept {
++        return (x.a == y.a && x.b == y.b) || (x.a == y.b && x.b == y.a);
++    }
++};
++
++} // namespace
++
++std::unique_ptr<Mesh> IcosphereBuilder::build(const std::uint32_t subdivisions) const {
++    auto mesh = std::make_unique<Mesh>();
++    mesh->vertices.clear();
++    mesh->indices.clear();
++
++    // Icosahedron vertices
++    const float t = (1.0F + std::sqrt(5.0F)) * 0.5F;
++    std::vector<Vec3> positions {
++        Vec3 {-1.0F, t, 0.0F},   Vec3 {1.0F, t, 0.0F},    Vec3 {-1.0F, -t, 0.0F},  Vec3 {1.0F, -t, 0.0F},
++        Vec3 {0.0F, -1.0F, t},   Vec3 {0.0F, 1.0F, t},    Vec3 {0.0F, -1.0F, -t},  Vec3 {0.0F, 1.0F, -t},
++        Vec3 {t, 0.0F, -1.0F},   Vec3 {t, 0.0F, 1.0F},    Vec3 {-t, 0.0F, -1.0F},  Vec3 {-t, 0.0F, 1.0F},
++    };
++
++    for (auto& p : positions) {
++        p = normalize(p);
++    }
++
++    std::vector<std::uint32_t> faces {
++        0, 11, 5, 0, 5, 1, 0, 1, 7, 0, 7, 10, 0, 10, 11, 1, 5, 9, 5, 11, 4, 11, 10, 2,
++        10, 7, 6, 7, 1, 8, 3, 9, 4, 3, 4, 2, 3, 2, 6, 3, 6, 8, 3, 8, 9, 4, 9, 5, 2, 4,
++        11, 6, 2, 10, 8, 6, 7, 9, 8, 1,
++    };
++
++    auto midpoint = [&](std::uint32_t a, std::uint32_t b, std::unordered_map<Key, std::uint32_t, KeyHash, KeyEq>& cache) {
++        const Key key {a < b ? a : b, a < b ? b : a};
++        const auto it = cache.find(key);
++        if (it != cache.end()) {
++            return it->second;
++        }
++        const Vec3 mid = normalize(mul(add(positions[a], positions[b]), 0.5F));
++        positions.push_back(mid);
++        const std::uint32_t index = static_cast<std::uint32_t>(positions.size() - 1);
++        cache.emplace(key, index);
++        return index;
++    };
++
++    for (std::uint32_t i = 0; i < subdivisions; ++i) {
++        std::unordered_map<Key, std::uint32_t, KeyHash, KeyEq> cache {};
++        std::vector<std::uint32_t> new_faces {};
++        new_faces.reserve(faces.size() * 4U);
++        for (std::size_t f = 0; f < faces.size(); f += 3) {
++            const std::uint32_t i0 = faces[f + 0];
++            const std::uint32_t i1 = faces[f + 1];
++            const std::uint32_t i2 = faces[f + 2];
++            const std::uint32_t m0 = midpoint(i0, i1, cache);
++            const std::uint32_t m1 = midpoint(i1, i2, cache);
++            const std::uint32_t m2 = midpoint(i2, i0, cache);
++            // Create 4 new faces
++            new_faces.insert(new_faces.end(), {i0, m0, m2, i1, m1, m0, i2, m2, m1, m0, m1, m2});
++        }
++        faces.swap(new_faces);
++    }
++
++    // Convert to Mesh with normals/tangents/bitangents and UVs
++    mesh->vertices.resize(positions.size());
++    for (std::size_t i = 0; i < positions.size(); ++i) {
++        const Vec3 n = normalize(positions[i]);
++        const Vec2 uv = compute_uv(n);
++        Vertex v {};
++        v.position[0] = n.x;
++        v.position[1] = n.y;
++        v.position[2] = n.z;
++        v.normal[0] = n.x;
++        v.normal[1] = n.y;
++        v.normal[2] = n.z;
++        v.tangent[0] = 1.0F;
++        v.tangent[1] = 0.0F;
++        v.tangent[2] = 0.0F;
++        v.bitangent[0] = 0.0F;
++        v.bitangent[1] = 1.0F;
++        v.bitangent[2] = 0.0F;
++        v.texcoord[0] = uv.u;
++        v.texcoord[1] = uv.v;
++        mesh->vertices[i] = v;
++    }
++
++    mesh->indices = faces;
++
++    // Compute tangents/bitangents per triangle (simple accumulation)
++    std::vector<Vec3> tan1(mesh->vertices.size(), Vec3 {0.0F, 0.0F, 0.0F});
++    std::vector<Vec3> tan2(mesh->vertices.size(), Vec3 {0.0F, 0.0F, 0.0F});
++    for (std::size_t i = 0; i + 2 < mesh->indices.size(); i += 3) {
++        const std::uint32_t i0 = mesh->indices[i + 0];
++        const std::uint32_t i1 = mesh->indices[i + 1];
++        const std::uint32_t i2 = mesh->indices[i + 2];
++
++        const Vertex& v0 = mesh->vertices[i0];
++        const Vertex& v1 = mesh->vertices[i1];
++        const Vertex& v2 = mesh->vertices[i2];
++
++        const Vec3 p0 {v0.position[0], v0.position[1], v0.position[2]};
++        const Vec3 p1 {v1.position[0], v1.position[1], v1.position[2]};
++        const Vec3 p2 {v2.position[0], v2.position[1], v2.position[2]};
++
++        const Vec2 w0 {v0.texcoord[0], v0.texcoord[1]};
++        const Vec2 w1 {v1.texcoord[0], v1.texcoord[1]};
++        const Vec2 w2 {v2.texcoord[0], v2.texcoord[1]};
++
++        const float x1 = p1.x - p0.x;
++        const float x2 = p2.x - p0.x;
++        const float y1 = p1.y - p0.y;
++        const float y2 = p2.y - p0.y;
++        const float z1 = p1.z - p0.z;
++        const float z2 = p2.z - p0.z;
++
++        const float s1 = w1.u - w0.u;
++        const float s2 = w2.u - w0.u;
++        const float t1 = w1.v - w0.v;
++        const float t2 = w2.v - w0.v;
++
++        const float r = (s1 * t2 - s2 * t1);
++        const float inv = (std::fabs(r) < 1e-6F) ? 1.0F : (1.0F / r);
++        const Vec3 sdir {(t2 * x1 - t1 * x2) * inv, (t2 * y1 - t1 * y2) * inv, (t2 * z1 - t1 * z2) * inv};
++        const Vec3 tdir {(s1 * x2 - s2 * x1) * inv, (s1 * y2 - s2 * y1) * inv, (s1 * z2 - s2 * z1) * inv};
++
++        tan1[i0] = add(tan1[i0], sdir);
++        tan1[i1] = add(tan1[i1], sdir);
++        tan1[i2] = add(tan1[i2], sdir);
++        tan2[i0] = add(tan2[i0], tdir);
++        tan2[i1] = add(tan2[i1], tdir);
++        tan2[i2] = add(tan2[i2], tdir);
++    }
++
++    for (std::size_t i = 0; i < mesh->vertices.size(); ++i) {
++        const Vec3 n {mesh->vertices[i].normal[0], mesh->vertices[i].normal[1], mesh->vertices[i].normal[2]};
++        Vec3 t = tan1[i];
++        // Gram-Schmidt orthogonalize
++        t = sub(t, mul(n, dot(n, t)));
++        t = normalize(t);
++        const Vec3 b = cross(n, t);
++        mesh->vertices[i].tangent[0] = t.x;
++        mesh->vertices[i].tangent[1] = t.y;
++        mesh->vertices[i].tangent[2] = t.z;
++        mesh->vertices[i].bitangent[0] = b.x;
++        mesh->vertices[i].bitangent[1] = b.y;
++        mesh->vertices[i].bitangent[2] = b.z;
++    }
++
++    return mesh;
++}
++
++} // namespace vulkano
++
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..11d9dd5186fb9c4bd3f932a6849a391c1398f1b5
+--- /dev/null
++++ b/src/vulkan_context.cpp
+@@ -0,0 +1,173 @@
++#include <vulkano/vulkan_context.hpp>
++#include <vulkano/window.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <vulkan/vulkan.h>
++#include <GLFW/glfw3.h>
++
++#include <array>
++#include <vector>
++#include <stdexcept>
++
++namespace vulkano {
++
++struct VulkanContext::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkSurfaceKHR surface {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++
++    Impl() = default;
++    ~Impl() = default;
++};
++
++static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
++    const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
++    // Simple stderr print would go here in future
++    (void)pCallbackData;
++    return VK_FALSE;
++}
++
++static void create_instance(VkInstance* instance) {
++    VkApplicationInfo app_info {};
++    app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
++    app_info.pApplicationName = "vulkano";
++    app_info.applicationVersion = VK_MAKE_VERSION(0, 1, 0);
++    app_info.pEngineName = "vulkano";
++    app_info.engineVersion = VK_MAKE_VERSION(0, 1, 0);
++    app_info.apiVersion = VK_API_VERSION_1_2;
++
++    uint32_t ext_count = 0U;
++    const char** exts = glfwGetRequiredInstanceExtensions(&ext_count);
++    std::array<const char*, 4> extensions {};
++    for (uint32_t i = 0; i < ext_count; ++i) {
++        extensions[i] = exts[i];
++    }
++
++    VkInstanceCreateInfo ci {};
++    ci.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
++    ci.pApplicationInfo = &app_info;
++    ci.enabledExtensionCount = ext_count;
++    ci.ppEnabledExtensionNames = extensions.data();
++
++#ifndef NDEBUG
++    const char* layers[] = {"VK_LAYER_KHRONOS_validation"};
++    ci.enabledLayerCount = 1U;
++    ci.ppEnabledLayerNames = layers;
++#endif
++
++    const VkResult res = vkCreateInstance(&ci, nullptr, instance);
++    if (res != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create Vulkan instance"};
++    }
++}
++
++VulkanContext::VulkanContext(const Window& window)
++    : impl {std::make_unique<Impl>()} {
++    create_instance(&impl->instance);
++    GLFWwindow* glfw_win = static_cast<GLFWwindow*>(window.native_handle());
++    if (glfw_win == nullptr) {
++        throw std::runtime_error {"Invalid GLFW window handle"};
++    }
++    if (glfwCreateWindowSurface(impl->instance, glfw_win, nullptr, &impl->surface) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create Vulkan surface"};
++    }
++    // Physical device selection (very naive)
++    uint32_t count = 0U;
++    vkEnumeratePhysicalDevices(impl->instance, &count, nullptr);
++    if (count == 0U) {
++        throw std::runtime_error {"No Vulkan physical devices found"};
++    }
++    std::vector<VkPhysicalDevice> devices(count);
++    vkEnumeratePhysicalDevices(impl->instance, &count, devices.data());
++    impl->physical_device = devices[0];
++
++    // Queue family selection
++    uint32_t qcount = 0U;
++    vkGetPhysicalDeviceQueueFamilyProperties(impl->physical_device, &qcount, nullptr);
++    std::vector<VkQueueFamilyProperties> qprops(qcount);
++    vkGetPhysicalDeviceQueueFamilyProperties(impl->physical_device, &qcount, qprops.data());
++    uint32_t gfx_index = UINT32_MAX;
++    for (uint32_t i = 0; i < qcount; ++i) {
++        if ((qprops[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0U) {
++            gfx_index = i;
++            break;
++        }
++    }
++    if (gfx_index == UINT32_MAX) {
++        throw std::runtime_error {"No graphics queue family found"};
++    }
++    impl->graphics_queue_family = gfx_index;
++
++    const float priority = 1.0F;
++    VkDeviceQueueCreateInfo qci {};
++    qci.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
++    qci.queueFamilyIndex = gfx_index;
++    qci.queueCount = 1U;
++    qci.pQueuePriorities = &priority;
++
++    VkDeviceCreateInfo dci {};
++    dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
++    dci.queueCreateInfoCount = 1U;
++    dci.pQueueCreateInfos = &qci;
++
++    if (vkCreateDevice(impl->physical_device, &dci, nullptr, &impl->device) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create logical device"};
++    }
++    vkGetDeviceQueue(impl->device, gfx_index, 0U, &impl->graphics_queue);
++}
++
++VulkanContext::~VulkanContext() {
++    if (impl != nullptr) {
++        if (impl->device != VK_NULL_HANDLE) {
++            vkDeviceWaitIdle(impl->device);
++        }
++        if (impl->device != VK_NULL_HANDLE) {
++            vkDestroyDevice(impl->device, nullptr);
++        }
++        if (impl->surface != VK_NULL_HANDLE) {
++            vkDestroySurfaceKHR(impl->instance, impl->surface, nullptr);
++        }
++        if (impl->instance != VK_NULL_HANDLE) {
++            vkDestroyInstance(impl->instance, nullptr);
++        }
++    }
++}
++
++VulkanContext::VulkanContext(VulkanContext&&) noexcept = default;
++VulkanContext& VulkanContext::operator=(VulkanContext&&) noexcept = default;
++
++void VulkanContext::wait_idle() const noexcept {
++    if (impl->device != VK_NULL_HANDLE) {
++        vkDeviceWaitIdle(impl->device);
++    }
++}
++
++void VulkanContext::draw_frame() {
++    // Placeholder: swapchain/present will be added. No-op for now.
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++
++VulkanContext::VulkanContext(const Window&) : impl {nullptr} {
++}
++
++VulkanContext::~VulkanContext() = default;
++VulkanContext::VulkanContext(VulkanContext&&) noexcept = default;
++VulkanContext& VulkanContext::operator=(VulkanContext&&) noexcept = default;
++void VulkanContext::wait_idle() const noexcept {
++}
++void VulkanContext::draw_frame() {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/tests/icosphere_tests.cpp b/tests/icosphere_tests.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..b7771bab388e94eeabd7ead139cadc0d1b47c9d7
+--- /dev/null
++++ b/tests/icosphere_tests.cpp
+@@ -0,0 +1,28 @@
++#include <catch2/catch_all.hpp>
++
++#include <vulkano/icosphere.hpp>
++#include <vulkano/mesh.hpp>
++
++#include <cmath>
++
++static float length3(const float v[3]) {
++    return std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
++}
++
++TEST_CASE("Icosphere vertex count and normals") {
++    vulkano::IcosphereBuilder builder {};
++
++    for (std::uint32_t s = 0; s <= 3; ++s) {
++        auto mesh = builder.build(s);
++        REQUIRE(mesh != nullptr);
++        // Faces grow by factor 4 each subdivision starting from 20 triangles
++        const std::size_t tri_count = 20ULL * static_cast<std::size_t>(std::pow(4.0, static_cast<int>(s)));
++        REQUIRE(mesh->indices.size() == tri_count * 3ULL);
++        // Normals should be ~unit length
++        for (const auto& v : mesh->vertices) {
++            const float len = length3(v.normal);
++            REQUIRE(len == Approx(1.0F).margin(1e-3F));
++        }
++    }
++}
++
+
+[2025-09-15T15:57:46] exec bash -lc 'cmake --build build -j && ctest --test-dir build -C Debug --output-on-failure' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T15:57:47] bash -lc 'cmake --build build -j && ctest --test-dir build -C Debug --output-on-failure' succeeded in 1.27s:
+[  2%] Built target glm
+[ 17%] Built target glfw
+[ 17%] Building CXX object src/CMakeFiles/vulkano.dir/vulkan_context.cpp.o
+[ 91%] Built target Catch2
+[ 92%] Built target Catch2WithMain
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:26:39: warning: unused function 'debug_cb' [-Wunused-function]
+   26 | static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
+      |                                       ^~~~~~~~
+1 warning generated.
+[ 93%] Linking CXX static library libvulkano.a
+[ 95%] Built target vulkano
+[ 95%] Linking CXX executable /Users/bruno/Documents/Development/bruno/vulkano_codex/app/bin/Debug/vulkano_app
+[ 96%] Linking CXX executable vulkano_tests
+[ 97%] Built target vulkano_app
+[100%] Built target vulkano_tests
+Test project /Users/bruno/Documents/Development/bruno/vulkano_codex/build
+    Start 1: vulkano_tests
+1/1 Test #1: vulkano_tests ....................   Passed    0.31 sec
+
+100% tests passed, 0 tests failed out of 1
+[2025-09-15T15:57:47] tokens used: 50,801
+[2025-09-15T15:57:48] turn diff:
+diff --git a/.gitignore b/.gitignore
+index 08082907e166289aa572746010a66bfd9566f95d..90fcff7f14bd4769bbcc137279b5a17eea9ddfb7
+--- a/.gitignore
++++ b/.gitignore
+@@ -49,3 +49,4 @@
+ 
+ # App runtime binaries
+ app/bin/
++.idea/
+diff --git a/include/CMakeLists.txt b/include/CMakeLists.txt
+index 1d0b6ac0af4831e6a26f6b01e36f895c347551ba..7f73b15e88179825c32e9b01d514bbc4116b7ef4
+--- a/include/CMakeLists.txt
++++ b/include/CMakeLists.txt
+@@ -7,7 +7,9 @@
+         FILES
+             vulkano/app.hpp
+             vulkano/window.hpp
++            vulkano/mesh.hpp
++            vulkano/icosphere.hpp
++            vulkano/vulkan_context.hpp
+ )
+ 
+ target_include_directories(vulkano_headers INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+-
+diff --git a/include/vulkano/icosphere.hpp b/include/vulkano/icosphere.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..d5ac4b31925b09921af3d237646060cf254cfdc7
+--- /dev/null
++++ b/include/vulkano/icosphere.hpp
+@@ -0,0 +1,25 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++#include <vector>
++
++namespace vulkano {
++
++struct Mesh;
++
++class IcosphereBuilder final {
++public:
++    IcosphereBuilder() = default;
++    ~IcosphereBuilder() = default;
++
++    IcosphereBuilder(const IcosphereBuilder&) = delete;
++    IcosphereBuilder& operator=(const IcosphereBuilder&) = delete;
++    IcosphereBuilder(IcosphereBuilder&&) noexcept = default;
++    IcosphereBuilder& operator=(IcosphereBuilder&&) noexcept = default;
++
++    [[nodiscard]] std::unique_ptr<Mesh> build(std::uint32_t subdivisions) const;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/mesh.hpp b/include/vulkano/mesh.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..966477560a19a957d55c1cd2e5cd348cd8decf05
+--- /dev/null
++++ b/include/vulkano/mesh.hpp
+@@ -0,0 +1,22 @@
++#pragma once
++
++#include <cstdint>
++#include <vector>
++
++namespace vulkano {
++
++struct Vertex final {
++    float position[3];
++    float normal[3];
++    float tangent[3];
++    float bitangent[3];
++    float texcoord[2];
++};
++
++struct Mesh final {
++    std::vector<Vertex> vertices;
++    std::vector<std::uint32_t> indices;
++};
++
++} // namespace vulkano
++
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..3df309ea6cd5251c49ded7fcc76a61a6e7722685
+--- /dev/null
++++ b/include/vulkano/vulkan_context.hpp
+@@ -0,0 +1,30 @@
++#pragma once
++
++#include <cstdint>
++#include <memory>
++
++namespace vulkano {
++
++class Window;
++
++class VulkanContext final {
++public:
++    VulkanContext() = delete;
++    explicit VulkanContext(const Window& window);
++    ~VulkanContext();
++
++    VulkanContext(const VulkanContext&) = delete;
++    VulkanContext& operator=(const VulkanContext&) = delete;
++    VulkanContext(VulkanContext&&) noexcept;
++    VulkanContext& operator=(VulkanContext&&) noexcept;
++
++    void wait_idle() const noexcept;
++    void draw_frame();
++
++private:
++    struct Impl;
++    std::unique_ptr<Impl> impl;
++};
++
++} // namespace vulkano
++
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 989a6f262d2cbfc89cae32d9bf2698ee34e92bcc..00e0900ef418dfddaf6535877b78b3267d055473
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -1,6 +1,7 @@
+ add_library(vulkano STATIC
+     app.cpp
+     window.cpp
++    icosphere.cpp
+ )
+ 
+ target_link_libraries(vulkano
+@@ -15,7 +16,7 @@
+ if (Vulkan_FOUND)
+     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
++    target_sources(vulkano PRIVATE vulkan_context.cpp)
+ else()
+     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=0)
+ endif()
+-
+diff --git a/src/app.cpp b/src/app.cpp
+index c01ccd7862ed39cf453c7c225b370b47fe271ec8..b119a42382036efeb288e1f40fcb4901a28bd1f6
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -1,5 +1,6 @@
+ #include <vulkano/app.hpp>
+ #include <vulkano/window.hpp>
++#include <vulkano/vulkan_context.hpp>
+ 
+ #include <chrono>
+ #include <thread>
+@@ -25,9 +26,19 @@
+ }
+ 
+ void Application::main_loop() {
++    // Optional Vulkan context; created lazily if available and enabled
++    std::unique_ptr<VulkanContext> vk { };
++    (void)vk;
+     while (!window->should_close()) {
+         window->poll_events();
+-        // Placeholder: rendering will be added in subsequent steps.
++#if VULKANO_HAS_VULKAN
++        if (!vk && true) {
++            vk = std::make_unique<VulkanContext>(*window);
++        }
++        if (vk) {
++            vk->draw_frame();
++        }
++#endif
+         std::this_thread::sleep_for(std::chrono::milliseconds {16});
+     }
+ }
+diff --git a/src/icosphere.cpp b/src/icosphere.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..c01c581a37130b22a83db3e435c15a133fb97cd5
+--- /dev/null
++++ b/src/icosphere.cpp
+@@ -0,0 +1,220 @@
++#include <vulkano/icosphere.hpp>
++#include <vulkano/mesh.hpp>
++
++#include <array>
++#include <cmath>
++#include <unordered_map>
++
++namespace vulkano {
++
++namespace {
++
++struct Vec3 final {
++    float x {};
++    float y {};
++    float z {};
++};
++
++struct Vec2 final {
++    float u {};
++    float v {};
++};
++
++static inline Vec3 normalize(const Vec3 v) noexcept {
++    const float len = std::sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
++    if (len == 0.0F) {
++        return Vec3 {0.0F, 0.0F, 0.0F};
++    }
++    const float inv = 1.0F / len;
++    return Vec3 {v.x * inv, v.y * inv, v.z * inv};
++}
++
++static inline Vec3 add(const Vec3 a, const Vec3 b) noexcept {
++    return Vec3 {a.x + b.x, a.y + b.y, a.z + b.z};
++}
++
++static inline Vec3 sub(const Vec3 a, const Vec3 b) noexcept {
++    return Vec3 {a.x - b.x, a.y - b.y, a.z - b.z};
++}
++
++static inline Vec3 mul(const Vec3 a, const float s) noexcept {
++    return Vec3 {a.x * s, a.y * s, a.z * s};
++}
++
++static inline Vec3 cross(const Vec3 a, const Vec3 b) noexcept {
++    return Vec3 {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};
++}
++
++static inline float dot(const Vec3 a, const Vec3 b) noexcept {
++    return a.x * b.x + a.y * b.y + a.z * b.z;
++}
++
++static inline Vec2 compute_uv(const Vec3 n) noexcept {
++    // Longitude/latitude mapping
++    const float u = 0.5F + std::atan2(n.z, n.x) / (2.0F * static_cast<float>(M_PI));
++    const float v = 0.5F - std::asin(n.y) / static_cast<float>(M_PI);
++    return Vec2 {u, v};
++}
++
++struct Key final {
++    std::uint32_t a {};
++    std::uint32_t b {};
++};
++
++struct KeyHash final {
++    std::size_t operator()(const Key& k) const noexcept {
++        return (static_cast<std::size_t>(k.a) << 32U) ^ static_cast<std::size_t>(k.b);
++    }
++};
++
++struct KeyEq final {
++    bool operator()(const Key& x, const Key& y) const noexcept {
++        return (x.a == y.a && x.b == y.b) || (x.a == y.b && x.b == y.a);
++    }
++};
++
++} // namespace
++
++std::unique_ptr<Mesh> IcosphereBuilder::build(const std::uint32_t subdivisions) const {
++    auto mesh = std::make_unique<Mesh>();
++    mesh->vertices.clear();
++    mesh->indices.clear();
++
++    // Icosahedron vertices
++    const float t = (1.0F + std::sqrt(5.0F)) * 0.5F;
++    std::vector<Vec3> positions {
++        Vec3 {-1.0F, t, 0.0F},   Vec3 {1.0F, t, 0.0F},    Vec3 {-1.0F, -t, 0.0F},  Vec3 {1.0F, -t, 0.0F},
++        Vec3 {0.0F, -1.0F, t},   Vec3 {0.0F, 1.0F, t},    Vec3 {0.0F, -1.0F, -t},  Vec3 {0.0F, 1.0F, -t},
++        Vec3 {t, 0.0F, -1.0F},   Vec3 {t, 0.0F, 1.0F},    Vec3 {-t, 0.0F, -1.0F},  Vec3 {-t, 0.0F, 1.0F},
++    };
++
++    for (auto& p : positions) {
++        p = normalize(p);
++    }
++
++    std::vector<std::uint32_t> faces {
++        0, 11, 5, 0, 5, 1, 0, 1, 7, 0, 7, 10, 0, 10, 11, 1, 5, 9, 5, 11, 4, 11, 10, 2,
++        10, 7, 6, 7, 1, 8, 3, 9, 4, 3, 4, 2, 3, 2, 6, 3, 6, 8, 3, 8, 9, 4, 9, 5, 2, 4,
++        11, 6, 2, 10, 8, 6, 7, 9, 8, 1,
++    };
++
++    auto midpoint = [&](std::uint32_t a, std::uint32_t b, std::unordered_map<Key, std::uint32_t, KeyHash, KeyEq>& cache) {
++        const Key key {a < b ? a : b, a < b ? b : a};
++        const auto it = cache.find(key);
++        if (it != cache.end()) {
++            return it->second;
++        }
++        const Vec3 mid = normalize(mul(add(positions[a], positions[b]), 0.5F));
++        positions.push_back(mid);
++        const std::uint32_t index = static_cast<std::uint32_t>(positions.size() - 1);
++        cache.emplace(key, index);
++        return index;
++    };
++
++    for (std::uint32_t i = 0; i < subdivisions; ++i) {
++        std::unordered_map<Key, std::uint32_t, KeyHash, KeyEq> cache {};
++        std::vector<std::uint32_t> new_faces {};
++        new_faces.reserve(faces.size() * 4U);
++        for (std::size_t f = 0; f < faces.size(); f += 3) {
++            const std::uint32_t i0 = faces[f + 0];
++            const std::uint32_t i1 = faces[f + 1];
++            const std::uint32_t i2 = faces[f + 2];
++            const std::uint32_t m0 = midpoint(i0, i1, cache);
++            const std::uint32_t m1 = midpoint(i1, i2, cache);
++            const std::uint32_t m2 = midpoint(i2, i0, cache);
++            // Create 4 new faces
++            new_faces.insert(new_faces.end(), {i0, m0, m2, i1, m1, m0, i2, m2, m1, m0, m1, m2});
++        }
++        faces.swap(new_faces);
++    }
++
++    // Convert to Mesh with normals/tangents/bitangents and UVs
++    mesh->vertices.resize(positions.size());
++    for (std::size_t i = 0; i < positions.size(); ++i) {
++        const Vec3 n = normalize(positions[i]);
++        const Vec2 uv = compute_uv(n);
++        Vertex v {};
++        v.position[0] = n.x;
++        v.position[1] = n.y;
++        v.position[2] = n.z;
++        v.normal[0] = n.x;
++        v.normal[1] = n.y;
++        v.normal[2] = n.z;
++        v.tangent[0] = 1.0F;
++        v.tangent[1] = 0.0F;
++        v.tangent[2] = 0.0F;
++        v.bitangent[0] = 0.0F;
++        v.bitangent[1] = 1.0F;
++        v.bitangent[2] = 0.0F;
++        v.texcoord[0] = uv.u;
++        v.texcoord[1] = uv.v;
++        mesh->vertices[i] = v;
++    }
++
++    mesh->indices = faces;
++
++    // Compute tangents/bitangents per triangle (simple accumulation)
++    std::vector<Vec3> tan1(mesh->vertices.size(), Vec3 {0.0F, 0.0F, 0.0F});
++    std::vector<Vec3> tan2(mesh->vertices.size(), Vec3 {0.0F, 0.0F, 0.0F});
++    for (std::size_t i = 0; i + 2 < mesh->indices.size(); i += 3) {
++        const std::uint32_t i0 = mesh->indices[i + 0];
++        const std::uint32_t i1 = mesh->indices[i + 1];
++        const std::uint32_t i2 = mesh->indices[i + 2];
++
++        const Vertex& v0 = mesh->vertices[i0];
++        const Vertex& v1 = mesh->vertices[i1];
++        const Vertex& v2 = mesh->vertices[i2];
++
++        const Vec3 p0 {v0.position[0], v0.position[1], v0.position[2]};
++        const Vec3 p1 {v1.position[0], v1.position[1], v1.position[2]};
++        const Vec3 p2 {v2.position[0], v2.position[1], v2.position[2]};
++
++        const Vec2 w0 {v0.texcoord[0], v0.texcoord[1]};
++        const Vec2 w1 {v1.texcoord[0], v1.texcoord[1]};
++        const Vec2 w2 {v2.texcoord[0], v2.texcoord[1]};
++
++        const float x1 = p1.x - p0.x;
++        const float x2 = p2.x - p0.x;
++        const float y1 = p1.y - p0.y;
++        const float y2 = p2.y - p0.y;
++        const float z1 = p1.z - p0.z;
++        const float z2 = p2.z - p0.z;
++
++        const float s1 = w1.u - w0.u;
++        const float s2 = w2.u - w0.u;
++        const float t1 = w1.v - w0.v;
++        const float t2 = w2.v - w0.v;
++
++        const float r = (s1 * t2 - s2 * t1);
++        const float inv = (std::fabs(r) < 1e-6F) ? 1.0F : (1.0F / r);
++        const Vec3 sdir {(t2 * x1 - t1 * x2) * inv, (t2 * y1 - t1 * y2) * inv, (t2 * z1 - t1 * z2) * inv};
++        const Vec3 tdir {(s1 * x2 - s2 * x1) * inv, (s1 * y2 - s2 * y1) * inv, (s1 * z2 - s2 * z1) * inv};
++
++        tan1[i0] = add(tan1[i0], sdir);
++        tan1[i1] = add(tan1[i1], sdir);
++        tan1[i2] = add(tan1[i2], sdir);
++        tan2[i0] = add(tan2[i0], tdir);
++        tan2[i1] = add(tan2[i1], tdir);
++        tan2[i2] = add(tan2[i2], tdir);
++    }
++
++    for (std::size_t i = 0; i < mesh->vertices.size(); ++i) {
++        const Vec3 n {mesh->vertices[i].normal[0], mesh->vertices[i].normal[1], mesh->vertices[i].normal[2]};
++        Vec3 t = tan1[i];
++        // Gram-Schmidt orthogonalize
++        t = sub(t, mul(n, dot(n, t)));
++        t = normalize(t);
++        const Vec3 b = cross(n, t);
++        mesh->vertices[i].tangent[0] = t.x;
++        mesh->vertices[i].tangent[1] = t.y;
++        mesh->vertices[i].tangent[2] = t.z;
++        mesh->vertices[i].bitangent[0] = b.x;
++        mesh->vertices[i].bitangent[1] = b.y;
++        mesh->vertices[i].bitangent[2] = b.z;
++    }
++
++    return mesh;
++}
++
++} // namespace vulkano
++
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..11d9dd5186fb9c4bd3f932a6849a391c1398f1b5
+--- /dev/null
++++ b/src/vulkan_context.cpp
+@@ -0,0 +1,173 @@
++#include <vulkano/vulkan_context.hpp>
++#include <vulkano/window.hpp>
++
++#if VULKANO_HAS_VULKAN
++#include <vulkan/vulkan.h>
++#include <GLFW/glfw3.h>
++
++#include <array>
++#include <vector>
++#include <stdexcept>
++
++namespace vulkano {
++
++struct VulkanContext::Impl final {
++    VkInstance instance {VK_NULL_HANDLE};
++    VkSurfaceKHR surface {VK_NULL_HANDLE};
++    VkPhysicalDevice physical_device {VK_NULL_HANDLE};
++    VkDevice device {VK_NULL_HANDLE};
++    VkQueue graphics_queue {VK_NULL_HANDLE};
++    uint32_t graphics_queue_family {0U};
++
++    Impl() = default;
++    ~Impl() = default;
++};
++
++static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBitsEXT, VkDebugUtilsMessageTypeFlagsEXT,
++    const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
++    // Simple stderr print would go here in future
++    (void)pCallbackData;
++    return VK_FALSE;
++}
++
++static void create_instance(VkInstance* instance) {
++    VkApplicationInfo app_info {};
++    app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
++    app_info.pApplicationName = "vulkano";
++    app_info.applicationVersion = VK_MAKE_VERSION(0, 1, 0);
++    app_info.pEngineName = "vulkano";
++    app_info.engineVersion = VK_MAKE_VERSION(0, 1, 0);
++    app_info.apiVersion = VK_API_VERSION_1_2;
++
++    uint32_t ext_count = 0U;
++    const char** exts = glfwGetRequiredInstanceExtensions(&ext_count);
++    std::array<const char*, 4> extensions {};
++    for (uint32_t i = 0; i < ext_count; ++i) {
++        extensions[i] = exts[i];
++    }
++
++    VkInstanceCreateInfo ci {};
++    ci.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
++    ci.pApplicationInfo = &app_info;
++    ci.enabledExtensionCount = ext_count;
++    ci.ppEnabledExtensionNames = extensions.data();
++
++#ifndef NDEBUG
++    const char* layers[] = {"VK_LAYER_KHRONOS_validation"};
++    ci.enabledLayerCount = 1U;
++    ci.ppEnabledLayerNames = layers;
++#endif
++
++    const VkResult res = vkCreateInstance(&ci, nullptr, instance);
++    if (res != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create Vulkan instance"};
++    }
++}
++
++VulkanContext::VulkanContext(const Window& window)
++    : impl {std::make_unique<Impl>()} {
++    create_instance(&impl->instance);
++    GLFWwindow* glfw_win = static_cast<GLFWwindow*>(window.native_handle());
++    if (glfw_win == nullptr) {
++        throw std::runtime_error {"Invalid GLFW window handle"};
++    }
++    if (glfwCreateWindowSurface(impl->instance, glfw_win, nullptr, &impl->surface) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create Vulkan surface"};
++    }
++    // Physical device selection (very naive)
++    uint32_t count = 0U;
++    vkEnumeratePhysicalDevices(impl->instance, &count, nullptr);
++    if (count == 0U) {
++        throw std::runtime_error {"No Vulkan physical devices found"};
++    }
++    std::vector<VkPhysicalDevice> devices(count);
++    vkEnumeratePhysicalDevices(impl->instance, &count, devices.data());
++    impl->physical_device = devices[0];
++
++    // Queue family selection
++    uint32_t qcount = 0U;
++    vkGetPhysicalDeviceQueueFamilyProperties(impl->physical_device, &qcount, nullptr);
++    std::vector<VkQueueFamilyProperties> qprops(qcount);
++    vkGetPhysicalDeviceQueueFamilyProperties(impl->physical_device, &qcount, qprops.data());
++    uint32_t gfx_index = UINT32_MAX;
++    for (uint32_t i = 0; i < qcount; ++i) {
++        if ((qprops[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0U) {
++            gfx_index = i;
++            break;
++        }
++    }
++    if (gfx_index == UINT32_MAX) {
++        throw std::runtime_error {"No graphics queue family found"};
++    }
++    impl->graphics_queue_family = gfx_index;
++
++    const float priority = 1.0F;
++    VkDeviceQueueCreateInfo qci {};
++    qci.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
++    qci.queueFamilyIndex = gfx_index;
++    qci.queueCount = 1U;
++    qci.pQueuePriorities = &priority;
++
++    VkDeviceCreateInfo dci {};
++    dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
++    dci.queueCreateInfoCount = 1U;
++    dci.pQueueCreateInfos = &qci;
++
++    if (vkCreateDevice(impl->physical_device, &dci, nullptr, &impl->device) != VK_SUCCESS) {
++        throw std::runtime_error {"Failed to create logical device"};
++    }
++    vkGetDeviceQueue(impl->device, gfx_index, 0U, &impl->graphics_queue);
++}
++
++VulkanContext::~VulkanContext() {
++    if (impl != nullptr) {
++        if (impl->device != VK_NULL_HANDLE) {
++            vkDeviceWaitIdle(impl->device);
++        }
++        if (impl->device != VK_NULL_HANDLE) {
++            vkDestroyDevice(impl->device, nullptr);
++        }
++        if (impl->surface != VK_NULL_HANDLE) {
++            vkDestroySurfaceKHR(impl->instance, impl->surface, nullptr);
++        }
++        if (impl->instance != VK_NULL_HANDLE) {
++            vkDestroyInstance(impl->instance, nullptr);
++        }
++    }
++}
++
++VulkanContext::VulkanContext(VulkanContext&&) noexcept = default;
++VulkanContext& VulkanContext::operator=(VulkanContext&&) noexcept = default;
++
++void VulkanContext::wait_idle() const noexcept {
++    if (impl->device != VK_NULL_HANDLE) {
++        vkDeviceWaitIdle(impl->device);
++    }
++}
++
++void VulkanContext::draw_frame() {
++    // Placeholder: swapchain/present will be added. No-op for now.
++}
++
++} // namespace vulkano
++
++#else
++
++namespace vulkano {
++
++class Window;
++
++VulkanContext::VulkanContext(const Window&) : impl {nullptr} {
++}
++
++VulkanContext::~VulkanContext() = default;
++VulkanContext::VulkanContext(VulkanContext&&) noexcept = default;
++VulkanContext& VulkanContext::operator=(VulkanContext&&) noexcept = default;
++void VulkanContext::wait_idle() const noexcept {
++}
++void VulkanContext::draw_frame() {
++}
++
++} // namespace vulkano
++
++#endif
+diff --git a/tests/icosphere_tests.cpp b/tests/icosphere_tests.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..b7771bab388e94eeabd7ead139cadc0d1b47c9d7
+--- /dev/null
++++ b/tests/icosphere_tests.cpp
+@@ -0,0 +1,28 @@
++#include <catch2/catch_all.hpp>
++
++#include <vulkano/icosphere.hpp>
++#include <vulkano/mesh.hpp>
++
++#include <cmath>
++
++static float length3(const float v[3]) {
++    return std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
++}
++
++TEST_CASE("Icosphere vertex count and normals") {
++    vulkano::IcosphereBuilder builder {};
++
++    for (std::uint32_t s = 0; s <= 3; ++s) {
++        auto mesh = builder.build(s);
++        REQUIRE(mesh != nullptr);
++        // Faces grow by factor 4 each subdivision starting from 20 triangles
++        const std::size_t tri_count = 20ULL * static_cast<std::size_t>(std::pow(4.0, static_cast<int>(s)));
++        REQUIRE(mesh->indices.size() == tri_count * 3ULL);
++        // Normals should be ~unit length
++        for (const auto& v : mesh->vertices) {
++            const float len = length3(v.normal);
++            REQUIRE(len == Approx(1.0F).margin(1e-3F));
++        }
++    }
++}
++
+
+[2025-09-15T15:57:51] exec bash -lc 'git add -A && git commit -m "fix(vulkan): include <vector> for VulkanContext; build passes on macOS"' in /Users/bruno/Documents/Development/bruno/vulkano_codex

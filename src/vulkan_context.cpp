@@ -6,6 +6,7 @@
 #include <GLFW/glfw3.h>
 
 #include <array>
+#include <vector>
 #include <stdexcept>
 
 namespace vulkano {
@@ -170,4 +171,3 @@ void VulkanContext::draw_frame() {
 } // namespace vulkano
 
 #endif
-
