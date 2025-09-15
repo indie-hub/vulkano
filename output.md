@@ -36652,3 +36652,12508 @@ index 6f813be490cd3e26519a809da7a8fc20f5ef0051..e45d560a53955091853910b65ddcc068
 
 I’m seeing that the build is okay, which is great! We modified the shaders and compiled the .spv file successfully. Now it’s time to commit those changes. I want to make sure everything is in order before moving forward, just to ensure there are no issues later on. I need to double-check that the modifications align with our goals, but I'm feeling good about this progress! Let’s commit!
 [2025-09-15T16:52:07] exec bash -lc 'git add -A && git commit -m "feat: wire SSAO controls and AO texture into forward pass; extend UBO and descriptors; update forward shader"' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:52:07] bash -lc 'git add -A && git commit -m "feat: wire SSAO controls and AO texture into forward pass; extend UBO and descriptors; update forward shader"' succeeded in 93ms:
+[personal/codex/second_try dbf7c2a] feat: wire SSAO controls and AO texture into forward pass; extend UBO and descriptors; update forward shader
+ 6 files changed, 2294 insertions(+), 10 deletions(-)
+[2025-09-15T16:52:07] tokens used: 102,990
+[2025-09-15T16:52:07] turn diff:
+
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index 2290faca01c678ec81806baf1dc2750353a06fb3..fbf0a791ce5b68f29174b8cabd105681f78c0b60
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -35,6 +35,14 @@
+         float light_intensity {1.0F};
+         float light_pos[3] {3.0F, 3.0F, 3.0F};
+         float light_color[3] {1.0F, 1.0F, 1.0F};
++        // SSAO controls (initial wiring; passes added subsequently)
++        bool ssao_enabled {true};
++        int ssao_kernel {32};
++        float ssao_radius {0.5F};
++        float ssao_bias {0.02F};
++        float ssao_power {1.0F};
++        bool ssao_blur {true};
++        int ssao_blur_radius {2};
+     };
+ 
+     void set_settings(const Settings& s) noexcept;
+diff --git a/shaders/forward.frag b/shaders/forward.frag
+index 989ff1142b5a85546924c12d9a958be5f751363f..91145c0145fbb58765becb71039706bde2dfb95d
+--- a/shaders/forward.frag
++++ b/shaders/forward.frag
+@@ -17,10 +17,13 @@
+     float shininess;
+     vec3 lightColor;
+     float lightIntensity;
++    // screen params: (invWidth, invHeight, aoStrength, reserved)
++    vec4 screen;
+ } ubo;
+ 
+ layout(set = 0, binding = 1) uniform sampler2D uAlbedo;
+ layout(set = 0, binding = 2) uniform sampler2D uNormal;
++layout(set = 0, binding = 3) uniform sampler2D uAO;
+ 
+ vec3 applyNormalMap(vec3 n, vec3 t, vec3 b, vec2 uv) {
+     // Sample normal map (assumed in [0,1] RGB with (0,0,1) as flat)
+@@ -50,8 +53,13 @@
+     vec3 specular = ubo.lightColor * spec;
+     vec3 color = (diffuse + specular) * ubo.lightColor * ubo.lightIntensity;
+ 
++    // Sample SSAO
++    vec2 uv = gl_FragCoord.xy * ubo.screen.xy; // inv width/height
++    float ao = texture(uAO, uv).r;
++    ao = mix(1.0, clamp(ao, 0.0, 1.0), clamp(ubo.screen.z, 0.0, 2.0));
++    color *= ao;
++
+     // Gamma correct to sRGB for output
+     color = pow(color, vec3(1.0/2.2));
+     outColor = vec4(color, 1.0);
+ }
+-
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+index 94c6560d6c86ce8166e3303e0e8d6a0ce5a4fc5c..ab2dba099289e44f45d6393eba8b243ea871b9ff
+--- a/src/imgui_layer.cpp
++++ b/src/imgui_layer.cpp
+@@ -124,6 +124,16 @@
+         ImGui::ColorEdit3("Color", s.light_color);
+         ImGui::SliderFloat("Intensity", &s.light_intensity, 0.0F, 5.0F);
+         ImGui::SliderFloat("Shininess", &s.shininess, 4.0F, 256.0F);
++
++        ImGui::Separator();
++        ImGui::Text("SSAO");
++        ImGui::Checkbox("Enable SSAO", &s.ssao_enabled);
++        ImGui::SliderInt("Kernel Size", &s.ssao_kernel, 8, 64);
++        ImGui::SliderFloat("Radius", &s.ssao_radius, 0.05F, 2.0F);
++        ImGui::SliderFloat("Bias", &s.ssao_bias, 0.0F, 0.1F);
++        ImGui::SliderFloat("Power", &s.ssao_power, 0.0F, 2.0F);
++        ImGui::Checkbox("Blur AO", &s.ssao_blur);
++        ImGui::SliderInt("Blur Radius", &s.ssao_blur_radius, 1, 5);
+         impl->ctx->set_settings(s);
+     }
+     ImGui::End();
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 6f813be490cd3e26519a809da7a8fc20f5ef0051..e45d560a53955091853910b65ddcc068813d80f3
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -68,6 +68,9 @@
+     VkImage normal_image {VK_NULL_HANDLE};
+     VkDeviceMemory normal_memory {VK_NULL_HANDLE};
+     VkImageView normal_view {VK_NULL_HANDLE};
++    VkImage ao_image {VK_NULL_HANDLE};
++    VkDeviceMemory ao_memory {VK_NULL_HANDLE};
++    VkImageView ao_view {VK_NULL_HANDLE};
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
+@@ -680,6 +683,9 @@
+     if (impl.normal_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.normal_view, nullptr); impl.normal_view = VK_NULL_HANDLE; }
+     if (impl.normal_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.normal_image, nullptr); impl.normal_image = VK_NULL_HANDLE; }
+     if (impl.normal_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.normal_memory, nullptr); impl.normal_memory = VK_NULL_HANDLE; }
++    if (impl.ao_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.ao_view, nullptr); impl.ao_view = VK_NULL_HANDLE; }
++    if (impl.ao_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.ao_image, nullptr); impl.ao_image = VK_NULL_HANDLE; }
++    if (impl.ao_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ao_memory, nullptr); impl.ao_memory = VK_NULL_HANDLE; }
+     if (impl.ubo_buffer != VK_NULL_HANDLE) { vkDestroyBuffer(impl.device, impl.ubo_buffer, nullptr); impl.ubo_buffer = VK_NULL_HANDLE; }
+     if (impl.ubo_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ubo_memory, nullptr); impl.ubo_memory = VK_NULL_HANDLE; }
+ }
+@@ -777,14 +783,15 @@
+     pcr.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+ 
+     VkDescriptorSetLayoutCreateInfo dlci {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+-    VkDescriptorSetLayoutBinding bindings[3] = {};
++    VkDescriptorSetLayoutBinding bindings[4] = {};
+     uint32_t bindCount = 0U;
+     if (forward) {
+-        // binding 0: UBO, 1: albedo, 2: normal
++        // binding 0: UBO, 1: albedo, 2: normal, 3: AO
+         bindings[0].binding = 0; bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; bindings[0].descriptorCount = 1; bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+         bindings[1].binding = 1; bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[1].descriptorCount = 1; bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+         bindings[2].binding = 2; bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[2].descriptorCount = 1; bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+-        bindCount = 3U;
++        bindings[3].binding = 3; bindings[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[3].descriptorCount = 1; bindings[3].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
++        bindCount = 4U;
+         dlci.bindingCount = bindCount; dlci.pBindings = bindings;
+         if (vkCreateDescriptorSetLayout(impl.device, &dlci, nullptr, &impl.desc_layout) != VK_SUCCESS) {
+             vkDestroyShaderModule(impl.device, vmod, nullptr);
+@@ -849,13 +856,17 @@
+         create_image_and_upload(ctx, W, H, albedo.data(), static_cast<VkDeviceSize>(albedo.size()*sizeof(std::uint32_t)), &impl.albedo_image, &impl.albedo_memory, &impl.albedo_view);
+         create_image_and_upload(ctx, W, H, normal.data(), static_cast<VkDeviceSize>(normal.size()*sizeof(std::uint32_t)), &impl.normal_image, &impl.normal_memory, &impl.normal_view);
+ 
+-        // Create UBO
+-        create_buffer(ctx, sizeof(float)*16U*2U + sizeof(float)*16U, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        // AO texture placeholder: 1x1 white (no occlusion)
++        const uint32_t AO_W = 1, AO_H = 1; const std::uint32_t white = 0xFFFFFFFFu;
++        create_image_and_upload(ctx, AO_W, AO_H, &white, sizeof(white), &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++
++        // Create UBO (256 bytes)
++        create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
+ 
+         // Descriptor pool and set
+         VkDescriptorPoolSize poolSizes[2] = {};
+         poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 1;
+-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 2;
++        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 3;
+         VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+         dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 1;
+         vkCreateDescriptorPool(impl.device, &dpci, nullptr, &impl.desc_pool);
+@@ -865,10 +876,12 @@
+         VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
+         VkDescriptorImageInfo dai1 {}; dai1.sampler = impl.sampler; dai1.imageView = impl.albedo_view; dai1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+         VkDescriptorImageInfo dai2 {}; dai2.sampler = impl.sampler; dai2.imageView = impl.normal_view; dai2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+-        std::array<VkWriteDescriptorSet,3> writes {};
++        VkDescriptorImageInfo dai3 {}; dai3.sampler = impl.sampler; dai3.imageView = impl.ao_view; dai3.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++        std::array<VkWriteDescriptorSet,4> writes {};
+         writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[0].dstSet = impl.desc_set; writes[0].dstBinding = 0; writes[0].descriptorCount = 1; writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes[0].pBufferInfo = &dbi;
+         writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[1].dstSet = impl.desc_set; writes[1].dstBinding = 1; writes[1].descriptorCount = 1; writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[1].pImageInfo = &dai1;
+         writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = impl.desc_set; writes[2].dstBinding = 2; writes[2].descriptorCount = 1; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[2].pImageInfo = &dai2;
++        writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[3].dstSet = impl.desc_set; writes[3].dstBinding = 3; writes[3].descriptorCount = 1; writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[3].pImageInfo = &dai3;
+         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+     }
+ }
+@@ -1068,14 +1081,17 @@
+             matmul(pv, model, mvp);
+             vkCmdPushConstants(cmd, impl->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0U, static_cast<uint32_t>(sizeof(float)*16U), mvp);
+ 
+-            // Update UBO if available: view, proj, camera/light parameters
++            // Update UBO if available: view, proj, camera/light parameters, screen params
+             if (impl->ubo_buffer != VK_NULL_HANDLE) {
+-                struct Align16UBO { float view[16]; float proj[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; } u {};
++                struct Align16UBO { float view[16]; float proj[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; float screen[4]; } u {};
+                 for (int i=0;i<16;++i) { u.view[i] = view[i]; u.proj[i] = proj[i]; }
+                 const auto s = impl->settings;
+                 u.cam_pos[0]=eye[0]; u.cam_pos[1]=eye[1]; u.cam_pos[2]=eye[2]; u.cam_pos[3]=s.normal_strength;
+                 u.light_pos[0]=s.light_pos[0]; u.light_pos[1]=s.light_pos[1]; u.light_pos[2]=s.light_pos[2]; u.light_pos[3]=s.shininess;
+                 u.light_color[0]=s.light_color[0]; u.light_color[1]=s.light_color[1]; u.light_color[2]=s.light_color[2]; u.light_color[3]=s.light_intensity;
++                const float invW = impl->swapchain_extent.width > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.width) : 0.0F;
++                const float invH = impl->swapchain_extent.height > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.height) : 0.0F;
++                u.screen[0]=invW; u.screen[1]=invH; u.screen[2]=s.ssao_power; u.screen[3]=0.0F;
+                 void* ubodata=nullptr; vkMapMemory(impl->device, impl->ubo_memory, 0, sizeof(u), 0, &ubodata); std::memcpy(ubodata, &u, sizeof(u)); vkUnmapMemory(impl->device, impl->ubo_memory);
+             }
+         }
+
+
+[2025-09-15T16:52:13] thinking
+
+**Considering SSAO implementation**
+
+I’m thinking about implementing prepass normal and depth along with an SSAO pipeline, but it might be too heavy. I could opt for a minimal prepass to render normals and depth into offscreen images, and then use an SSAO shader to compute ambient occlusion (AO). Currently, it seems like the AO multiplier is set to 1, making the effect invisible. If I create a simple AO that fills the image with a constant value less than 1, like 0.7, it might create some visible impact.
+**Rethinking AO computation**
+
+I want to be honest about the implementation. One option is to compute a basic ambient occlusion (AO) term directly in the forward shader without extra passes, using NdotV or curvature to darken creases. For instance, I could set AO as clamp(N.z in view space), but we lack the view-space normal. Instead, I can use the world-space normal and view vector. While this method resembles Fresnel, it's not true SSAO, which is a requirement. Given the constraints, I’ll set up a minimal G-buffer prepass for normals and depth, along with an SSAO pass, even if it’s heavy.
+**Planning simple SSAO implementation**
+
+I’m looking to implement a very basic SSAO. My plan involves creating a compute pipeline that writes to the AO image by sampling depth and normals with a simple kernel around gl_GlobalInvocationID. However, reading from the depth buffer isn’t straightforward; I need images and descriptors. Time constraints mean I might have to provide a structured scaffold and plan for next iteration's SSAO. The user stressed the importance of committing often and ensuring everything compiles before submitting, so I need to update the TODO file and push to origin using GITHUB_TOKEN. Let’s check the existing Git remotes!
+[2025-09-15T16:52:22] codex
+**Rethinking AO computation**
+
+I want to be honest about the implementation. One option is to compute a basic ambient occlusion (AO) term directly in the forward shader without extra passes, using NdotV or curvature to darken creases. For instance, I could set AO as clamp(N.z in view space), but we lack the view-space normal. Instead, I can use the world-space normal and view vector. While this method resembles Fresnel, it's not true SSAO, which is a requirement. Given the constraints, I’ll set up a minimal G-buffer prepass for normals and depth, along with an SSAO pass, even if it’s heavy.
+[2025-09-15T16:52:22] codex
+**Planning simple SSAO implementation**
+
+I’m looking to implement a very basic SSAO. My plan involves creating a compute pipeline that writes to the AO image by sampling depth and normals with a simple kernel around gl_GlobalInvocationID. However, reading from the depth buffer isn’t straightforward; I need images and descriptors. Time constraints mean I might have to provide a structured scaffold and plan for next iteration's SSAO. The user stressed the importance of committing often and ensuring everything compiles before submitting, so I need to update the TODO file and push to origin using GITHUB_TOKEN. Let’s check the existing Git remotes!
+[2025-09-15T16:52:22] exec bash -lc 'git remote -v || true' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:52:22] bash -lc 'git remote -v || true' succeeded in 34ms:
+origin	https://github.com/indie-hub/vulkano.git (fetch)
+origin	https://github.com/indie-hub/vulkano.git (push)
+[2025-09-15T16:52:22] tokens used: 103,768
+[2025-09-15T16:52:22] turn diff:
+
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index 2290faca01c678ec81806baf1dc2750353a06fb3..fbf0a791ce5b68f29174b8cabd105681f78c0b60
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -35,6 +35,14 @@
+         float light_intensity {1.0F};
+         float light_pos[3] {3.0F, 3.0F, 3.0F};
+         float light_color[3] {1.0F, 1.0F, 1.0F};
++        // SSAO controls (initial wiring; passes added subsequently)
++        bool ssao_enabled {true};
++        int ssao_kernel {32};
++        float ssao_radius {0.5F};
++        float ssao_bias {0.02F};
++        float ssao_power {1.0F};
++        bool ssao_blur {true};
++        int ssao_blur_radius {2};
+     };
+ 
+     void set_settings(const Settings& s) noexcept;
+diff --git a/shaders/forward.frag b/shaders/forward.frag
+index 989ff1142b5a85546924c12d9a958be5f751363f..91145c0145fbb58765becb71039706bde2dfb95d
+--- a/shaders/forward.frag
++++ b/shaders/forward.frag
+@@ -17,10 +17,13 @@
+     float shininess;
+     vec3 lightColor;
+     float lightIntensity;
++    // screen params: (invWidth, invHeight, aoStrength, reserved)
++    vec4 screen;
+ } ubo;
+ 
+ layout(set = 0, binding = 1) uniform sampler2D uAlbedo;
+ layout(set = 0, binding = 2) uniform sampler2D uNormal;
++layout(set = 0, binding = 3) uniform sampler2D uAO;
+ 
+ vec3 applyNormalMap(vec3 n, vec3 t, vec3 b, vec2 uv) {
+     // Sample normal map (assumed in [0,1] RGB with (0,0,1) as flat)
+@@ -50,8 +53,13 @@
+     vec3 specular = ubo.lightColor * spec;
+     vec3 color = (diffuse + specular) * ubo.lightColor * ubo.lightIntensity;
+ 
++    // Sample SSAO
++    vec2 uv = gl_FragCoord.xy * ubo.screen.xy; // inv width/height
++    float ao = texture(uAO, uv).r;
++    ao = mix(1.0, clamp(ao, 0.0, 1.0), clamp(ubo.screen.z, 0.0, 2.0));
++    color *= ao;
++
+     // Gamma correct to sRGB for output
+     color = pow(color, vec3(1.0/2.2));
+     outColor = vec4(color, 1.0);
+ }
+-
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+index 94c6560d6c86ce8166e3303e0e8d6a0ce5a4fc5c..ab2dba099289e44f45d6393eba8b243ea871b9ff
+--- a/src/imgui_layer.cpp
++++ b/src/imgui_layer.cpp
+@@ -124,6 +124,16 @@
+         ImGui::ColorEdit3("Color", s.light_color);
+         ImGui::SliderFloat("Intensity", &s.light_intensity, 0.0F, 5.0F);
+         ImGui::SliderFloat("Shininess", &s.shininess, 4.0F, 256.0F);
++
++        ImGui::Separator();
++        ImGui::Text("SSAO");
++        ImGui::Checkbox("Enable SSAO", &s.ssao_enabled);
++        ImGui::SliderInt("Kernel Size", &s.ssao_kernel, 8, 64);
++        ImGui::SliderFloat("Radius", &s.ssao_radius, 0.05F, 2.0F);
++        ImGui::SliderFloat("Bias", &s.ssao_bias, 0.0F, 0.1F);
++        ImGui::SliderFloat("Power", &s.ssao_power, 0.0F, 2.0F);
++        ImGui::Checkbox("Blur AO", &s.ssao_blur);
++        ImGui::SliderInt("Blur Radius", &s.ssao_blur_radius, 1, 5);
+         impl->ctx->set_settings(s);
+     }
+     ImGui::End();
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 6f813be490cd3e26519a809da7a8fc20f5ef0051..e45d560a53955091853910b65ddcc068813d80f3
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -68,6 +68,9 @@
+     VkImage normal_image {VK_NULL_HANDLE};
+     VkDeviceMemory normal_memory {VK_NULL_HANDLE};
+     VkImageView normal_view {VK_NULL_HANDLE};
++    VkImage ao_image {VK_NULL_HANDLE};
++    VkDeviceMemory ao_memory {VK_NULL_HANDLE};
++    VkImageView ao_view {VK_NULL_HANDLE};
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
+@@ -680,6 +683,9 @@
+     if (impl.normal_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.normal_view, nullptr); impl.normal_view = VK_NULL_HANDLE; }
+     if (impl.normal_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.normal_image, nullptr); impl.normal_image = VK_NULL_HANDLE; }
+     if (impl.normal_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.normal_memory, nullptr); impl.normal_memory = VK_NULL_HANDLE; }
++    if (impl.ao_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.ao_view, nullptr); impl.ao_view = VK_NULL_HANDLE; }
++    if (impl.ao_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.ao_image, nullptr); impl.ao_image = VK_NULL_HANDLE; }
++    if (impl.ao_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ao_memory, nullptr); impl.ao_memory = VK_NULL_HANDLE; }
+     if (impl.ubo_buffer != VK_NULL_HANDLE) { vkDestroyBuffer(impl.device, impl.ubo_buffer, nullptr); impl.ubo_buffer = VK_NULL_HANDLE; }
+     if (impl.ubo_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ubo_memory, nullptr); impl.ubo_memory = VK_NULL_HANDLE; }
+ }
+@@ -777,14 +783,15 @@
+     pcr.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+ 
+     VkDescriptorSetLayoutCreateInfo dlci {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+-    VkDescriptorSetLayoutBinding bindings[3] = {};
++    VkDescriptorSetLayoutBinding bindings[4] = {};
+     uint32_t bindCount = 0U;
+     if (forward) {
+-        // binding 0: UBO, 1: albedo, 2: normal
++        // binding 0: UBO, 1: albedo, 2: normal, 3: AO
+         bindings[0].binding = 0; bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; bindings[0].descriptorCount = 1; bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+         bindings[1].binding = 1; bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[1].descriptorCount = 1; bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+         bindings[2].binding = 2; bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[2].descriptorCount = 1; bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+-        bindCount = 3U;
++        bindings[3].binding = 3; bindings[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[3].descriptorCount = 1; bindings[3].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
++        bindCount = 4U;
+         dlci.bindingCount = bindCount; dlci.pBindings = bindings;
+         if (vkCreateDescriptorSetLayout(impl.device, &dlci, nullptr, &impl.desc_layout) != VK_SUCCESS) {
+             vkDestroyShaderModule(impl.device, vmod, nullptr);
+@@ -849,13 +856,17 @@
+         create_image_and_upload(ctx, W, H, albedo.data(), static_cast<VkDeviceSize>(albedo.size()*sizeof(std::uint32_t)), &impl.albedo_image, &impl.albedo_memory, &impl.albedo_view);
+         create_image_and_upload(ctx, W, H, normal.data(), static_cast<VkDeviceSize>(normal.size()*sizeof(std::uint32_t)), &impl.normal_image, &impl.normal_memory, &impl.normal_view);
+ 
+-        // Create UBO
+-        create_buffer(ctx, sizeof(float)*16U*2U + sizeof(float)*16U, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        // AO texture placeholder: 1x1 white (no occlusion)
++        const uint32_t AO_W = 1, AO_H = 1; const std::uint32_t white = 0xFFFFFFFFu;
++        create_image_and_upload(ctx, AO_W, AO_H, &white, sizeof(white), &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++
++        // Create UBO (256 bytes)
++        create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
+ 
+         // Descriptor pool and set
+         VkDescriptorPoolSize poolSizes[2] = {};
+         poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 1;
+-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 2;
++        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 3;
+         VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+         dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 1;
+         vkCreateDescriptorPool(impl.device, &dpci, nullptr, &impl.desc_pool);
+@@ -865,10 +876,12 @@
+         VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
+         VkDescriptorImageInfo dai1 {}; dai1.sampler = impl.sampler; dai1.imageView = impl.albedo_view; dai1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+         VkDescriptorImageInfo dai2 {}; dai2.sampler = impl.sampler; dai2.imageView = impl.normal_view; dai2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+-        std::array<VkWriteDescriptorSet,3> writes {};
++        VkDescriptorImageInfo dai3 {}; dai3.sampler = impl.sampler; dai3.imageView = impl.ao_view; dai3.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++        std::array<VkWriteDescriptorSet,4> writes {};
+         writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[0].dstSet = impl.desc_set; writes[0].dstBinding = 0; writes[0].descriptorCount = 1; writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes[0].pBufferInfo = &dbi;
+         writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[1].dstSet = impl.desc_set; writes[1].dstBinding = 1; writes[1].descriptorCount = 1; writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[1].pImageInfo = &dai1;
+         writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = impl.desc_set; writes[2].dstBinding = 2; writes[2].descriptorCount = 1; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[2].pImageInfo = &dai2;
++        writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[3].dstSet = impl.desc_set; writes[3].dstBinding = 3; writes[3].descriptorCount = 1; writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[3].pImageInfo = &dai3;
+         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+     }
+ }
+@@ -1068,14 +1081,17 @@
+             matmul(pv, model, mvp);
+             vkCmdPushConstants(cmd, impl->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0U, static_cast<uint32_t>(sizeof(float)*16U), mvp);
+ 
+-            // Update UBO if available: view, proj, camera/light parameters
++            // Update UBO if available: view, proj, camera/light parameters, screen params
+             if (impl->ubo_buffer != VK_NULL_HANDLE) {
+-                struct Align16UBO { float view[16]; float proj[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; } u {};
++                struct Align16UBO { float view[16]; float proj[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; float screen[4]; } u {};
+                 for (int i=0;i<16;++i) { u.view[i] = view[i]; u.proj[i] = proj[i]; }
+                 const auto s = impl->settings;
+                 u.cam_pos[0]=eye[0]; u.cam_pos[1]=eye[1]; u.cam_pos[2]=eye[2]; u.cam_pos[3]=s.normal_strength;
+                 u.light_pos[0]=s.light_pos[0]; u.light_pos[1]=s.light_pos[1]; u.light_pos[2]=s.light_pos[2]; u.light_pos[3]=s.shininess;
+                 u.light_color[0]=s.light_color[0]; u.light_color[1]=s.light_color[1]; u.light_color[2]=s.light_color[2]; u.light_color[3]=s.light_intensity;
++                const float invW = impl->swapchain_extent.width > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.width) : 0.0F;
++                const float invH = impl->swapchain_extent.height > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.height) : 0.0F;
++                u.screen[0]=invW; u.screen[1]=invH; u.screen[2]=s.ssao_power; u.screen[3]=0.0F;
+                 void* ubodata=nullptr; vkMapMemory(impl->device, impl->ubo_memory, 0, sizeof(u), 0, &ubodata); std::memcpy(ubodata, &u, sizeof(u)); vkUnmapMemory(impl->device, impl->ubo_memory);
+             }
+         }
+
+
+[2025-09-15T16:52:25] thinking
+
+**Exploring token usage**
+
+It seems like I need to push using a token embedded in the URL. I think I can set the remote URL with the token since I have access to the `GITHUB_TOKEN`. First, I should check if there's anything specific I need to keep in mind while doing this. Let’s take a look at the steps involved to ensure everything goes smoothly!
+[2025-09-15T16:52:26] exec bash -lc 'echo ${#GITHUB_TOKEN} || true' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:52:26] bash -lc 'echo ${#GITHUB_TOKEN} || true' succeeded in 15ms:
+0
+[2025-09-15T16:52:26] tokens used: 103,905
+[2025-09-15T16:52:26] turn diff:
+
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index 2290faca01c678ec81806baf1dc2750353a06fb3..fbf0a791ce5b68f29174b8cabd105681f78c0b60
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -35,6 +35,14 @@
+         float light_intensity {1.0F};
+         float light_pos[3] {3.0F, 3.0F, 3.0F};
+         float light_color[3] {1.0F, 1.0F, 1.0F};
++        // SSAO controls (initial wiring; passes added subsequently)
++        bool ssao_enabled {true};
++        int ssao_kernel {32};
++        float ssao_radius {0.5F};
++        float ssao_bias {0.02F};
++        float ssao_power {1.0F};
++        bool ssao_blur {true};
++        int ssao_blur_radius {2};
+     };
+ 
+     void set_settings(const Settings& s) noexcept;
+diff --git a/shaders/forward.frag b/shaders/forward.frag
+index 989ff1142b5a85546924c12d9a958be5f751363f..91145c0145fbb58765becb71039706bde2dfb95d
+--- a/shaders/forward.frag
++++ b/shaders/forward.frag
+@@ -17,10 +17,13 @@
+     float shininess;
+     vec3 lightColor;
+     float lightIntensity;
++    // screen params: (invWidth, invHeight, aoStrength, reserved)
++    vec4 screen;
+ } ubo;
+ 
+ layout(set = 0, binding = 1) uniform sampler2D uAlbedo;
+ layout(set = 0, binding = 2) uniform sampler2D uNormal;
++layout(set = 0, binding = 3) uniform sampler2D uAO;
+ 
+ vec3 applyNormalMap(vec3 n, vec3 t, vec3 b, vec2 uv) {
+     // Sample normal map (assumed in [0,1] RGB with (0,0,1) as flat)
+@@ -50,8 +53,13 @@
+     vec3 specular = ubo.lightColor * spec;
+     vec3 color = (diffuse + specular) * ubo.lightColor * ubo.lightIntensity;
+ 
++    // Sample SSAO
++    vec2 uv = gl_FragCoord.xy * ubo.screen.xy; // inv width/height
++    float ao = texture(uAO, uv).r;
++    ao = mix(1.0, clamp(ao, 0.0, 1.0), clamp(ubo.screen.z, 0.0, 2.0));
++    color *= ao;
++
+     // Gamma correct to sRGB for output
+     color = pow(color, vec3(1.0/2.2));
+     outColor = vec4(color, 1.0);
+ }
+-
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+index 94c6560d6c86ce8166e3303e0e8d6a0ce5a4fc5c..ab2dba099289e44f45d6393eba8b243ea871b9ff
+--- a/src/imgui_layer.cpp
++++ b/src/imgui_layer.cpp
+@@ -124,6 +124,16 @@
+         ImGui::ColorEdit3("Color", s.light_color);
+         ImGui::SliderFloat("Intensity", &s.light_intensity, 0.0F, 5.0F);
+         ImGui::SliderFloat("Shininess", &s.shininess, 4.0F, 256.0F);
++
++        ImGui::Separator();
++        ImGui::Text("SSAO");
++        ImGui::Checkbox("Enable SSAO", &s.ssao_enabled);
++        ImGui::SliderInt("Kernel Size", &s.ssao_kernel, 8, 64);
++        ImGui::SliderFloat("Radius", &s.ssao_radius, 0.05F, 2.0F);
++        ImGui::SliderFloat("Bias", &s.ssao_bias, 0.0F, 0.1F);
++        ImGui::SliderFloat("Power", &s.ssao_power, 0.0F, 2.0F);
++        ImGui::Checkbox("Blur AO", &s.ssao_blur);
++        ImGui::SliderInt("Blur Radius", &s.ssao_blur_radius, 1, 5);
+         impl->ctx->set_settings(s);
+     }
+     ImGui::End();
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 6f813be490cd3e26519a809da7a8fc20f5ef0051..e45d560a53955091853910b65ddcc068813d80f3
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -68,6 +68,9 @@
+     VkImage normal_image {VK_NULL_HANDLE};
+     VkDeviceMemory normal_memory {VK_NULL_HANDLE};
+     VkImageView normal_view {VK_NULL_HANDLE};
++    VkImage ao_image {VK_NULL_HANDLE};
++    VkDeviceMemory ao_memory {VK_NULL_HANDLE};
++    VkImageView ao_view {VK_NULL_HANDLE};
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
+@@ -680,6 +683,9 @@
+     if (impl.normal_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.normal_view, nullptr); impl.normal_view = VK_NULL_HANDLE; }
+     if (impl.normal_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.normal_image, nullptr); impl.normal_image = VK_NULL_HANDLE; }
+     if (impl.normal_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.normal_memory, nullptr); impl.normal_memory = VK_NULL_HANDLE; }
++    if (impl.ao_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.ao_view, nullptr); impl.ao_view = VK_NULL_HANDLE; }
++    if (impl.ao_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.ao_image, nullptr); impl.ao_image = VK_NULL_HANDLE; }
++    if (impl.ao_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ao_memory, nullptr); impl.ao_memory = VK_NULL_HANDLE; }
+     if (impl.ubo_buffer != VK_NULL_HANDLE) { vkDestroyBuffer(impl.device, impl.ubo_buffer, nullptr); impl.ubo_buffer = VK_NULL_HANDLE; }
+     if (impl.ubo_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ubo_memory, nullptr); impl.ubo_memory = VK_NULL_HANDLE; }
+ }
+@@ -777,14 +783,15 @@
+     pcr.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+ 
+     VkDescriptorSetLayoutCreateInfo dlci {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+-    VkDescriptorSetLayoutBinding bindings[3] = {};
++    VkDescriptorSetLayoutBinding bindings[4] = {};
+     uint32_t bindCount = 0U;
+     if (forward) {
+-        // binding 0: UBO, 1: albedo, 2: normal
++        // binding 0: UBO, 1: albedo, 2: normal, 3: AO
+         bindings[0].binding = 0; bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; bindings[0].descriptorCount = 1; bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+         bindings[1].binding = 1; bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[1].descriptorCount = 1; bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+         bindings[2].binding = 2; bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[2].descriptorCount = 1; bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+-        bindCount = 3U;
++        bindings[3].binding = 3; bindings[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[3].descriptorCount = 1; bindings[3].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
++        bindCount = 4U;
+         dlci.bindingCount = bindCount; dlci.pBindings = bindings;
+         if (vkCreateDescriptorSetLayout(impl.device, &dlci, nullptr, &impl.desc_layout) != VK_SUCCESS) {
+             vkDestroyShaderModule(impl.device, vmod, nullptr);
+@@ -849,13 +856,17 @@
+         create_image_and_upload(ctx, W, H, albedo.data(), static_cast<VkDeviceSize>(albedo.size()*sizeof(std::uint32_t)), &impl.albedo_image, &impl.albedo_memory, &impl.albedo_view);
+         create_image_and_upload(ctx, W, H, normal.data(), static_cast<VkDeviceSize>(normal.size()*sizeof(std::uint32_t)), &impl.normal_image, &impl.normal_memory, &impl.normal_view);
+ 
+-        // Create UBO
+-        create_buffer(ctx, sizeof(float)*16U*2U + sizeof(float)*16U, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        // AO texture placeholder: 1x1 white (no occlusion)
++        const uint32_t AO_W = 1, AO_H = 1; const std::uint32_t white = 0xFFFFFFFFu;
++        create_image_and_upload(ctx, AO_W, AO_H, &white, sizeof(white), &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++
++        // Create UBO (256 bytes)
++        create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
+ 
+         // Descriptor pool and set
+         VkDescriptorPoolSize poolSizes[2] = {};
+         poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 1;
+-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 2;
++        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 3;
+         VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+         dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 1;
+         vkCreateDescriptorPool(impl.device, &dpci, nullptr, &impl.desc_pool);
+@@ -865,10 +876,12 @@
+         VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
+         VkDescriptorImageInfo dai1 {}; dai1.sampler = impl.sampler; dai1.imageView = impl.albedo_view; dai1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+         VkDescriptorImageInfo dai2 {}; dai2.sampler = impl.sampler; dai2.imageView = impl.normal_view; dai2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+-        std::array<VkWriteDescriptorSet,3> writes {};
++        VkDescriptorImageInfo dai3 {}; dai3.sampler = impl.sampler; dai3.imageView = impl.ao_view; dai3.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++        std::array<VkWriteDescriptorSet,4> writes {};
+         writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[0].dstSet = impl.desc_set; writes[0].dstBinding = 0; writes[0].descriptorCount = 1; writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes[0].pBufferInfo = &dbi;
+         writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[1].dstSet = impl.desc_set; writes[1].dstBinding = 1; writes[1].descriptorCount = 1; writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[1].pImageInfo = &dai1;
+         writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = impl.desc_set; writes[2].dstBinding = 2; writes[2].descriptorCount = 1; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[2].pImageInfo = &dai2;
++        writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[3].dstSet = impl.desc_set; writes[3].dstBinding = 3; writes[3].descriptorCount = 1; writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[3].pImageInfo = &dai3;
+         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+     }
+ }
+@@ -1068,14 +1081,17 @@
+             matmul(pv, model, mvp);
+             vkCmdPushConstants(cmd, impl->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0U, static_cast<uint32_t>(sizeof(float)*16U), mvp);
+ 
+-            // Update UBO if available: view, proj, camera/light parameters
++            // Update UBO if available: view, proj, camera/light parameters, screen params
+             if (impl->ubo_buffer != VK_NULL_HANDLE) {
+-                struct Align16UBO { float view[16]; float proj[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; } u {};
++                struct Align16UBO { float view[16]; float proj[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; float screen[4]; } u {};
+                 for (int i=0;i<16;++i) { u.view[i] = view[i]; u.proj[i] = proj[i]; }
+                 const auto s = impl->settings;
+                 u.cam_pos[0]=eye[0]; u.cam_pos[1]=eye[1]; u.cam_pos[2]=eye[2]; u.cam_pos[3]=s.normal_strength;
+                 u.light_pos[0]=s.light_pos[0]; u.light_pos[1]=s.light_pos[1]; u.light_pos[2]=s.light_pos[2]; u.light_pos[3]=s.shininess;
+                 u.light_color[0]=s.light_color[0]; u.light_color[1]=s.light_color[1]; u.light_color[2]=s.light_color[2]; u.light_color[3]=s.light_intensity;
++                const float invW = impl->swapchain_extent.width > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.width) : 0.0F;
++                const float invH = impl->swapchain_extent.height > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.height) : 0.0F;
++                u.screen[0]=invW; u.screen[1]=invH; u.screen[2]=s.ssao_power; u.screen[3]=0.0F;
+                 void* ubodata=nullptr; vkMapMemory(impl->device, impl->ubo_memory, 0, sizeof(u), 0, &ubodata); std::memcpy(ubodata, &u, sizeof(u)); vkUnmapMemory(impl->device, impl->ubo_memory);
+             }
+         }
+
+[2025-09-15T16:52:29] exec bash -lc 'git push origin HEAD' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:52:29] bash -lc 'git push origin HEAD' exited 128 in 349ms:
+remote: Permission to indie-hub/vulkano.git denied to brunooliveirafvr.
+fatal: unable to access 'https://github.com/indie-hub/vulkano.git/': The requested URL returned error: 403
+[2025-09-15T16:52:29] tokens used: 104,008
+[2025-09-15T16:52:29] turn diff:
+
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index 2290faca01c678ec81806baf1dc2750353a06fb3..fbf0a791ce5b68f29174b8cabd105681f78c0b60
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -35,6 +35,14 @@
+         float light_intensity {1.0F};
+         float light_pos[3] {3.0F, 3.0F, 3.0F};
+         float light_color[3] {1.0F, 1.0F, 1.0F};
++        // SSAO controls (initial wiring; passes added subsequently)
++        bool ssao_enabled {true};
++        int ssao_kernel {32};
++        float ssao_radius {0.5F};
++        float ssao_bias {0.02F};
++        float ssao_power {1.0F};
++        bool ssao_blur {true};
++        int ssao_blur_radius {2};
+     };
+ 
+     void set_settings(const Settings& s) noexcept;
+diff --git a/shaders/forward.frag b/shaders/forward.frag
+index 989ff1142b5a85546924c12d9a958be5f751363f..91145c0145fbb58765becb71039706bde2dfb95d
+--- a/shaders/forward.frag
++++ b/shaders/forward.frag
+@@ -17,10 +17,13 @@
+     float shininess;
+     vec3 lightColor;
+     float lightIntensity;
++    // screen params: (invWidth, invHeight, aoStrength, reserved)
++    vec4 screen;
+ } ubo;
+ 
+ layout(set = 0, binding = 1) uniform sampler2D uAlbedo;
+ layout(set = 0, binding = 2) uniform sampler2D uNormal;
++layout(set = 0, binding = 3) uniform sampler2D uAO;
+ 
+ vec3 applyNormalMap(vec3 n, vec3 t, vec3 b, vec2 uv) {
+     // Sample normal map (assumed in [0,1] RGB with (0,0,1) as flat)
+@@ -50,8 +53,13 @@
+     vec3 specular = ubo.lightColor * spec;
+     vec3 color = (diffuse + specular) * ubo.lightColor * ubo.lightIntensity;
+ 
++    // Sample SSAO
++    vec2 uv = gl_FragCoord.xy * ubo.screen.xy; // inv width/height
++    float ao = texture(uAO, uv).r;
++    ao = mix(1.0, clamp(ao, 0.0, 1.0), clamp(ubo.screen.z, 0.0, 2.0));
++    color *= ao;
++
+     // Gamma correct to sRGB for output
+     color = pow(color, vec3(1.0/2.2));
+     outColor = vec4(color, 1.0);
+ }
+-
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+index 94c6560d6c86ce8166e3303e0e8d6a0ce5a4fc5c..ab2dba099289e44f45d6393eba8b243ea871b9ff
+--- a/src/imgui_layer.cpp
++++ b/src/imgui_layer.cpp
+@@ -124,6 +124,16 @@
+         ImGui::ColorEdit3("Color", s.light_color);
+         ImGui::SliderFloat("Intensity", &s.light_intensity, 0.0F, 5.0F);
+         ImGui::SliderFloat("Shininess", &s.shininess, 4.0F, 256.0F);
++
++        ImGui::Separator();
++        ImGui::Text("SSAO");
++        ImGui::Checkbox("Enable SSAO", &s.ssao_enabled);
++        ImGui::SliderInt("Kernel Size", &s.ssao_kernel, 8, 64);
++        ImGui::SliderFloat("Radius", &s.ssao_radius, 0.05F, 2.0F);
++        ImGui::SliderFloat("Bias", &s.ssao_bias, 0.0F, 0.1F);
++        ImGui::SliderFloat("Power", &s.ssao_power, 0.0F, 2.0F);
++        ImGui::Checkbox("Blur AO", &s.ssao_blur);
++        ImGui::SliderInt("Blur Radius", &s.ssao_blur_radius, 1, 5);
+         impl->ctx->set_settings(s);
+     }
+     ImGui::End();
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 6f813be490cd3e26519a809da7a8fc20f5ef0051..e45d560a53955091853910b65ddcc068813d80f3
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -68,6 +68,9 @@
+     VkImage normal_image {VK_NULL_HANDLE};
+     VkDeviceMemory normal_memory {VK_NULL_HANDLE};
+     VkImageView normal_view {VK_NULL_HANDLE};
++    VkImage ao_image {VK_NULL_HANDLE};
++    VkDeviceMemory ao_memory {VK_NULL_HANDLE};
++    VkImageView ao_view {VK_NULL_HANDLE};
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
+@@ -680,6 +683,9 @@
+     if (impl.normal_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.normal_view, nullptr); impl.normal_view = VK_NULL_HANDLE; }
+     if (impl.normal_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.normal_image, nullptr); impl.normal_image = VK_NULL_HANDLE; }
+     if (impl.normal_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.normal_memory, nullptr); impl.normal_memory = VK_NULL_HANDLE; }
++    if (impl.ao_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.ao_view, nullptr); impl.ao_view = VK_NULL_HANDLE; }
++    if (impl.ao_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.ao_image, nullptr); impl.ao_image = VK_NULL_HANDLE; }
++    if (impl.ao_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ao_memory, nullptr); impl.ao_memory = VK_NULL_HANDLE; }
+     if (impl.ubo_buffer != VK_NULL_HANDLE) { vkDestroyBuffer(impl.device, impl.ubo_buffer, nullptr); impl.ubo_buffer = VK_NULL_HANDLE; }
+     if (impl.ubo_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ubo_memory, nullptr); impl.ubo_memory = VK_NULL_HANDLE; }
+ }
+@@ -777,14 +783,15 @@
+     pcr.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+ 
+     VkDescriptorSetLayoutCreateInfo dlci {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+-    VkDescriptorSetLayoutBinding bindings[3] = {};
++    VkDescriptorSetLayoutBinding bindings[4] = {};
+     uint32_t bindCount = 0U;
+     if (forward) {
+-        // binding 0: UBO, 1: albedo, 2: normal
++        // binding 0: UBO, 1: albedo, 2: normal, 3: AO
+         bindings[0].binding = 0; bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; bindings[0].descriptorCount = 1; bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+         bindings[1].binding = 1; bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[1].descriptorCount = 1; bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+         bindings[2].binding = 2; bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[2].descriptorCount = 1; bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+-        bindCount = 3U;
++        bindings[3].binding = 3; bindings[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[3].descriptorCount = 1; bindings[3].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
++        bindCount = 4U;
+         dlci.bindingCount = bindCount; dlci.pBindings = bindings;
+         if (vkCreateDescriptorSetLayout(impl.device, &dlci, nullptr, &impl.desc_layout) != VK_SUCCESS) {
+             vkDestroyShaderModule(impl.device, vmod, nullptr);
+@@ -849,13 +856,17 @@
+         create_image_and_upload(ctx, W, H, albedo.data(), static_cast<VkDeviceSize>(albedo.size()*sizeof(std::uint32_t)), &impl.albedo_image, &impl.albedo_memory, &impl.albedo_view);
+         create_image_and_upload(ctx, W, H, normal.data(), static_cast<VkDeviceSize>(normal.size()*sizeof(std::uint32_t)), &impl.normal_image, &impl.normal_memory, &impl.normal_view);
+ 
+-        // Create UBO
+-        create_buffer(ctx, sizeof(float)*16U*2U + sizeof(float)*16U, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        // AO texture placeholder: 1x1 white (no occlusion)
++        const uint32_t AO_W = 1, AO_H = 1; const std::uint32_t white = 0xFFFFFFFFu;
++        create_image_and_upload(ctx, AO_W, AO_H, &white, sizeof(white), &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++
++        // Create UBO (256 bytes)
++        create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
+ 
+         // Descriptor pool and set
+         VkDescriptorPoolSize poolSizes[2] = {};
+         poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 1;
+-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 2;
++        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 3;
+         VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+         dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 1;
+         vkCreateDescriptorPool(impl.device, &dpci, nullptr, &impl.desc_pool);
+@@ -865,10 +876,12 @@
+         VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
+         VkDescriptorImageInfo dai1 {}; dai1.sampler = impl.sampler; dai1.imageView = impl.albedo_view; dai1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+         VkDescriptorImageInfo dai2 {}; dai2.sampler = impl.sampler; dai2.imageView = impl.normal_view; dai2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+-        std::array<VkWriteDescriptorSet,3> writes {};
++        VkDescriptorImageInfo dai3 {}; dai3.sampler = impl.sampler; dai3.imageView = impl.ao_view; dai3.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++        std::array<VkWriteDescriptorSet,4> writes {};
+         writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[0].dstSet = impl.desc_set; writes[0].dstBinding = 0; writes[0].descriptorCount = 1; writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes[0].pBufferInfo = &dbi;
+         writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[1].dstSet = impl.desc_set; writes[1].dstBinding = 1; writes[1].descriptorCount = 1; writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[1].pImageInfo = &dai1;
+         writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = impl.desc_set; writes[2].dstBinding = 2; writes[2].descriptorCount = 1; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[2].pImageInfo = &dai2;
++        writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[3].dstSet = impl.desc_set; writes[3].dstBinding = 3; writes[3].descriptorCount = 1; writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[3].pImageInfo = &dai3;
+         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+     }
+ }
+@@ -1068,14 +1081,17 @@
+             matmul(pv, model, mvp);
+             vkCmdPushConstants(cmd, impl->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0U, static_cast<uint32_t>(sizeof(float)*16U), mvp);
+ 
+-            // Update UBO if available: view, proj, camera/light parameters
++            // Update UBO if available: view, proj, camera/light parameters, screen params
+             if (impl->ubo_buffer != VK_NULL_HANDLE) {
+-                struct Align16UBO { float view[16]; float proj[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; } u {};
++                struct Align16UBO { float view[16]; float proj[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; float screen[4]; } u {};
+                 for (int i=0;i<16;++i) { u.view[i] = view[i]; u.proj[i] = proj[i]; }
+                 const auto s = impl->settings;
+                 u.cam_pos[0]=eye[0]; u.cam_pos[1]=eye[1]; u.cam_pos[2]=eye[2]; u.cam_pos[3]=s.normal_strength;
+                 u.light_pos[0]=s.light_pos[0]; u.light_pos[1]=s.light_pos[1]; u.light_pos[2]=s.light_pos[2]; u.light_pos[3]=s.shininess;
+                 u.light_color[0]=s.light_color[0]; u.light_color[1]=s.light_color[1]; u.light_color[2]=s.light_color[2]; u.light_color[3]=s.light_intensity;
++                const float invW = impl->swapchain_extent.width > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.width) : 0.0F;
++                const float invH = impl->swapchain_extent.height > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.height) : 0.0F;
++                u.screen[0]=invW; u.screen[1]=invH; u.screen[2]=s.ssao_power; u.screen[3]=0.0F;
+                 void* ubodata=nullptr; vkMapMemory(impl->device, impl->ubo_memory, 0, sizeof(u), 0, &ubodata); std::memcpy(ubodata, &u, sizeof(u)); vkUnmapMemory(impl->device, impl->ubo_memory);
+             }
+         }
+
+
+[2025-09-15T16:52:32] thinking
+
+**Updating tasks and permissions**
+
+I’m realizing we can’t push because of permissions. The policy states no approvals, but we could propose a way to push using a token. However, since the user wants to push it in the end and we can’t, I'll note that limitation. I should provide the command they can run instead. It’s time to update the `.agent/TODO.md` to reflect the new SSAO wiring and outline the next tasks too. Let’s get that done!
+[2025-09-15T16:52:39] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/.agent/TODO.md
+@@ -3,2 +3,3 @@
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
++Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
+ 
+@@ -36,5 +37,7 @@
+ - [x] ImGui controls: light/material (normal strength, color, intensity, shininess)
+-- [ ] G-buffer pass (albedo, normal, depth)
+-- [ ] SSAO kernel + noise texture + blur + composite
+-- [ ] Resize-safe swapchain recreation for multi-pass
++- [ ] Prepass: view-space normal + depth offscreen (sampleable)
++- [ ] SSAO: kernel + 4x4 noise texture, write AO (R8)
++- [ ] Blur: separable pass into AO_blur
++- [ ] Integrate: forward shading samples AO_blur (already wired)
++- [ ] Resize-safe swapchain recreation for multi-pass images
+ 
+[2025-09-15T16:52:39] apply_patch(auto_approved=true) exited 0 in 62ms:
+Success. Updated the following files:
+M .agent/TODO.md
+[2025-09-15T16:52:39] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index b8f89d778418a213ece597f394cedd6391c25435..9dec06e98c038a2419e6aec850608f5501a1e40b
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,6 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
++Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -34,9 +35,11 @@
+ - [x] Camera + MVP matrices and per-pixel Phong shading
+ - [x] Tangent-space normal mapping with procedural textures
+ - [x] ImGui controls: light/material (normal strength, color, intensity, shininess)
+-- [ ] G-buffer pass (albedo, normal, depth)
+-- [ ] SSAO kernel + noise texture + blur + composite
+-- [ ] Resize-safe swapchain recreation for multi-pass
++- [ ] Prepass: view-space normal + depth offscreen (sampleable)
++- [ ] SSAO: kernel + 4x4 noise texture, write AO (R8)
++- [ ] Blur: separable pass into AO_blur
++- [ ] Integrate: forward shading samples AO_blur (already wired)
++- [ ] Resize-safe swapchain recreation for multi-pass images
+ 
+ ## Notes
+ - All includes must use angle brackets.
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index 2290faca01c678ec81806baf1dc2750353a06fb3..fbf0a791ce5b68f29174b8cabd105681f78c0b60
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -35,6 +35,14 @@
+         float light_intensity {1.0F};
+         float light_pos[3] {3.0F, 3.0F, 3.0F};
+         float light_color[3] {1.0F, 1.0F, 1.0F};
++        // SSAO controls (initial wiring; passes added subsequently)
++        bool ssao_enabled {true};
++        int ssao_kernel {32};
++        float ssao_radius {0.5F};
++        float ssao_bias {0.02F};
++        float ssao_power {1.0F};
++        bool ssao_blur {true};
++        int ssao_blur_radius {2};
+     };
+ 
+     void set_settings(const Settings& s) noexcept;
+diff --git a/shaders/forward.frag b/shaders/forward.frag
+index 989ff1142b5a85546924c12d9a958be5f751363f..91145c0145fbb58765becb71039706bde2dfb95d
+--- a/shaders/forward.frag
++++ b/shaders/forward.frag
+@@ -17,10 +17,13 @@
+     float shininess;
+     vec3 lightColor;
+     float lightIntensity;
++    // screen params: (invWidth, invHeight, aoStrength, reserved)
++    vec4 screen;
+ } ubo;
+ 
+ layout(set = 0, binding = 1) uniform sampler2D uAlbedo;
+ layout(set = 0, binding = 2) uniform sampler2D uNormal;
++layout(set = 0, binding = 3) uniform sampler2D uAO;
+ 
+ vec3 applyNormalMap(vec3 n, vec3 t, vec3 b, vec2 uv) {
+     // Sample normal map (assumed in [0,1] RGB with (0,0,1) as flat)
+@@ -50,8 +53,13 @@
+     vec3 specular = ubo.lightColor * spec;
+     vec3 color = (diffuse + specular) * ubo.lightColor * ubo.lightIntensity;
+ 
++    // Sample SSAO
++    vec2 uv = gl_FragCoord.xy * ubo.screen.xy; // inv width/height
++    float ao = texture(uAO, uv).r;
++    ao = mix(1.0, clamp(ao, 0.0, 1.0), clamp(ubo.screen.z, 0.0, 2.0));
++    color *= ao;
++
+     // Gamma correct to sRGB for output
+     color = pow(color, vec3(1.0/2.2));
+     outColor = vec4(color, 1.0);
+ }
+-
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+index 94c6560d6c86ce8166e3303e0e8d6a0ce5a4fc5c..ab2dba099289e44f45d6393eba8b243ea871b9ff
+--- a/src/imgui_layer.cpp
++++ b/src/imgui_layer.cpp
+@@ -124,6 +124,16 @@
+         ImGui::ColorEdit3("Color", s.light_color);
+         ImGui::SliderFloat("Intensity", &s.light_intensity, 0.0F, 5.0F);
+         ImGui::SliderFloat("Shininess", &s.shininess, 4.0F, 256.0F);
++
++        ImGui::Separator();
++        ImGui::Text("SSAO");
++        ImGui::Checkbox("Enable SSAO", &s.ssao_enabled);
++        ImGui::SliderInt("Kernel Size", &s.ssao_kernel, 8, 64);
++        ImGui::SliderFloat("Radius", &s.ssao_radius, 0.05F, 2.0F);
++        ImGui::SliderFloat("Bias", &s.ssao_bias, 0.0F, 0.1F);
++        ImGui::SliderFloat("Power", &s.ssao_power, 0.0F, 2.0F);
++        ImGui::Checkbox("Blur AO", &s.ssao_blur);
++        ImGui::SliderInt("Blur Radius", &s.ssao_blur_radius, 1, 5);
+         impl->ctx->set_settings(s);
+     }
+     ImGui::End();
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 6f813be490cd3e26519a809da7a8fc20f5ef0051..e45d560a53955091853910b65ddcc068813d80f3
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -68,6 +68,9 @@
+     VkImage normal_image {VK_NULL_HANDLE};
+     VkDeviceMemory normal_memory {VK_NULL_HANDLE};
+     VkImageView normal_view {VK_NULL_HANDLE};
++    VkImage ao_image {VK_NULL_HANDLE};
++    VkDeviceMemory ao_memory {VK_NULL_HANDLE};
++    VkImageView ao_view {VK_NULL_HANDLE};
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
+@@ -680,6 +683,9 @@
+     if (impl.normal_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.normal_view, nullptr); impl.normal_view = VK_NULL_HANDLE; }
+     if (impl.normal_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.normal_image, nullptr); impl.normal_image = VK_NULL_HANDLE; }
+     if (impl.normal_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.normal_memory, nullptr); impl.normal_memory = VK_NULL_HANDLE; }
++    if (impl.ao_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.ao_view, nullptr); impl.ao_view = VK_NULL_HANDLE; }
++    if (impl.ao_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.ao_image, nullptr); impl.ao_image = VK_NULL_HANDLE; }
++    if (impl.ao_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ao_memory, nullptr); impl.ao_memory = VK_NULL_HANDLE; }
+     if (impl.ubo_buffer != VK_NULL_HANDLE) { vkDestroyBuffer(impl.device, impl.ubo_buffer, nullptr); impl.ubo_buffer = VK_NULL_HANDLE; }
+     if (impl.ubo_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ubo_memory, nullptr); impl.ubo_memory = VK_NULL_HANDLE; }
+ }
+@@ -777,14 +783,15 @@
+     pcr.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+ 
+     VkDescriptorSetLayoutCreateInfo dlci {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+-    VkDescriptorSetLayoutBinding bindings[3] = {};
++    VkDescriptorSetLayoutBinding bindings[4] = {};
+     uint32_t bindCount = 0U;
+     if (forward) {
+-        // binding 0: UBO, 1: albedo, 2: normal
++        // binding 0: UBO, 1: albedo, 2: normal, 3: AO
+         bindings[0].binding = 0; bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; bindings[0].descriptorCount = 1; bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+         bindings[1].binding = 1; bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[1].descriptorCount = 1; bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+         bindings[2].binding = 2; bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[2].descriptorCount = 1; bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+-        bindCount = 3U;
++        bindings[3].binding = 3; bindings[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[3].descriptorCount = 1; bindings[3].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
++        bindCount = 4U;
+         dlci.bindingCount = bindCount; dlci.pBindings = bindings;
+         if (vkCreateDescriptorSetLayout(impl.device, &dlci, nullptr, &impl.desc_layout) != VK_SUCCESS) {
+             vkDestroyShaderModule(impl.device, vmod, nullptr);
+@@ -849,13 +856,17 @@
+         create_image_and_upload(ctx, W, H, albedo.data(), static_cast<VkDeviceSize>(albedo.size()*sizeof(std::uint32_t)), &impl.albedo_image, &impl.albedo_memory, &impl.albedo_view);
+         create_image_and_upload(ctx, W, H, normal.data(), static_cast<VkDeviceSize>(normal.size()*sizeof(std::uint32_t)), &impl.normal_image, &impl.normal_memory, &impl.normal_view);
+ 
+-        // Create UBO
+-        create_buffer(ctx, sizeof(float)*16U*2U + sizeof(float)*16U, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        // AO texture placeholder: 1x1 white (no occlusion)
++        const uint32_t AO_W = 1, AO_H = 1; const std::uint32_t white = 0xFFFFFFFFu;
++        create_image_and_upload(ctx, AO_W, AO_H, &white, sizeof(white), &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++
++        // Create UBO (256 bytes)
++        create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
+ 
+         // Descriptor pool and set
+         VkDescriptorPoolSize poolSizes[2] = {};
+         poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 1;
+-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 2;
++        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 3;
+         VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+         dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 1;
+         vkCreateDescriptorPool(impl.device, &dpci, nullptr, &impl.desc_pool);
+@@ -865,10 +876,12 @@
+         VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
+         VkDescriptorImageInfo dai1 {}; dai1.sampler = impl.sampler; dai1.imageView = impl.albedo_view; dai1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+         VkDescriptorImageInfo dai2 {}; dai2.sampler = impl.sampler; dai2.imageView = impl.normal_view; dai2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+-        std::array<VkWriteDescriptorSet,3> writes {};
++        VkDescriptorImageInfo dai3 {}; dai3.sampler = impl.sampler; dai3.imageView = impl.ao_view; dai3.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++        std::array<VkWriteDescriptorSet,4> writes {};
+         writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[0].dstSet = impl.desc_set; writes[0].dstBinding = 0; writes[0].descriptorCount = 1; writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes[0].pBufferInfo = &dbi;
+         writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[1].dstSet = impl.desc_set; writes[1].dstBinding = 1; writes[1].descriptorCount = 1; writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[1].pImageInfo = &dai1;
+         writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = impl.desc_set; writes[2].dstBinding = 2; writes[2].descriptorCount = 1; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[2].pImageInfo = &dai2;
++        writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[3].dstSet = impl.desc_set; writes[3].dstBinding = 3; writes[3].descriptorCount = 1; writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[3].pImageInfo = &dai3;
+         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+     }
+ }
+@@ -1068,14 +1081,17 @@
+             matmul(pv, model, mvp);
+             vkCmdPushConstants(cmd, impl->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0U, static_cast<uint32_t>(sizeof(float)*16U), mvp);
+ 
+-            // Update UBO if available: view, proj, camera/light parameters
++            // Update UBO if available: view, proj, camera/light parameters, screen params
+             if (impl->ubo_buffer != VK_NULL_HANDLE) {
+-                struct Align16UBO { float view[16]; float proj[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; } u {};
++                struct Align16UBO { float view[16]; float proj[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; float screen[4]; } u {};
+                 for (int i=0;i<16;++i) { u.view[i] = view[i]; u.proj[i] = proj[i]; }
+                 const auto s = impl->settings;
+                 u.cam_pos[0]=eye[0]; u.cam_pos[1]=eye[1]; u.cam_pos[2]=eye[2]; u.cam_pos[3]=s.normal_strength;
+                 u.light_pos[0]=s.light_pos[0]; u.light_pos[1]=s.light_pos[1]; u.light_pos[2]=s.light_pos[2]; u.light_pos[3]=s.shininess;
+                 u.light_color[0]=s.light_color[0]; u.light_color[1]=s.light_color[1]; u.light_color[2]=s.light_color[2]; u.light_color[3]=s.light_intensity;
++                const float invW = impl->swapchain_extent.width > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.width) : 0.0F;
++                const float invH = impl->swapchain_extent.height > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.height) : 0.0F;
++                u.screen[0]=invW; u.screen[1]=invH; u.screen[2]=s.ssao_power; u.screen[3]=0.0F;
+                 void* ubodata=nullptr; vkMapMemory(impl->device, impl->ubo_memory, 0, sizeof(u), 0, &ubodata); std::memcpy(ubodata, &u, sizeof(u)); vkUnmapMemory(impl->device, impl->ubo_memory);
+             }
+         }
+
+[2025-09-15T16:52:39] tokens used: 104,556
+[2025-09-15T16:52:39] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index b8f89d778418a213ece597f394cedd6391c25435..9dec06e98c038a2419e6aec850608f5501a1e40b
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,6 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
++Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -34,9 +35,11 @@
+ - [x] Camera + MVP matrices and per-pixel Phong shading
+ - [x] Tangent-space normal mapping with procedural textures
+ - [x] ImGui controls: light/material (normal strength, color, intensity, shininess)
+-- [ ] G-buffer pass (albedo, normal, depth)
+-- [ ] SSAO kernel + noise texture + blur + composite
+-- [ ] Resize-safe swapchain recreation for multi-pass
++- [ ] Prepass: view-space normal + depth offscreen (sampleable)
++- [ ] SSAO: kernel + 4x4 noise texture, write AO (R8)
++- [ ] Blur: separable pass into AO_blur
++- [ ] Integrate: forward shading samples AO_blur (already wired)
++- [ ] Resize-safe swapchain recreation for multi-pass images
+ 
+ ## Notes
+ - All includes must use angle brackets.
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index 2290faca01c678ec81806baf1dc2750353a06fb3..fbf0a791ce5b68f29174b8cabd105681f78c0b60
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -35,6 +35,14 @@
+         float light_intensity {1.0F};
+         float light_pos[3] {3.0F, 3.0F, 3.0F};
+         float light_color[3] {1.0F, 1.0F, 1.0F};
++        // SSAO controls (initial wiring; passes added subsequently)
++        bool ssao_enabled {true};
++        int ssao_kernel {32};
++        float ssao_radius {0.5F};
++        float ssao_bias {0.02F};
++        float ssao_power {1.0F};
++        bool ssao_blur {true};
++        int ssao_blur_radius {2};
+     };
+ 
+     void set_settings(const Settings& s) noexcept;
+diff --git a/shaders/forward.frag b/shaders/forward.frag
+index 989ff1142b5a85546924c12d9a958be5f751363f..91145c0145fbb58765becb71039706bde2dfb95d
+--- a/shaders/forward.frag
++++ b/shaders/forward.frag
+@@ -17,10 +17,13 @@
+     float shininess;
+     vec3 lightColor;
+     float lightIntensity;
++    // screen params: (invWidth, invHeight, aoStrength, reserved)
++    vec4 screen;
+ } ubo;
+ 
+ layout(set = 0, binding = 1) uniform sampler2D uAlbedo;
+ layout(set = 0, binding = 2) uniform sampler2D uNormal;
++layout(set = 0, binding = 3) uniform sampler2D uAO;
+ 
+ vec3 applyNormalMap(vec3 n, vec3 t, vec3 b, vec2 uv) {
+     // Sample normal map (assumed in [0,1] RGB with (0,0,1) as flat)
+@@ -50,8 +53,13 @@
+     vec3 specular = ubo.lightColor * spec;
+     vec3 color = (diffuse + specular) * ubo.lightColor * ubo.lightIntensity;
+ 
++    // Sample SSAO
++    vec2 uv = gl_FragCoord.xy * ubo.screen.xy; // inv width/height
++    float ao = texture(uAO, uv).r;
++    ao = mix(1.0, clamp(ao, 0.0, 1.0), clamp(ubo.screen.z, 0.0, 2.0));
++    color *= ao;
++
+     // Gamma correct to sRGB for output
+     color = pow(color, vec3(1.0/2.2));
+     outColor = vec4(color, 1.0);
+ }
+-
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+index 94c6560d6c86ce8166e3303e0e8d6a0ce5a4fc5c..ab2dba099289e44f45d6393eba8b243ea871b9ff
+--- a/src/imgui_layer.cpp
++++ b/src/imgui_layer.cpp
+@@ -124,6 +124,16 @@
+         ImGui::ColorEdit3("Color", s.light_color);
+         ImGui::SliderFloat("Intensity", &s.light_intensity, 0.0F, 5.0F);
+         ImGui::SliderFloat("Shininess", &s.shininess, 4.0F, 256.0F);
++
++        ImGui::Separator();
++        ImGui::Text("SSAO");
++        ImGui::Checkbox("Enable SSAO", &s.ssao_enabled);
++        ImGui::SliderInt("Kernel Size", &s.ssao_kernel, 8, 64);
++        ImGui::SliderFloat("Radius", &s.ssao_radius, 0.05F, 2.0F);
++        ImGui::SliderFloat("Bias", &s.ssao_bias, 0.0F, 0.1F);
++        ImGui::SliderFloat("Power", &s.ssao_power, 0.0F, 2.0F);
++        ImGui::Checkbox("Blur AO", &s.ssao_blur);
++        ImGui::SliderInt("Blur Radius", &s.ssao_blur_radius, 1, 5);
+         impl->ctx->set_settings(s);
+     }
+     ImGui::End();
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 6f813be490cd3e26519a809da7a8fc20f5ef0051..e45d560a53955091853910b65ddcc068813d80f3
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -68,6 +68,9 @@
+     VkImage normal_image {VK_NULL_HANDLE};
+     VkDeviceMemory normal_memory {VK_NULL_HANDLE};
+     VkImageView normal_view {VK_NULL_HANDLE};
++    VkImage ao_image {VK_NULL_HANDLE};
++    VkDeviceMemory ao_memory {VK_NULL_HANDLE};
++    VkImageView ao_view {VK_NULL_HANDLE};
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
+@@ -680,6 +683,9 @@
+     if (impl.normal_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.normal_view, nullptr); impl.normal_view = VK_NULL_HANDLE; }
+     if (impl.normal_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.normal_image, nullptr); impl.normal_image = VK_NULL_HANDLE; }
+     if (impl.normal_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.normal_memory, nullptr); impl.normal_memory = VK_NULL_HANDLE; }
++    if (impl.ao_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.ao_view, nullptr); impl.ao_view = VK_NULL_HANDLE; }
++    if (impl.ao_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.ao_image, nullptr); impl.ao_image = VK_NULL_HANDLE; }
++    if (impl.ao_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ao_memory, nullptr); impl.ao_memory = VK_NULL_HANDLE; }
+     if (impl.ubo_buffer != VK_NULL_HANDLE) { vkDestroyBuffer(impl.device, impl.ubo_buffer, nullptr); impl.ubo_buffer = VK_NULL_HANDLE; }
+     if (impl.ubo_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ubo_memory, nullptr); impl.ubo_memory = VK_NULL_HANDLE; }
+ }
+@@ -777,14 +783,15 @@
+     pcr.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+ 
+     VkDescriptorSetLayoutCreateInfo dlci {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+-    VkDescriptorSetLayoutBinding bindings[3] = {};
++    VkDescriptorSetLayoutBinding bindings[4] = {};
+     uint32_t bindCount = 0U;
+     if (forward) {
+-        // binding 0: UBO, 1: albedo, 2: normal
++        // binding 0: UBO, 1: albedo, 2: normal, 3: AO
+         bindings[0].binding = 0; bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; bindings[0].descriptorCount = 1; bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+         bindings[1].binding = 1; bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[1].descriptorCount = 1; bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+         bindings[2].binding = 2; bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[2].descriptorCount = 1; bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+-        bindCount = 3U;
++        bindings[3].binding = 3; bindings[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[3].descriptorCount = 1; bindings[3].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
++        bindCount = 4U;
+         dlci.bindingCount = bindCount; dlci.pBindings = bindings;
+         if (vkCreateDescriptorSetLayout(impl.device, &dlci, nullptr, &impl.desc_layout) != VK_SUCCESS) {
+             vkDestroyShaderModule(impl.device, vmod, nullptr);
+@@ -849,13 +856,17 @@
+         create_image_and_upload(ctx, W, H, albedo.data(), static_cast<VkDeviceSize>(albedo.size()*sizeof(std::uint32_t)), &impl.albedo_image, &impl.albedo_memory, &impl.albedo_view);
+         create_image_and_upload(ctx, W, H, normal.data(), static_cast<VkDeviceSize>(normal.size()*sizeof(std::uint32_t)), &impl.normal_image, &impl.normal_memory, &impl.normal_view);
+ 
+-        // Create UBO
+-        create_buffer(ctx, sizeof(float)*16U*2U + sizeof(float)*16U, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        // AO texture placeholder: 1x1 white (no occlusion)
++        const uint32_t AO_W = 1, AO_H = 1; const std::uint32_t white = 0xFFFFFFFFu;
++        create_image_and_upload(ctx, AO_W, AO_H, &white, sizeof(white), &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++
++        // Create UBO (256 bytes)
++        create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
+ 
+         // Descriptor pool and set
+         VkDescriptorPoolSize poolSizes[2] = {};
+         poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 1;
+-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 2;
++        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 3;
+         VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+         dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 1;
+         vkCreateDescriptorPool(impl.device, &dpci, nullptr, &impl.desc_pool);
+@@ -865,10 +876,12 @@
+         VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
+         VkDescriptorImageInfo dai1 {}; dai1.sampler = impl.sampler; dai1.imageView = impl.albedo_view; dai1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+         VkDescriptorImageInfo dai2 {}; dai2.sampler = impl.sampler; dai2.imageView = impl.normal_view; dai2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+-        std::array<VkWriteDescriptorSet,3> writes {};
++        VkDescriptorImageInfo dai3 {}; dai3.sampler = impl.sampler; dai3.imageView = impl.ao_view; dai3.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++        std::array<VkWriteDescriptorSet,4> writes {};
+         writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[0].dstSet = impl.desc_set; writes[0].dstBinding = 0; writes[0].descriptorCount = 1; writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes[0].pBufferInfo = &dbi;
+         writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[1].dstSet = impl.desc_set; writes[1].dstBinding = 1; writes[1].descriptorCount = 1; writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[1].pImageInfo = &dai1;
+         writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = impl.desc_set; writes[2].dstBinding = 2; writes[2].descriptorCount = 1; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[2].pImageInfo = &dai2;
++        writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[3].dstSet = impl.desc_set; writes[3].dstBinding = 3; writes[3].descriptorCount = 1; writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[3].pImageInfo = &dai3;
+         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+     }
+ }
+@@ -1068,14 +1081,17 @@
+             matmul(pv, model, mvp);
+             vkCmdPushConstants(cmd, impl->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0U, static_cast<uint32_t>(sizeof(float)*16U), mvp);
+ 
+-            // Update UBO if available: view, proj, camera/light parameters
++            // Update UBO if available: view, proj, camera/light parameters, screen params
+             if (impl->ubo_buffer != VK_NULL_HANDLE) {
+-                struct Align16UBO { float view[16]; float proj[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; } u {};
++                struct Align16UBO { float view[16]; float proj[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; float screen[4]; } u {};
+                 for (int i=0;i<16;++i) { u.view[i] = view[i]; u.proj[i] = proj[i]; }
+                 const auto s = impl->settings;
+                 u.cam_pos[0]=eye[0]; u.cam_pos[1]=eye[1]; u.cam_pos[2]=eye[2]; u.cam_pos[3]=s.normal_strength;
+                 u.light_pos[0]=s.light_pos[0]; u.light_pos[1]=s.light_pos[1]; u.light_pos[2]=s.light_pos[2]; u.light_pos[3]=s.shininess;
+                 u.light_color[0]=s.light_color[0]; u.light_color[1]=s.light_color[1]; u.light_color[2]=s.light_color[2]; u.light_color[3]=s.light_intensity;
++                const float invW = impl->swapchain_extent.width > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.width) : 0.0F;
++                const float invH = impl->swapchain_extent.height > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.height) : 0.0F;
++                u.screen[0]=invW; u.screen[1]=invH; u.screen[2]=s.ssao_power; u.screen[3]=0.0F;
+                 void* ubodata=nullptr; vkMapMemory(impl->device, impl->ubo_memory, 0, sizeof(u), 0, &ubodata); std::memcpy(ubodata, &u, sizeof(u)); vkUnmapMemory(impl->device, impl->ubo_memory);
+             }
+         }
+
+[2025-09-15T16:52:40] exec bash -lc 'git add .agent/TODO.md && git commit -m "chore: update TODO with SSAO wiring and next steps"' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:52:40] bash -lc 'git add .agent/TODO.md && git commit -m "chore: update TODO with SSAO wiring and next steps"' succeeded in 65ms:
+[personal/codex/second_try 0f74464] chore: update TODO with SSAO wiring and next steps
+ 1 file changed, 6 insertions(+), 3 deletions(-)
+[2025-09-15T16:52:40] tokens used: 104,943
+[2025-09-15T16:52:40] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index b8f89d778418a213ece597f394cedd6391c25435..9dec06e98c038a2419e6aec850608f5501a1e40b
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,6 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
++Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -34,9 +35,11 @@
+ - [x] Camera + MVP matrices and per-pixel Phong shading
+ - [x] Tangent-space normal mapping with procedural textures
+ - [x] ImGui controls: light/material (normal strength, color, intensity, shininess)
+-- [ ] G-buffer pass (albedo, normal, depth)
+-- [ ] SSAO kernel + noise texture + blur + composite
+-- [ ] Resize-safe swapchain recreation for multi-pass
++- [ ] Prepass: view-space normal + depth offscreen (sampleable)
++- [ ] SSAO: kernel + 4x4 noise texture, write AO (R8)
++- [ ] Blur: separable pass into AO_blur
++- [ ] Integrate: forward shading samples AO_blur (already wired)
++- [ ] Resize-safe swapchain recreation for multi-pass images
+ 
+ ## Notes
+ - All includes must use angle brackets.
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index 2290faca01c678ec81806baf1dc2750353a06fb3..fbf0a791ce5b68f29174b8cabd105681f78c0b60
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -35,6 +35,14 @@
+         float light_intensity {1.0F};
+         float light_pos[3] {3.0F, 3.0F, 3.0F};
+         float light_color[3] {1.0F, 1.0F, 1.0F};
++        // SSAO controls (initial wiring; passes added subsequently)
++        bool ssao_enabled {true};
++        int ssao_kernel {32};
++        float ssao_radius {0.5F};
++        float ssao_bias {0.02F};
++        float ssao_power {1.0F};
++        bool ssao_blur {true};
++        int ssao_blur_radius {2};
+     };
+ 
+     void set_settings(const Settings& s) noexcept;
+diff --git a/shaders/forward.frag b/shaders/forward.frag
+index 989ff1142b5a85546924c12d9a958be5f751363f..91145c0145fbb58765becb71039706bde2dfb95d
+--- a/shaders/forward.frag
++++ b/shaders/forward.frag
+@@ -17,10 +17,13 @@
+     float shininess;
+     vec3 lightColor;
+     float lightIntensity;
++    // screen params: (invWidth, invHeight, aoStrength, reserved)
++    vec4 screen;
+ } ubo;
+ 
+ layout(set = 0, binding = 1) uniform sampler2D uAlbedo;
+ layout(set = 0, binding = 2) uniform sampler2D uNormal;
++layout(set = 0, binding = 3) uniform sampler2D uAO;
+ 
+ vec3 applyNormalMap(vec3 n, vec3 t, vec3 b, vec2 uv) {
+     // Sample normal map (assumed in [0,1] RGB with (0,0,1) as flat)
+@@ -50,8 +53,13 @@
+     vec3 specular = ubo.lightColor * spec;
+     vec3 color = (diffuse + specular) * ubo.lightColor * ubo.lightIntensity;
+ 
++    // Sample SSAO
++    vec2 uv = gl_FragCoord.xy * ubo.screen.xy; // inv width/height
++    float ao = texture(uAO, uv).r;
++    ao = mix(1.0, clamp(ao, 0.0, 1.0), clamp(ubo.screen.z, 0.0, 2.0));
++    color *= ao;
++
+     // Gamma correct to sRGB for output
+     color = pow(color, vec3(1.0/2.2));
+     outColor = vec4(color, 1.0);
+ }
+-
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+index 94c6560d6c86ce8166e3303e0e8d6a0ce5a4fc5c..ab2dba099289e44f45d6393eba8b243ea871b9ff
+--- a/src/imgui_layer.cpp
++++ b/src/imgui_layer.cpp
+@@ -124,6 +124,16 @@
+         ImGui::ColorEdit3("Color", s.light_color);
+         ImGui::SliderFloat("Intensity", &s.light_intensity, 0.0F, 5.0F);
+         ImGui::SliderFloat("Shininess", &s.shininess, 4.0F, 256.0F);
++
++        ImGui::Separator();
++        ImGui::Text("SSAO");
++        ImGui::Checkbox("Enable SSAO", &s.ssao_enabled);
++        ImGui::SliderInt("Kernel Size", &s.ssao_kernel, 8, 64);
++        ImGui::SliderFloat("Radius", &s.ssao_radius, 0.05F, 2.0F);
++        ImGui::SliderFloat("Bias", &s.ssao_bias, 0.0F, 0.1F);
++        ImGui::SliderFloat("Power", &s.ssao_power, 0.0F, 2.0F);
++        ImGui::Checkbox("Blur AO", &s.ssao_blur);
++        ImGui::SliderInt("Blur Radius", &s.ssao_blur_radius, 1, 5);
+         impl->ctx->set_settings(s);
+     }
+     ImGui::End();
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 6f813be490cd3e26519a809da7a8fc20f5ef0051..e45d560a53955091853910b65ddcc068813d80f3
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -68,6 +68,9 @@
+     VkImage normal_image {VK_NULL_HANDLE};
+     VkDeviceMemory normal_memory {VK_NULL_HANDLE};
+     VkImageView normal_view {VK_NULL_HANDLE};
++    VkImage ao_image {VK_NULL_HANDLE};
++    VkDeviceMemory ao_memory {VK_NULL_HANDLE};
++    VkImageView ao_view {VK_NULL_HANDLE};
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
+@@ -680,6 +683,9 @@
+     if (impl.normal_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.normal_view, nullptr); impl.normal_view = VK_NULL_HANDLE; }
+     if (impl.normal_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.normal_image, nullptr); impl.normal_image = VK_NULL_HANDLE; }
+     if (impl.normal_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.normal_memory, nullptr); impl.normal_memory = VK_NULL_HANDLE; }
++    if (impl.ao_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.ao_view, nullptr); impl.ao_view = VK_NULL_HANDLE; }
++    if (impl.ao_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.ao_image, nullptr); impl.ao_image = VK_NULL_HANDLE; }
++    if (impl.ao_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ao_memory, nullptr); impl.ao_memory = VK_NULL_HANDLE; }
+     if (impl.ubo_buffer != VK_NULL_HANDLE) { vkDestroyBuffer(impl.device, impl.ubo_buffer, nullptr); impl.ubo_buffer = VK_NULL_HANDLE; }
+     if (impl.ubo_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ubo_memory, nullptr); impl.ubo_memory = VK_NULL_HANDLE; }
+ }
+@@ -777,14 +783,15 @@
+     pcr.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+ 
+     VkDescriptorSetLayoutCreateInfo dlci {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+-    VkDescriptorSetLayoutBinding bindings[3] = {};
++    VkDescriptorSetLayoutBinding bindings[4] = {};
+     uint32_t bindCount = 0U;
+     if (forward) {
+-        // binding 0: UBO, 1: albedo, 2: normal
++        // binding 0: UBO, 1: albedo, 2: normal, 3: AO
+         bindings[0].binding = 0; bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; bindings[0].descriptorCount = 1; bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+         bindings[1].binding = 1; bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[1].descriptorCount = 1; bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+         bindings[2].binding = 2; bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[2].descriptorCount = 1; bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+-        bindCount = 3U;
++        bindings[3].binding = 3; bindings[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[3].descriptorCount = 1; bindings[3].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
++        bindCount = 4U;
+         dlci.bindingCount = bindCount; dlci.pBindings = bindings;
+         if (vkCreateDescriptorSetLayout(impl.device, &dlci, nullptr, &impl.desc_layout) != VK_SUCCESS) {
+             vkDestroyShaderModule(impl.device, vmod, nullptr);
+@@ -849,13 +856,17 @@
+         create_image_and_upload(ctx, W, H, albedo.data(), static_cast<VkDeviceSize>(albedo.size()*sizeof(std::uint32_t)), &impl.albedo_image, &impl.albedo_memory, &impl.albedo_view);
+         create_image_and_upload(ctx, W, H, normal.data(), static_cast<VkDeviceSize>(normal.size()*sizeof(std::uint32_t)), &impl.normal_image, &impl.normal_memory, &impl.normal_view);
+ 
+-        // Create UBO
+-        create_buffer(ctx, sizeof(float)*16U*2U + sizeof(float)*16U, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        // AO texture placeholder: 1x1 white (no occlusion)
++        const uint32_t AO_W = 1, AO_H = 1; const std::uint32_t white = 0xFFFFFFFFu;
++        create_image_and_upload(ctx, AO_W, AO_H, &white, sizeof(white), &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++
++        // Create UBO (256 bytes)
++        create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
+ 
+         // Descriptor pool and set
+         VkDescriptorPoolSize poolSizes[2] = {};
+         poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 1;
+-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 2;
++        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 3;
+         VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+         dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 1;
+         vkCreateDescriptorPool(impl.device, &dpci, nullptr, &impl.desc_pool);
+@@ -865,10 +876,12 @@
+         VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
+         VkDescriptorImageInfo dai1 {}; dai1.sampler = impl.sampler; dai1.imageView = impl.albedo_view; dai1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+         VkDescriptorImageInfo dai2 {}; dai2.sampler = impl.sampler; dai2.imageView = impl.normal_view; dai2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+-        std::array<VkWriteDescriptorSet,3> writes {};
++        VkDescriptorImageInfo dai3 {}; dai3.sampler = impl.sampler; dai3.imageView = impl.ao_view; dai3.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++        std::array<VkWriteDescriptorSet,4> writes {};
+         writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[0].dstSet = impl.desc_set; writes[0].dstBinding = 0; writes[0].descriptorCount = 1; writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes[0].pBufferInfo = &dbi;
+         writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[1].dstSet = impl.desc_set; writes[1].dstBinding = 1; writes[1].descriptorCount = 1; writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[1].pImageInfo = &dai1;
+         writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = impl.desc_set; writes[2].dstBinding = 2; writes[2].descriptorCount = 1; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[2].pImageInfo = &dai2;
++        writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[3].dstSet = impl.desc_set; writes[3].dstBinding = 3; writes[3].descriptorCount = 1; writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[3].pImageInfo = &dai3;
+         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+     }
+ }
+@@ -1068,14 +1081,17 @@
+             matmul(pv, model, mvp);
+             vkCmdPushConstants(cmd, impl->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0U, static_cast<uint32_t>(sizeof(float)*16U), mvp);
+ 
+-            // Update UBO if available: view, proj, camera/light parameters
++            // Update UBO if available: view, proj, camera/light parameters, screen params
+             if (impl->ubo_buffer != VK_NULL_HANDLE) {
+-                struct Align16UBO { float view[16]; float proj[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; } u {};
++                struct Align16UBO { float view[16]; float proj[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; float screen[4]; } u {};
+                 for (int i=0;i<16;++i) { u.view[i] = view[i]; u.proj[i] = proj[i]; }
+                 const auto s = impl->settings;
+                 u.cam_pos[0]=eye[0]; u.cam_pos[1]=eye[1]; u.cam_pos[2]=eye[2]; u.cam_pos[3]=s.normal_strength;
+                 u.light_pos[0]=s.light_pos[0]; u.light_pos[1]=s.light_pos[1]; u.light_pos[2]=s.light_pos[2]; u.light_pos[3]=s.shininess;
+                 u.light_color[0]=s.light_color[0]; u.light_color[1]=s.light_color[1]; u.light_color[2]=s.light_color[2]; u.light_color[3]=s.light_intensity;
++                const float invW = impl->swapchain_extent.width > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.width) : 0.0F;
++                const float invH = impl->swapchain_extent.height > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.height) : 0.0F;
++                u.screen[0]=invW; u.screen[1]=invH; u.screen[2]=s.ssao_power; u.screen[3]=0.0F;
+                 void* ubodata=nullptr; vkMapMemory(impl->device, impl->ubo_memory, 0, sizeof(u), 0, &ubodata); std::memcpy(ubodata, &u, sizeof(u)); vkUnmapMemory(impl->device, impl->ubo_memory);
+             }
+         }
+
+
+[2025-09-15T16:52:44] thinking
+
+**Planning documentation updates**
+
+Since a push isn’t possible, I’ll need to provide instructions on necessary changes. It seems like I should update the README to mention that SSAO controls are present, but acceptance status isn’t something I should mention.
+
+Next, I need to make sure the angle-bracketed headers include <vulkano/...> correctly. The includes in .hpp use #include <...>, and those in .cpp look fine too. I'll consider if we need to run clang-format, but it seems that's not required. Finally, I’ll summarize the current work and outline next steps.
+[2025-09-15T16:52:47] codex
+
+Plan: I reviewed the repo, verified it builds and runs, and then started integrating the SSAO pipeline incrementally. I wired up SSAO controls and AO usage in the forward shader so we can layer in the actual SSAO passes next. I committed at each step. Push failed due to missing token — I’ve included the push command you can run locally.
+
+What I did
+- Verified build and tests
+  - Configures and builds with CMake; runs unit tests.
+  - Headless run works on this machine.
+- Wired SSAO into the forward shading path
+  - Extended Vulkan descriptor set and UBO to include AO and screen params.
+  - Added a placeholder AO texture (white) so rendering continues while we implement actual SSAO.
+  - Added SSAO controls in ImGui (enable, kernel size, radius, bias, power, blur, blur radius).
+  - Updated forward.frag to sample AO and darken result based on AO strength.
+- Updated agent TODO to reflect new progress and concrete next steps.
+
+Key changes
+- Public API
+  - include/vulkano/vulkan_context.hpp
+    - Added SSAO fields to Settings: ssao_enabled, ssao_kernel, ssao_radius, ssao_bias, ssao_power, ssao_blur, ssao_blur_radius.
+- ImGui UI
+  - src/imgui_layer.cpp
+    - Added “SSAO” UI section with new settings wired into VulkanContext::Settings.
+- Shader changes
+  - shaders/forward.frag
+    - Added AO sampler binding 3 and screen uniforms (invWidth, invHeight, aoStrength).
+    - Multiplies lit color by sampled AO; compiled new SPIR-V locally.
+- Vulkan context and descriptors
+  - src/vulkan_context.cpp
+    - Extended descriptor set layout to include binding 3 (AO).
+    - Created AO image/view placeholder (1x1 white) and updated descriptor writes.
+    - Increased UBO size to 256 bytes and included screen extents and AO strength values.
+    - Updated UBO population to fill screen inverse width/height and AO power.
+
+Build/run
+- Build
+  - cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+  - cmake --build build -j
+- Run headless (smoke)
+  - HEADLESS_RUN_MS=500 ./app/bin/Debug/vulkano_app
+- Tests
+  - ctest --test-dir build -C Debug --output-on-failure
+- Shaders (already compiled for forward.*)
+  - glslc shaders/forward.vert -o shaders/forward.vert.spv
+  - glslc shaders/forward.frag -o shaders/forward.frag.spv
+
+Commits
+- chore: baseline build green; ready to add SSAO pipeline
+- feat: wire SSAO controls and AO texture into forward pass; extend UBO and descriptors; update forward shader
+- chore: update TODO with SSAO wiring and next steps
+
+Push
+- The GITHUB_TOKEN env var isn’t set here; my push failed (403).
+- To push, set a token and run: git push https://$GITHUB_TOKEN@github.com/indie-hub/vulkano.git HEAD
+
+Next steps (tracked in .agent/TODO.md)
+- Prepass: render view-space normal + depth into sampleable offscreen images.
+- SSAO: implement kernel + 4x4 noise texture (tile across screen), compute AO into R8 AO image.
+- Blur: separable blur into AO_blur with adjustable radius.
+- Integrate: forward shading samples AO_blur (already wired).
+- Handle swapchain resize for multipass resources.
+
+Notes
+- Code adheres to your C++20, angle-bracket includes, RAII, no header-only impl policy.
+- Forward rendering continues to work; AO sampling is currently from a white texture (no change visually) until the SSAO pass is filled in.
+- Once we add the prepass + SSAO + blur, the AO slider will darken creases as expected, with controls affecting quality and performance.
+
+Would you like me to proceed with implementing the G-buffer prepass and SSAO + blur passes now?
+[2025-09-15T16:52:57] tokens used: 106,144
+[2025-09-15T16:52:57] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index b8f89d778418a213ece597f394cedd6391c25435..9dec06e98c038a2419e6aec850608f5501a1e40b
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,6 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
++Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -34,9 +35,11 @@
+ - [x] Camera + MVP matrices and per-pixel Phong shading
+ - [x] Tangent-space normal mapping with procedural textures
+ - [x] ImGui controls: light/material (normal strength, color, intensity, shininess)
+-- [ ] G-buffer pass (albedo, normal, depth)
+-- [ ] SSAO kernel + noise texture + blur + composite
+-- [ ] Resize-safe swapchain recreation for multi-pass
++- [ ] Prepass: view-space normal + depth offscreen (sampleable)
++- [ ] SSAO: kernel + 4x4 noise texture, write AO (R8)
++- [ ] Blur: separable pass into AO_blur
++- [ ] Integrate: forward shading samples AO_blur (already wired)
++- [ ] Resize-safe swapchain recreation for multi-pass images
+ 
+ ## Notes
+ - All includes must use angle brackets.
+diff --git a/include/vulkano/vulkan_context.hpp b/include/vulkano/vulkan_context.hpp
+index 2290faca01c678ec81806baf1dc2750353a06fb3..fbf0a791ce5b68f29174b8cabd105681f78c0b60
+--- a/include/vulkano/vulkan_context.hpp
++++ b/include/vulkano/vulkan_context.hpp
+@@ -35,6 +35,14 @@
+         float light_intensity {1.0F};
+         float light_pos[3] {3.0F, 3.0F, 3.0F};
+         float light_color[3] {1.0F, 1.0F, 1.0F};
++        // SSAO controls (initial wiring; passes added subsequently)
++        bool ssao_enabled {true};
++        int ssao_kernel {32};
++        float ssao_radius {0.5F};
++        float ssao_bias {0.02F};
++        float ssao_power {1.0F};
++        bool ssao_blur {true};
++        int ssao_blur_radius {2};
+     };
+ 
+     void set_settings(const Settings& s) noexcept;
+diff --git a/shaders/forward.frag b/shaders/forward.frag
+index 989ff1142b5a85546924c12d9a958be5f751363f..91145c0145fbb58765becb71039706bde2dfb95d
+--- a/shaders/forward.frag
++++ b/shaders/forward.frag
+@@ -17,10 +17,13 @@
+     float shininess;
+     vec3 lightColor;
+     float lightIntensity;
++    // screen params: (invWidth, invHeight, aoStrength, reserved)
++    vec4 screen;
+ } ubo;
+ 
+ layout(set = 0, binding = 1) uniform sampler2D uAlbedo;
+ layout(set = 0, binding = 2) uniform sampler2D uNormal;
++layout(set = 0, binding = 3) uniform sampler2D uAO;
+ 
+ vec3 applyNormalMap(vec3 n, vec3 t, vec3 b, vec2 uv) {
+     // Sample normal map (assumed in [0,1] RGB with (0,0,1) as flat)
+@@ -50,8 +53,13 @@
+     vec3 specular = ubo.lightColor * spec;
+     vec3 color = (diffuse + specular) * ubo.lightColor * ubo.lightIntensity;
+ 
++    // Sample SSAO
++    vec2 uv = gl_FragCoord.xy * ubo.screen.xy; // inv width/height
++    float ao = texture(uAO, uv).r;
++    ao = mix(1.0, clamp(ao, 0.0, 1.0), clamp(ubo.screen.z, 0.0, 2.0));
++    color *= ao;
++
+     // Gamma correct to sRGB for output
+     color = pow(color, vec3(1.0/2.2));
+     outColor = vec4(color, 1.0);
+ }
+-
+diff --git a/src/imgui_layer.cpp b/src/imgui_layer.cpp
+index 94c6560d6c86ce8166e3303e0e8d6a0ce5a4fc5c..ab2dba099289e44f45d6393eba8b243ea871b9ff
+--- a/src/imgui_layer.cpp
++++ b/src/imgui_layer.cpp
+@@ -124,6 +124,16 @@
+         ImGui::ColorEdit3("Color", s.light_color);
+         ImGui::SliderFloat("Intensity", &s.light_intensity, 0.0F, 5.0F);
+         ImGui::SliderFloat("Shininess", &s.shininess, 4.0F, 256.0F);
++
++        ImGui::Separator();
++        ImGui::Text("SSAO");
++        ImGui::Checkbox("Enable SSAO", &s.ssao_enabled);
++        ImGui::SliderInt("Kernel Size", &s.ssao_kernel, 8, 64);
++        ImGui::SliderFloat("Radius", &s.ssao_radius, 0.05F, 2.0F);
++        ImGui::SliderFloat("Bias", &s.ssao_bias, 0.0F, 0.1F);
++        ImGui::SliderFloat("Power", &s.ssao_power, 0.0F, 2.0F);
++        ImGui::Checkbox("Blur AO", &s.ssao_blur);
++        ImGui::SliderInt("Blur Radius", &s.ssao_blur_radius, 1, 5);
+         impl->ctx->set_settings(s);
+     }
+     ImGui::End();
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 6f813be490cd3e26519a809da7a8fc20f5ef0051..e45d560a53955091853910b65ddcc068813d80f3
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -68,6 +68,9 @@
+     VkImage normal_image {VK_NULL_HANDLE};
+     VkDeviceMemory normal_memory {VK_NULL_HANDLE};
+     VkImageView normal_view {VK_NULL_HANDLE};
++    VkImage ao_image {VK_NULL_HANDLE};
++    VkDeviceMemory ao_memory {VK_NULL_HANDLE};
++    VkImageView ao_view {VK_NULL_HANDLE};
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
+@@ -680,6 +683,9 @@
+     if (impl.normal_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.normal_view, nullptr); impl.normal_view = VK_NULL_HANDLE; }
+     if (impl.normal_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.normal_image, nullptr); impl.normal_image = VK_NULL_HANDLE; }
+     if (impl.normal_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.normal_memory, nullptr); impl.normal_memory = VK_NULL_HANDLE; }
++    if (impl.ao_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.ao_view, nullptr); impl.ao_view = VK_NULL_HANDLE; }
++    if (impl.ao_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.ao_image, nullptr); impl.ao_image = VK_NULL_HANDLE; }
++    if (impl.ao_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ao_memory, nullptr); impl.ao_memory = VK_NULL_HANDLE; }
+     if (impl.ubo_buffer != VK_NULL_HANDLE) { vkDestroyBuffer(impl.device, impl.ubo_buffer, nullptr); impl.ubo_buffer = VK_NULL_HANDLE; }
+     if (impl.ubo_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.ubo_memory, nullptr); impl.ubo_memory = VK_NULL_HANDLE; }
+ }
+@@ -777,14 +783,15 @@
+     pcr.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+ 
+     VkDescriptorSetLayoutCreateInfo dlci {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+-    VkDescriptorSetLayoutBinding bindings[3] = {};
++    VkDescriptorSetLayoutBinding bindings[4] = {};
+     uint32_t bindCount = 0U;
+     if (forward) {
+-        // binding 0: UBO, 1: albedo, 2: normal
++        // binding 0: UBO, 1: albedo, 2: normal, 3: AO
+         bindings[0].binding = 0; bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; bindings[0].descriptorCount = 1; bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+         bindings[1].binding = 1; bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[1].descriptorCount = 1; bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+         bindings[2].binding = 2; bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[2].descriptorCount = 1; bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+-        bindCount = 3U;
++        bindings[3].binding = 3; bindings[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[3].descriptorCount = 1; bindings[3].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
++        bindCount = 4U;
+         dlci.bindingCount = bindCount; dlci.pBindings = bindings;
+         if (vkCreateDescriptorSetLayout(impl.device, &dlci, nullptr, &impl.desc_layout) != VK_SUCCESS) {
+             vkDestroyShaderModule(impl.device, vmod, nullptr);
+@@ -849,13 +856,17 @@
+         create_image_and_upload(ctx, W, H, albedo.data(), static_cast<VkDeviceSize>(albedo.size()*sizeof(std::uint32_t)), &impl.albedo_image, &impl.albedo_memory, &impl.albedo_view);
+         create_image_and_upload(ctx, W, H, normal.data(), static_cast<VkDeviceSize>(normal.size()*sizeof(std::uint32_t)), &impl.normal_image, &impl.normal_memory, &impl.normal_view);
+ 
+-        // Create UBO
+-        create_buffer(ctx, sizeof(float)*16U*2U + sizeof(float)*16U, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        // AO texture placeholder: 1x1 white (no occlusion)
++        const uint32_t AO_W = 1, AO_H = 1; const std::uint32_t white = 0xFFFFFFFFu;
++        create_image_and_upload(ctx, AO_W, AO_H, &white, sizeof(white), &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++
++        // Create UBO (256 bytes)
++        create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
+ 
+         // Descriptor pool and set
+         VkDescriptorPoolSize poolSizes[2] = {};
+         poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 1;
+-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 2;
++        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 3;
+         VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+         dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 1;
+         vkCreateDescriptorPool(impl.device, &dpci, nullptr, &impl.desc_pool);
+@@ -865,10 +876,12 @@
+         VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
+         VkDescriptorImageInfo dai1 {}; dai1.sampler = impl.sampler; dai1.imageView = impl.albedo_view; dai1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+         VkDescriptorImageInfo dai2 {}; dai2.sampler = impl.sampler; dai2.imageView = impl.normal_view; dai2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+-        std::array<VkWriteDescriptorSet,3> writes {};
++        VkDescriptorImageInfo dai3 {}; dai3.sampler = impl.sampler; dai3.imageView = impl.ao_view; dai3.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++        std::array<VkWriteDescriptorSet,4> writes {};
+         writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[0].dstSet = impl.desc_set; writes[0].dstBinding = 0; writes[0].descriptorCount = 1; writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes[0].pBufferInfo = &dbi;
+         writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[1].dstSet = impl.desc_set; writes[1].dstBinding = 1; writes[1].descriptorCount = 1; writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[1].pImageInfo = &dai1;
+         writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = impl.desc_set; writes[2].dstBinding = 2; writes[2].descriptorCount = 1; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[2].pImageInfo = &dai2;
++        writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[3].dstSet = impl.desc_set; writes[3].dstBinding = 3; writes[3].descriptorCount = 1; writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[3].pImageInfo = &dai3;
+         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+     }
+ }
+@@ -1068,14 +1081,17 @@
+             matmul(pv, model, mvp);
+             vkCmdPushConstants(cmd, impl->pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0U, static_cast<uint32_t>(sizeof(float)*16U), mvp);
+ 
+-            // Update UBO if available: view, proj, camera/light parameters
++            // Update UBO if available: view, proj, camera/light parameters, screen params
+             if (impl->ubo_buffer != VK_NULL_HANDLE) {
+-                struct Align16UBO { float view[16]; float proj[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; } u {};
++                struct Align16UBO { float view[16]; float proj[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; float screen[4]; } u {};
+                 for (int i=0;i<16;++i) { u.view[i] = view[i]; u.proj[i] = proj[i]; }
+                 const auto s = impl->settings;
+                 u.cam_pos[0]=eye[0]; u.cam_pos[1]=eye[1]; u.cam_pos[2]=eye[2]; u.cam_pos[3]=s.normal_strength;
+                 u.light_pos[0]=s.light_pos[0]; u.light_pos[1]=s.light_pos[1]; u.light_pos[2]=s.light_pos[2]; u.light_pos[3]=s.shininess;
+                 u.light_color[0]=s.light_color[0]; u.light_color[1]=s.light_color[1]; u.light_color[2]=s.light_color[2]; u.light_color[3]=s.light_intensity;
++                const float invW = impl->swapchain_extent.width > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.width) : 0.0F;
++                const float invH = impl->swapchain_extent.height > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.height) : 0.0F;
++                u.screen[0]=invW; u.screen[1]=invH; u.screen[2]=s.ssao_power; u.screen[3]=0.0F;
+                 void* ubodata=nullptr; vkMapMemory(impl->device, impl->ubo_memory, 0, sizeof(u), 0, &ubodata); std::memcpy(ubodata, &u, sizeof(u)); vkUnmapMemory(impl->device, impl->ubo_memory);
+             }
+         }
+
+[2025-09-15T16:52:57] OpenAI Codex v0.34.0 (research preview)
+--------
+workdir: /Users/bruno/Documents/Development/bruno/vulkano_codex
+model: gpt-5
+provider: openai
+approval: never
+sandbox: danger-full-access
+reasoning effort: medium
+reasoning summaries: auto
+--------
+[2025-09-15T16:52:57] User instructions:
+Make often commits and push in the end.
+Make sure the code compiles and runs before submitting your work.
+Never finish without commiting first.
+
+Use the .agent/ directory as a scratchpad for your work. Store long term plans and todo lists there. Keep the TODO.md file updated and start by checking it.
+
+You will need to write end to end and unit tests for the project. But make sure to spend most of your time on the actual coding, not on the testing. A good heuristic is to spend 80% of your time on the actual porting, and 20% on the
+testing.
+
+Use the GITHUB_TOKEN environment variable to access github and the user: indie-hub
+
+Make a toplevel folder for the application with all the necessary running (binary!) files inside. Use an appropriate folder structure.
+
+Goal
+
+Build a minimal, production-quality Vulkan application in modern C++20 that opens a window (GLFW), renders a dynamically-subdividable icosphere with per-pixel Phong shading, tangent-space normal mapping, and screen-space ambient occlusion (SSAO). Provide an ImGui UI to pick the number of icosphere subdivisions at runtime. Target Windows/Linux; macOS via MoltenVK.
+
+Tech & Libraries
+	•	Language/Std: C++20 (RAII, const whenever possible, uniform initialisation {}).
+	•	Graphics: Vulkan 1.2+ (or highest available), validation layers, debug utils.
+	•	Windowing: GLFW (Vulkan surface).
+	•	Math: GLM (right-handed, radians).
+	•	UI: Dear ImGui with imgui_impl_glfw + imgui_impl_vulkan.
+	•	Images: stb_image (albedo/normal load).
+	•	Optional macOS: MoltenVK.
+	•	Build: CMake (no globbing; explicitly list files).
+
+Visual Features
+	•	Geometry: Icosphere with runtime-selectable subdivisions (0–6). Changing the value regenerates CPU mesh, recomputes tangents/bitangents, re-uploads GPU buffers.
+	•	Shading: Per-pixel Phong (N.L diffuse + Blinn-Phong specular), normal mapping in tangent space (TBN).
+	•	Lighting: Single moveable point/spot light (ImGui controls: position, colour, intensity, shininess).
+	•	SSAO pass:
+	•	Geometry pass outputs: world/ view-space normals, depth (linear or view-space z), albedo.
+	•	SSAO kernel (e.g., 32 or 64 hemisphere samples) + 4×4 noise texture, radius and bias adjustable via ImGui.
+	•	Blur pass (separable Gaussian).
+	•	Composite: lit * AO with optional AO strength slider.
+
+Runtime UI (ImGui)
+	•	Icosphere subdivisions: integer slider [0..6].
+	•	Light: position (vec3), colour, intensity, shininess.
+	•	Materials: diffuse/albedo colour, normal map strength.
+	•	SSAO: enable/disable, kernel size, radius, bias, power/strength, blur on/off, blur radius.
+	•	Stats: FPS, frame time, Vulkan device name, swapchain extent.
+
+Rendering Pipeline (suggested)
+	1.	G-Buffer pass (subpass 0):
+	•	Colour attachments: Albedo (RGBA8), Normal (RGBA16F), maybe Roughness/Metallic if you want future PBR; Depth: D32/24S8.
+	•	Vertex attributes: position, normal, tangent, bitangent, texcoord.
+	2.	SSAO pass (separate render pass or subpass 1 with input attachments):
+	•	Sample depth + normals, generate AO term, write to AO texture (R8).
+	3.	SSAO blur pass (compute or graphics):
+	•	Blur AO into AO_blur.
+	4.	Lighting/composite pass:
+	•	Full-screen quad combining G-buffer with AO_blur and Phong lighting.
+	5.	ImGui pass:
+	•	Draw UI on top.
+
+If subpasses are too heavy for v1, separate render passes with explicit image layouts/transitions are fine.
+
+Shaders (GLSL; compile to SPIR-V)
+	•	gbuffer.vert: VS for icosphere (outputs pos, uv, TBN, view pos).
+	•	gbuffer.frag: writes Albedo, Normal (from normal map via TBN), and depth.
+	•	ssao.frag (or compute): samples kernel in tangent-to-view hemisphere using depth+normal to create AO.
+	•	blur.frag (or compute): separable blur for AO.
+	•	compose.frag: Phong lighting + AO multiplication; includes gamma correction and optional HDR tonemap (ACES approximate fine if trivial).
+
+Geometry: Icosphere
+	•	Start from 12-vertex icosahedron, subdivide each triangle; normalise to unit sphere per subdivision.
+	•	Compute per-vertex tangents/bitangents from UVs (MikkTSpace-like is nice, but a robust standard tangent calc is fine).
+	•	Generate UVs suitable for sphere (simple latitude/longitude unwrap or octahedral; ensure continuity at seam).
+	•	Provide example textures (albedo + normal) or generate a checkerboard if none found.
+	•	If no textures are provided: generate a checkerboard albedo and a blue noise based normal map
+
+Descriptors & Resources
+	•	Uniform buffer(s) for camera matrices (view, proj), per-frame.
+	•	Push constants or storage for model matrix.
+	•	Combined image samplers: Albedo, Normal map.
+	•	SSAO: kernel samples uniform buffer, noise texture (tile 4×4 across screen), read-only depth+normal attachments as sampled/input attachments.
+	•	Sampler objects: one for material maps; separate for AO/blur reads.
+
+Swapchain & Sync
+	•	Handle swapchain recreation on resize (destroy dependent framebuffers/pipelines, recreate).
+	•	Per-frame resources (frames-in-flight = min 2, match swapchain images).
+	•	Fences/semaphores for acquire/present; layout transitions (barriers) correct and explicit.
+
+Controls / Camera
+	•	Basic fly camera (WASD + mouse look) with ImGui toggles to lock/unlock cursor.
+	•	FOV, near/far via ImGui.
+
+CMake Requirements
+	•	Options: ENABLE_VALIDATION, ENABLE_GLFW_WAYLAND (if Linux), ENABLE_IMGUI_DOCKING (optional).
+	•	Find or fetch: GLFW, GLM, Vulkan, ImGui (with backends), stb.
+	•	Output binaries to bin/ per-config (bin/Debug, bin/Release).
+	•	On macOS, link MoltenVK and set VK_ICD_FILENAMES or add a note to run with proper loader config.
+    * Do not use globbing; list files explicitly in CMake.
+
+Code Quality & Style
+	•	Clean, layered architecture; single-responsibility classes.
+	•	No raw new/delete. Use unique_ptr, vector, span.
+	•	Always use braces, even for one-liners. Prefer {} initialisers for members.
+	•	Prefer angle-bracket includes and project includes over local includes.
+	•	Error handling: fail fast with clear messages; assert on invariant violations in debug.
+	•	Validation layers enabled in Debug; VK_EXT_debug_utils naming and markers.
+	•	Document public headers (brief Doxygen-style comments).
+	•	Provide a short README.md with run instructions.
+
+ImGui Interactions
+	•	Changing “Subdivisions” triggers mesh rebuild + GPU buffer reupload.
+	•	Sliders: AO radius (e.g., 0.1–2.0), AO bias (0.001–0.05), kernel size (16/32/64), AO power (0–2), Blur radius (1–5), Normal strength (0–2), Shininess (8–256).
+	•	Toggle wireframe overlay (optional second pipeline state).
+
+Performance & Correctness
+	•	Target 60 FPS on mid-range GPU; keep CPU rebuild under ~20 ms for subdivisions ≤ 4.
+	•	Ensure correct sRGB sampling for albedo; perform gamma-correct output.
+	•	Depth linearisation consistent across SSAO/compose passes.
+	•	Normal map sampling uses TBN constructed from per-vertex tangent/bitangent and normal; orthonormalise TBN if needed.
+
+Deliverables
+	•	Complete source tree as above.
+	•	Precompiled SPIR-V shaders or CMake shader compile step.
+	•	Two small sample textures for demo.
+	•	README with build/run steps and key controls.
+	•	Notes on macOS/MoltenVK specifics (if any limitations vs. Windows/Linux).
+
+Acceptance Criteria (must pass)
+	•	App runs, shows shaded icosphere with normal mapping visible (toggle normal strength to 0 to compare).
+	•	ImGui slider reliably changes subdivisions and updates geometry.
+	•	SSAO visibly darkens creases/cavities; turning it off/on, adjusting radius/bias produces expected changes; blur reduces noise.
+	•	Resizing the window recreates the swapchain without crashes or leaks.
+	•	Validation layers report no errors in normal usage.
+	•	Code compiles cleanly with C++20 on MSVC or Clang/GCC (CI matrix optional).
+
+
+
+
+[2025-09-15T16:53:03] thinking
+
+**Building a Vulkan app**
+
+I have a complex task ahead: building a Vulkan app with features like SSAO. The constraints emphasize a risky full-access filesystem, no approvals, and network access. We’re working in the Codex CLI environment, and I need to make frequent commits, pushing everything at the end. I’ll start by checking the TODO.md and keeping it updated. I’ll scaffold a CMake project with necessary components, aiming for a minimal but functional Vulkan app. This will be a significant time investment.
+**Setting up Vulkan Builds**
+
+I need to run builds to ensure everything compiles correctly. In this environment, the Vulkan SDK might not be installed, and though the network is enabled, I can't count on having Vulkan headers or libraries. I'll set up CMake to fetch GLFW, GLM, and ImGui, but I'll need to find a solution for the Vulkan headers. Using volk as a Vulkan loader could help me obtain the headers, but I'll still need linkage to Vulkan itself. It's risky, but I can stub the Vulkan backend and prepare a "headless" demo for initial testing.
+**Planning Project Implementation**
+
+The instructions emphasize ensuring code compiles and runs, but not necessarily with full features. Given the large scope, I think I can start by scaffolding the project. I’ll implement core components like icosphere CPU generation, tangents, and unit tests, plus a placeholder main that prints something. This should ensure it compiles and runs. For version control, I may need to use GITHUB_TOKEN for GitHub access, but first, I should check if the local directory is a Git repository with a remote set. Also, I’ll look at the .agent/TODO.md for more information.
+**Inspecting Repository**
+
+I think I should start by inspecting the repository. My first step is to run a command to list the files. After that, I’ll check the .agent/TODO.md for any additional information. This should give me a clearer picture of what to do next. I'm curious about what’s in the repo and how it aligns with our tasks, so let's proceed with this plan!
+[2025-09-15T16:53:16] codex
+**Setting up Vulkan Builds**
+
+I need to run builds to ensure everything compiles correctly. In this environment, the Vulkan SDK might not be installed, and though the network is enabled, I can't count on having Vulkan headers or libraries. I'll set up CMake to fetch GLFW, GLM, and ImGui, but I'll need to find a solution for the Vulkan headers. Using volk as a Vulkan loader could help me obtain the headers, but I'll still need linkage to Vulkan itself. It's risky, but I can stub the Vulkan backend and prepare a "headless" demo for initial testing.
+[2025-09-15T16:53:16] codex
+**Planning Project Implementation**
+
+The instructions emphasize ensuring code compiles and runs, but not necessarily with full features. Given the large scope, I think I can start by scaffolding the project. I’ll implement core components like icosphere CPU generation, tangents, and unit tests, plus a placeholder main that prints something. This should ensure it compiles and runs. For version control, I may need to use GITHUB_TOKEN for GitHub access, but first, I should check if the local directory is a Git repository with a remote set. Also, I’ll look at the .agent/TODO.md for more information.
+[2025-09-15T16:53:16] codex
+**Inspecting Repository**
+
+I think I should start by inspecting the repository. My first step is to run a command to list the files. After that, I’ll check the .agent/TODO.md for any additional information. This should give me a clearer picture of what to do next. I'm curious about what’s in the repo and how it aligns with our tasks, so let's proceed with this plan!
+[2025-09-15T16:53:16] codex
+
+I’m going to scan the repo, check `.agent/TODO.md`, and verify git/remote status before scaffolding the CMake project structure.
+[2025-09-15T16:53:17] exec bash -lc 'ls -la' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:53:17] bash -lc 'ls -la' succeeded in 13ms:
+total 4176
+drwxr-xr-x@ 20 bruno  staff      640 15 Sep 17:27 .
+drwxr-xr-x@ 27 bruno  staff      864 15 Sep 16:39 ..
+drwxr-xr-x@  3 bruno  staff       96 15 Sep 17:34 .agent
+-rw-r--r--@  1 bruno  staff      404 15 Sep 16:44 .clang-format
+drwxr-xr-x@ 14 bruno  staff      448 15 Sep 17:52 .git
+-rw-r--r--@  1 bruno  staff      473 15 Sep 16:53 .gitignore
+drwxr-xr-x   5 bruno  staff      160 15 Sep 17:34 .idea
+-rw-r--r--@  1 bruno  staff    11798 15 Sep 16:40 AGENTS.md
+drwxr-xr-x@  5 bruno  staff      160 15 Sep 16:44 app
+drwxr-xr-x@ 14 bruno  staff      448 15 Sep 17:47 build
+drwxr-xr-x  18 bruno  staff      576 15 Sep 17:33 cmake-build-debug
+-rw-r--r--@  1 bruno  staff     1522 15 Sep 17:06 CMakeLists.txt
+drwxr-xr-x@  4 bruno  staff      128 15 Sep 16:43 include
+-rw-r--r--@  1 bruno  staff     1064 15 Sep 10:59 LICENSE
+-rw-r--r--   1 bruno  staff       71 15 Sep 16:49 NOTES.md
+-rw-r--r--   1 bruno  staff  1983225 15 Sep 17:53 output.md
+-rw-r--r--@  1 bruno  staff     2114 15 Sep 17:45 README.md
+drwxr-xr-x@ 10 bruno  staff      320 15 Sep 17:40 shaders
+drwxr-xr-x@  8 bruno  staff      256 15 Sep 17:07 src
+[2025-09-15T16:53:17] tokens used: 5,715
+
+[2025-09-15T16:53:18] thinking
+
+I'm going to look into the existing project scaffold. It has sections like CMake, include, src, and shaders, which gives me a good idea of the structure. I’ll need to inspect these areas to understand how everything is set up and see if there are any configurations or files I need to take note of. This should help me figure out the next steps in the project. Let’s dive in and explore!
+[2025-09-15T16:53:19] exec bash -lc 'rg --hidden --line-number -n "TODO|FIXME" -S || true' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:53:19] bash -lc 'rg --hidden --line-number -n "TODO|FIXME" -S || true' succeeded in 73ms:
+.git/COMMIT_EDITMSG:1:chore: update TODO with SSAO wiring and next steps
+.agent/TODO.md:1:# Vulkano Codex – TODO
+output.md:16:Use the .agent/ directory as a scratchpad for your work. Store long term plans and todo lists there. Keep the TODO.md file updated and start by checking it.
+output.md:148:I’m going to scan the repository, check .agent/TODO.md, and review any AGENTS.md to align with constraints before scaffolding the project.
+output.md:172:[2025-09-15T16:28:05] exec bash -lc "ls -la .agent && echo '---' && sed -n '1,200p' .agent/TODO.md" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+output.md:173:[2025-09-15T16:28:05] bash -lc "ls -la .agent && echo '---' && sed -n '1,200p' .agent/TODO.md" succeeded in 30ms:
+output.md:177:-rw-r--r--@  1 bruno  staff  1731 15 Sep 17:27 TODO.md
+output.md:179:# Vulkano Codex – TODO
+output.md:200:I'm looking at the TODO list, which outlines various tasks that have been completed or are in the pipeline. Now, I need to take a closer look at the `src/include/app` directory to understand what’s been done there. I wonder if there’s anything specific I should be paying attention to or if any notes are attached that could help clarify progress or future directions. Let's see what I find!
+output.md:577:I'm ready to run the app, but I'm concerned that Vulkan might not be available on macOS, requiring MoltenVK. If the app attempts to create a Vulkan instance, it will likely fail and crash, as indicated in the TODO. However, there's an option to run the app in a headless mode without Vulkan. I noticed that Vulkan_FOUND was detected as FALSE, and if that's the case, VULKANO_HAS_VULKAN may be set to 0. Running the app might just lead to a window opening and then sleeping.
+output.md:580:The TODO indicates that the error surfaces when Vulkan is supposed to be present. On this mac, if MoltenVK isn't installed, Vulkan won't be found, and the app won't attempt to create Vulkan, which is a relief. I feel good about that part. Now, it seems like moving on to the unit tests is the next step, and I'm curious to see how those will perform. Let's keep this momentum going!
+output.md:584:The TODO indicates that the error surfaces when Vulkan is supposed to be present. On this mac, if MoltenVK isn't installed, Vulkan won't be found, and the app won't attempt to create Vulkan, which is a relief. I feel good about that part. Now, it seems like moving on to the unit tests is the next step, and I'm curious to see how those will perform. Let's keep this momentum going!
+output.md:603: M .agent/TODO.md
+output.md:605:6ecf5e5 docs: document shader compilation and update TODO for mesh upload milestone
+output.md:616:I’m looking at our local changes with the TODO.md and output.md files. Committing changes frequently seems important, but we haven't modified any code yet. I'm thinking about marking tasks in the TODO as progressed, like confirming that our builds compile and tests pass. The user prefers frequent commits. So, maybe we could implement small updates to the TODO and then tackle fixes in the Vulkan instance, camera, and shading. Time constraints might mean we should focus on critical infrastructure adjustments instead!
+output.md:765:As for the immediate next steps, I need to integrate ImGui slider subdivisions, which is complete, and work on the G-buffer and SSAO. The user clearly stresses the importance of committing code frequently, so I'll make sure to add minimal documentation, update the TODO list, and note that the instance fix is done before I adjust the next steps.
+output.md:777:As for the immediate next steps, I need to integrate ImGui slider subdivisions, which is complete, and work on the G-buffer and SSAO. The user clearly stresses the importance of committing code frequently, so I'll make sure to add minimal documentation, update the TODO list, and note that the instance fix is done before I adjust the next steps.
+output.md:779:M /Users/bruno/Documents/Development/bruno/vulkano_codex/.agent/TODO.md
+output.md:791:M .agent/TODO.md
+output.md:793:diff --git a/.agent/TODO.md b/.agent/TODO.md
+[2025-09-15T16:53:19] tokens used: 12,083
+[2025-09-15T16:53:23] exec bash -lc "sed -n '1,200p' .agent/TODO.md" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:53:24] bash -lc "sed -n '1,200p' .agent/TODO.md" succeeded in 20ms:
+# Vulkano Codex – TODO
+
+Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
+
+## High-level Plan
+- Scaffold CMake project and folders
+- Add GLFW window loop (runs without Vulkan if unavailable)
+- Prepare Vulkan instance/device scaffolding (feature flags)
+- Add ImGui setup (next)
+- Implement icosphere mesh + CPU subdivision
+- Add Vulkan render passes: G-buffer, SSAO, blur, compose
+- Hook ImGui controls (subdivisions, lighting, SSAO)
+- Add tests (unit + minimal E2E)
+- Add shaders + compile step
+- Add textures/assets and runtime packaging
+
+## Short-term Tasks
+- [x] Configure CMake with options: ENABLE_VALIDATION, ENABLE_GLFW_WAYLAND, ENABLE_IMGUI_DOCKING
+- [x] FetchContent: GLFW, GLM, Catch2 (tests); defer ImGui for next step
+[2025-09-15T16:53:24] tokens used: 15,619
+
+[2025-09-15T16:53:26] thinking
+
+**Inspecting project state**
+
+I see there's a lot accomplished already! We have forward Phong and normal mapping running, along with imgui integration and an icosphere. But, uh oh, SSAO is still incomplete. It looks like there's an existing CMake setup and code in the src/include/app directory. I’ll need to inspect these key directories to get a clearer understanding of the current state of the project. It sounds like a solid plan!
+[2025-09-15T16:53:28] exec bash -lc "ls -la include && echo '---' && rg --files include | sed -n '1,200p' && echo '---' && rg --files src | sed -n '1,200p' && echo '---' && rg --files shaders | sed -n '1,200p'" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:53:28] bash -lc "ls -la include && echo '---' && rg --files include | sed -n '1,200p' && echo '---' && rg --files src | sed -n '1,200p' && echo '---' && rg --files shaders | sed -n '1,200p'" succeeded in 52ms:
+total 8
+drwxr-xr-x@  4 bruno  staff  128 15 Sep 16:43 .
+drwxr-xr-x@ 20 bruno  staff  640 15 Sep 17:27 ..
+-rw-r--r--@  1 bruno  staff  452 15 Sep 17:09 CMakeLists.txt
+drwxr-xr-x@  8 bruno  staff  256 15 Sep 17:06 vulkano
+---
+include/vulkano/icosphere.hpp
+include/vulkano/mesh.hpp
+include/vulkano/window.hpp
+include/vulkano/vulkan_context.hpp
+include/vulkano/app.hpp
+include/vulkano/imgui_layer.hpp
+include/CMakeLists.txt
+---
+src/app.cpp
+src/imgui_layer.cpp
+src/vulkan_context.cpp
+src/window.cpp
+src/icosphere.cpp
+src/CMakeLists.txt
+[2025-09-15T16:53:28] tokens used: 16,495
+[2025-09-15T16:53:33] exec bash -lc "sed -n '1,200p' include/vulkano/app.hpp && echo '---' && sed -n '1,200p' include/vulkano/window.hpp && echo '---' && sed -n '1,220p' include/vulkano/vulkan_context.hpp && echo '---' && sed -n '1,240p' include/vulkano/mesh.hpp && echo '---' && sed -n '1,200p' include/vulkano/icosphere.hpp && echo '---' && sed -n '1,200p' include/vulkano/imgui_layer.hpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:53:33] bash -lc "sed -n '1,200p' include/vulkano/app.hpp && echo '---' && sed -n '1,200p' include/vulkano/window.hpp && echo '---' && sed -n '1,220p' include/vulkano/vulkan_context.hpp && echo '---' && sed -n '1,240p' include/vulkano/mesh.hpp && echo '---' && sed -n '1,200p' include/vulkano/icosphere.hpp && echo '---' && sed -n '1,200p' include/vulkano/imgui_layer.hpp" succeeded in 32ms:
+#pragma once
+
+#include <cstdint>
+#include <memory>
+#include <string>
+
+namespace vulkano {
+
+class Window;
+class ImGuiLayer;
+
+struct AppConfig {
+    std::string title;
+    std::uint32_t width {1280};
+    std::uint32_t height {720};
+    bool enable_vulkan {true};
+};
+
+class Application final {
+public:
+[2025-09-15T16:53:33] tokens used: 17,099
+[2025-09-15T16:53:37] exec bash -lc "sed -n '1,220p' src/app.cpp && echo '---' && sed -n '1,260p' src/window.cpp && echo '---' && sed -n '1,260p' src/vulkan_context.cpp && echo '---' && sed -n '1,260p' src/icosphere.cpp && echo '---' && sed -n '1,240p' src/imgui_layer.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:53:37] bash -lc "sed -n '1,220p' src/app.cpp && echo '---' && sed -n '1,260p' src/window.cpp && echo '---' && sed -n '1,260p' src/vulkan_context.cpp && echo '---' && sed -n '1,260p' src/icosphere.cpp && echo '---' && sed -n '1,240p' src/imgui_layer.cpp" succeeded in 29ms:
+#include <vulkano/app.hpp>
+#include <vulkano/window.hpp>
+#include <vulkano/vulkan_context.hpp>
+#include <vulkano/imgui_layer.hpp>
+
+#include <chrono>
+#include <thread>
+
+namespace vulkano {
+
+Application::Application(const AppConfig& config)
+    : window {nullptr} {
+    init_window(config);
+}
+
+Application::~Application() = default;
+
+Application::Application(Application&&) noexcept = default;
+Application& Application::operator=(Application&&) noexcept = default;
+
+[2025-09-15T16:53:37] tokens used: 19,196
+
+[2025-09-15T16:53:39] thinking
+
+**Examining Vulkan integration**
+
+I noticed that the src/window.cpp file is quite large, and it's truncated, which means I can’t see everything right now. However, I also saw that imgui_layer.cpp offers actual Vulkan integration when the VULKANO_HAS_VULKAN macro is defined; otherwise, it does nothing. That's interesting! Now, I'll open the src/vulkan_context.cpp file because it appears to be large as well. Let's see what that reveals!
+[2025-09-15T16:53:42] exec bash -lc "sed -n '1,260p' src/vulkan_context.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:53:42] bash -lc "sed -n '1,260p' src/vulkan_context.cpp" succeeded in 17ms:
+#include <vulkano/vulkan_context.hpp>
+#include <vulkano/window.hpp>
+#include <vulkano/icosphere.hpp>
+#include <vulkano/mesh.hpp>
+
+#if VULKANO_HAS_VULKAN
+#include <vulkan/vulkan.h>
+#include <GLFW/glfw3.h>
+
+#include <array>
+#include <functional>
+#include <vector>
+#include <stdexcept>
+#include <cstdio>
+#include <cstring>
+
+namespace vulkano {
+
+struct VulkanContext::Impl final {
+    VkInstance instance {VK_NULL_HANDLE};
+[2025-09-15T16:53:42] tokens used: 21,979
+[2025-09-15T16:53:43] exec bash -lc "sed -n '260,720p' src/vulkan_context.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:53:43] bash -lc "sed -n '260,720p' src/vulkan_context.cpp" succeeded in 18ms:
+    return find_supported_format(impl.physical_device,
+        {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
+        VK_IMAGE_TILING_OPTIMAL,
+        VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+}
+
+static uint32_t find_memory_type(VkPhysicalDevice pd, uint32_t typeBits, VkMemoryPropertyFlags props);
+
+static void create_depth_resources(VulkanContext& ctx) {
+    auto& impl = VulkanContextInternalsHelper::get(ctx);
+    const VkFormat depth_format = find_depth_format(ctx);
+    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+    ici.imageType = VK_IMAGE_TYPE_2D;
+    ici.extent = {impl.swapchain_extent.width, impl.swapchain_extent.height, 1U};
+    ici.mipLevels = 1U;
+    ici.arrayLayers = 1U;
+    ici.format = depth_format;
+    ici.tiling = VK_IMAGE_TILING_OPTIMAL;
+    ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    ici.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+[2025-09-15T16:53:43] tokens used: 24,947
+[2025-09-15T16:53:46] exec bash -lc "sed -n '720,1440p' src/vulkan_context.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:53:46] bash -lc "sed -n '720,1440p' src/vulkan_context.cpp" succeeded in 11ms:
+    stages[0].module = vmod;
+    stages[0].pName = "main";
+    stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    stages[1].module = fmod;
+    stages[1].pName = "main";
+
+    // Vertex input: position, normal, tangent, bitangent, texcoord
+    VkVertexInputBindingDescription binding {};
+    binding.binding = 0;
+    binding.stride = sizeof(vulkano::Vertex);
+    binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+    std::array<VkVertexInputAttributeDescription, 5> attrs {};
+    attrs[0] = {0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, position)};
+    attrs[1] = {1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, normal)};
+    attrs[2] = {2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, tangent)};
+    attrs[3] = {3, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, bitangent)};
+    attrs[4] = {4, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(vulkano::Vertex, texcoord)};
+
+[2025-09-15T16:53:46] tokens used: 27,944
+[2025-09-15T16:53:49] exec bash -lc "sed -n '1,260p' src/icosphere.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:53:49] bash -lc "sed -n '1,260p' src/icosphere.cpp" succeeded in 18ms:
+#include <vulkano/icosphere.hpp>
+#include <vulkano/mesh.hpp>
+
+#include <array>
+#include <cmath>
+#include <unordered_map>
+
+namespace vulkano {
+
+namespace {
+
+struct Vec3 final {
+    float x {};
+    float y {};
+    float z {};
+};
+
+struct Vec2 final {
+    float u {};
+    float v {};
+[2025-09-15T16:53:49] tokens used: 31,081
+[2025-09-15T16:53:54] exec bash -lc "sed -n '1,240p' shaders/forward.vert && echo '---' && sed -n '1,260p' shaders/forward.frag" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:53:54] bash -lc "sed -n '1,240p' shaders/forward.vert && echo '---' && sed -n '1,260p' shaders/forward.frag" succeeded in 21ms:
+#version 450
+
+layout(location = 0) in vec3 inPos;
+layout(location = 1) in vec3 inNormal;
+layout(location = 2) in vec3 inTangent;
+layout(location = 3) in vec3 inBitangent;
+layout(location = 4) in vec2 inUV;
+
+layout(push_constant) uniform PC {
+    mat4 mvp;
+} pc;
+
+layout(location = 0) out vec3 vNormal;
+layout(location = 1) out vec3 vTangent;
+layout(location = 2) out vec3 vBitangent;
+layout(location = 3) out vec2 vUV;
+layout(location = 4) out vec3 vPosition;
+
+void main() {
+    gl_Position = pc.mvp * vec4(inPos, 1.0);
+[2025-09-15T16:53:54] tokens used: 34,337
+
+[2025-09-15T16:53:57] thinking
+
+**Investigating shader requirements**
+
+The forward shader needs a Uniform Buffer Object (UBO) and three samplers for albedo, normal, and ambient occlusion (AO). I noticed that the Vulkan code creates textures for these components, and I need to check the pipeline creation to see how those images are handled. It seems necessary to look into texture creation lines, like `create_image_and_view`, as they are likely critical for texture generation. Let’s dig into this!
+[2025-09-15T16:53:59] exec bash -lc 'rg -n "create_image|uAlbedo|uNormal|uAO|noise|UBO|descriptor" src/vulkan_context.cpp' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:53:59] bash -lc 'rg -n "create_image|uAlbedo|uNormal|uAO|noise|UBO|descriptor" src/vulkan_context.cpp' succeeded in 34ms:
+606:static void create_image_and_upload(VulkanContext& ctx, uint32_t width, uint32_t height, const void* pixels, VkDeviceSize size,
+789:        // binding 0: UBO, 1: albedo, 2: normal, 3: AO
+790:        bindings[0].binding = 0; bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; bindings[0].descriptorCount = 1; bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+791:        bindings[1].binding = 1; bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[1].descriptorCount = 1; bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+792:        bindings[2].binding = 2; bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[2].descriptorCount = 1; bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+793:        bindings[3].binding = 3; bindings[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[3].descriptorCount = 1; bindings[3].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+856:        create_image_and_upload(ctx, W, H, albedo.data(), static_cast<VkDeviceSize>(albedo.size()*sizeof(std::uint32_t)), &impl.albedo_image, &impl.albedo_memory, &impl.albedo_view);
+857:        create_image_and_upload(ctx, W, H, normal.data(), static_cast<VkDeviceSize>(normal.size()*sizeof(std::uint32_t)), &impl.normal_image, &impl.normal_memory, &impl.normal_view);
+861:        create_image_and_upload(ctx, AO_W, AO_H, &white, sizeof(white), &impl.ao_image, &impl.ao_memory, &impl.ao_view);
+863:        // Create UBO (256 bytes)
+868:        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 1;
+869:        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 3;
+874:        dsai.descriptorPool = impl.desc_pool; dsai.descriptorSetCount = 1; dsai.pSetLayouts = &impl.desc_layout;
+881:        writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[0].dstSet = impl.desc_set; writes[0].dstBinding = 0; writes[0].descriptorCount = 1; writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes[0].pBufferInfo = &dbi;
+882:        writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[1].dstSet = impl.desc_set; writes[1].dstBinding = 1; writes[1].descriptorCount = 1; writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[1].pImageInfo = &dai1;
+883:        writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = impl.desc_set; writes[2].dstBinding = 2; writes[2].descriptorCount = 1; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[2].pImageInfo = &dai2;
+884:        writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[3].dstSet = impl.desc_set; writes[3].dstBinding = 3; writes[3].descriptorCount = 1; writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[3].pImageInfo = &dai3;
+1084:            // Update UBO if available: view, proj, camera/light parameters, screen params
+1086:                struct Align16UBO { float view[16]; float proj[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; float screen[4]; } u {};
+[2025-09-15T16:53:59] tokens used: 35,548
+[2025-09-15T16:54:01] exec bash -lc "sed -n '560,930p' src/vulkan_context.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:54:01] bash -lc "sed -n '560,930p' src/vulkan_context.cpp" succeeded in 22ms:
+    auto& impl = VulkanContextInternalsHelper::get(ctx);
+    VkCommandBuffer cmd = begin_one_time_commands(ctx);
+    VkImageMemoryBarrier barrier {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+    barrier.oldLayout = oldLayout;
+    barrier.newLayout = newLayout;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = image;
+    barrier.subresourceRange.aspectMask = (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.baseMipLevel = 0;
+    barrier.subresourceRange.levelCount = 1;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount = 1;
+    VkPipelineStageFlags srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+    VkPipelineStageFlags dstStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+        barrier.srcAccessMask = 0;
+        barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        dstStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+[2025-09-15T16:54:01] tokens used: 36,611
+
+[2025-09-15T16:54:03] thinking
+
+**Reviewing CMakeLists contents**
+
+I need to examine the structure of the CMakeLists file. I'll look at the top-level configuration, as well as the include and src/app directories. Understanding how everything is organized will help me ensure that the code is well-integrated and robust. It's important to verify that all necessary components are included and properly set up. Let's dive into that and see what I can uncover!
+[2025-09-15T16:54:08] exec bash -lc "sed -n '1,220p' CMakeLists.txt && echo '---' && sed -n '1,220p' include/CMakeLists.txt && echo '---' && sed -n '1,240p' src/CMakeLists.txt && echo '---' && sed -n '1,240p' app/CMakeLists.txt && echo '---' && sed -n '1,200p' tests/CMakeLists.txt && echo '---' && rg -n \"add_executable|project\\(|find_package|FetchContent|option\\(\" CMakeLists.txt include/CMakeLists.txt src/CMakeLists.txt app/CMakeLists.txt tests/CMakeLists.txt" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:54:08] bash -lc "sed -n '1,220p' CMakeLists.txt && echo '---' && sed -n '1,220p' include/CMakeLists.txt && echo '---' && sed -n '1,240p' src/CMakeLists.txt && echo '---' && sed -n '1,240p' app/CMakeLists.txt && echo '---' && sed -n '1,200p' tests/CMakeLists.txt && echo '---' && rg -n \"add_executable|project\\(|find_package|FetchContent|option\\(\" CMakeLists.txt include/CMakeLists.txt src/CMakeLists.txt app/CMakeLists.txt tests/CMakeLists.txt" succeeded in 38ms:
+cmake_minimum_required(VERSION 3.25)
+project(vulkano VERSION 0.1.0 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+option(ENABLE_VALIDATION "Enable Vulkan validation layers in Debug" ON)
+option(ENABLE_GLFW_WAYLAND "Enable GLFW Wayland on Linux" OFF)
+option(ENABLE_IMGUI_DOCKING "Enable ImGui docking features" OFF)
+
+if(MSVC)
+    add_compile_options(/W4 /permissive-)
+else()
+    add_compile_options(-Wall -Wextra -Wpedantic -Wconversion)
+endif()
+
+include(FetchContent)
+
+# GLFW
+[2025-09-15T16:54:08] tokens used: 39,725
+[2025-09-15T16:54:09] exec bash -lc "sed -n '1,200p' app/main.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:54:09] bash -lc "sed -n '1,200p' app/main.cpp" succeeded in 18ms:
+#include <vulkano/app.hpp>
+
+#include <cstdlib>
+#include <string>
+
+int main() {
+    vulkano::AppConfig config { };
+    config.title = std::string {"Vulkano – Vulkan/GLFW Skeleton"};
+    config.width = 1280U;
+    config.height = 720U;
+    config.enable_vulkan = true;
+
+    vulkano::Application app {config};
+    if (const char* headless = std::getenv("HEADLESS_RUN_MS"); headless != nullptr) {
+        const unsigned long ms = std::strtoul(headless, nullptr, 10);
+        const std::uint32_t clamped = ms > 60000UL ? 60000U : static_cast<std::uint32_t>(ms);
+        app.run_for_ms(clamped);
+    } else {
+        app.run();
+    }
+[2025-09-15T16:54:09] tokens used: 41,377
+[2025-09-15T16:54:11] exec bash -lc "sed -n '1,240p' tests/sanity_tests.cpp && echo '---' && sed -n '1,240p' tests/icosphere_tests.cpp && echo '---' && sed -n '1,200p' tests/tests_main.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:54:11] bash -lc "sed -n '1,240p' tests/sanity_tests.cpp && echo '---' && sed -n '1,240p' tests/icosphere_tests.cpp && echo '---' && sed -n '1,200p' tests/tests_main.cpp" succeeded in 24ms:
+#include <catch2/catch_all.hpp>
+
+#include <vulkano/app.hpp>
+
+TEST_CASE("AppConfig default sizes are sane") {
+    const vulkano::AppConfig cfg { };
+    REQUIRE(cfg.width >= 640U);
+    REQUIRE(cfg.height >= 480U);
+}
+
+---
+#include <catch2/catch_all.hpp>
+
+#include <vulkano/icosphere.hpp>
+#include <vulkano/mesh.hpp>
+
+#include <cmath>
+
+static std::size_t expected_vertex_count(std::uint32_t subdivisions) {
+    // V(n) = 10 * 4^n + 2
+[2025-09-15T16:54:11] tokens used: 41,818
+[2025-09-15T16:54:13] exec bash -lc "sed -n '1,240p' README.md" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:54:13] bash -lc "sed -n '1,240p' README.md" succeeded in 19ms:
+# Vulkano Codex
+
+Minimal, production-quality C++20 Vulkan application scaffold.
+
+Current stage
+- GLFW window + event loop
+- CPU icosphere mesh generator with tangents/bitangents (tested)
+- Vulkan context: instance + surface + device + swapchain + color+depth render pass; per-frame draw with depth test. Debug utils enabled in Debug builds.
+  - On platforms without Vulkan/MoltenVK, the app still builds and runs the window loop.
+- ImGui integration (GLFW + Vulkan). UI shows subdivision slider and lighting/material controls.
+- Forward Phong shading with tangent-space normal mapping (procedural checkerboard albedo + flat normal map). MVP via push constants; per-frame UBO for camera/light/material.
+
+Shaders:
+- Forward shaders: `shaders/forward.vert`, `shaders/forward.frag` (+ compiled `.spv` included). These implement Phong + normal mapping.
+- Fallback simple shaders: `shaders/simple.vert` and `shaders/simple.frag` (+ `.spv`). Used if forward shaders are missing.
+
+Compile shaders (requires Vulkan SDK tools present in PATH):
+```
+# Forward shading
+glslc shaders/forward.vert -o shaders/forward.vert.spv
+[2025-09-15T16:54:13] tokens used: 71,405
+
+[2025-09-15T16:54:18] thinking
+
+**Checking build setup**
+
+It looks like things are already in good shape. The goal needs SSAO with a multi-pass approach, which isn’t implemented yet. I've noted the pending tasks. The instructions suggest I spend 80% of my time coding and 20% testing, committing often and pushing at the end. I should make sure the code builds and runs properly. Since I'm on macOS, I need to keep in mind that MoltenVK might not be installed, but let's proceed with the build.
+[2025-09-15T16:54:20] exec bash -lc 'cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug && cmake --build build -j' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:54:22] bash -lc 'cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug && cmake --build build -j' succeeded in 1.82s:
+-- Including Cocoa support
+CMake Deprecation Warning at build/_deps/glm-src/CMakeLists.txt:1 (cmake_minimum_required):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+
+
+CMake Deprecation Warning at build/_deps/glm-src/CMakeLists.txt:2 (cmake_policy):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+
+
+-- GLM: Version 1.0.1
+[2025-09-15T16:54:22] tokens used: 72,222
+[2025-09-15T16:54:24] exec bash -lc 'ctest --test-dir build -C Debug --output-on-failure' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:54:24] bash -lc 'ctest --test-dir build -C Debug --output-on-failure' succeeded in 85ms:
+Test project /Users/bruno/Documents/Development/bruno/vulkano_codex/build
+    Start 1: vulkano_tests
+1/1 Test #1: vulkano_tests ....................   Passed    0.02 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.03 sec
+[2025-09-15T16:54:24] tokens used: 74,262
+
+[2025-09-15T16:54:26] thinking
+
+I’m considering running the app headless for a short period. This way, I can ensure it operates as expected without needing direct interaction. It seems like a straightforward approach to test everything efficiently. I wonder if I should check for any error messages or performance issues while it runs this way, too. It’s all about making sure everything is functioning properly before diving deeper into more complex analysis or interactions.
+[2025-09-15T16:54:28] exec bash -lc 'HEADLESS_RUN_MS=250 ./app/bin/Debug/vulkano_app || true' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:54:28] bash -lc 'HEADLESS_RUN_MS=250 ./app/bin/Debug/vulkano_app || true' succeeded in 409ms:
+
+[2025-09-15T16:54:28] tokens used: 74,541
+
+[2025-09-15T16:55:11] thinking
+
+**Designing rendering solutions**
+
+This coding task looks quite extensive, but I think a pragmatic approach will help. I plan to implement an offscreen render pass and an ambient occlusion (AO) fullscreen pass using a simple noise kernel and random rotations. I need to create images with specific usage flags, searching for offscreen resources in vulkan_context.cpp since they aren't there yet.
+
+I'll extend the implementation for various components like depth images, framebuffers, and shaders, while considering how to effectively manage depth testing through passes. It's definitely a lot, but I’m excited to streamline it!
+**Implementing rendering passes**
+
+To keep things straightforward, I’ll create a dedicated depth image for the prepass. I'll establish the offscreen render pass with a single color attachment and a depth subpass for optimal shader reading.
+
+For the SSAO pass, I’ll use a render pass with an AO color attachment but no depth, ensuring the vertex shader outputs a fullscreen triangle while the fragment samples the ND texture.
+
+During the forward pass, I'll focus on code modifications, like extending implementation fields, creating offscreen images, and managing command buffers for the various passes. When resizing, resources will be recreated, and I'll update the descriptors accordingly for optimal performance.
+**Refining the AO image process**
+
+Earlier, a placeholder AO image was used, but I think we can improve that by filling it with the output from the SSAO pass. Instead of creating a 1x1 AO image, I’ll modify the code to create a proper AO image that matches the swapchain extent while treating it as both sampled and a color attachment.
+
+For shaders, I need to create gbuffer.vert and gbuffer.frag, along with fullscreen.vert and ssao.frag, ensuring they are SPIR-V compiled. However, I notice that the environment may not have glslc installed, so I’ll consider other ways to include precompiled .spv files for the new shaders.
+**Exploring AO image options**
+
+I’m considering alternatives for the AO image. One idea is to keep the placeholder AO as white and follow the TODO to implement SSAO controls and the AO hook. The user wants to create a minimal production-quality app with SSAO, so I’ll think about adding an offscreen AO image.
+
+I might create a dummy SSAO pass that just fills the output with a constant value and leverage a trivial pipeline for manual inclusion of precompiled SPIR-V bytes. However, I need .spv files, which I can't compile right now. Pre-committing those binary files seems like the best option, even if it’s a bit large.
+**Reassessing SPIR-V implementation**
+
+Creating SPIR-V by hand could be tricky, so I think it’s best to focus on reorganizing the code and laying down the groundwork for SSAO resources while keeping the AO sampling as a placeholder if we don't have SPIR-V ready. That approach should still compile and run, allowing me to update the TODO list to reflect this partial progress.
+
+Although the full SSAO implementation might be excessive in this environment, I’ll aim to implement gbuffer and SSAO passes with existing helper functions and include GLSL shaders, along with precompiled .spv files if possible. I should check if glslc is available, but on a Mac, that’s less likely.
+[2025-09-15T16:55:35] codex
+**Implementing rendering passes**
+
+To keep things straightforward, I’ll create a dedicated depth image for the prepass. I'll establish the offscreen render pass with a single color attachment and a depth subpass for optimal shader reading.
+
+For the SSAO pass, I’ll use a render pass with an AO color attachment but no depth, ensuring the vertex shader outputs a fullscreen triangle while the fragment samples the ND texture.
+
+During the forward pass, I'll focus on code modifications, like extending implementation fields, creating offscreen images, and managing command buffers for the various passes. When resizing, resources will be recreated, and I'll update the descriptors accordingly for optimal performance.
+[2025-09-15T16:55:35] codex
+**Refining the AO image process**
+
+Earlier, a placeholder AO image was used, but I think we can improve that by filling it with the output from the SSAO pass. Instead of creating a 1x1 AO image, I’ll modify the code to create a proper AO image that matches the swapchain extent while treating it as both sampled and a color attachment.
+
+For shaders, I need to create gbuffer.vert and gbuffer.frag, along with fullscreen.vert and ssao.frag, ensuring they are SPIR-V compiled. However, I notice that the environment may not have glslc installed, so I’ll consider other ways to include precompiled .spv files for the new shaders.
+[2025-09-15T16:55:35] codex
+**Exploring AO image options**
+
+I’m considering alternatives for the AO image. One idea is to keep the placeholder AO as white and follow the TODO to implement SSAO controls and the AO hook. The user wants to create a minimal production-quality app with SSAO, so I’ll think about adding an offscreen AO image.
+
+I might create a dummy SSAO pass that just fills the output with a constant value and leverage a trivial pipeline for manual inclusion of precompiled SPIR-V bytes. However, I need .spv files, which I can't compile right now. Pre-committing those binary files seems like the best option, even if it’s a bit large.
+[2025-09-15T16:55:35] codex
+**Reassessing SPIR-V implementation**
+
+Creating SPIR-V by hand could be tricky, so I think it’s best to focus on reorganizing the code and laying down the groundwork for SSAO resources while keeping the AO sampling as a placeholder if we don't have SPIR-V ready. That approach should still compile and run, allowing me to update the TODO list to reflect this partial progress.
+
+Although the full SSAO implementation might be excessive in this environment, I’ll aim to implement gbuffer and SSAO passes with existing helper functions and include GLSL shaders, along with precompiled .spv files if possible. I should check if glslc is available, but on a Mac, that’s less likely.
+[2025-09-15T16:55:35] exec bash -lc "which glslc || echo 'no glslc'" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:55:35] bash -lc "which glslc || echo 'no glslc'" succeeded in 23ms:
+/usr/local/bin/glslc
+[2025-09-15T16:55:35] tokens used: 76,178
+
+[2025-09-15T16:55:41] thinking
+
+**Planning shader updates**
+
+Great! I see that glslc is available, which lets us write and compile new shaders into .spv files. My first step is to update the shaders folder with gbuffer.vert/frag and decide whether to use ssao.vert for fullscreen or stick with simple.vert. I think I'll write a fullscreen triangle vertex shader.
+
+Next, I'll implement code to create offscreen resources and pipelines, modify command buffer recording, and ensure everything compiles and runs correctly. I'll also need to commit frequently.
+**Organizing Vulkan development**
+
+I’m updating agent/TODO.md to track progress and ensure adherence to AGENTS.md by using angle bracket includes. It seems that code in headers isn’t being respected, and while some noexcept usage is acknowledged, not all is applied.
+
+Next, I’ll implement SSAO scaffolding in the Vulkan code but need to ensure that non-Vulkan compilation isn’t broken since this file only compiles when Vulkan_FOUND is set. Changes will be made in vulkan_context.cpp, which won’t affect the current build. I'll add shaders, compile them to .spv for the repo, and update the README for compiling instructions. I’ll also organize a top-level app folder for necessary running files.
+[2025-09-15T16:55:48] codex
+**Organizing Vulkan development**
+
+I’m updating agent/TODO.md to track progress and ensure adherence to AGENTS.md by using angle bracket includes. It seems that code in headers isn’t being respected, and while some noexcept usage is acknowledged, not all is applied.
+
+Next, I’ll implement SSAO scaffolding in the Vulkan code but need to ensure that non-Vulkan compilation isn’t broken since this file only compiles when Vulkan_FOUND is set. Changes will be made in vulkan_context.cpp, which won’t affect the current build. I'll add shaders, compile them to .spv for the repo, and update the README for compiling instructions. I’ll also organize a top-level app folder for necessary running files.
+[2025-09-15T16:55:48] exec bash -lc 'git status --porcelain' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:55:48] bash -lc 'git status --porcelain' succeeded in 37ms:
+ M output.md
+[2025-09-15T16:55:48] tokens used: 76,740
+[2025-09-15T16:55:57] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/.agent/TODO.md
+@@ -3,3 +3,3 @@
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+@@ -43,2 +43,9 @@
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+[2025-09-15T16:55:57] apply_patch(auto_approved=true) exited 0 in 18ms:
+Success. Updated the following files:
+M .agent/TODO.md
+[2025-09-15T16:55:57] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+
+[2025-09-15T16:55:57] tokens used: 77,253
+[2025-09-15T16:55:57] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+
+[2025-09-15T16:55:59] exec bash -lc 'git add .agent/TODO.md && git commit -m "chore(agent): update TODO with SSAO scaffolding plan and steps"' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:55:59] bash -lc 'git add .agent/TODO.md && git commit -m "chore(agent): update TODO with SSAO scaffolding plan and steps"' succeeded in 59ms:
+[personal/codex/second_try e16f34f] chore(agent): update TODO with SSAO scaffolding plan and steps
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+[2025-09-15T16:55:59] tokens used: 77,878
+[2025-09-15T16:55:59] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+
+
+[2025-09-15T16:56:30] thinking
+
+**Considering SSAO Uniforms**
+
+I'm looking into uniforms for SSAO. We can reuse the UBO to get screen dimensions and AO strength, but need to add radius, bias, and kernel size. These are already in VulkanContext settings, but the UBO only stores ssao_power. I might extend the UBO struct, but that could affect how the shader reads screen. Instead, I could encode radius and bias into constants in ssao.frag for now and keep strength tied to screen.z. The UI isn't fully wired yet, but we might have to postpone adjustments due to time constraints.
+**Finalizing SSAO Parameters**
+
+I'm planning to implement the parameter uniform using the same UBO's screen rgba. The x will be invW, y invH, z for ao_power, and w for radius. I’ll set bias at a small fixed value, like 0.02. The UI has a bias slider, so maybe I could map it to shininess? I think I’d prefer setting screen.w to s.ssao_radius. That way, I'll assign s.ssao_radius to screen[3], and keep the bias constant while adjusting our forward shader to ignore screen.w. That seems to simplify things nicely!
+**Adjusting UBO Fill and Implementing Steps**
+
+I'm planning to adjust the UBO fill so that screen[3] is set to the radius instead of 0.0. I should also implement the code to create offscreen images and pipelines while recording the sequence. Since this code will only compile when Vulkan is found, it won’t affect our non-Vulkan builds, which is a relief! I’ll also need to add a shader compilation step to compile the new shaders into .spv and add those to the repository. Let’s get these changes implemented!
+[2025-09-15T16:56:41] codex
+**Finalizing SSAO Parameters**
+
+I'm planning to implement the parameter uniform using the same UBO's screen rgba. The x will be invW, y invH, z for ao_power, and w for radius. I’ll set bias at a small fixed value, like 0.02. The UI has a bias slider, so maybe I could map it to shininess? I think I’d prefer setting screen.w to s.ssao_radius. That way, I'll assign s.ssao_radius to screen[3], and keep the bias constant while adjusting our forward shader to ignore screen.w. That seems to simplify things nicely!
+[2025-09-15T16:56:41] codex
+**Adjusting UBO Fill and Implementing Steps**
+
+I'm planning to adjust the UBO fill so that screen[3] is set to the radius instead of 0.0. I should also implement the code to create offscreen images and pipelines while recording the sequence. Since this code will only compile when Vulkan is found, it won’t affect our non-Vulkan builds, which is a relief! I’ll also need to add a shader compilation step to compile the new shaders into .spv and add those to the repository. Let’s get these changes implemented!
+[2025-09-15T16:56:46] apply_patch auto_approved=true:
+A /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/gbuffer.vert
+#version 450
+
+layout(location = 0) in vec3 inPos;
+layout(location = 1) in vec3 inNormal;
+layout(location = 4) in vec2 inUV;
+
+layout(push_constant) uniform PC {
+    mat4 mvp;
+} pc;
+
+layout(set = 0, binding = 0) uniform UBO {
+    mat4 view;
+    mat4 proj;
+    vec4 camPos_normalStrength;
+    vec4 lightPos_shininess;
+    vec4 lightColor_intensity;
+    vec4 screen_invW_invH_aoPower_radius;
+} ubo;
+
+layout(location = 0) out vec3 vNormalVS;
+layout(location = 1) out float vDepthVS;
+layout(location = 2) out vec2 vUV;
+
+void main() {
+    gl_Position = pc.mvp * vec4(inPos, 1.0);
+    // view-space normal: ignore translation part
+    mat3 view3 = mat3(ubo.view);
+    vNormalVS = normalize(view3 * inNormal);
+    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
+    vDepthVS = -posVS.z; // positive distance from camera
+    vUV = inUV;
+}
+
+[2025-09-15T16:56:46] apply_patch(auto_approved=true) exited 0 in 42ms:
+Success. Updated the following files:
+A shaders/gbuffer.vert
+[2025-09-15T16:56:46] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+diff --git a/shaders/gbuffer.vert b/shaders/gbuffer.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8c46e3cfe30155fc0601a6b6d4f29b4b593166
+--- /dev/null
++++ b/shaders/gbuffer.vert
+@@ -0,0 +1,33 @@
++#version 450
++
++layout(location = 0) in vec3 inPos;
++layout(location = 1) in vec3 inNormal;
++layout(location = 4) in vec2 inUV;
++
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(location = 0) out vec3 vNormalVS;
++layout(location = 1) out float vDepthVS;
++layout(location = 2) out vec2 vUV;
++
++void main() {
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
++    // view-space normal: ignore translation part
++    mat3 view3 = mat3(ubo.view);
++    vNormalVS = normalize(view3 * inNormal);
++    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
++    vDepthVS = -posVS.z; // positive distance from camera
++    vUV = inUV;
++}
++
+
+[2025-09-15T16:56:46] tokens used: 79,843
+[2025-09-15T16:56:46] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+diff --git a/shaders/gbuffer.vert b/shaders/gbuffer.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8c46e3cfe30155fc0601a6b6d4f29b4b593166
+--- /dev/null
++++ b/shaders/gbuffer.vert
+@@ -0,0 +1,33 @@
++#version 450
++
++layout(location = 0) in vec3 inPos;
++layout(location = 1) in vec3 inNormal;
++layout(location = 4) in vec2 inUV;
++
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(location = 0) out vec3 vNormalVS;
++layout(location = 1) out float vDepthVS;
++layout(location = 2) out vec2 vUV;
++
++void main() {
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
++    // view-space normal: ignore translation part
++    mat3 view3 = mat3(ubo.view);
++    vNormalVS = normalize(view3 * inNormal);
++    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
++    vDepthVS = -posVS.z; // positive distance from camera
++    vUV = inUV;
++}
++
+
+[2025-09-15T16:56:49] apply_patch auto_approved=true:
+A /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/gbuffer.frag
+#version 450
+
+layout(location = 0) in vec3 vNormalVS;
+layout(location = 1) in float vDepthVS;
+layout(location = 2) in vec2 vUV;
+
+layout(location = 0) out vec4 outND;
+
+void main() {
+    // Pack view-space normal into RGB ([-1,1] -> [0,1]) and linear depth into A
+    vec3 n = normalize(vNormalVS);
+    vec3 n01 = n * 0.5 + 0.5;
+    float depth = vDepthVS;
+    outND = vec4(n01, depth);
+}
+
+[2025-09-15T16:56:49] apply_patch(auto_approved=true) exited 0 in 52ms:
+Success. Updated the following files:
+A shaders/gbuffer.frag
+[2025-09-15T16:56:49] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+diff --git a/shaders/gbuffer.frag b/shaders/gbuffer.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..f116ab22511268e2aaef9d7bf34c2a990af23f13
+--- /dev/null
++++ b/shaders/gbuffer.frag
+@@ -0,0 +1,16 @@
++#version 450
++
++layout(location = 0) in vec3 vNormalVS;
++layout(location = 1) in float vDepthVS;
++layout(location = 2) in vec2 vUV;
++
++layout(location = 0) out vec4 outND;
++
++void main() {
++    // Pack view-space normal into RGB ([-1,1] -> [0,1]) and linear depth into A
++    vec3 n = normalize(vNormalVS);
++    vec3 n01 = n * 0.5 + 0.5;
++    float depth = vDepthVS;
++    outND = vec4(n01, depth);
++}
++
+diff --git a/shaders/gbuffer.vert b/shaders/gbuffer.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8c46e3cfe30155fc0601a6b6d4f29b4b593166
+--- /dev/null
++++ b/shaders/gbuffer.vert
+@@ -0,0 +1,33 @@
++#version 450
++
++layout(location = 0) in vec3 inPos;
++layout(location = 1) in vec3 inNormal;
++layout(location = 4) in vec2 inUV;
++
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(location = 0) out vec3 vNormalVS;
++layout(location = 1) out float vDepthVS;
++layout(location = 2) out vec2 vUV;
++
++void main() {
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
++    // view-space normal: ignore translation part
++    mat3 view3 = mat3(ubo.view);
++    vNormalVS = normalize(view3 * inNormal);
++    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
++    vDepthVS = -posVS.z; // positive distance from camera
++    vUV = inUV;
++}
++
+
+[2025-09-15T16:56:49] tokens used: 80,525
+[2025-09-15T16:56:49] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+diff --git a/shaders/gbuffer.frag b/shaders/gbuffer.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..f116ab22511268e2aaef9d7bf34c2a990af23f13
+--- /dev/null
++++ b/shaders/gbuffer.frag
+@@ -0,0 +1,16 @@
++#version 450
++
++layout(location = 0) in vec3 vNormalVS;
++layout(location = 1) in float vDepthVS;
++layout(location = 2) in vec2 vUV;
++
++layout(location = 0) out vec4 outND;
++
++void main() {
++    // Pack view-space normal into RGB ([-1,1] -> [0,1]) and linear depth into A
++    vec3 n = normalize(vNormalVS);
++    vec3 n01 = n * 0.5 + 0.5;
++    float depth = vDepthVS;
++    outND = vec4(n01, depth);
++}
++
+diff --git a/shaders/gbuffer.vert b/shaders/gbuffer.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8c46e3cfe30155fc0601a6b6d4f29b4b593166
+--- /dev/null
++++ b/shaders/gbuffer.vert
+@@ -0,0 +1,33 @@
++#version 450
++
++layout(location = 0) in vec3 inPos;
++layout(location = 1) in vec3 inNormal;
++layout(location = 4) in vec2 inUV;
++
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(location = 0) out vec3 vNormalVS;
++layout(location = 1) out float vDepthVS;
++layout(location = 2) out vec2 vUV;
++
++void main() {
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
++    // view-space normal: ignore translation part
++    mat3 view3 = mat3(ubo.view);
++    vNormalVS = normalize(view3 * inNormal);
++    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
++    vDepthVS = -posVS.z; // positive distance from camera
++    vUV = inUV;
++}
++
+
+[2025-09-15T16:56:57] apply_patch auto_approved=true:
+A /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/fullscreen.vert
+#version 450
+
+layout(location = 0) out vec2 vUV;
+
+void main() {
+    // Fullscreen triangle
+    const vec2 positions[3] = vec2[3](
+        vec2(-1.0, -1.0),
+        vec2( 3.0, -1.0),
+        vec2(-1.0,  3.0)
+    );
+    const vec2 uvs[3] = vec2[3](
+        vec2(0.0, 0.0),
+        vec2(2.0, 0.0),
+        vec2(0.0, 2.0)
+    );
+    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
+    vUV = uvs[gl_VertexIndex];
+}
+
+[2025-09-15T16:56:57] apply_patch(auto_approved=true) exited 0 in 62ms:
+Success. Updated the following files:
+A shaders/fullscreen.vert
+[2025-09-15T16:56:57] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+diff --git a/shaders/fullscreen.vert b/shaders/fullscreen.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..47ef99bf5518ea3ce9baaf3e01e4b8041e98e68d
+--- /dev/null
++++ b/shaders/fullscreen.vert
+@@ -0,0 +1,20 @@
++#version 450
++
++layout(location = 0) out vec2 vUV;
++
++void main() {
++    // Fullscreen triangle
++    const vec2 positions[3] = vec2[3](
++        vec2(-1.0, -1.0),
++        vec2( 3.0, -1.0),
++        vec2(-1.0,  3.0)
++    );
++    const vec2 uvs[3] = vec2[3](
++        vec2(0.0, 0.0),
++        vec2(2.0, 0.0),
++        vec2(0.0, 2.0)
++    );
++    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
++    vUV = uvs[gl_VertexIndex];
++}
++
+diff --git a/shaders/gbuffer.frag b/shaders/gbuffer.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..f116ab22511268e2aaef9d7bf34c2a990af23f13
+--- /dev/null
++++ b/shaders/gbuffer.frag
+@@ -0,0 +1,16 @@
++#version 450
++
++layout(location = 0) in vec3 vNormalVS;
++layout(location = 1) in float vDepthVS;
++layout(location = 2) in vec2 vUV;
++
++layout(location = 0) out vec4 outND;
++
++void main() {
++    // Pack view-space normal into RGB ([-1,1] -> [0,1]) and linear depth into A
++    vec3 n = normalize(vNormalVS);
++    vec3 n01 = n * 0.5 + 0.5;
++    float depth = vDepthVS;
++    outND = vec4(n01, depth);
++}
++
+diff --git a/shaders/gbuffer.vert b/shaders/gbuffer.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8c46e3cfe30155fc0601a6b6d4f29b4b593166
+--- /dev/null
++++ b/shaders/gbuffer.vert
+@@ -0,0 +1,33 @@
++#version 450
++
++layout(location = 0) in vec3 inPos;
++layout(location = 1) in vec3 inNormal;
++layout(location = 4) in vec2 inUV;
++
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(location = 0) out vec3 vNormalVS;
++layout(location = 1) out float vDepthVS;
++layout(location = 2) out vec2 vUV;
++
++void main() {
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
++    // view-space normal: ignore translation part
++    mat3 view3 = mat3(ubo.view);
++    vNormalVS = normalize(view3 * inNormal);
++    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
++    vDepthVS = -posVS.z; // positive distance from camera
++    vUV = inUV;
++}
++
+
+[2025-09-15T16:56:57] tokens used: 81,134
+[2025-09-15T16:56:57] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+diff --git a/shaders/fullscreen.vert b/shaders/fullscreen.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..47ef99bf5518ea3ce9baaf3e01e4b8041e98e68d
+--- /dev/null
++++ b/shaders/fullscreen.vert
+@@ -0,0 +1,20 @@
++#version 450
++
++layout(location = 0) out vec2 vUV;
++
++void main() {
++    // Fullscreen triangle
++    const vec2 positions[3] = vec2[3](
++        vec2(-1.0, -1.0),
++        vec2( 3.0, -1.0),
++        vec2(-1.0,  3.0)
++    );
++    const vec2 uvs[3] = vec2[3](
++        vec2(0.0, 0.0),
++        vec2(2.0, 0.0),
++        vec2(0.0, 2.0)
++    );
++    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
++    vUV = uvs[gl_VertexIndex];
++}
++
+diff --git a/shaders/gbuffer.frag b/shaders/gbuffer.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..f116ab22511268e2aaef9d7bf34c2a990af23f13
+--- /dev/null
++++ b/shaders/gbuffer.frag
+@@ -0,0 +1,16 @@
++#version 450
++
++layout(location = 0) in vec3 vNormalVS;
++layout(location = 1) in float vDepthVS;
++layout(location = 2) in vec2 vUV;
++
++layout(location = 0) out vec4 outND;
++
++void main() {
++    // Pack view-space normal into RGB ([-1,1] -> [0,1]) and linear depth into A
++    vec3 n = normalize(vNormalVS);
++    vec3 n01 = n * 0.5 + 0.5;
++    float depth = vDepthVS;
++    outND = vec4(n01, depth);
++}
++
+diff --git a/shaders/gbuffer.vert b/shaders/gbuffer.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8c46e3cfe30155fc0601a6b6d4f29b4b593166
+--- /dev/null
++++ b/shaders/gbuffer.vert
+@@ -0,0 +1,33 @@
++#version 450
++
++layout(location = 0) in vec3 inPos;
++layout(location = 1) in vec3 inNormal;
++layout(location = 4) in vec2 inUV;
++
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(location = 0) out vec3 vNormalVS;
++layout(location = 1) out float vDepthVS;
++layout(location = 2) out vec2 vUV;
++
++void main() {
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
++    // view-space normal: ignore translation part
++    mat3 view3 = mat3(ubo.view);
++    vNormalVS = normalize(view3 * inNormal);
++    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
++    vDepthVS = -posVS.z; // positive distance from camera
++    vUV = inUV;
++}
++
+
+[2025-09-15T16:57:19] apply_patch auto_approved=true:
+A /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/ssao.frag
+#version 450
+
+layout(location = 0) in vec2 vUV;
+layout(location = 0) out float outAO;
+
+layout(set = 0, binding = 0) uniform UBO {
+    mat4 view;
+    mat4 proj;
+    vec4 camPos_normalStrength;
+    vec4 lightPos_shininess;
+    vec4 lightColor_intensity;
+    // x=invWidth, y=invHeight, z=aoPower, w=radius
+    vec4 screen_invW_invH_aoPower_radius;
+} ubo;
+
+layout(set = 0, binding = 1) uniform sampler2D uND; // gbuffer normal/depth packed
+
+// Simple 2D SSAO kernel
+const int KERNEL = 16;
+const vec2 OFFSETS[KERNEL] = vec2[KERNEL](
+    vec2( 1,  0), vec2(-1,  0), vec2( 0,  1), vec2( 0, -1),
+    vec2( 1,  1), vec2(-1,  1), vec2( 1, -1), vec2(-1, -1),
+    vec2( 2,  0), vec2(-2,  0), vec2( 0,  2), vec2( 0, -2),
+    vec2( 2,  1), vec2(-2,  1), vec2( 1,  2), vec2(-1, -2)
+);
+
+void main() {
+    vec2 texel = vec2(ubo.screen_invW_invH_aoPower_radius.x, ubo.screen_invW_invH_aoPower_radius.y);
+    float radius = max(ubo.screen_invW_invH_aoPower_radius.w, 1.0);
+
+    vec4 nd = texture(uND, vUV);
+    vec3 n = normalize(nd.xyz * 2.0 - 1.0);
+    float depth = nd.w;
+
+    float occlusion = 0.0;
+    for (int i = 0; i < KERNEL; ++i) {
+        vec2 offset = OFFSETS[i] * texel * radius;
+        vec4 ndS = texture(uND, vUV + offset);
+        float depthS = ndS.w;
+        float range = smoothstep(0.0, 1.0, radius);
+        float delta = depthS - depth;
+        float occ = step(0.001, delta) * (1.0 - clamp(delta / (radius), 0.0, 1.0)) * range;
+        occlusion += occ;
+    }
+    occlusion /= float(KERNEL);
+    outAO = 1.0 - occlusion;
+}
+
+[2025-09-15T16:57:19] apply_patch(auto_approved=true) exited 0 in 71ms:
+Success. Updated the following files:
+A shaders/ssao.frag
+[2025-09-15T16:57:19] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+diff --git a/shaders/fullscreen.vert b/shaders/fullscreen.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..47ef99bf5518ea3ce9baaf3e01e4b8041e98e68d
+--- /dev/null
++++ b/shaders/fullscreen.vert
+@@ -0,0 +1,20 @@
++#version 450
++
++layout(location = 0) out vec2 vUV;
++
++void main() {
++    // Fullscreen triangle
++    const vec2 positions[3] = vec2[3](
++        vec2(-1.0, -1.0),
++        vec2( 3.0, -1.0),
++        vec2(-1.0,  3.0)
++    );
++    const vec2 uvs[3] = vec2[3](
++        vec2(0.0, 0.0),
++        vec2(2.0, 0.0),
++        vec2(0.0, 2.0)
++    );
++    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
++    vUV = uvs[gl_VertexIndex];
++}
++
+diff --git a/shaders/gbuffer.frag b/shaders/gbuffer.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..f116ab22511268e2aaef9d7bf34c2a990af23f13
+--- /dev/null
++++ b/shaders/gbuffer.frag
+@@ -0,0 +1,16 @@
++#version 450
++
++layout(location = 0) in vec3 vNormalVS;
++layout(location = 1) in float vDepthVS;
++layout(location = 2) in vec2 vUV;
++
++layout(location = 0) out vec4 outND;
++
++void main() {
++    // Pack view-space normal into RGB ([-1,1] -> [0,1]) and linear depth into A
++    vec3 n = normalize(vNormalVS);
++    vec3 n01 = n * 0.5 + 0.5;
++    float depth = vDepthVS;
++    outND = vec4(n01, depth);
++}
++
+diff --git a/shaders/gbuffer.vert b/shaders/gbuffer.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8c46e3cfe30155fc0601a6b6d4f29b4b593166
+--- /dev/null
++++ b/shaders/gbuffer.vert
+@@ -0,0 +1,33 @@
++#version 450
++
++layout(location = 0) in vec3 inPos;
++layout(location = 1) in vec3 inNormal;
++layout(location = 4) in vec2 inUV;
++
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(location = 0) out vec3 vNormalVS;
++layout(location = 1) out float vDepthVS;
++layout(location = 2) out vec2 vUV;
++
++void main() {
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
++    // view-space normal: ignore translation part
++    mat3 view3 = mat3(ubo.view);
++    vNormalVS = normalize(view3 * inNormal);
++    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
++    vDepthVS = -posVS.z; // positive distance from camera
++    vUV = inUV;
++}
++
+diff --git a/shaders/ssao.frag b/shaders/ssao.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..44f54958184303534d4698354b96ceff72b715e0
+--- /dev/null
++++ b/shaders/ssao.frag
+@@ -0,0 +1,48 @@
++#version 450
++
++layout(location = 0) in vec2 vUV;
++layout(location = 0) out float outAO;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    // x=invWidth, y=invHeight, z=aoPower, w=radius
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(set = 0, binding = 1) uniform sampler2D uND; // gbuffer normal/depth packed
++
++// Simple 2D SSAO kernel
++const int KERNEL = 16;
++const vec2 OFFSETS[KERNEL] = vec2[KERNEL](
++    vec2( 1,  0), vec2(-1,  0), vec2( 0,  1), vec2( 0, -1),
++    vec2( 1,  1), vec2(-1,  1), vec2( 1, -1), vec2(-1, -1),
++    vec2( 2,  0), vec2(-2,  0), vec2( 0,  2), vec2( 0, -2),
++    vec2( 2,  1), vec2(-2,  1), vec2( 1,  2), vec2(-1, -2)
++);
++
++void main() {
++    vec2 texel = vec2(ubo.screen_invW_invH_aoPower_radius.x, ubo.screen_invW_invH_aoPower_radius.y);
++    float radius = max(ubo.screen_invW_invH_aoPower_radius.w, 1.0);
++
++    vec4 nd = texture(uND, vUV);
++    vec3 n = normalize(nd.xyz * 2.0 - 1.0);
++    float depth = nd.w;
++
++    float occlusion = 0.0;
++    for (int i = 0; i < KERNEL; ++i) {
++        vec2 offset = OFFSETS[i] * texel * radius;
++        vec4 ndS = texture(uND, vUV + offset);
++        float depthS = ndS.w;
++        float range = smoothstep(0.0, 1.0, radius);
++        float delta = depthS - depth;
++        float occ = step(0.001, delta) * (1.0 - clamp(delta / (radius), 0.0, 1.0)) * range;
++        occlusion += occ;
++    }
++    occlusion /= float(KERNEL);
++    outAO = 1.0 - occlusion;
++}
++
+
+[2025-09-15T16:57:19] tokens used: 82,256
+[2025-09-15T16:57:19] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+diff --git a/shaders/fullscreen.vert b/shaders/fullscreen.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..47ef99bf5518ea3ce9baaf3e01e4b8041e98e68d
+--- /dev/null
++++ b/shaders/fullscreen.vert
+@@ -0,0 +1,20 @@
++#version 450
++
++layout(location = 0) out vec2 vUV;
++
++void main() {
++    // Fullscreen triangle
++    const vec2 positions[3] = vec2[3](
++        vec2(-1.0, -1.0),
++        vec2( 3.0, -1.0),
++        vec2(-1.0,  3.0)
++    );
++    const vec2 uvs[3] = vec2[3](
++        vec2(0.0, 0.0),
++        vec2(2.0, 0.0),
++        vec2(0.0, 2.0)
++    );
++    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
++    vUV = uvs[gl_VertexIndex];
++}
++
+diff --git a/shaders/gbuffer.frag b/shaders/gbuffer.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..f116ab22511268e2aaef9d7bf34c2a990af23f13
+--- /dev/null
++++ b/shaders/gbuffer.frag
+@@ -0,0 +1,16 @@
++#version 450
++
++layout(location = 0) in vec3 vNormalVS;
++layout(location = 1) in float vDepthVS;
++layout(location = 2) in vec2 vUV;
++
++layout(location = 0) out vec4 outND;
++
++void main() {
++    // Pack view-space normal into RGB ([-1,1] -> [0,1]) and linear depth into A
++    vec3 n = normalize(vNormalVS);
++    vec3 n01 = n * 0.5 + 0.5;
++    float depth = vDepthVS;
++    outND = vec4(n01, depth);
++}
++
+diff --git a/shaders/gbuffer.vert b/shaders/gbuffer.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8c46e3cfe30155fc0601a6b6d4f29b4b593166
+--- /dev/null
++++ b/shaders/gbuffer.vert
+@@ -0,0 +1,33 @@
++#version 450
++
++layout(location = 0) in vec3 inPos;
++layout(location = 1) in vec3 inNormal;
++layout(location = 4) in vec2 inUV;
++
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(location = 0) out vec3 vNormalVS;
++layout(location = 1) out float vDepthVS;
++layout(location = 2) out vec2 vUV;
++
++void main() {
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
++    // view-space normal: ignore translation part
++    mat3 view3 = mat3(ubo.view);
++    vNormalVS = normalize(view3 * inNormal);
++    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
++    vDepthVS = -posVS.z; // positive distance from camera
++    vUV = inUV;
++}
++
+diff --git a/shaders/ssao.frag b/shaders/ssao.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..44f54958184303534d4698354b96ceff72b715e0
+--- /dev/null
++++ b/shaders/ssao.frag
+@@ -0,0 +1,48 @@
++#version 450
++
++layout(location = 0) in vec2 vUV;
++layout(location = 0) out float outAO;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    // x=invWidth, y=invHeight, z=aoPower, w=radius
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(set = 0, binding = 1) uniform sampler2D uND; // gbuffer normal/depth packed
++
++// Simple 2D SSAO kernel
++const int KERNEL = 16;
++const vec2 OFFSETS[KERNEL] = vec2[KERNEL](
++    vec2( 1,  0), vec2(-1,  0), vec2( 0,  1), vec2( 0, -1),
++    vec2( 1,  1), vec2(-1,  1), vec2( 1, -1), vec2(-1, -1),
++    vec2( 2,  0), vec2(-2,  0), vec2( 0,  2), vec2( 0, -2),
++    vec2( 2,  1), vec2(-2,  1), vec2( 1,  2), vec2(-1, -2)
++);
++
++void main() {
++    vec2 texel = vec2(ubo.screen_invW_invH_aoPower_radius.x, ubo.screen_invW_invH_aoPower_radius.y);
++    float radius = max(ubo.screen_invW_invH_aoPower_radius.w, 1.0);
++
++    vec4 nd = texture(uND, vUV);
++    vec3 n = normalize(nd.xyz * 2.0 - 1.0);
++    float depth = nd.w;
++
++    float occlusion = 0.0;
++    for (int i = 0; i < KERNEL; ++i) {
++        vec2 offset = OFFSETS[i] * texel * radius;
++        vec4 ndS = texture(uND, vUV + offset);
++        float depthS = ndS.w;
++        float range = smoothstep(0.0, 1.0, radius);
++        float delta = depthS - depth;
++        float occ = step(0.001, delta) * (1.0 - clamp(delta / (radius), 0.0, 1.0)) * range;
++        occlusion += occ;
++    }
++    occlusion /= float(KERNEL);
++    outAO = 1.0 - occlusion;
++}
++
+
+[2025-09-15T16:57:22] exec bash -lc 'git add shaders && git commit -m "feat(shaders): add G-buffer and SSAO GLSL shaders (gbuffer, fullscreen, ssao)"' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:57:22] bash -lc 'git add shaders && git commit -m "feat(shaders): add G-buffer and SSAO GLSL shaders (gbuffer, fullscreen, ssao)"' succeeded in 63ms:
+[personal/codex/second_try 7e2ddf9] feat(shaders): add G-buffer and SSAO GLSL shaders (gbuffer, fullscreen, ssao)
+ 4 files changed, 117 insertions(+)
+ create mode 100644 shaders/fullscreen.vert
+ create mode 100644 shaders/gbuffer.frag
+ create mode 100644 shaders/gbuffer.vert
+ create mode 100644 shaders/ssao.frag
+[2025-09-15T16:57:22] tokens used: 83,089
+[2025-09-15T16:57:22] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+diff --git a/shaders/fullscreen.vert b/shaders/fullscreen.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..47ef99bf5518ea3ce9baaf3e01e4b8041e98e68d
+--- /dev/null
++++ b/shaders/fullscreen.vert
+@@ -0,0 +1,20 @@
++#version 450
++
++layout(location = 0) out vec2 vUV;
++
++void main() {
++    // Fullscreen triangle
++    const vec2 positions[3] = vec2[3](
++        vec2(-1.0, -1.0),
++        vec2( 3.0, -1.0),
++        vec2(-1.0,  3.0)
++    );
++    const vec2 uvs[3] = vec2[3](
++        vec2(0.0, 0.0),
++        vec2(2.0, 0.0),
++        vec2(0.0, 2.0)
++    );
++    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
++    vUV = uvs[gl_VertexIndex];
++}
++
+diff --git a/shaders/gbuffer.frag b/shaders/gbuffer.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..f116ab22511268e2aaef9d7bf34c2a990af23f13
+--- /dev/null
++++ b/shaders/gbuffer.frag
+@@ -0,0 +1,16 @@
++#version 450
++
++layout(location = 0) in vec3 vNormalVS;
++layout(location = 1) in float vDepthVS;
++layout(location = 2) in vec2 vUV;
++
++layout(location = 0) out vec4 outND;
++
++void main() {
++    // Pack view-space normal into RGB ([-1,1] -> [0,1]) and linear depth into A
++    vec3 n = normalize(vNormalVS);
++    vec3 n01 = n * 0.5 + 0.5;
++    float depth = vDepthVS;
++    outND = vec4(n01, depth);
++}
++
+diff --git a/shaders/gbuffer.vert b/shaders/gbuffer.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8c46e3cfe30155fc0601a6b6d4f29b4b593166
+--- /dev/null
++++ b/shaders/gbuffer.vert
+@@ -0,0 +1,33 @@
++#version 450
++
++layout(location = 0) in vec3 inPos;
++layout(location = 1) in vec3 inNormal;
++layout(location = 4) in vec2 inUV;
++
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(location = 0) out vec3 vNormalVS;
++layout(location = 1) out float vDepthVS;
++layout(location = 2) out vec2 vUV;
++
++void main() {
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
++    // view-space normal: ignore translation part
++    mat3 view3 = mat3(ubo.view);
++    vNormalVS = normalize(view3 * inNormal);
++    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
++    vDepthVS = -posVS.z; // positive distance from camera
++    vUV = inUV;
++}
++
+diff --git a/shaders/ssao.frag b/shaders/ssao.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..44f54958184303534d4698354b96ceff72b715e0
+--- /dev/null
++++ b/shaders/ssao.frag
+@@ -0,0 +1,48 @@
++#version 450
++
++layout(location = 0) in vec2 vUV;
++layout(location = 0) out float outAO;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    // x=invWidth, y=invHeight, z=aoPower, w=radius
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(set = 0, binding = 1) uniform sampler2D uND; // gbuffer normal/depth packed
++
++// Simple 2D SSAO kernel
++const int KERNEL = 16;
++const vec2 OFFSETS[KERNEL] = vec2[KERNEL](
++    vec2( 1,  0), vec2(-1,  0), vec2( 0,  1), vec2( 0, -1),
++    vec2( 1,  1), vec2(-1,  1), vec2( 1, -1), vec2(-1, -1),
++    vec2( 2,  0), vec2(-2,  0), vec2( 0,  2), vec2( 0, -2),
++    vec2( 2,  1), vec2(-2,  1), vec2( 1,  2), vec2(-1, -2)
++);
++
++void main() {
++    vec2 texel = vec2(ubo.screen_invW_invH_aoPower_radius.x, ubo.screen_invW_invH_aoPower_radius.y);
++    float radius = max(ubo.screen_invW_invH_aoPower_radius.w, 1.0);
++
++    vec4 nd = texture(uND, vUV);
++    vec3 n = normalize(nd.xyz * 2.0 - 1.0);
++    float depth = nd.w;
++
++    float occlusion = 0.0;
++    for (int i = 0; i < KERNEL; ++i) {
++        vec2 offset = OFFSETS[i] * texel * radius;
++        vec4 ndS = texture(uND, vUV + offset);
++        float depthS = ndS.w;
++        float range = smoothstep(0.0, 1.0, radius);
++        float delta = depthS - depth;
++        float occ = step(0.001, delta) * (1.0 - clamp(delta / (radius), 0.0, 1.0)) * range;
++        occlusion += occ;
++    }
++    occlusion /= float(KERNEL);
++    outAO = 1.0 - occlusion;
++}
++
+
+
+[2025-09-15T16:57:24] thinking
+
+**Compiling shaders to SPIR-V**
+
+I need to think about compiling these shaders to SPIR-V format. It’s an important step for graphics programming and helps optimize performance. I should ensure that I follow the right procedures and settings while compiling to avoid any errors or issues. If there’s something I’m uncertain about, I’ll check the documentation or guidelines related to the shaders. Let's get started on this compilation process!
+[2025-09-15T16:57:26] exec bash -lc "glslc shaders/gbuffer.vert -o shaders/gbuffer.vert.spv && glslc shaders/gbuffer.frag -o shaders/gbuffer.frag.spv && glslc shaders/fullscreen.vert -o shaders/fullscreen.vert.spv && glslc shaders/ssao.frag -o shaders/ssao.frag.spv && ls -la shaders | sed -n '1,200p'" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:57:27] bash -lc "glslc shaders/gbuffer.vert -o shaders/gbuffer.vert.spv && glslc shaders/gbuffer.frag -o shaders/gbuffer.frag.spv && glslc shaders/fullscreen.vert -o shaders/fullscreen.vert.spv && glslc shaders/ssao.frag -o shaders/ssao.frag.spv && ls -la shaders | sed -n '1,200p'" succeeded in 192ms:
+total 136
+drwxr-xr-x@ 18 bruno  staff   576 15 Sep 17:57 .
+drwxr-xr-x@ 20 bruno  staff   640 15 Sep 17:27 ..
+-rw-r--r--@  1 bruno  staff  2101 15 Sep 17:49 forward.frag
+-rw-r--r--@  1 bruno  staff  5704 15 Sep 17:49 forward.frag.spv
+-rw-r--r--@  1 bruno  staff   642 15 Sep 17:40 forward.vert
+-rw-r--r--@  1 bruno  staff  1828 15 Sep 17:49 forward.vert.spv
+-rw-r--r--@  1 bruno  staff   420 15 Sep 17:56 fullscreen.vert
+-rw-r--r--@  1 bruno  staff  1440 15 Sep 17:57 fullscreen.vert.spv
+-rw-r--r--@  1 bruno  staff   388 15 Sep 17:56 gbuffer.frag
+-rw-r--r--@  1 bruno  staff  1028 15 Sep 17:57 gbuffer.frag.spv
+-rw-r--r--@  1 bruno  staff   830 15 Sep 17:56 gbuffer.vert
+-rw-r--r--@  1 bruno  staff  2768 15 Sep 17:57 gbuffer.vert.spv
+-rw-r--r--@  1 bruno  staff   113 15 Sep 17:22 simple.frag
+-rw-r--r--@  1 bruno  staff   456 15 Sep 17:31 simple.frag.spv
+-rw-r--r--@  1 bruno  staff   324 15 Sep 17:31 simple.vert
+-rw-r--r--@  1 bruno  staff  1388 15 Sep 17:31 simple.vert.spv
+-rw-r--r--@  1 bruno  staff  1530 15 Sep 17:57 ssao.frag
+-rw-r--r--@  1 bruno  staff  3796 15 Sep 17:57 ssao.frag.spv
+[2025-09-15T16:57:27] tokens used: 83,393
+[2025-09-15T16:57:27] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+diff --git a/shaders/fullscreen.vert b/shaders/fullscreen.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..47ef99bf5518ea3ce9baaf3e01e4b8041e98e68d
+--- /dev/null
++++ b/shaders/fullscreen.vert
+@@ -0,0 +1,20 @@
++#version 450
++
++layout(location = 0) out vec2 vUV;
++
++void main() {
++    // Fullscreen triangle
++    const vec2 positions[3] = vec2[3](
++        vec2(-1.0, -1.0),
++        vec2( 3.0, -1.0),
++        vec2(-1.0,  3.0)
++    );
++    const vec2 uvs[3] = vec2[3](
++        vec2(0.0, 0.0),
++        vec2(2.0, 0.0),
++        vec2(0.0, 2.0)
++    );
++    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
++    vUV = uvs[gl_VertexIndex];
++}
++
+diff --git a/shaders/gbuffer.frag b/shaders/gbuffer.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..f116ab22511268e2aaef9d7bf34c2a990af23f13
+--- /dev/null
++++ b/shaders/gbuffer.frag
+@@ -0,0 +1,16 @@
++#version 450
++
++layout(location = 0) in vec3 vNormalVS;
++layout(location = 1) in float vDepthVS;
++layout(location = 2) in vec2 vUV;
++
++layout(location = 0) out vec4 outND;
++
++void main() {
++    // Pack view-space normal into RGB ([-1,1] -> [0,1]) and linear depth into A
++    vec3 n = normalize(vNormalVS);
++    vec3 n01 = n * 0.5 + 0.5;
++    float depth = vDepthVS;
++    outND = vec4(n01, depth);
++}
++
+diff --git a/shaders/gbuffer.vert b/shaders/gbuffer.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8c46e3cfe30155fc0601a6b6d4f29b4b593166
+--- /dev/null
++++ b/shaders/gbuffer.vert
+@@ -0,0 +1,33 @@
++#version 450
++
++layout(location = 0) in vec3 inPos;
++layout(location = 1) in vec3 inNormal;
++layout(location = 4) in vec2 inUV;
++
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(location = 0) out vec3 vNormalVS;
++layout(location = 1) out float vDepthVS;
++layout(location = 2) out vec2 vUV;
++
++void main() {
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
++    // view-space normal: ignore translation part
++    mat3 view3 = mat3(ubo.view);
++    vNormalVS = normalize(view3 * inNormal);
++    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
++    vDepthVS = -posVS.z; // positive distance from camera
++    vUV = inUV;
++}
++
+diff --git a/shaders/ssao.frag b/shaders/ssao.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..44f54958184303534d4698354b96ceff72b715e0
+--- /dev/null
++++ b/shaders/ssao.frag
+@@ -0,0 +1,48 @@
++#version 450
++
++layout(location = 0) in vec2 vUV;
++layout(location = 0) out float outAO;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    // x=invWidth, y=invHeight, z=aoPower, w=radius
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(set = 0, binding = 1) uniform sampler2D uND; // gbuffer normal/depth packed
++
++// Simple 2D SSAO kernel
++const int KERNEL = 16;
++const vec2 OFFSETS[KERNEL] = vec2[KERNEL](
++    vec2( 1,  0), vec2(-1,  0), vec2( 0,  1), vec2( 0, -1),
++    vec2( 1,  1), vec2(-1,  1), vec2( 1, -1), vec2(-1, -1),
++    vec2( 2,  0), vec2(-2,  0), vec2( 0,  2), vec2( 0, -2),
++    vec2( 2,  1), vec2(-2,  1), vec2( 1,  2), vec2(-1, -2)
++);
++
++void main() {
++    vec2 texel = vec2(ubo.screen_invW_invH_aoPower_radius.x, ubo.screen_invW_invH_aoPower_radius.y);
++    float radius = max(ubo.screen_invW_invH_aoPower_radius.w, 1.0);
++
++    vec4 nd = texture(uND, vUV);
++    vec3 n = normalize(nd.xyz * 2.0 - 1.0);
++    float depth = nd.w;
++
++    float occlusion = 0.0;
++    for (int i = 0; i < KERNEL; ++i) {
++        vec2 offset = OFFSETS[i] * texel * radius;
++        vec4 ndS = texture(uND, vUV + offset);
++        float depthS = ndS.w;
++        float range = smoothstep(0.0, 1.0, radius);
++        float delta = depthS - depth;
++        float occ = step(0.001, delta) * (1.0 - clamp(delta / (radius), 0.0, 1.0)) * range;
++        occlusion += occ;
++    }
++    occlusion /= float(KERNEL);
++    outAO = 1.0 - occlusion;
++}
++
+
+[2025-09-15T16:57:29] exec bash -lc 'git add shaders/*.spv && git commit -m "build(shaders): compile and add SPIR-V binaries for G-buffer + SSAO"' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:57:29] bash -lc 'git add shaders/*.spv && git commit -m "build(shaders): compile and add SPIR-V binaries for G-buffer + SSAO"' succeeded in 58ms:
+[personal/codex/second_try 32ef129] build(shaders): compile and add SPIR-V binaries for G-buffer + SSAO
+ 4 files changed, 0 insertions(+), 0 deletions(-)
+ create mode 100644 shaders/fullscreen.vert.spv
+ create mode 100644 shaders/gbuffer.frag.spv
+ create mode 100644 shaders/gbuffer.vert.spv
+ create mode 100644 shaders/ssao.frag.spv
+[2025-09-15T16:57:29] tokens used: 84,184
+[2025-09-15T16:57:29] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+diff --git a/shaders/fullscreen.vert b/shaders/fullscreen.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..47ef99bf5518ea3ce9baaf3e01e4b8041e98e68d
+--- /dev/null
++++ b/shaders/fullscreen.vert
+@@ -0,0 +1,20 @@
++#version 450
++
++layout(location = 0) out vec2 vUV;
++
++void main() {
++    // Fullscreen triangle
++    const vec2 positions[3] = vec2[3](
++        vec2(-1.0, -1.0),
++        vec2( 3.0, -1.0),
++        vec2(-1.0,  3.0)
++    );
++    const vec2 uvs[3] = vec2[3](
++        vec2(0.0, 0.0),
++        vec2(2.0, 0.0),
++        vec2(0.0, 2.0)
++    );
++    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
++    vUV = uvs[gl_VertexIndex];
++}
++
+diff --git a/shaders/gbuffer.frag b/shaders/gbuffer.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..f116ab22511268e2aaef9d7bf34c2a990af23f13
+--- /dev/null
++++ b/shaders/gbuffer.frag
+@@ -0,0 +1,16 @@
++#version 450
++
++layout(location = 0) in vec3 vNormalVS;
++layout(location = 1) in float vDepthVS;
++layout(location = 2) in vec2 vUV;
++
++layout(location = 0) out vec4 outND;
++
++void main() {
++    // Pack view-space normal into RGB ([-1,1] -> [0,1]) and linear depth into A
++    vec3 n = normalize(vNormalVS);
++    vec3 n01 = n * 0.5 + 0.5;
++    float depth = vDepthVS;
++    outND = vec4(n01, depth);
++}
++
+diff --git a/shaders/gbuffer.vert b/shaders/gbuffer.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8c46e3cfe30155fc0601a6b6d4f29b4b593166
+--- /dev/null
++++ b/shaders/gbuffer.vert
+@@ -0,0 +1,33 @@
++#version 450
++
++layout(location = 0) in vec3 inPos;
++layout(location = 1) in vec3 inNormal;
++layout(location = 4) in vec2 inUV;
++
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(location = 0) out vec3 vNormalVS;
++layout(location = 1) out float vDepthVS;
++layout(location = 2) out vec2 vUV;
++
++void main() {
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
++    // view-space normal: ignore translation part
++    mat3 view3 = mat3(ubo.view);
++    vNormalVS = normalize(view3 * inNormal);
++    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
++    vDepthVS = -posVS.z; // positive distance from camera
++    vUV = inUV;
++}
++
+diff --git a/shaders/ssao.frag b/shaders/ssao.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..44f54958184303534d4698354b96ceff72b715e0
+--- /dev/null
++++ b/shaders/ssao.frag
+@@ -0,0 +1,48 @@
++#version 450
++
++layout(location = 0) in vec2 vUV;
++layout(location = 0) out float outAO;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    // x=invWidth, y=invHeight, z=aoPower, w=radius
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(set = 0, binding = 1) uniform sampler2D uND; // gbuffer normal/depth packed
++
++// Simple 2D SSAO kernel
++const int KERNEL = 16;
++const vec2 OFFSETS[KERNEL] = vec2[KERNEL](
++    vec2( 1,  0), vec2(-1,  0), vec2( 0,  1), vec2( 0, -1),
++    vec2( 1,  1), vec2(-1,  1), vec2( 1, -1), vec2(-1, -1),
++    vec2( 2,  0), vec2(-2,  0), vec2( 0,  2), vec2( 0, -2),
++    vec2( 2,  1), vec2(-2,  1), vec2( 1,  2), vec2(-1, -2)
++);
++
++void main() {
++    vec2 texel = vec2(ubo.screen_invW_invH_aoPower_radius.x, ubo.screen_invW_invH_aoPower_radius.y);
++    float radius = max(ubo.screen_invW_invH_aoPower_radius.w, 1.0);
++
++    vec4 nd = texture(uND, vUV);
++    vec3 n = normalize(nd.xyz * 2.0 - 1.0);
++    float depth = nd.w;
++
++    float occlusion = 0.0;
++    for (int i = 0; i < KERNEL; ++i) {
++        vec2 offset = OFFSETS[i] * texel * radius;
++        vec4 ndS = texture(uND, vUV + offset);
++        float depthS = ndS.w;
++        float range = smoothstep(0.0, 1.0, radius);
++        float delta = depthS - depth;
++        float occ = step(0.001, delta) * (1.0 - clamp(delta / (radius), 0.0, 1.0)) * range;
++        occlusion += occ;
++    }
++    occlusion /= float(KERNEL);
++    outAO = 1.0 - occlusion;
++}
++
+
+[2025-09-15T16:58:01] tokens used: 85,627
+[2025-09-15T16:58:01] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+diff --git a/shaders/fullscreen.vert b/shaders/fullscreen.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..47ef99bf5518ea3ce9baaf3e01e4b8041e98e68d
+--- /dev/null
++++ b/shaders/fullscreen.vert
+@@ -0,0 +1,20 @@
++#version 450
++
++layout(location = 0) out vec2 vUV;
++
++void main() {
++    // Fullscreen triangle
++    const vec2 positions[3] = vec2[3](
++        vec2(-1.0, -1.0),
++        vec2( 3.0, -1.0),
++        vec2(-1.0,  3.0)
++    );
++    const vec2 uvs[3] = vec2[3](
++        vec2(0.0, 0.0),
++        vec2(2.0, 0.0),
++        vec2(0.0, 2.0)
++    );
++    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
++    vUV = uvs[gl_VertexIndex];
++}
++
+diff --git a/shaders/gbuffer.frag b/shaders/gbuffer.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..f116ab22511268e2aaef9d7bf34c2a990af23f13
+--- /dev/null
++++ b/shaders/gbuffer.frag
+@@ -0,0 +1,16 @@
++#version 450
++
++layout(location = 0) in vec3 vNormalVS;
++layout(location = 1) in float vDepthVS;
++layout(location = 2) in vec2 vUV;
++
++layout(location = 0) out vec4 outND;
++
++void main() {
++    // Pack view-space normal into RGB ([-1,1] -> [0,1]) and linear depth into A
++    vec3 n = normalize(vNormalVS);
++    vec3 n01 = n * 0.5 + 0.5;
++    float depth = vDepthVS;
++    outND = vec4(n01, depth);
++}
++
+diff --git a/shaders/gbuffer.vert b/shaders/gbuffer.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8c46e3cfe30155fc0601a6b6d4f29b4b593166
+--- /dev/null
++++ b/shaders/gbuffer.vert
+@@ -0,0 +1,33 @@
++#version 450
++
++layout(location = 0) in vec3 inPos;
++layout(location = 1) in vec3 inNormal;
++layout(location = 4) in vec2 inUV;
++
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(location = 0) out vec3 vNormalVS;
++layout(location = 1) out float vDepthVS;
++layout(location = 2) out vec2 vUV;
++
++void main() {
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
++    // view-space normal: ignore translation part
++    mat3 view3 = mat3(ubo.view);
++    vNormalVS = normalize(view3 * inNormal);
++    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
++    vDepthVS = -posVS.z; // positive distance from camera
++    vUV = inUV;
++}
++
+diff --git a/shaders/ssao.frag b/shaders/ssao.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..44f54958184303534d4698354b96ceff72b715e0
+--- /dev/null
++++ b/shaders/ssao.frag
+@@ -0,0 +1,48 @@
++#version 450
++
++layout(location = 0) in vec2 vUV;
++layout(location = 0) out float outAO;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    // x=invWidth, y=invHeight, z=aoPower, w=radius
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(set = 0, binding = 1) uniform sampler2D uND; // gbuffer normal/depth packed
++
++// Simple 2D SSAO kernel
++const int KERNEL = 16;
++const vec2 OFFSETS[KERNEL] = vec2[KERNEL](
++    vec2( 1,  0), vec2(-1,  0), vec2( 0,  1), vec2( 0, -1),
++    vec2( 1,  1), vec2(-1,  1), vec2( 1, -1), vec2(-1, -1),
++    vec2( 2,  0), vec2(-2,  0), vec2( 0,  2), vec2( 0, -2),
++    vec2( 2,  1), vec2(-2,  1), vec2( 1,  2), vec2(-1, -2)
++);
++
++void main() {
++    vec2 texel = vec2(ubo.screen_invW_invH_aoPower_radius.x, ubo.screen_invW_invH_aoPower_radius.y);
++    float radius = max(ubo.screen_invW_invH_aoPower_radius.w, 1.0);
++
++    vec4 nd = texture(uND, vUV);
++    vec3 n = normalize(nd.xyz * 2.0 - 1.0);
++    float depth = nd.w;
++
++    float occlusion = 0.0;
++    for (int i = 0; i < KERNEL; ++i) {
++        vec2 offset = OFFSETS[i] * texel * radius;
++        vec4 ndS = texture(uND, vUV + offset);
++        float depthS = ndS.w;
++        float range = smoothstep(0.0, 1.0, radius);
++        float delta = depthS - depth;
++        float occ = step(0.001, delta) * (1.0 - clamp(delta / (radius), 0.0, 1.0)) * range;
++        occlusion += occ;
++    }
++    occlusion /= float(KERNEL);
++    outAO = 1.0 - occlusion;
++}
++
+
+[2025-09-15T16:58:05] exec bash -lc "rg -n \"ubo_buffer\" src/vulkan_context.cpp && sed -n '780,920p' src/vulkan_context.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:58:05] bash -lc "rg -n \"ubo_buffer\" src/vulkan_context.cpp && sed -n '780,920p' src/vulkan_context.cpp" succeeded in 36ms:
+74:    VkBuffer ubo_buffer {VK_NULL_HANDLE};
+689:    if (impl.ubo_buffer != VK_NULL_HANDLE) { vkDestroyBuffer(impl.device, impl.ubo_buffer, nullptr); impl.ubo_buffer = VK_NULL_HANDLE; }
+864:        create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
+876:        VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
+1085:            if (impl->ubo_buffer != VK_NULL_HANDLE) {
+    VkPushConstantRange pcr {};
+    pcr.offset = 0U;
+    pcr.size = static_cast<uint32_t>(sizeof(float) * 16U);
+    pcr.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    VkDescriptorSetLayoutCreateInfo dlci {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+    VkDescriptorSetLayoutBinding bindings[4] = {};
+    uint32_t bindCount = 0U;
+    if (forward) {
+        // binding 0: UBO, 1: albedo, 2: normal, 3: AO
+        bindings[0].binding = 0; bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; bindings[0].descriptorCount = 1; bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        bindings[1].binding = 1; bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[1].descriptorCount = 1; bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        bindings[2].binding = 2; bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[2].descriptorCount = 1; bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        bindings[3].binding = 3; bindings[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; bindings[3].descriptorCount = 1; bindings[3].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        bindCount = 4U;
+[2025-09-15T16:58:05] tokens used: 86,164
+[2025-09-15T16:58:05] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+diff --git a/shaders/fullscreen.vert b/shaders/fullscreen.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..47ef99bf5518ea3ce9baaf3e01e4b8041e98e68d
+--- /dev/null
++++ b/shaders/fullscreen.vert
+@@ -0,0 +1,20 @@
++#version 450
++
++layout(location = 0) out vec2 vUV;
++
++void main() {
++    // Fullscreen triangle
++    const vec2 positions[3] = vec2[3](
++        vec2(-1.0, -1.0),
++        vec2( 3.0, -1.0),
++        vec2(-1.0,  3.0)
++    );
++    const vec2 uvs[3] = vec2[3](
++        vec2(0.0, 0.0),
++        vec2(2.0, 0.0),
++        vec2(0.0, 2.0)
++    );
++    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
++    vUV = uvs[gl_VertexIndex];
++}
++
+diff --git a/shaders/gbuffer.frag b/shaders/gbuffer.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..f116ab22511268e2aaef9d7bf34c2a990af23f13
+--- /dev/null
++++ b/shaders/gbuffer.frag
+@@ -0,0 +1,16 @@
++#version 450
++
++layout(location = 0) in vec3 vNormalVS;
++layout(location = 1) in float vDepthVS;
++layout(location = 2) in vec2 vUV;
++
++layout(location = 0) out vec4 outND;
++
++void main() {
++    // Pack view-space normal into RGB ([-1,1] -> [0,1]) and linear depth into A
++    vec3 n = normalize(vNormalVS);
++    vec3 n01 = n * 0.5 + 0.5;
++    float depth = vDepthVS;
++    outND = vec4(n01, depth);
++}
++
+diff --git a/shaders/gbuffer.vert b/shaders/gbuffer.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8c46e3cfe30155fc0601a6b6d4f29b4b593166
+--- /dev/null
++++ b/shaders/gbuffer.vert
+@@ -0,0 +1,33 @@
++#version 450
++
++layout(location = 0) in vec3 inPos;
++layout(location = 1) in vec3 inNormal;
++layout(location = 4) in vec2 inUV;
++
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(location = 0) out vec3 vNormalVS;
++layout(location = 1) out float vDepthVS;
++layout(location = 2) out vec2 vUV;
++
++void main() {
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
++    // view-space normal: ignore translation part
++    mat3 view3 = mat3(ubo.view);
++    vNormalVS = normalize(view3 * inNormal);
++    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
++    vDepthVS = -posVS.z; // positive distance from camera
++    vUV = inUV;
++}
++
+diff --git a/shaders/ssao.frag b/shaders/ssao.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..44f54958184303534d4698354b96ceff72b715e0
+--- /dev/null
++++ b/shaders/ssao.frag
+@@ -0,0 +1,48 @@
++#version 450
++
++layout(location = 0) in vec2 vUV;
++layout(location = 0) out float outAO;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    // x=invWidth, y=invHeight, z=aoPower, w=radius
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(set = 0, binding = 1) uniform sampler2D uND; // gbuffer normal/depth packed
++
++// Simple 2D SSAO kernel
++const int KERNEL = 16;
++const vec2 OFFSETS[KERNEL] = vec2[KERNEL](
++    vec2( 1,  0), vec2(-1,  0), vec2( 0,  1), vec2( 0, -1),
++    vec2( 1,  1), vec2(-1,  1), vec2( 1, -1), vec2(-1, -1),
++    vec2( 2,  0), vec2(-2,  0), vec2( 0,  2), vec2( 0, -2),
++    vec2( 2,  1), vec2(-2,  1), vec2( 1,  2), vec2(-1, -2)
++);
++
++void main() {
++    vec2 texel = vec2(ubo.screen_invW_invH_aoPower_radius.x, ubo.screen_invW_invH_aoPower_radius.y);
++    float radius = max(ubo.screen_invW_invH_aoPower_radius.w, 1.0);
++
++    vec4 nd = texture(uND, vUV);
++    vec3 n = normalize(nd.xyz * 2.0 - 1.0);
++    float depth = nd.w;
++
++    float occlusion = 0.0;
++    for (int i = 0; i < KERNEL; ++i) {
++        vec2 offset = OFFSETS[i] * texel * radius;
++        vec4 ndS = texture(uND, vUV + offset);
++        float depthS = ndS.w;
++        float range = smoothstep(0.0, 1.0, radius);
++        float delta = depthS - depth;
++        float occ = step(0.001, delta) * (1.0 - clamp(delta / (radius), 0.0, 1.0)) * range;
++        occlusion += occ;
++    }
++    occlusion /= float(KERNEL);
++    outAO = 1.0 - occlusion;
++}
++
+
+
+[2025-09-15T16:58:07] thinking
+
+**Fixing patch insertion**
+
+It seems like applying the patch didn’t work earlier, so I’m deciding to create the patch using a different anchor. I’ll insert new fields specifically after the lines for VkBuffer ubo_buffer and ubo_memory at line 74. I need to carefully open the top struct to ensure I place the patch correctly. It’s all about getting the details right this time!
+[2025-09-15T16:58:09] exec bash -lc "sed -n '1,120p' src/vulkan_context.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:58:09] bash -lc "sed -n '1,120p' src/vulkan_context.cpp" succeeded in 17ms:
+#include <vulkano/vulkan_context.hpp>
+#include <vulkano/window.hpp>
+#include <vulkano/icosphere.hpp>
+#include <vulkano/mesh.hpp>
+
+#if VULKANO_HAS_VULKAN
+#include <vulkan/vulkan.h>
+#include <GLFW/glfw3.h>
+
+#include <array>
+#include <functional>
+#include <vector>
+#include <stdexcept>
+#include <cstdio>
+#include <cstring>
+
+namespace vulkano {
+
+struct VulkanContext::Impl final {
+    VkInstance instance {VK_NULL_HANDLE};
+[2025-09-15T16:58:09] tokens used: 89,108
+[2025-09-15T16:58:09] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+diff --git a/shaders/fullscreen.vert b/shaders/fullscreen.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..47ef99bf5518ea3ce9baaf3e01e4b8041e98e68d
+--- /dev/null
++++ b/shaders/fullscreen.vert
+@@ -0,0 +1,20 @@
++#version 450
++
++layout(location = 0) out vec2 vUV;
++
++void main() {
++    // Fullscreen triangle
++    const vec2 positions[3] = vec2[3](
++        vec2(-1.0, -1.0),
++        vec2( 3.0, -1.0),
++        vec2(-1.0,  3.0)
++    );
++    const vec2 uvs[3] = vec2[3](
++        vec2(0.0, 0.0),
++        vec2(2.0, 0.0),
++        vec2(0.0, 2.0)
++    );
++    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
++    vUV = uvs[gl_VertexIndex];
++}
++
+diff --git a/shaders/gbuffer.frag b/shaders/gbuffer.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..f116ab22511268e2aaef9d7bf34c2a990af23f13
+--- /dev/null
++++ b/shaders/gbuffer.frag
+@@ -0,0 +1,16 @@
++#version 450
++
++layout(location = 0) in vec3 vNormalVS;
++layout(location = 1) in float vDepthVS;
++layout(location = 2) in vec2 vUV;
++
++layout(location = 0) out vec4 outND;
++
++void main() {
++    // Pack view-space normal into RGB ([-1,1] -> [0,1]) and linear depth into A
++    vec3 n = normalize(vNormalVS);
++    vec3 n01 = n * 0.5 + 0.5;
++    float depth = vDepthVS;
++    outND = vec4(n01, depth);
++}
++
+diff --git a/shaders/gbuffer.vert b/shaders/gbuffer.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8c46e3cfe30155fc0601a6b6d4f29b4b593166
+--- /dev/null
++++ b/shaders/gbuffer.vert
+@@ -0,0 +1,33 @@
++#version 450
++
++layout(location = 0) in vec3 inPos;
++layout(location = 1) in vec3 inNormal;
++layout(location = 4) in vec2 inUV;
++
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(location = 0) out vec3 vNormalVS;
++layout(location = 1) out float vDepthVS;
++layout(location = 2) out vec2 vUV;
++
++void main() {
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
++    // view-space normal: ignore translation part
++    mat3 view3 = mat3(ubo.view);
++    vNormalVS = normalize(view3 * inNormal);
++    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
++    vDepthVS = -posVS.z; // positive distance from camera
++    vUV = inUV;
++}
++
+diff --git a/shaders/ssao.frag b/shaders/ssao.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..44f54958184303534d4698354b96ceff72b715e0
+--- /dev/null
++++ b/shaders/ssao.frag
+@@ -0,0 +1,48 @@
++#version 450
++
++layout(location = 0) in vec2 vUV;
++layout(location = 0) out float outAO;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    // x=invWidth, y=invHeight, z=aoPower, w=radius
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(set = 0, binding = 1) uniform sampler2D uND; // gbuffer normal/depth packed
++
++// Simple 2D SSAO kernel
++const int KERNEL = 16;
++const vec2 OFFSETS[KERNEL] = vec2[KERNEL](
++    vec2( 1,  0), vec2(-1,  0), vec2( 0,  1), vec2( 0, -1),
++    vec2( 1,  1), vec2(-1,  1), vec2( 1, -1), vec2(-1, -1),
++    vec2( 2,  0), vec2(-2,  0), vec2( 0,  2), vec2( 0, -2),
++    vec2( 2,  1), vec2(-2,  1), vec2( 1,  2), vec2(-1, -2)
++);
++
++void main() {
++    vec2 texel = vec2(ubo.screen_invW_invH_aoPower_radius.x, ubo.screen_invW_invH_aoPower_radius.y);
++    float radius = max(ubo.screen_invW_invH_aoPower_radius.w, 1.0);
++
++    vec4 nd = texture(uND, vUV);
++    vec3 n = normalize(nd.xyz * 2.0 - 1.0);
++    float depth = nd.w;
++
++    float occlusion = 0.0;
++    for (int i = 0; i < KERNEL; ++i) {
++        vec2 offset = OFFSETS[i] * texel * radius;
++        vec4 ndS = texture(uND, vUV + offset);
++        float depthS = ndS.w;
++        float range = smoothstep(0.0, 1.0, radius);
++        float delta = depthS - depth;
++        float occ = step(0.001, delta) * (1.0 - clamp(delta / (radius), 0.0, 1.0)) * range;
++        occlusion += occ;
++    }
++    occlusion /= float(KERNEL);
++    outAO = 1.0 - occlusion;
++}
++
+
+[2025-09-15T16:58:16] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp
+@@ -76,2 +76,21 @@
+ 
++    // G-buffer (Normals+Depth packed into RGBA16F) prepass resources
++    VkRenderPass gbuffer_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer gbuffer_framebuffer {VK_NULL_HANDLE};
++    VkImage gbuffer_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_view {VK_NULL_HANDLE};
++    VkImage gbuffer_depth_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_depth_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_depth_view {VK_NULL_HANDLE};
++    VkPipelineLayout gbuffer_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline gbuffer_pipeline {VK_NULL_HANDLE};
++
++    // SSAO pass resources (writes AO into ao_image which is sampled in forward)
++    VkRenderPass ssao_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer ssao_framebuffer {VK_NULL_HANDLE};
++    VkPipelineLayout ssao_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline ssao_pipeline {VK_NULL_HANDLE};
++    VkDescriptorSet ssao_desc_set {VK_NULL_HANDLE};
++
+     Impl() = default;
+[2025-09-15T16:58:16] apply_patch(auto_approved=true) exited 0 in 63ms:
+Success. Updated the following files:
+M src/vulkan_context.cpp
+[2025-09-15T16:58:16] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+diff --git a/shaders/fullscreen.vert b/shaders/fullscreen.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..47ef99bf5518ea3ce9baaf3e01e4b8041e98e68d
+--- /dev/null
++++ b/shaders/fullscreen.vert
+@@ -0,0 +1,20 @@
++#version 450
++
++layout(location = 0) out vec2 vUV;
++
++void main() {
++    // Fullscreen triangle
++    const vec2 positions[3] = vec2[3](
++        vec2(-1.0, -1.0),
++        vec2( 3.0, -1.0),
++        vec2(-1.0,  3.0)
++    );
++    const vec2 uvs[3] = vec2[3](
++        vec2(0.0, 0.0),
++        vec2(2.0, 0.0),
++        vec2(0.0, 2.0)
++    );
++    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
++    vUV = uvs[gl_VertexIndex];
++}
++
+diff --git a/shaders/gbuffer.frag b/shaders/gbuffer.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..f116ab22511268e2aaef9d7bf34c2a990af23f13
+--- /dev/null
++++ b/shaders/gbuffer.frag
+@@ -0,0 +1,16 @@
++#version 450
++
++layout(location = 0) in vec3 vNormalVS;
++layout(location = 1) in float vDepthVS;
++layout(location = 2) in vec2 vUV;
++
++layout(location = 0) out vec4 outND;
++
++void main() {
++    // Pack view-space normal into RGB ([-1,1] -> [0,1]) and linear depth into A
++    vec3 n = normalize(vNormalVS);
++    vec3 n01 = n * 0.5 + 0.5;
++    float depth = vDepthVS;
++    outND = vec4(n01, depth);
++}
++
+diff --git a/shaders/gbuffer.vert b/shaders/gbuffer.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8c46e3cfe30155fc0601a6b6d4f29b4b593166
+--- /dev/null
++++ b/shaders/gbuffer.vert
+@@ -0,0 +1,33 @@
++#version 450
++
++layout(location = 0) in vec3 inPos;
++layout(location = 1) in vec3 inNormal;
++layout(location = 4) in vec2 inUV;
++
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(location = 0) out vec3 vNormalVS;
++layout(location = 1) out float vDepthVS;
++layout(location = 2) out vec2 vUV;
++
++void main() {
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
++    // view-space normal: ignore translation part
++    mat3 view3 = mat3(ubo.view);
++    vNormalVS = normalize(view3 * inNormal);
++    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
++    vDepthVS = -posVS.z; // positive distance from camera
++    vUV = inUV;
++}
++
+diff --git a/shaders/ssao.frag b/shaders/ssao.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..44f54958184303534d4698354b96ceff72b715e0
+--- /dev/null
++++ b/shaders/ssao.frag
+@@ -0,0 +1,48 @@
++#version 450
++
++layout(location = 0) in vec2 vUV;
++layout(location = 0) out float outAO;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    // x=invWidth, y=invHeight, z=aoPower, w=radius
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(set = 0, binding = 1) uniform sampler2D uND; // gbuffer normal/depth packed
++
++// Simple 2D SSAO kernel
++const int KERNEL = 16;
++const vec2 OFFSETS[KERNEL] = vec2[KERNEL](
++    vec2( 1,  0), vec2(-1,  0), vec2( 0,  1), vec2( 0, -1),
++    vec2( 1,  1), vec2(-1,  1), vec2( 1, -1), vec2(-1, -1),
++    vec2( 2,  0), vec2(-2,  0), vec2( 0,  2), vec2( 0, -2),
++    vec2( 2,  1), vec2(-2,  1), vec2( 1,  2), vec2(-1, -2)
++);
++
++void main() {
++    vec2 texel = vec2(ubo.screen_invW_invH_aoPower_radius.x, ubo.screen_invW_invH_aoPower_radius.y);
++    float radius = max(ubo.screen_invW_invH_aoPower_radius.w, 1.0);
++
++    vec4 nd = texture(uND, vUV);
++    vec3 n = normalize(nd.xyz * 2.0 - 1.0);
++    float depth = nd.w;
++
++    float occlusion = 0.0;
++    for (int i = 0; i < KERNEL; ++i) {
++        vec2 offset = OFFSETS[i] * texel * radius;
++        vec4 ndS = texture(uND, vUV + offset);
++        float depthS = ndS.w;
++        float range = smoothstep(0.0, 1.0, radius);
++        float delta = depthS - depth;
++        float occ = step(0.001, delta) * (1.0 - clamp(delta / (radius), 0.0, 1.0)) * range;
++        occlusion += occ;
++    }
++    occlusion /= float(KERNEL);
++    outAO = 1.0 - occlusion;
++}
++
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index e45d560a53955091853910b65ddcc068813d80f3..05e89fab9eece8dd3e50a3218a6ace5c0cebe271
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -74,6 +74,25 @@
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
++    // G-buffer (Normals+Depth packed into RGBA16F) prepass resources
++    VkRenderPass gbuffer_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer gbuffer_framebuffer {VK_NULL_HANDLE};
++    VkImage gbuffer_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_view {VK_NULL_HANDLE};
++    VkImage gbuffer_depth_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_depth_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_depth_view {VK_NULL_HANDLE};
++    VkPipelineLayout gbuffer_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline gbuffer_pipeline {VK_NULL_HANDLE};
++
++    // SSAO pass resources (writes AO into ao_image which is sampled in forward)
++    VkRenderPass ssao_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer ssao_framebuffer {VK_NULL_HANDLE};
++    VkPipelineLayout ssao_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline ssao_pipeline {VK_NULL_HANDLE};
++    VkDescriptorSet ssao_desc_set {VK_NULL_HANDLE};
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+
+[2025-09-15T16:58:17] tokens used: 90,967
+[2025-09-15T16:58:17] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+diff --git a/shaders/fullscreen.vert b/shaders/fullscreen.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..47ef99bf5518ea3ce9baaf3e01e4b8041e98e68d
+--- /dev/null
++++ b/shaders/fullscreen.vert
+@@ -0,0 +1,20 @@
++#version 450
++
++layout(location = 0) out vec2 vUV;
++
++void main() {
++    // Fullscreen triangle
++    const vec2 positions[3] = vec2[3](
++        vec2(-1.0, -1.0),
++        vec2( 3.0, -1.0),
++        vec2(-1.0,  3.0)
++    );
++    const vec2 uvs[3] = vec2[3](
++        vec2(0.0, 0.0),
++        vec2(2.0, 0.0),
++        vec2(0.0, 2.0)
++    );
++    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
++    vUV = uvs[gl_VertexIndex];
++}
++
+diff --git a/shaders/gbuffer.frag b/shaders/gbuffer.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..f116ab22511268e2aaef9d7bf34c2a990af23f13
+--- /dev/null
++++ b/shaders/gbuffer.frag
+@@ -0,0 +1,16 @@
++#version 450
++
++layout(location = 0) in vec3 vNormalVS;
++layout(location = 1) in float vDepthVS;
++layout(location = 2) in vec2 vUV;
++
++layout(location = 0) out vec4 outND;
++
++void main() {
++    // Pack view-space normal into RGB ([-1,1] -> [0,1]) and linear depth into A
++    vec3 n = normalize(vNormalVS);
++    vec3 n01 = n * 0.5 + 0.5;
++    float depth = vDepthVS;
++    outND = vec4(n01, depth);
++}
++
+diff --git a/shaders/gbuffer.vert b/shaders/gbuffer.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8c46e3cfe30155fc0601a6b6d4f29b4b593166
+--- /dev/null
++++ b/shaders/gbuffer.vert
+@@ -0,0 +1,33 @@
++#version 450
++
++layout(location = 0) in vec3 inPos;
++layout(location = 1) in vec3 inNormal;
++layout(location = 4) in vec2 inUV;
++
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(location = 0) out vec3 vNormalVS;
++layout(location = 1) out float vDepthVS;
++layout(location = 2) out vec2 vUV;
++
++void main() {
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
++    // view-space normal: ignore translation part
++    mat3 view3 = mat3(ubo.view);
++    vNormalVS = normalize(view3 * inNormal);
++    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
++    vDepthVS = -posVS.z; // positive distance from camera
++    vUV = inUV;
++}
++
+diff --git a/shaders/ssao.frag b/shaders/ssao.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..44f54958184303534d4698354b96ceff72b715e0
+--- /dev/null
++++ b/shaders/ssao.frag
+@@ -0,0 +1,48 @@
++#version 450
++
++layout(location = 0) in vec2 vUV;
++layout(location = 0) out float outAO;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    // x=invWidth, y=invHeight, z=aoPower, w=radius
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(set = 0, binding = 1) uniform sampler2D uND; // gbuffer normal/depth packed
++
++// Simple 2D SSAO kernel
++const int KERNEL = 16;
++const vec2 OFFSETS[KERNEL] = vec2[KERNEL](
++    vec2( 1,  0), vec2(-1,  0), vec2( 0,  1), vec2( 0, -1),
++    vec2( 1,  1), vec2(-1,  1), vec2( 1, -1), vec2(-1, -1),
++    vec2( 2,  0), vec2(-2,  0), vec2( 0,  2), vec2( 0, -2),
++    vec2( 2,  1), vec2(-2,  1), vec2( 1,  2), vec2(-1, -2)
++);
++
++void main() {
++    vec2 texel = vec2(ubo.screen_invW_invH_aoPower_radius.x, ubo.screen_invW_invH_aoPower_radius.y);
++    float radius = max(ubo.screen_invW_invH_aoPower_radius.w, 1.0);
++
++    vec4 nd = texture(uND, vUV);
++    vec3 n = normalize(nd.xyz * 2.0 - 1.0);
++    float depth = nd.w;
++
++    float occlusion = 0.0;
++    for (int i = 0; i < KERNEL; ++i) {
++        vec2 offset = OFFSETS[i] * texel * radius;
++        vec4 ndS = texture(uND, vUV + offset);
++        float depthS = ndS.w;
++        float range = smoothstep(0.0, 1.0, radius);
++        float delta = depthS - depth;
++        float occ = step(0.001, delta) * (1.0 - clamp(delta / (radius), 0.0, 1.0)) * range;
++        occlusion += occ;
++    }
++    occlusion /= float(KERNEL);
++    outAO = 1.0 - occlusion;
++}
++
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index e45d560a53955091853910b65ddcc068813d80f3..05e89fab9eece8dd3e50a3218a6ace5c0cebe271
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -74,6 +74,25 @@
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
++    // G-buffer (Normals+Depth packed into RGBA16F) prepass resources
++    VkRenderPass gbuffer_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer gbuffer_framebuffer {VK_NULL_HANDLE};
++    VkImage gbuffer_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_view {VK_NULL_HANDLE};
++    VkImage gbuffer_depth_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_depth_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_depth_view {VK_NULL_HANDLE};
++    VkPipelineLayout gbuffer_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline gbuffer_pipeline {VK_NULL_HANDLE};
++
++    // SSAO pass resources (writes AO into ao_image which is sampled in forward)
++    VkRenderPass ssao_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer ssao_framebuffer {VK_NULL_HANDLE};
++    VkPipelineLayout ssao_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline ssao_pipeline {VK_NULL_HANDLE};
++    VkDescriptorSet ssao_desc_set {VK_NULL_HANDLE};
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+
+[2025-09-15T16:58:23] exec bash -lc "rg -n \"load_binary_file\\(\" src/vulkan_context.cpp && sed -n '930,1080p' src/vulkan_context.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T16:58:23] bash -lc "rg -n \"load_binary_file\\(\" src/vulkan_context.cpp && sed -n '930,1080p' src/vulkan_context.cpp" succeeded in 25ms:
+466:static std::vector<char> load_binary_file(const char* path) {
+715:    std::vector<char> vs = load_binary_file("shaders/forward.vert.spv");
+716:    std::vector<char> fs = load_binary_file("shaders/forward.frag.spv");
+720:        vs = load_binary_file("shaders/simple.vert.spv");
+721:        fs = load_binary_file("shaders/simple.frag.spv");
+    vkGetPhysicalDeviceQueueFamilyProperties(impl->physical_device, &qcount, nullptr);
+    std::vector<VkQueueFamilyProperties> qprops(qcount);
+    vkGetPhysicalDeviceQueueFamilyProperties(impl->physical_device, &qcount, qprops.data());
+    uint32_t gfx_index = UINT32_MAX;
+    for (uint32_t i = 0; i < qcount; ++i) {
+        if ((qprops[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0U && query_present_support(impl->physical_device, i, impl->surface)) {
+            gfx_index = i;
+            break;
+        }
+    }
+    if (gfx_index == UINT32_MAX) {
+        throw std::runtime_error {"No graphics queue family found"};
+    }
+    impl->graphics_queue_family = gfx_index;
+
+[2025-09-15T16:58:23] tokens used: 104,888
+[2025-09-15T16:58:23] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+diff --git a/shaders/fullscreen.vert b/shaders/fullscreen.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..47ef99bf5518ea3ce9baaf3e01e4b8041e98e68d
+--- /dev/null
++++ b/shaders/fullscreen.vert
+@@ -0,0 +1,20 @@
++#version 450
++
++layout(location = 0) out vec2 vUV;
++
++void main() {
++    // Fullscreen triangle
++    const vec2 positions[3] = vec2[3](
++        vec2(-1.0, -1.0),
++        vec2( 3.0, -1.0),
++        vec2(-1.0,  3.0)
++    );
++    const vec2 uvs[3] = vec2[3](
++        vec2(0.0, 0.0),
++        vec2(2.0, 0.0),
++        vec2(0.0, 2.0)
++    );
++    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
++    vUV = uvs[gl_VertexIndex];
++}
++
+diff --git a/shaders/gbuffer.frag b/shaders/gbuffer.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..f116ab22511268e2aaef9d7bf34c2a990af23f13
+--- /dev/null
++++ b/shaders/gbuffer.frag
+@@ -0,0 +1,16 @@
++#version 450
++
++layout(location = 0) in vec3 vNormalVS;
++layout(location = 1) in float vDepthVS;
++layout(location = 2) in vec2 vUV;
++
++layout(location = 0) out vec4 outND;
++
++void main() {
++    // Pack view-space normal into RGB ([-1,1] -> [0,1]) and linear depth into A
++    vec3 n = normalize(vNormalVS);
++    vec3 n01 = n * 0.5 + 0.5;
++    float depth = vDepthVS;
++    outND = vec4(n01, depth);
++}
++
+diff --git a/shaders/gbuffer.vert b/shaders/gbuffer.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8c46e3cfe30155fc0601a6b6d4f29b4b593166
+--- /dev/null
++++ b/shaders/gbuffer.vert
+@@ -0,0 +1,33 @@
++#version 450
++
++layout(location = 0) in vec3 inPos;
++layout(location = 1) in vec3 inNormal;
++layout(location = 4) in vec2 inUV;
++
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(location = 0) out vec3 vNormalVS;
++layout(location = 1) out float vDepthVS;
++layout(location = 2) out vec2 vUV;
++
++void main() {
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
++    // view-space normal: ignore translation part
++    mat3 view3 = mat3(ubo.view);
++    vNormalVS = normalize(view3 * inNormal);
++    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
++    vDepthVS = -posVS.z; // positive distance from camera
++    vUV = inUV;
++}
++
+diff --git a/shaders/ssao.frag b/shaders/ssao.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..44f54958184303534d4698354b96ceff72b715e0
+--- /dev/null
++++ b/shaders/ssao.frag
+@@ -0,0 +1,48 @@
++#version 450
++
++layout(location = 0) in vec2 vUV;
++layout(location = 0) out float outAO;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    // x=invWidth, y=invHeight, z=aoPower, w=radius
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(set = 0, binding = 1) uniform sampler2D uND; // gbuffer normal/depth packed
++
++// Simple 2D SSAO kernel
++const int KERNEL = 16;
++const vec2 OFFSETS[KERNEL] = vec2[KERNEL](
++    vec2( 1,  0), vec2(-1,  0), vec2( 0,  1), vec2( 0, -1),
++    vec2( 1,  1), vec2(-1,  1), vec2( 1, -1), vec2(-1, -1),
++    vec2( 2,  0), vec2(-2,  0), vec2( 0,  2), vec2( 0, -2),
++    vec2( 2,  1), vec2(-2,  1), vec2( 1,  2), vec2(-1, -2)
++);
++
++void main() {
++    vec2 texel = vec2(ubo.screen_invW_invH_aoPower_radius.x, ubo.screen_invW_invH_aoPower_radius.y);
++    float radius = max(ubo.screen_invW_invH_aoPower_radius.w, 1.0);
++
++    vec4 nd = texture(uND, vUV);
++    vec3 n = normalize(nd.xyz * 2.0 - 1.0);
++    float depth = nd.w;
++
++    float occlusion = 0.0;
++    for (int i = 0; i < KERNEL; ++i) {
++        vec2 offset = OFFSETS[i] * texel * radius;
++        vec4 ndS = texture(uND, vUV + offset);
++        float depthS = ndS.w;
++        float range = smoothstep(0.0, 1.0, radius);
++        float delta = depthS - depth;
++        float occ = step(0.001, delta) * (1.0 - clamp(delta / (radius), 0.0, 1.0)) * range;
++        occlusion += occ;
++    }
++    occlusion /= float(KERNEL);
++    outAO = 1.0 - occlusion;
++}
++
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index e45d560a53955091853910b65ddcc068813d80f3..05e89fab9eece8dd3e50a3218a6ace5c0cebe271
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -74,6 +74,25 @@
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
++    // G-buffer (Normals+Depth packed into RGBA16F) prepass resources
++    VkRenderPass gbuffer_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer gbuffer_framebuffer {VK_NULL_HANDLE};
++    VkImage gbuffer_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_view {VK_NULL_HANDLE};
++    VkImage gbuffer_depth_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_depth_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_depth_view {VK_NULL_HANDLE};
++    VkPipelineLayout gbuffer_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline gbuffer_pipeline {VK_NULL_HANDLE};
++
++    // SSAO pass resources (writes AO into ao_image which is sampled in forward)
++    VkRenderPass ssao_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer ssao_framebuffer {VK_NULL_HANDLE};
++    VkPipelineLayout ssao_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline ssao_pipeline {VK_NULL_HANDLE};
++    VkDescriptorSet ssao_desc_set {VK_NULL_HANDLE};
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+
+
+[2025-09-15T16:58:47] thinking
+
+**Planning image and depth creation**
+
+I’m thinking about implementing the function create_color_image with parameters for context, format, usage, width, height, and output image. I also want to create depth for the gbuffer and possibly reuse find_depth_format, but I need to ensure the depth format matches the main depth. It looks like a substantial patch, so I should proceed in a modular way to make everything more manageable.
+[2025-09-15T17:00:28] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp
+@@ -662,2 +662,114 @@
+ 
++static void create_color_image(VulkanContext& ctx, uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage,
++    VkImage* outImage, VkDeviceMemory* outMem, VkImageView* outView) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
++    ici.imageType = VK_IMAGE_TYPE_2D;
++    ici.extent = {width, height, 1};
++    ici.mipLevels = 1;
++    ici.arrayLayers = 1;
++    ici.format = format;
++    ici.tiling = VK_IMAGE_TILING_OPTIMAL;
++    ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
++    ici.usage = usage;
++    ici.samples = VK_SAMPLE_COUNT_1_BIT;
++    ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (vkCreateImage(impl.device, &ici, nullptr, outImage) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image"}; }
++    VkMemoryRequirements req {};
++    vkGetImageMemoryRequirements(impl.device, *outImage, &req);
++    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
++    mai.allocationSize = req.size;
++    mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++    if (vkAllocateMemory(impl.device, &mai, nullptr, outMem) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc image mem"}; }
++    vkBindImageMemory(impl.device, *outImage, *outMem, 0);
++
++    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
++    ivci.image = *outImage; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = format;
++    ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; ivci.subresourceRange.levelCount = 1; ivci.subresourceRange.layerCount = 1;
++    if (vkCreateImageView(impl.device, &ivci, nullptr, outView) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image view"}; }
++}
++
++static void create_gbuffer_resources(VulkanContext& ctx) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    const uint32_t w = impl.swapchain_extent.width;
++    const uint32_t h = impl.swapchain_extent.height;
++    // Create ND image (RGBA16F) with color attachment + sampled usage
++    create_color_image(ctx, w, h, VK_FORMAT_R16G16B16A16_SFLOAT,
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++        &impl.gbuffer_image, &impl.gbuffer_memory, &impl.gbuffer_view);
++    // Create depth for gbuffer
++    VkFormat df = find_depth_format(ctx);
++    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
++    ici.imageType = VK_IMAGE_TYPE_2D; ici.extent = {w, h, 1}; ici.mipLevels = 1; ici.arrayLayers = 1; ici.format = df;
++    ici.tiling = VK_IMAGE_TILING_OPTIMAL; ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; ici.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT; ici.samples = VK_SAMPLE_COUNT_1_BIT; ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (vkCreateImage(impl.device, &ici, nullptr, &impl.gbuffer_depth_image) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer depth"}; }
++    VkMemoryRequirements req {}; vkGetImageMemoryRequirements(impl.device, impl.gbuffer_depth_image, &req);
++    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO}; mai.allocationSize = req.size; mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++    if (vkAllocateMemory(impl.device, &mai, nullptr, &impl.gbuffer_depth_memory) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc gbuffer depth mem"}; }
++    vkBindImageMemory(impl.device, impl.gbuffer_depth_image, impl.gbuffer_depth_memory, 0);
++    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO}; ivci.image = impl.gbuffer_depth_image; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = df; ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT; ivci.subresourceRange.levelCount=1; ivci.subresourceRange.layerCount=1;
++    if (vkCreateImageView(impl.device, &ivci, nullptr, &impl.gbuffer_depth_view) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer depth view"}; }
++
++    // Render pass for gbuffer
++    VkAttachmentDescription color { };
++    color.format = VK_FORMAT_R16G16B16A16_SFLOAT; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkAttachmentDescription depth { };
++    depth.format = df; depth.samples = VK_SAMPLE_COUNT_1_BIT; depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; depth.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; depth.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
++    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
++    VkAttachmentReference depth_ref {1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
++    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref; sub.pDepthStencilAttachment = &depth_ref;
++    VkAttachmentDescription att[2] = {color, depth};
++    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 2; rpci.pAttachments = att; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
++    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.gbuffer_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer render pass"}; }
++
++    // Framebuffer
++    VkImageView views[2] = {impl.gbuffer_view, impl.gbuffer_depth_view};
++    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.gbuffer_render_pass; fbci.attachmentCount = 2; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
++    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.gbuffer_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer framebuffer"}; }
++}
++
++static void destroy_gbuffer_resources(VulkanContext& ctx) noexcept {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    if (impl.gbuffer_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.gbuffer_framebuffer, nullptr); impl.gbuffer_framebuffer = VK_NULL_HANDLE; }
++    if (impl.gbuffer_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.gbuffer_render_pass, nullptr); impl.gbuffer_render_pass = VK_NULL_HANDLE; }
++    if (impl.gbuffer_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.gbuffer_view, nullptr); impl.gbuffer_view = VK_NULL_HANDLE; }
++    if (impl.gbuffer_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.gbuffer_image, nullptr); impl.gbuffer_image = VK_NULL_HANDLE; }
++    if (impl.gbuffer_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.gbuffer_memory, nullptr); impl.gbuffer_memory = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.gbuffer_depth_view, nullptr); impl.gbuffer_depth_view = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.gbuffer_depth_image, nullptr); impl.gbuffer_depth_image = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.gbuffer_depth_memory, nullptr); impl.gbuffer_depth_memory = VK_NULL_HANDLE; }
++    if (impl.gbuffer_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.gbuffer_pipeline, nullptr); impl.gbuffer_pipeline = VK_NULL_HANDLE; }
++    if (impl.gbuffer_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.gbuffer_pipeline_layout, nullptr); impl.gbuffer_pipeline_layout = VK_NULL_HANDLE; }
++}
++
++static void create_ssao_resources(VulkanContext& ctx) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    const uint32_t w = impl.swapchain_extent.width;
++    const uint32_t h = impl.swapchain_extent.height;
++    // Create AO image as color attachment + sampled (R8)
++    create_color_image(ctx, w, h, VK_FORMAT_R8_UNORM,
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++        &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++
++    // SSAO render pass
++    VkAttachmentDescription color { };
++    color.format = VK_FORMAT_R8_UNORM; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
++    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref;
++    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 1; rpci.pAttachments = &color; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
++    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.ssao_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create ssao render pass"}; }
++
++    VkImageView views[1] = {impl.ao_view};
++    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.ssao_render_pass; fbci.attachmentCount = 1; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
++    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.ssao_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create ssao framebuffer"}; }
++}
++
++static void destroy_ssao_resources(VulkanContext& ctx) noexcept {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    if (impl.ssao_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.ssao_framebuffer, nullptr); impl.ssao_framebuffer = VK_NULL_HANDLE; }
++    if (impl.ssao_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.ssao_render_pass, nullptr); impl.ssao_render_pass = VK_NULL_HANDLE; }
++    if (impl.ssao_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.ssao_pipeline, nullptr); impl.ssao_pipeline = VK_NULL_HANDLE; }
++    if (impl.ssao_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.ssao_pipeline_layout, nullptr); impl.ssao_pipeline_layout = VK_NULL_HANDLE; }
++}
++
+ static void upload_mesh_to_gpu(VulkanContext& ctx, const vulkano::Mesh& mesh) {
+[2025-09-15T17:00:28] apply_patch(auto_approved=true) exited 0 in 91ms:
+Success. Updated the following files:
+M src/vulkan_context.cpp
+[2025-09-15T17:00:28] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+diff --git a/shaders/fullscreen.vert b/shaders/fullscreen.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..47ef99bf5518ea3ce9baaf3e01e4b8041e98e68d
+--- /dev/null
++++ b/shaders/fullscreen.vert
+@@ -0,0 +1,20 @@
++#version 450
++
++layout(location = 0) out vec2 vUV;
++
++void main() {
++    // Fullscreen triangle
++    const vec2 positions[3] = vec2[3](
++        vec2(-1.0, -1.0),
++        vec2( 3.0, -1.0),
++        vec2(-1.0,  3.0)
++    );
++    const vec2 uvs[3] = vec2[3](
++        vec2(0.0, 0.0),
++        vec2(2.0, 0.0),
++        vec2(0.0, 2.0)
++    );
++    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
++    vUV = uvs[gl_VertexIndex];
++}
++
+diff --git a/shaders/gbuffer.frag b/shaders/gbuffer.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..f116ab22511268e2aaef9d7bf34c2a990af23f13
+--- /dev/null
++++ b/shaders/gbuffer.frag
+@@ -0,0 +1,16 @@
++#version 450
++
++layout(location = 0) in vec3 vNormalVS;
++layout(location = 1) in float vDepthVS;
++layout(location = 2) in vec2 vUV;
++
++layout(location = 0) out vec4 outND;
++
++void main() {
++    // Pack view-space normal into RGB ([-1,1] -> [0,1]) and linear depth into A
++    vec3 n = normalize(vNormalVS);
++    vec3 n01 = n * 0.5 + 0.5;
++    float depth = vDepthVS;
++    outND = vec4(n01, depth);
++}
++
+diff --git a/shaders/gbuffer.vert b/shaders/gbuffer.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8c46e3cfe30155fc0601a6b6d4f29b4b593166
+--- /dev/null
++++ b/shaders/gbuffer.vert
+@@ -0,0 +1,33 @@
++#version 450
++
++layout(location = 0) in vec3 inPos;
++layout(location = 1) in vec3 inNormal;
++layout(location = 4) in vec2 inUV;
++
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(location = 0) out vec3 vNormalVS;
++layout(location = 1) out float vDepthVS;
++layout(location = 2) out vec2 vUV;
++
++void main() {
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
++    // view-space normal: ignore translation part
++    mat3 view3 = mat3(ubo.view);
++    vNormalVS = normalize(view3 * inNormal);
++    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
++    vDepthVS = -posVS.z; // positive distance from camera
++    vUV = inUV;
++}
++
+diff --git a/shaders/ssao.frag b/shaders/ssao.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..44f54958184303534d4698354b96ceff72b715e0
+--- /dev/null
++++ b/shaders/ssao.frag
+@@ -0,0 +1,48 @@
++#version 450
++
++layout(location = 0) in vec2 vUV;
++layout(location = 0) out float outAO;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    // x=invWidth, y=invHeight, z=aoPower, w=radius
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(set = 0, binding = 1) uniform sampler2D uND; // gbuffer normal/depth packed
++
++// Simple 2D SSAO kernel
++const int KERNEL = 16;
++const vec2 OFFSETS[KERNEL] = vec2[KERNEL](
++    vec2( 1,  0), vec2(-1,  0), vec2( 0,  1), vec2( 0, -1),
++    vec2( 1,  1), vec2(-1,  1), vec2( 1, -1), vec2(-1, -1),
++    vec2( 2,  0), vec2(-2,  0), vec2( 0,  2), vec2( 0, -2),
++    vec2( 2,  1), vec2(-2,  1), vec2( 1,  2), vec2(-1, -2)
++);
++
++void main() {
++    vec2 texel = vec2(ubo.screen_invW_invH_aoPower_radius.x, ubo.screen_invW_invH_aoPower_radius.y);
++    float radius = max(ubo.screen_invW_invH_aoPower_radius.w, 1.0);
++
++    vec4 nd = texture(uND, vUV);
++    vec3 n = normalize(nd.xyz * 2.0 - 1.0);
++    float depth = nd.w;
++
++    float occlusion = 0.0;
++    for (int i = 0; i < KERNEL; ++i) {
++        vec2 offset = OFFSETS[i] * texel * radius;
++        vec4 ndS = texture(uND, vUV + offset);
++        float depthS = ndS.w;
++        float range = smoothstep(0.0, 1.0, radius);
++        float delta = depthS - depth;
++        float occ = step(0.001, delta) * (1.0 - clamp(delta / (radius), 0.0, 1.0)) * range;
++        occlusion += occ;
++    }
++    occlusion /= float(KERNEL);
++    outAO = 1.0 - occlusion;
++}
++
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index e45d560a53955091853910b65ddcc068813d80f3..78bdb675332c1ad50c199ff4bd1ce63dec46484f
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -74,6 +74,25 @@
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
++    // G-buffer (Normals+Depth packed into RGBA16F) prepass resources
++    VkRenderPass gbuffer_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer gbuffer_framebuffer {VK_NULL_HANDLE};
++    VkImage gbuffer_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_view {VK_NULL_HANDLE};
++    VkImage gbuffer_depth_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_depth_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_depth_view {VK_NULL_HANDLE};
++    VkPipelineLayout gbuffer_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline gbuffer_pipeline {VK_NULL_HANDLE};
++
++    // SSAO pass resources (writes AO into ao_image which is sampled in forward)
++    VkRenderPass ssao_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer ssao_framebuffer {VK_NULL_HANDLE};
++    VkPipelineLayout ssao_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline ssao_pipeline {VK_NULL_HANDLE};
++    VkDescriptorSet ssao_desc_set {VK_NULL_HANDLE};
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+@@ -641,6 +660,118 @@
+     if (vkCreateImageView(impl.device, &ivci, nullptr, outView) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image view"}; }
+ }
+ 
++static void create_color_image(VulkanContext& ctx, uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage,
++    VkImage* outImage, VkDeviceMemory* outMem, VkImageView* outView) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
++    ici.imageType = VK_IMAGE_TYPE_2D;
++    ici.extent = {width, height, 1};
++    ici.mipLevels = 1;
++    ici.arrayLayers = 1;
++    ici.format = format;
++    ici.tiling = VK_IMAGE_TILING_OPTIMAL;
++    ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
++    ici.usage = usage;
++    ici.samples = VK_SAMPLE_COUNT_1_BIT;
++    ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (vkCreateImage(impl.device, &ici, nullptr, outImage) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image"}; }
++    VkMemoryRequirements req {};
++    vkGetImageMemoryRequirements(impl.device, *outImage, &req);
++    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
++    mai.allocationSize = req.size;
++    mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++    if (vkAllocateMemory(impl.device, &mai, nullptr, outMem) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc image mem"}; }
++    vkBindImageMemory(impl.device, *outImage, *outMem, 0);
++
++    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
++    ivci.image = *outImage; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = format;
++    ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; ivci.subresourceRange.levelCount = 1; ivci.subresourceRange.layerCount = 1;
++    if (vkCreateImageView(impl.device, &ivci, nullptr, outView) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image view"}; }
++}
++
++static void create_gbuffer_resources(VulkanContext& ctx) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    const uint32_t w = impl.swapchain_extent.width;
++    const uint32_t h = impl.swapchain_extent.height;
++    // Create ND image (RGBA16F) with color attachment + sampled usage
++    create_color_image(ctx, w, h, VK_FORMAT_R16G16B16A16_SFLOAT,
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++        &impl.gbuffer_image, &impl.gbuffer_memory, &impl.gbuffer_view);
++    // Create depth for gbuffer
++    VkFormat df = find_depth_format(ctx);
++    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
++    ici.imageType = VK_IMAGE_TYPE_2D; ici.extent = {w, h, 1}; ici.mipLevels = 1; ici.arrayLayers = 1; ici.format = df;
++    ici.tiling = VK_IMAGE_TILING_OPTIMAL; ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; ici.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT; ici.samples = VK_SAMPLE_COUNT_1_BIT; ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (vkCreateImage(impl.device, &ici, nullptr, &impl.gbuffer_depth_image) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer depth"}; }
++    VkMemoryRequirements req {}; vkGetImageMemoryRequirements(impl.device, impl.gbuffer_depth_image, &req);
++    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO}; mai.allocationSize = req.size; mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++    if (vkAllocateMemory(impl.device, &mai, nullptr, &impl.gbuffer_depth_memory) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc gbuffer depth mem"}; }
++    vkBindImageMemory(impl.device, impl.gbuffer_depth_image, impl.gbuffer_depth_memory, 0);
++    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO}; ivci.image = impl.gbuffer_depth_image; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = df; ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT; ivci.subresourceRange.levelCount=1; ivci.subresourceRange.layerCount=1;
++    if (vkCreateImageView(impl.device, &ivci, nullptr, &impl.gbuffer_depth_view) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer depth view"}; }
++
++    // Render pass for gbuffer
++    VkAttachmentDescription color { };
++    color.format = VK_FORMAT_R16G16B16A16_SFLOAT; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkAttachmentDescription depth { };
++    depth.format = df; depth.samples = VK_SAMPLE_COUNT_1_BIT; depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; depth.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; depth.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
++    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
++    VkAttachmentReference depth_ref {1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
++    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref; sub.pDepthStencilAttachment = &depth_ref;
++    VkAttachmentDescription att[2] = {color, depth};
++    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 2; rpci.pAttachments = att; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
++    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.gbuffer_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer render pass"}; }
++
++    // Framebuffer
++    VkImageView views[2] = {impl.gbuffer_view, impl.gbuffer_depth_view};
++    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.gbuffer_render_pass; fbci.attachmentCount = 2; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
++    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.gbuffer_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer framebuffer"}; }
++}
++
++static void destroy_gbuffer_resources(VulkanContext& ctx) noexcept {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    if (impl.gbuffer_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.gbuffer_framebuffer, nullptr); impl.gbuffer_framebuffer = VK_NULL_HANDLE; }
++    if (impl.gbuffer_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.gbuffer_render_pass, nullptr); impl.gbuffer_render_pass = VK_NULL_HANDLE; }
++    if (impl.gbuffer_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.gbuffer_view, nullptr); impl.gbuffer_view = VK_NULL_HANDLE; }
++    if (impl.gbuffer_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.gbuffer_image, nullptr); impl.gbuffer_image = VK_NULL_HANDLE; }
++    if (impl.gbuffer_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.gbuffer_memory, nullptr); impl.gbuffer_memory = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.gbuffer_depth_view, nullptr); impl.gbuffer_depth_view = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.gbuffer_depth_image, nullptr); impl.gbuffer_depth_image = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.gbuffer_depth_memory, nullptr); impl.gbuffer_depth_memory = VK_NULL_HANDLE; }
++    if (impl.gbuffer_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.gbuffer_pipeline, nullptr); impl.gbuffer_pipeline = VK_NULL_HANDLE; }
++    if (impl.gbuffer_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.gbuffer_pipeline_layout, nullptr); impl.gbuffer_pipeline_layout = VK_NULL_HANDLE; }
++}
++
++static void create_ssao_resources(VulkanContext& ctx) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    const uint32_t w = impl.swapchain_extent.width;
++    const uint32_t h = impl.swapchain_extent.height;
++    // Create AO image as color attachment + sampled (R8)
++    create_color_image(ctx, w, h, VK_FORMAT_R8_UNORM,
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++        &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++
++    // SSAO render pass
++    VkAttachmentDescription color { };
++    color.format = VK_FORMAT_R8_UNORM; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
++    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref;
++    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 1; rpci.pAttachments = &color; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
++    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.ssao_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create ssao render pass"}; }
++
++    VkImageView views[1] = {impl.ao_view};
++    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.ssao_render_pass; fbci.attachmentCount = 1; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
++    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.ssao_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create ssao framebuffer"}; }
++}
++
++static void destroy_ssao_resources(VulkanContext& ctx) noexcept {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    if (impl.ssao_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.ssao_framebuffer, nullptr); impl.ssao_framebuffer = VK_NULL_HANDLE; }
++    if (impl.ssao_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.ssao_render_pass, nullptr); impl.ssao_render_pass = VK_NULL_HANDLE; }
++    if (impl.ssao_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.ssao_pipeline, nullptr); impl.ssao_pipeline = VK_NULL_HANDLE; }
++    if (impl.ssao_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.ssao_pipeline_layout, nullptr); impl.ssao_pipeline_layout = VK_NULL_HANDLE; }
++}
++
+ static void upload_mesh_to_gpu(VulkanContext& ctx, const vulkano::Mesh& mesh) {
+     auto& impl = VulkanContextInternalsHelper::get(ctx);
+     destroy_mesh_buffers(ctx);
+
+[2025-09-15T17:00:28] tokens used: 110,950
+[2025-09-15T17:00:28] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+diff --git a/shaders/fullscreen.vert b/shaders/fullscreen.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..47ef99bf5518ea3ce9baaf3e01e4b8041e98e68d
+--- /dev/null
++++ b/shaders/fullscreen.vert
+@@ -0,0 +1,20 @@
++#version 450
++
++layout(location = 0) out vec2 vUV;
++
++void main() {
++    // Fullscreen triangle
++    const vec2 positions[3] = vec2[3](
++        vec2(-1.0, -1.0),
++        vec2( 3.0, -1.0),
++        vec2(-1.0,  3.0)
++    );
++    const vec2 uvs[3] = vec2[3](
++        vec2(0.0, 0.0),
++        vec2(2.0, 0.0),
++        vec2(0.0, 2.0)
++    );
++    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
++    vUV = uvs[gl_VertexIndex];
++}
++
+diff --git a/shaders/gbuffer.frag b/shaders/gbuffer.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..f116ab22511268e2aaef9d7bf34c2a990af23f13
+--- /dev/null
++++ b/shaders/gbuffer.frag
+@@ -0,0 +1,16 @@
++#version 450
++
++layout(location = 0) in vec3 vNormalVS;
++layout(location = 1) in float vDepthVS;
++layout(location = 2) in vec2 vUV;
++
++layout(location = 0) out vec4 outND;
++
++void main() {
++    // Pack view-space normal into RGB ([-1,1] -> [0,1]) and linear depth into A
++    vec3 n = normalize(vNormalVS);
++    vec3 n01 = n * 0.5 + 0.5;
++    float depth = vDepthVS;
++    outND = vec4(n01, depth);
++}
++
+diff --git a/shaders/gbuffer.vert b/shaders/gbuffer.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8c46e3cfe30155fc0601a6b6d4f29b4b593166
+--- /dev/null
++++ b/shaders/gbuffer.vert
+@@ -0,0 +1,33 @@
++#version 450
++
++layout(location = 0) in vec3 inPos;
++layout(location = 1) in vec3 inNormal;
++layout(location = 4) in vec2 inUV;
++
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(location = 0) out vec3 vNormalVS;
++layout(location = 1) out float vDepthVS;
++layout(location = 2) out vec2 vUV;
++
++void main() {
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
++    // view-space normal: ignore translation part
++    mat3 view3 = mat3(ubo.view);
++    vNormalVS = normalize(view3 * inNormal);
++    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
++    vDepthVS = -posVS.z; // positive distance from camera
++    vUV = inUV;
++}
++
+diff --git a/shaders/ssao.frag b/shaders/ssao.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..44f54958184303534d4698354b96ceff72b715e0
+--- /dev/null
++++ b/shaders/ssao.frag
+@@ -0,0 +1,48 @@
++#version 450
++
++layout(location = 0) in vec2 vUV;
++layout(location = 0) out float outAO;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    // x=invWidth, y=invHeight, z=aoPower, w=radius
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(set = 0, binding = 1) uniform sampler2D uND; // gbuffer normal/depth packed
++
++// Simple 2D SSAO kernel
++const int KERNEL = 16;
++const vec2 OFFSETS[KERNEL] = vec2[KERNEL](
++    vec2( 1,  0), vec2(-1,  0), vec2( 0,  1), vec2( 0, -1),
++    vec2( 1,  1), vec2(-1,  1), vec2( 1, -1), vec2(-1, -1),
++    vec2( 2,  0), vec2(-2,  0), vec2( 0,  2), vec2( 0, -2),
++    vec2( 2,  1), vec2(-2,  1), vec2( 1,  2), vec2(-1, -2)
++);
++
++void main() {
++    vec2 texel = vec2(ubo.screen_invW_invH_aoPower_radius.x, ubo.screen_invW_invH_aoPower_radius.y);
++    float radius = max(ubo.screen_invW_invH_aoPower_radius.w, 1.0);
++
++    vec4 nd = texture(uND, vUV);
++    vec3 n = normalize(nd.xyz * 2.0 - 1.0);
++    float depth = nd.w;
++
++    float occlusion = 0.0;
++    for (int i = 0; i < KERNEL; ++i) {
++        vec2 offset = OFFSETS[i] * texel * radius;
++        vec4 ndS = texture(uND, vUV + offset);
++        float depthS = ndS.w;
++        float range = smoothstep(0.0, 1.0, radius);
++        float delta = depthS - depth;
++        float occ = step(0.001, delta) * (1.0 - clamp(delta / (radius), 0.0, 1.0)) * range;
++        occlusion += occ;
++    }
++    occlusion /= float(KERNEL);
++    outAO = 1.0 - occlusion;
++}
++
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index e45d560a53955091853910b65ddcc068813d80f3..78bdb675332c1ad50c199ff4bd1ce63dec46484f
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -74,6 +74,25 @@
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
++    // G-buffer (Normals+Depth packed into RGBA16F) prepass resources
++    VkRenderPass gbuffer_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer gbuffer_framebuffer {VK_NULL_HANDLE};
++    VkImage gbuffer_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_view {VK_NULL_HANDLE};
++    VkImage gbuffer_depth_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_depth_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_depth_view {VK_NULL_HANDLE};
++    VkPipelineLayout gbuffer_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline gbuffer_pipeline {VK_NULL_HANDLE};
++
++    // SSAO pass resources (writes AO into ao_image which is sampled in forward)
++    VkRenderPass ssao_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer ssao_framebuffer {VK_NULL_HANDLE};
++    VkPipelineLayout ssao_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline ssao_pipeline {VK_NULL_HANDLE};
++    VkDescriptorSet ssao_desc_set {VK_NULL_HANDLE};
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+@@ -641,6 +660,118 @@
+     if (vkCreateImageView(impl.device, &ivci, nullptr, outView) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image view"}; }
+ }
+ 
++static void create_color_image(VulkanContext& ctx, uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage,
++    VkImage* outImage, VkDeviceMemory* outMem, VkImageView* outView) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
++    ici.imageType = VK_IMAGE_TYPE_2D;
++    ici.extent = {width, height, 1};
++    ici.mipLevels = 1;
++    ici.arrayLayers = 1;
++    ici.format = format;
++    ici.tiling = VK_IMAGE_TILING_OPTIMAL;
++    ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
++    ici.usage = usage;
++    ici.samples = VK_SAMPLE_COUNT_1_BIT;
++    ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (vkCreateImage(impl.device, &ici, nullptr, outImage) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image"}; }
++    VkMemoryRequirements req {};
++    vkGetImageMemoryRequirements(impl.device, *outImage, &req);
++    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
++    mai.allocationSize = req.size;
++    mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++    if (vkAllocateMemory(impl.device, &mai, nullptr, outMem) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc image mem"}; }
++    vkBindImageMemory(impl.device, *outImage, *outMem, 0);
++
++    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
++    ivci.image = *outImage; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = format;
++    ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; ivci.subresourceRange.levelCount = 1; ivci.subresourceRange.layerCount = 1;
++    if (vkCreateImageView(impl.device, &ivci, nullptr, outView) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image view"}; }
++}
++
++static void create_gbuffer_resources(VulkanContext& ctx) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    const uint32_t w = impl.swapchain_extent.width;
++    const uint32_t h = impl.swapchain_extent.height;
++    // Create ND image (RGBA16F) with color attachment + sampled usage
++    create_color_image(ctx, w, h, VK_FORMAT_R16G16B16A16_SFLOAT,
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++        &impl.gbuffer_image, &impl.gbuffer_memory, &impl.gbuffer_view);
++    // Create depth for gbuffer
++    VkFormat df = find_depth_format(ctx);
++    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
++    ici.imageType = VK_IMAGE_TYPE_2D; ici.extent = {w, h, 1}; ici.mipLevels = 1; ici.arrayLayers = 1; ici.format = df;
++    ici.tiling = VK_IMAGE_TILING_OPTIMAL; ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; ici.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT; ici.samples = VK_SAMPLE_COUNT_1_BIT; ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (vkCreateImage(impl.device, &ici, nullptr, &impl.gbuffer_depth_image) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer depth"}; }
++    VkMemoryRequirements req {}; vkGetImageMemoryRequirements(impl.device, impl.gbuffer_depth_image, &req);
++    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO}; mai.allocationSize = req.size; mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++    if (vkAllocateMemory(impl.device, &mai, nullptr, &impl.gbuffer_depth_memory) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc gbuffer depth mem"}; }
++    vkBindImageMemory(impl.device, impl.gbuffer_depth_image, impl.gbuffer_depth_memory, 0);
++    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO}; ivci.image = impl.gbuffer_depth_image; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = df; ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT; ivci.subresourceRange.levelCount=1; ivci.subresourceRange.layerCount=1;
++    if (vkCreateImageView(impl.device, &ivci, nullptr, &impl.gbuffer_depth_view) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer depth view"}; }
++
++    // Render pass for gbuffer
++    VkAttachmentDescription color { };
++    color.format = VK_FORMAT_R16G16B16A16_SFLOAT; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkAttachmentDescription depth { };
++    depth.format = df; depth.samples = VK_SAMPLE_COUNT_1_BIT; depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; depth.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; depth.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
++    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
++    VkAttachmentReference depth_ref {1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
++    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref; sub.pDepthStencilAttachment = &depth_ref;
++    VkAttachmentDescription att[2] = {color, depth};
++    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 2; rpci.pAttachments = att; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
++    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.gbuffer_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer render pass"}; }
++
++    // Framebuffer
++    VkImageView views[2] = {impl.gbuffer_view, impl.gbuffer_depth_view};
++    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.gbuffer_render_pass; fbci.attachmentCount = 2; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
++    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.gbuffer_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer framebuffer"}; }
++}
++
++static void destroy_gbuffer_resources(VulkanContext& ctx) noexcept {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    if (impl.gbuffer_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.gbuffer_framebuffer, nullptr); impl.gbuffer_framebuffer = VK_NULL_HANDLE; }
++    if (impl.gbuffer_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.gbuffer_render_pass, nullptr); impl.gbuffer_render_pass = VK_NULL_HANDLE; }
++    if (impl.gbuffer_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.gbuffer_view, nullptr); impl.gbuffer_view = VK_NULL_HANDLE; }
++    if (impl.gbuffer_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.gbuffer_image, nullptr); impl.gbuffer_image = VK_NULL_HANDLE; }
++    if (impl.gbuffer_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.gbuffer_memory, nullptr); impl.gbuffer_memory = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.gbuffer_depth_view, nullptr); impl.gbuffer_depth_view = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.gbuffer_depth_image, nullptr); impl.gbuffer_depth_image = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.gbuffer_depth_memory, nullptr); impl.gbuffer_depth_memory = VK_NULL_HANDLE; }
++    if (impl.gbuffer_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.gbuffer_pipeline, nullptr); impl.gbuffer_pipeline = VK_NULL_HANDLE; }
++    if (impl.gbuffer_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.gbuffer_pipeline_layout, nullptr); impl.gbuffer_pipeline_layout = VK_NULL_HANDLE; }
++}
++
++static void create_ssao_resources(VulkanContext& ctx) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    const uint32_t w = impl.swapchain_extent.width;
++    const uint32_t h = impl.swapchain_extent.height;
++    // Create AO image as color attachment + sampled (R8)
++    create_color_image(ctx, w, h, VK_FORMAT_R8_UNORM,
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++        &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++
++    // SSAO render pass
++    VkAttachmentDescription color { };
++    color.format = VK_FORMAT_R8_UNORM; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
++    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref;
++    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 1; rpci.pAttachments = &color; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
++    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.ssao_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create ssao render pass"}; }
++
++    VkImageView views[1] = {impl.ao_view};
++    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.ssao_render_pass; fbci.attachmentCount = 1; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
++    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.ssao_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create ssao framebuffer"}; }
++}
++
++static void destroy_ssao_resources(VulkanContext& ctx) noexcept {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    if (impl.ssao_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.ssao_framebuffer, nullptr); impl.ssao_framebuffer = VK_NULL_HANDLE; }
++    if (impl.ssao_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.ssao_render_pass, nullptr); impl.ssao_render_pass = VK_NULL_HANDLE; }
++    if (impl.ssao_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.ssao_pipeline, nullptr); impl.ssao_pipeline = VK_NULL_HANDLE; }
++    if (impl.ssao_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.ssao_pipeline_layout, nullptr); impl.ssao_pipeline_layout = VK_NULL_HANDLE; }
++}
++
+ static void upload_mesh_to_gpu(VulkanContext& ctx, const vulkano::Mesh& mesh) {
+     auto& impl = VulkanContextInternalsHelper::get(ctx);
+     destroy_mesh_buffers(ctx);
+
+[2025-09-15T17:01:22] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp
+@@ -971,3 +971,3 @@
+ 
+-    // Material resources for forward shading
++    // Material resources for forward shading and prepasses
+     if (forward) {
+@@ -989,8 +989,12 @@
+ 
+-        // AO texture placeholder: 1x1 white (no occlusion)
+-        const uint32_t AO_W = 1, AO_H = 1; const std::uint32_t white = 0xFFFFFFFFu;
+-        create_image_and_upload(ctx, AO_W, AO_H, &white, sizeof(white), &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++        // Create G-buffer and SSAO render targets sized to swapchain
++        destroy_gbuffer_resources(ctx);
++        destroy_ssao_resources(ctx);
++        create_gbuffer_resources(ctx);
++        create_ssao_resources(ctx);
+ 
+         // Create UBO (256 bytes)
+-        create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        if (impl.ubo_buffer == VK_NULL_HANDLE) {
++            create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        }
+ 
+@@ -998,6 +1002,6 @@
+         VkDescriptorPoolSize poolSizes[2] = {};
+-        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 1;
+-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 3;
++        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 2; // forward + ssao
++        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 6; // 3 forward + 1 ssao (+spare)
+         VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+-        dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 1;
++        dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 2;
+         vkCreateDescriptorPool(impl.device, &dpci, nullptr, &impl.desc_pool);
+@@ -1006,2 +1010,3 @@
+         vkAllocateDescriptorSets(impl.device, &dsai, &impl.desc_set);
++        vkAllocateDescriptorSets(impl.device, &dsai, &impl.ssao_desc_set);
+         VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
+@@ -1016,2 +1021,9 @@
+         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
++
++        // SSAO descriptor set: UBO + ND texture at binding 1
++        VkDescriptorImageInfo dai_nd {}; dai_nd.sampler = impl.sampler; dai_nd.imageView = impl.gbuffer_view; dai_nd.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++        std::array<VkWriteDescriptorSet,2> writes_ssao {};
++        writes_ssao[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes_ssao[0].dstSet = impl.ssao_desc_set; writes_ssao[0].dstBinding = 0; writes_ssao[0].descriptorCount = 1; writes_ssao[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes_ssao[0].pBufferInfo = &dbi;
++        writes_ssao[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes_ssao[1].dstSet = impl.ssao_desc_set; writes_ssao[1].dstBinding = 1; writes_ssao[1].descriptorCount = 1; writes_ssao[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes_ssao[1].pImageInfo = &dai_nd;
++        vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes_ssao.size()), writes_ssao.data(), 0, nullptr);
+     }
+[2025-09-15T17:01:22] apply_patch(auto_approved=true) exited 0 in 80ms:
+Success. Updated the following files:
+M src/vulkan_context.cpp
+[2025-09-15T17:01:22] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+diff --git a/shaders/fullscreen.vert b/shaders/fullscreen.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..47ef99bf5518ea3ce9baaf3e01e4b8041e98e68d
+--- /dev/null
++++ b/shaders/fullscreen.vert
+@@ -0,0 +1,20 @@
++#version 450
++
++layout(location = 0) out vec2 vUV;
++
++void main() {
++    // Fullscreen triangle
++    const vec2 positions[3] = vec2[3](
++        vec2(-1.0, -1.0),
++        vec2( 3.0, -1.0),
++        vec2(-1.0,  3.0)
++    );
++    const vec2 uvs[3] = vec2[3](
++        vec2(0.0, 0.0),
++        vec2(2.0, 0.0),
++        vec2(0.0, 2.0)
++    );
++    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
++    vUV = uvs[gl_VertexIndex];
++}
++
+diff --git a/shaders/gbuffer.frag b/shaders/gbuffer.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..f116ab22511268e2aaef9d7bf34c2a990af23f13
+--- /dev/null
++++ b/shaders/gbuffer.frag
+@@ -0,0 +1,16 @@
++#version 450
++
++layout(location = 0) in vec3 vNormalVS;
++layout(location = 1) in float vDepthVS;
++layout(location = 2) in vec2 vUV;
++
++layout(location = 0) out vec4 outND;
++
++void main() {
++    // Pack view-space normal into RGB ([-1,1] -> [0,1]) and linear depth into A
++    vec3 n = normalize(vNormalVS);
++    vec3 n01 = n * 0.5 + 0.5;
++    float depth = vDepthVS;
++    outND = vec4(n01, depth);
++}
++
+diff --git a/shaders/gbuffer.vert b/shaders/gbuffer.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8c46e3cfe30155fc0601a6b6d4f29b4b593166
+--- /dev/null
++++ b/shaders/gbuffer.vert
+@@ -0,0 +1,33 @@
++#version 450
++
++layout(location = 0) in vec3 inPos;
++layout(location = 1) in vec3 inNormal;
++layout(location = 4) in vec2 inUV;
++
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(location = 0) out vec3 vNormalVS;
++layout(location = 1) out float vDepthVS;
++layout(location = 2) out vec2 vUV;
++
++void main() {
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
++    // view-space normal: ignore translation part
++    mat3 view3 = mat3(ubo.view);
++    vNormalVS = normalize(view3 * inNormal);
++    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
++    vDepthVS = -posVS.z; // positive distance from camera
++    vUV = inUV;
++}
++
+diff --git a/shaders/ssao.frag b/shaders/ssao.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..44f54958184303534d4698354b96ceff72b715e0
+--- /dev/null
++++ b/shaders/ssao.frag
+@@ -0,0 +1,48 @@
++#version 450
++
++layout(location = 0) in vec2 vUV;
++layout(location = 0) out float outAO;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    // x=invWidth, y=invHeight, z=aoPower, w=radius
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(set = 0, binding = 1) uniform sampler2D uND; // gbuffer normal/depth packed
++
++// Simple 2D SSAO kernel
++const int KERNEL = 16;
++const vec2 OFFSETS[KERNEL] = vec2[KERNEL](
++    vec2( 1,  0), vec2(-1,  0), vec2( 0,  1), vec2( 0, -1),
++    vec2( 1,  1), vec2(-1,  1), vec2( 1, -1), vec2(-1, -1),
++    vec2( 2,  0), vec2(-2,  0), vec2( 0,  2), vec2( 0, -2),
++    vec2( 2,  1), vec2(-2,  1), vec2( 1,  2), vec2(-1, -2)
++);
++
++void main() {
++    vec2 texel = vec2(ubo.screen_invW_invH_aoPower_radius.x, ubo.screen_invW_invH_aoPower_radius.y);
++    float radius = max(ubo.screen_invW_invH_aoPower_radius.w, 1.0);
++
++    vec4 nd = texture(uND, vUV);
++    vec3 n = normalize(nd.xyz * 2.0 - 1.0);
++    float depth = nd.w;
++
++    float occlusion = 0.0;
++    for (int i = 0; i < KERNEL; ++i) {
++        vec2 offset = OFFSETS[i] * texel * radius;
++        vec4 ndS = texture(uND, vUV + offset);
++        float depthS = ndS.w;
++        float range = smoothstep(0.0, 1.0, radius);
++        float delta = depthS - depth;
++        float occ = step(0.001, delta) * (1.0 - clamp(delta / (radius), 0.0, 1.0)) * range;
++        occlusion += occ;
++    }
++    occlusion /= float(KERNEL);
++    outAO = 1.0 - occlusion;
++}
++
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index e45d560a53955091853910b65ddcc068813d80f3..d3afe7f4a4d0028c7a66a5cd49ad08312c8e55df
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -74,6 +74,25 @@
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
++    // G-buffer (Normals+Depth packed into RGBA16F) prepass resources
++    VkRenderPass gbuffer_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer gbuffer_framebuffer {VK_NULL_HANDLE};
++    VkImage gbuffer_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_view {VK_NULL_HANDLE};
++    VkImage gbuffer_depth_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_depth_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_depth_view {VK_NULL_HANDLE};
++    VkPipelineLayout gbuffer_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline gbuffer_pipeline {VK_NULL_HANDLE};
++
++    // SSAO pass resources (writes AO into ao_image which is sampled in forward)
++    VkRenderPass ssao_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer ssao_framebuffer {VK_NULL_HANDLE};
++    VkPipelineLayout ssao_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline ssao_pipeline {VK_NULL_HANDLE};
++    VkDescriptorSet ssao_desc_set {VK_NULL_HANDLE};
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+@@ -641,6 +660,118 @@
+     if (vkCreateImageView(impl.device, &ivci, nullptr, outView) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image view"}; }
+ }
+ 
++static void create_color_image(VulkanContext& ctx, uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage,
++    VkImage* outImage, VkDeviceMemory* outMem, VkImageView* outView) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
++    ici.imageType = VK_IMAGE_TYPE_2D;
++    ici.extent = {width, height, 1};
++    ici.mipLevels = 1;
++    ici.arrayLayers = 1;
++    ici.format = format;
++    ici.tiling = VK_IMAGE_TILING_OPTIMAL;
++    ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
++    ici.usage = usage;
++    ici.samples = VK_SAMPLE_COUNT_1_BIT;
++    ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (vkCreateImage(impl.device, &ici, nullptr, outImage) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image"}; }
++    VkMemoryRequirements req {};
++    vkGetImageMemoryRequirements(impl.device, *outImage, &req);
++    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
++    mai.allocationSize = req.size;
++    mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++    if (vkAllocateMemory(impl.device, &mai, nullptr, outMem) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc image mem"}; }
++    vkBindImageMemory(impl.device, *outImage, *outMem, 0);
++
++    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
++    ivci.image = *outImage; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = format;
++    ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; ivci.subresourceRange.levelCount = 1; ivci.subresourceRange.layerCount = 1;
++    if (vkCreateImageView(impl.device, &ivci, nullptr, outView) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image view"}; }
++}
++
++static void create_gbuffer_resources(VulkanContext& ctx) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    const uint32_t w = impl.swapchain_extent.width;
++    const uint32_t h = impl.swapchain_extent.height;
++    // Create ND image (RGBA16F) with color attachment + sampled usage
++    create_color_image(ctx, w, h, VK_FORMAT_R16G16B16A16_SFLOAT,
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++        &impl.gbuffer_image, &impl.gbuffer_memory, &impl.gbuffer_view);
++    // Create depth for gbuffer
++    VkFormat df = find_depth_format(ctx);
++    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
++    ici.imageType = VK_IMAGE_TYPE_2D; ici.extent = {w, h, 1}; ici.mipLevels = 1; ici.arrayLayers = 1; ici.format = df;
++    ici.tiling = VK_IMAGE_TILING_OPTIMAL; ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; ici.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT; ici.samples = VK_SAMPLE_COUNT_1_BIT; ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (vkCreateImage(impl.device, &ici, nullptr, &impl.gbuffer_depth_image) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer depth"}; }
++    VkMemoryRequirements req {}; vkGetImageMemoryRequirements(impl.device, impl.gbuffer_depth_image, &req);
++    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO}; mai.allocationSize = req.size; mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++    if (vkAllocateMemory(impl.device, &mai, nullptr, &impl.gbuffer_depth_memory) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc gbuffer depth mem"}; }
++    vkBindImageMemory(impl.device, impl.gbuffer_depth_image, impl.gbuffer_depth_memory, 0);
++    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO}; ivci.image = impl.gbuffer_depth_image; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = df; ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT; ivci.subresourceRange.levelCount=1; ivci.subresourceRange.layerCount=1;
++    if (vkCreateImageView(impl.device, &ivci, nullptr, &impl.gbuffer_depth_view) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer depth view"}; }
++
++    // Render pass for gbuffer
++    VkAttachmentDescription color { };
++    color.format = VK_FORMAT_R16G16B16A16_SFLOAT; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkAttachmentDescription depth { };
++    depth.format = df; depth.samples = VK_SAMPLE_COUNT_1_BIT; depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; depth.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; depth.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
++    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
++    VkAttachmentReference depth_ref {1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
++    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref; sub.pDepthStencilAttachment = &depth_ref;
++    VkAttachmentDescription att[2] = {color, depth};
++    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 2; rpci.pAttachments = att; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
++    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.gbuffer_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer render pass"}; }
++
++    // Framebuffer
++    VkImageView views[2] = {impl.gbuffer_view, impl.gbuffer_depth_view};
++    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.gbuffer_render_pass; fbci.attachmentCount = 2; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
++    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.gbuffer_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer framebuffer"}; }
++}
++
++static void destroy_gbuffer_resources(VulkanContext& ctx) noexcept {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    if (impl.gbuffer_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.gbuffer_framebuffer, nullptr); impl.gbuffer_framebuffer = VK_NULL_HANDLE; }
++    if (impl.gbuffer_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.gbuffer_render_pass, nullptr); impl.gbuffer_render_pass = VK_NULL_HANDLE; }
++    if (impl.gbuffer_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.gbuffer_view, nullptr); impl.gbuffer_view = VK_NULL_HANDLE; }
++    if (impl.gbuffer_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.gbuffer_image, nullptr); impl.gbuffer_image = VK_NULL_HANDLE; }
++    if (impl.gbuffer_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.gbuffer_memory, nullptr); impl.gbuffer_memory = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.gbuffer_depth_view, nullptr); impl.gbuffer_depth_view = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.gbuffer_depth_image, nullptr); impl.gbuffer_depth_image = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.gbuffer_depth_memory, nullptr); impl.gbuffer_depth_memory = VK_NULL_HANDLE; }
++    if (impl.gbuffer_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.gbuffer_pipeline, nullptr); impl.gbuffer_pipeline = VK_NULL_HANDLE; }
++    if (impl.gbuffer_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.gbuffer_pipeline_layout, nullptr); impl.gbuffer_pipeline_layout = VK_NULL_HANDLE; }
++}
++
++static void create_ssao_resources(VulkanContext& ctx) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    const uint32_t w = impl.swapchain_extent.width;
++    const uint32_t h = impl.swapchain_extent.height;
++    // Create AO image as color attachment + sampled (R8)
++    create_color_image(ctx, w, h, VK_FORMAT_R8_UNORM,
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++        &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++
++    // SSAO render pass
++    VkAttachmentDescription color { };
++    color.format = VK_FORMAT_R8_UNORM; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
++    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref;
++    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 1; rpci.pAttachments = &color; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
++    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.ssao_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create ssao render pass"}; }
++
++    VkImageView views[1] = {impl.ao_view};
++    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.ssao_render_pass; fbci.attachmentCount = 1; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
++    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.ssao_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create ssao framebuffer"}; }
++}
++
++static void destroy_ssao_resources(VulkanContext& ctx) noexcept {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    if (impl.ssao_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.ssao_framebuffer, nullptr); impl.ssao_framebuffer = VK_NULL_HANDLE; }
++    if (impl.ssao_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.ssao_render_pass, nullptr); impl.ssao_render_pass = VK_NULL_HANDLE; }
++    if (impl.ssao_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.ssao_pipeline, nullptr); impl.ssao_pipeline = VK_NULL_HANDLE; }
++    if (impl.ssao_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.ssao_pipeline_layout, nullptr); impl.ssao_pipeline_layout = VK_NULL_HANDLE; }
++}
++
+ static void upload_mesh_to_gpu(VulkanContext& ctx, const vulkano::Mesh& mesh) {
+     auto& impl = VulkanContextInternalsHelper::get(ctx);
+     destroy_mesh_buffers(ctx);
+@@ -838,7 +969,7 @@
+     vkDestroyShaderModule(impl.device, vmod, nullptr);
+     vkDestroyShaderModule(impl.device, fmod, nullptr);
+ 
+-    // Material resources for forward shading
++    // Material resources for forward shading and prepasses
+     if (forward) {
+         // Create sampler
+         VkSamplerCreateInfo sci {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+@@ -856,23 +987,28 @@
+         create_image_and_upload(ctx, W, H, albedo.data(), static_cast<VkDeviceSize>(albedo.size()*sizeof(std::uint32_t)), &impl.albedo_image, &impl.albedo_memory, &impl.albedo_view);
+         create_image_and_upload(ctx, W, H, normal.data(), static_cast<VkDeviceSize>(normal.size()*sizeof(std::uint32_t)), &impl.normal_image, &impl.normal_memory, &impl.normal_view);
+ 
+-        // AO texture placeholder: 1x1 white (no occlusion)
+-        const uint32_t AO_W = 1, AO_H = 1; const std::uint32_t white = 0xFFFFFFFFu;
+-        create_image_and_upload(ctx, AO_W, AO_H, &white, sizeof(white), &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++        // Create G-buffer and SSAO render targets sized to swapchain
++        destroy_gbuffer_resources(ctx);
++        destroy_ssao_resources(ctx);
++        create_gbuffer_resources(ctx);
++        create_ssao_resources(ctx);
+ 
+         // Create UBO (256 bytes)
+-        create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        if (impl.ubo_buffer == VK_NULL_HANDLE) {
++            create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        }
+ 
+         // Descriptor pool and set
+         VkDescriptorPoolSize poolSizes[2] = {};
+-        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 1;
+-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 3;
++        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 2; // forward + ssao
++        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 6; // 3 forward + 1 ssao (+spare)
+         VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+-        dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 1;
++        dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 2;
+         vkCreateDescriptorPool(impl.device, &dpci, nullptr, &impl.desc_pool);
+         VkDescriptorSetAllocateInfo dsai {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+         dsai.descriptorPool = impl.desc_pool; dsai.descriptorSetCount = 1; dsai.pSetLayouts = &impl.desc_layout;
+         vkAllocateDescriptorSets(impl.device, &dsai, &impl.desc_set);
++        vkAllocateDescriptorSets(impl.device, &dsai, &impl.ssao_desc_set);
+         VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
+         VkDescriptorImageInfo dai1 {}; dai1.sampler = impl.sampler; dai1.imageView = impl.albedo_view; dai1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+         VkDescriptorImageInfo dai2 {}; dai2.sampler = impl.sampler; dai2.imageView = impl.normal_view; dai2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+@@ -883,6 +1019,13 @@
+         writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = impl.desc_set; writes[2].dstBinding = 2; writes[2].descriptorCount = 1; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[2].pImageInfo = &dai2;
+         writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[3].dstSet = impl.desc_set; writes[3].dstBinding = 3; writes[3].descriptorCount = 1; writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[3].pImageInfo = &dai3;
+         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
++
++        // SSAO descriptor set: UBO + ND texture at binding 1
++        VkDescriptorImageInfo dai_nd {}; dai_nd.sampler = impl.sampler; dai_nd.imageView = impl.gbuffer_view; dai_nd.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++        std::array<VkWriteDescriptorSet,2> writes_ssao {};
++        writes_ssao[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes_ssao[0].dstSet = impl.ssao_desc_set; writes_ssao[0].dstBinding = 0; writes_ssao[0].descriptorCount = 1; writes_ssao[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes_ssao[0].pBufferInfo = &dbi;
++        writes_ssao[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes_ssao[1].dstSet = impl.ssao_desc_set; writes_ssao[1].dstBinding = 1; writes_ssao[1].descriptorCount = 1; writes_ssao[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes_ssao[1].pImageInfo = &dai_nd;
++        vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes_ssao.size()), writes_ssao.data(), 0, nullptr);
+     }
+ }
+ 
+
+[2025-09-15T17:01:22] tokens used: 115,829
+[2025-09-15T17:01:22] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+diff --git a/shaders/fullscreen.vert b/shaders/fullscreen.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..47ef99bf5518ea3ce9baaf3e01e4b8041e98e68d
+--- /dev/null
++++ b/shaders/fullscreen.vert
+@@ -0,0 +1,20 @@
++#version 450
++
++layout(location = 0) out vec2 vUV;
++
++void main() {
++    // Fullscreen triangle
++    const vec2 positions[3] = vec2[3](
++        vec2(-1.0, -1.0),
++        vec2( 3.0, -1.0),
++        vec2(-1.0,  3.0)
++    );
++    const vec2 uvs[3] = vec2[3](
++        vec2(0.0, 0.0),
++        vec2(2.0, 0.0),
++        vec2(0.0, 2.0)
++    );
++    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
++    vUV = uvs[gl_VertexIndex];
++}
++
+diff --git a/shaders/gbuffer.frag b/shaders/gbuffer.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..f116ab22511268e2aaef9d7bf34c2a990af23f13
+--- /dev/null
++++ b/shaders/gbuffer.frag
+@@ -0,0 +1,16 @@
++#version 450
++
++layout(location = 0) in vec3 vNormalVS;
++layout(location = 1) in float vDepthVS;
++layout(location = 2) in vec2 vUV;
++
++layout(location = 0) out vec4 outND;
++
++void main() {
++    // Pack view-space normal into RGB ([-1,1] -> [0,1]) and linear depth into A
++    vec3 n = normalize(vNormalVS);
++    vec3 n01 = n * 0.5 + 0.5;
++    float depth = vDepthVS;
++    outND = vec4(n01, depth);
++}
++
+diff --git a/shaders/gbuffer.vert b/shaders/gbuffer.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8c46e3cfe30155fc0601a6b6d4f29b4b593166
+--- /dev/null
++++ b/shaders/gbuffer.vert
+@@ -0,0 +1,33 @@
++#version 450
++
++layout(location = 0) in vec3 inPos;
++layout(location = 1) in vec3 inNormal;
++layout(location = 4) in vec2 inUV;
++
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(location = 0) out vec3 vNormalVS;
++layout(location = 1) out float vDepthVS;
++layout(location = 2) out vec2 vUV;
++
++void main() {
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
++    // view-space normal: ignore translation part
++    mat3 view3 = mat3(ubo.view);
++    vNormalVS = normalize(view3 * inNormal);
++    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
++    vDepthVS = -posVS.z; // positive distance from camera
++    vUV = inUV;
++}
++
+diff --git a/shaders/ssao.frag b/shaders/ssao.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..44f54958184303534d4698354b96ceff72b715e0
+--- /dev/null
++++ b/shaders/ssao.frag
+@@ -0,0 +1,48 @@
++#version 450
++
++layout(location = 0) in vec2 vUV;
++layout(location = 0) out float outAO;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    // x=invWidth, y=invHeight, z=aoPower, w=radius
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(set = 0, binding = 1) uniform sampler2D uND; // gbuffer normal/depth packed
++
++// Simple 2D SSAO kernel
++const int KERNEL = 16;
++const vec2 OFFSETS[KERNEL] = vec2[KERNEL](
++    vec2( 1,  0), vec2(-1,  0), vec2( 0,  1), vec2( 0, -1),
++    vec2( 1,  1), vec2(-1,  1), vec2( 1, -1), vec2(-1, -1),
++    vec2( 2,  0), vec2(-2,  0), vec2( 0,  2), vec2( 0, -2),
++    vec2( 2,  1), vec2(-2,  1), vec2( 1,  2), vec2(-1, -2)
++);
++
++void main() {
++    vec2 texel = vec2(ubo.screen_invW_invH_aoPower_radius.x, ubo.screen_invW_invH_aoPower_radius.y);
++    float radius = max(ubo.screen_invW_invH_aoPower_radius.w, 1.0);
++
++    vec4 nd = texture(uND, vUV);
++    vec3 n = normalize(nd.xyz * 2.0 - 1.0);
++    float depth = nd.w;
++
++    float occlusion = 0.0;
++    for (int i = 0; i < KERNEL; ++i) {
++        vec2 offset = OFFSETS[i] * texel * radius;
++        vec4 ndS = texture(uND, vUV + offset);
++        float depthS = ndS.w;
++        float range = smoothstep(0.0, 1.0, radius);
++        float delta = depthS - depth;
++        float occ = step(0.001, delta) * (1.0 - clamp(delta / (radius), 0.0, 1.0)) * range;
++        occlusion += occ;
++    }
++    occlusion /= float(KERNEL);
++    outAO = 1.0 - occlusion;
++}
++
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index e45d560a53955091853910b65ddcc068813d80f3..d3afe7f4a4d0028c7a66a5cd49ad08312c8e55df
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -74,6 +74,25 @@
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
++    // G-buffer (Normals+Depth packed into RGBA16F) prepass resources
++    VkRenderPass gbuffer_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer gbuffer_framebuffer {VK_NULL_HANDLE};
++    VkImage gbuffer_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_view {VK_NULL_HANDLE};
++    VkImage gbuffer_depth_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_depth_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_depth_view {VK_NULL_HANDLE};
++    VkPipelineLayout gbuffer_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline gbuffer_pipeline {VK_NULL_HANDLE};
++
++    // SSAO pass resources (writes AO into ao_image which is sampled in forward)
++    VkRenderPass ssao_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer ssao_framebuffer {VK_NULL_HANDLE};
++    VkPipelineLayout ssao_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline ssao_pipeline {VK_NULL_HANDLE};
++    VkDescriptorSet ssao_desc_set {VK_NULL_HANDLE};
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+@@ -641,6 +660,118 @@
+     if (vkCreateImageView(impl.device, &ivci, nullptr, outView) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image view"}; }
+ }
+ 
++static void create_color_image(VulkanContext& ctx, uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage,
++    VkImage* outImage, VkDeviceMemory* outMem, VkImageView* outView) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
++    ici.imageType = VK_IMAGE_TYPE_2D;
++    ici.extent = {width, height, 1};
++    ici.mipLevels = 1;
++    ici.arrayLayers = 1;
++    ici.format = format;
++    ici.tiling = VK_IMAGE_TILING_OPTIMAL;
++    ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
++    ici.usage = usage;
++    ici.samples = VK_SAMPLE_COUNT_1_BIT;
++    ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (vkCreateImage(impl.device, &ici, nullptr, outImage) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image"}; }
++    VkMemoryRequirements req {};
++    vkGetImageMemoryRequirements(impl.device, *outImage, &req);
++    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
++    mai.allocationSize = req.size;
++    mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++    if (vkAllocateMemory(impl.device, &mai, nullptr, outMem) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc image mem"}; }
++    vkBindImageMemory(impl.device, *outImage, *outMem, 0);
++
++    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
++    ivci.image = *outImage; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = format;
++    ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; ivci.subresourceRange.levelCount = 1; ivci.subresourceRange.layerCount = 1;
++    if (vkCreateImageView(impl.device, &ivci, nullptr, outView) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image view"}; }
++}
++
++static void create_gbuffer_resources(VulkanContext& ctx) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    const uint32_t w = impl.swapchain_extent.width;
++    const uint32_t h = impl.swapchain_extent.height;
++    // Create ND image (RGBA16F) with color attachment + sampled usage
++    create_color_image(ctx, w, h, VK_FORMAT_R16G16B16A16_SFLOAT,
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++        &impl.gbuffer_image, &impl.gbuffer_memory, &impl.gbuffer_view);
++    // Create depth for gbuffer
++    VkFormat df = find_depth_format(ctx);
++    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
++    ici.imageType = VK_IMAGE_TYPE_2D; ici.extent = {w, h, 1}; ici.mipLevels = 1; ici.arrayLayers = 1; ici.format = df;
++    ici.tiling = VK_IMAGE_TILING_OPTIMAL; ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; ici.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT; ici.samples = VK_SAMPLE_COUNT_1_BIT; ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (vkCreateImage(impl.device, &ici, nullptr, &impl.gbuffer_depth_image) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer depth"}; }
++    VkMemoryRequirements req {}; vkGetImageMemoryRequirements(impl.device, impl.gbuffer_depth_image, &req);
++    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO}; mai.allocationSize = req.size; mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++    if (vkAllocateMemory(impl.device, &mai, nullptr, &impl.gbuffer_depth_memory) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc gbuffer depth mem"}; }
++    vkBindImageMemory(impl.device, impl.gbuffer_depth_image, impl.gbuffer_depth_memory, 0);
++    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO}; ivci.image = impl.gbuffer_depth_image; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = df; ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT; ivci.subresourceRange.levelCount=1; ivci.subresourceRange.layerCount=1;
++    if (vkCreateImageView(impl.device, &ivci, nullptr, &impl.gbuffer_depth_view) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer depth view"}; }
++
++    // Render pass for gbuffer
++    VkAttachmentDescription color { };
++    color.format = VK_FORMAT_R16G16B16A16_SFLOAT; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkAttachmentDescription depth { };
++    depth.format = df; depth.samples = VK_SAMPLE_COUNT_1_BIT; depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; depth.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; depth.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
++    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
++    VkAttachmentReference depth_ref {1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
++    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref; sub.pDepthStencilAttachment = &depth_ref;
++    VkAttachmentDescription att[2] = {color, depth};
++    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 2; rpci.pAttachments = att; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
++    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.gbuffer_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer render pass"}; }
++
++    // Framebuffer
++    VkImageView views[2] = {impl.gbuffer_view, impl.gbuffer_depth_view};
++    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.gbuffer_render_pass; fbci.attachmentCount = 2; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
++    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.gbuffer_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer framebuffer"}; }
++}
++
++static void destroy_gbuffer_resources(VulkanContext& ctx) noexcept {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    if (impl.gbuffer_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.gbuffer_framebuffer, nullptr); impl.gbuffer_framebuffer = VK_NULL_HANDLE; }
++    if (impl.gbuffer_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.gbuffer_render_pass, nullptr); impl.gbuffer_render_pass = VK_NULL_HANDLE; }
++    if (impl.gbuffer_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.gbuffer_view, nullptr); impl.gbuffer_view = VK_NULL_HANDLE; }
++    if (impl.gbuffer_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.gbuffer_image, nullptr); impl.gbuffer_image = VK_NULL_HANDLE; }
++    if (impl.gbuffer_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.gbuffer_memory, nullptr); impl.gbuffer_memory = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.gbuffer_depth_view, nullptr); impl.gbuffer_depth_view = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.gbuffer_depth_image, nullptr); impl.gbuffer_depth_image = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.gbuffer_depth_memory, nullptr); impl.gbuffer_depth_memory = VK_NULL_HANDLE; }
++    if (impl.gbuffer_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.gbuffer_pipeline, nullptr); impl.gbuffer_pipeline = VK_NULL_HANDLE; }
++    if (impl.gbuffer_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.gbuffer_pipeline_layout, nullptr); impl.gbuffer_pipeline_layout = VK_NULL_HANDLE; }
++}
++
++static void create_ssao_resources(VulkanContext& ctx) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    const uint32_t w = impl.swapchain_extent.width;
++    const uint32_t h = impl.swapchain_extent.height;
++    // Create AO image as color attachment + sampled (R8)
++    create_color_image(ctx, w, h, VK_FORMAT_R8_UNORM,
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++        &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++
++    // SSAO render pass
++    VkAttachmentDescription color { };
++    color.format = VK_FORMAT_R8_UNORM; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
++    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref;
++    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 1; rpci.pAttachments = &color; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
++    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.ssao_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create ssao render pass"}; }
++
++    VkImageView views[1] = {impl.ao_view};
++    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.ssao_render_pass; fbci.attachmentCount = 1; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
++    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.ssao_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create ssao framebuffer"}; }
++}
++
++static void destroy_ssao_resources(VulkanContext& ctx) noexcept {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    if (impl.ssao_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.ssao_framebuffer, nullptr); impl.ssao_framebuffer = VK_NULL_HANDLE; }
++    if (impl.ssao_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.ssao_render_pass, nullptr); impl.ssao_render_pass = VK_NULL_HANDLE; }
++    if (impl.ssao_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.ssao_pipeline, nullptr); impl.ssao_pipeline = VK_NULL_HANDLE; }
++    if (impl.ssao_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.ssao_pipeline_layout, nullptr); impl.ssao_pipeline_layout = VK_NULL_HANDLE; }
++}
++
+ static void upload_mesh_to_gpu(VulkanContext& ctx, const vulkano::Mesh& mesh) {
+     auto& impl = VulkanContextInternalsHelper::get(ctx);
+     destroy_mesh_buffers(ctx);
+@@ -838,7 +969,7 @@
+     vkDestroyShaderModule(impl.device, vmod, nullptr);
+     vkDestroyShaderModule(impl.device, fmod, nullptr);
+ 
+-    // Material resources for forward shading
++    // Material resources for forward shading and prepasses
+     if (forward) {
+         // Create sampler
+         VkSamplerCreateInfo sci {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+@@ -856,23 +987,28 @@
+         create_image_and_upload(ctx, W, H, albedo.data(), static_cast<VkDeviceSize>(albedo.size()*sizeof(std::uint32_t)), &impl.albedo_image, &impl.albedo_memory, &impl.albedo_view);
+         create_image_and_upload(ctx, W, H, normal.data(), static_cast<VkDeviceSize>(normal.size()*sizeof(std::uint32_t)), &impl.normal_image, &impl.normal_memory, &impl.normal_view);
+ 
+-        // AO texture placeholder: 1x1 white (no occlusion)
+-        const uint32_t AO_W = 1, AO_H = 1; const std::uint32_t white = 0xFFFFFFFFu;
+-        create_image_and_upload(ctx, AO_W, AO_H, &white, sizeof(white), &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++        // Create G-buffer and SSAO render targets sized to swapchain
++        destroy_gbuffer_resources(ctx);
++        destroy_ssao_resources(ctx);
++        create_gbuffer_resources(ctx);
++        create_ssao_resources(ctx);
+ 
+         // Create UBO (256 bytes)
+-        create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        if (impl.ubo_buffer == VK_NULL_HANDLE) {
++            create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        }
+ 
+         // Descriptor pool and set
+         VkDescriptorPoolSize poolSizes[2] = {};
+-        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 1;
+-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 3;
++        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 2; // forward + ssao
++        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 6; // 3 forward + 1 ssao (+spare)
+         VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+-        dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 1;
++        dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 2;
+         vkCreateDescriptorPool(impl.device, &dpci, nullptr, &impl.desc_pool);
+         VkDescriptorSetAllocateInfo dsai {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+         dsai.descriptorPool = impl.desc_pool; dsai.descriptorSetCount = 1; dsai.pSetLayouts = &impl.desc_layout;
+         vkAllocateDescriptorSets(impl.device, &dsai, &impl.desc_set);
++        vkAllocateDescriptorSets(impl.device, &dsai, &impl.ssao_desc_set);
+         VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
+         VkDescriptorImageInfo dai1 {}; dai1.sampler = impl.sampler; dai1.imageView = impl.albedo_view; dai1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+         VkDescriptorImageInfo dai2 {}; dai2.sampler = impl.sampler; dai2.imageView = impl.normal_view; dai2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+@@ -883,6 +1019,13 @@
+         writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = impl.desc_set; writes[2].dstBinding = 2; writes[2].descriptorCount = 1; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[2].pImageInfo = &dai2;
+         writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[3].dstSet = impl.desc_set; writes[3].dstBinding = 3; writes[3].descriptorCount = 1; writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[3].pImageInfo = &dai3;
+         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
++
++        // SSAO descriptor set: UBO + ND texture at binding 1
++        VkDescriptorImageInfo dai_nd {}; dai_nd.sampler = impl.sampler; dai_nd.imageView = impl.gbuffer_view; dai_nd.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++        std::array<VkWriteDescriptorSet,2> writes_ssao {};
++        writes_ssao[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes_ssao[0].dstSet = impl.ssao_desc_set; writes_ssao[0].dstBinding = 0; writes_ssao[0].descriptorCount = 1; writes_ssao[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes_ssao[0].pBufferInfo = &dbi;
++        writes_ssao[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes_ssao[1].dstSet = impl.ssao_desc_set; writes_ssao[1].dstBinding = 1; writes_ssao[1].descriptorCount = 1; writes_ssao[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes_ssao[1].pImageInfo = &dai_nd;
++        vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes_ssao.size()), writes_ssao.data(), 0, nullptr);
+     }
+ }
+ 
+
+
+[2025-09-15T17:01:25] thinking
+
+**Implementing pipelines**
+
+I'm thinking about how to add functions for creating gbuffer and ssao pipelines. I'll need to patch these after creating the pipeline or possibly even inside it. It makes sense to create new functions, like create_gbuffer_pipeline and create_ssao_pipeline, and I'll call these at the end of the create_pipeline if we're working in forward mode. Plus, I'll have to ensure that shader modules are loaded properly.
+[2025-09-15T17:02:26] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp
+@@ -1028,2 +1028,67 @@
+         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes_ssao.size()), writes_ssao.data(), 0, nullptr);
++
++        // Create G-buffer pipeline
++        {
++            auto gvs = load_binary_file("shaders/gbuffer.vert.spv");
++            auto gfs = load_binary_file("shaders/gbuffer.frag.spv");
++            if (!gvs.empty() && !gfs.empty()) {
++                VkShaderModule gv = create_shader_module(impl.device, gvs);
++                VkShaderModule gf = create_shader_module(impl.device, gfs);
++                VkPipelineShaderStageCreateInfo stages[2] = {};
++                stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT; stages[0].module = gv; stages[0].pName = "main";
++                stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT; stages[1].module = gf; stages[1].pName = "main";
++                VkVertexInputBindingDescription binding {0, static_cast<uint32_t>(sizeof(vulkano::Vertex)), VK_VERTEX_INPUT_RATE_VERTEX};
++                std::array<VkVertexInputAttributeDescription,5> attrs = {
++                    VkVertexInputAttributeDescription{0,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, position)},
++                    VkVertexInputAttributeDescription{1,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, normal)},
++                    VkVertexInputAttributeDescription{2,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, tangent)},
++                    VkVertexInputAttributeDescription{3,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, bitangent)},
++                    VkVertexInputAttributeDescription{4,0,VK_FORMAT_R32G32_SFLOAT, offsetof(vulkano::Vertex, texcoord)} };
++                VkPipelineVertexInputStateCreateInfo vi {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO}; vi.vertexBindingDescriptionCount=1; vi.pVertexBindingDescriptions=&binding; vi.vertexAttributeDescriptionCount=static_cast<uint32_t>(attrs.size()); vi.pVertexAttributeDescriptions=attrs.data();
++                VkPipelineInputAssemblyStateCreateInfo ia {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO}; ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
++                VkViewport viewport {}; viewport.x=0; viewport.y=0; viewport.width=static_cast<float>(impl.swapchain_extent.width); viewport.height=static_cast<float>(impl.swapchain_extent.height); viewport.minDepth=0.0F; viewport.maxDepth=1.0F;
++                VkRect2D scissor {{0,0}, impl.swapchain_extent};
++                VkPipelineViewportStateCreateInfo vp {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO}; vp.viewportCount=1; vp.pViewports=&viewport; vp.scissorCount=1; vp.pScissors=&scissor;
++                VkPipelineRasterizationStateCreateInfo rs {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO}; rs.polygonMode=VK_POLYGON_MODE_FILL; rs.cullMode=VK_CULL_MODE_BACK_BIT; rs.frontFace=VK_FRONT_FACE_COUNTER_CLOCKWISE; rs.lineWidth=1.0F;
++                VkPipelineMultisampleStateCreateInfo ms {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO}; ms.rasterizationSamples=VK_SAMPLE_COUNT_1_BIT;
++                VkPipelineDepthStencilStateCreateInfo dss {VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO}; dss.depthTestEnable=VK_TRUE; dss.depthWriteEnable=VK_TRUE; dss.depthCompareOp=VK_COMPARE_OP_LESS;
++                VkPipelineColorBlendAttachmentState cba {}; cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT|VK_COLOR_COMPONENT_G_BIT|VK_COLOR_COMPONENT_B_BIT|VK_COLOR_COMPONENT_A_BIT;
++                VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO}; cb.attachmentCount=1; cb.pAttachments=&cba;
++                VkPushConstantRange pcr2 {}; pcr2.offset=0; pcr2.size=static_cast<uint32_t>(sizeof(float)*16U); pcr2.stageFlags=VK_SHADER_STAGE_VERTEX_BIT;
++                VkPipelineLayoutCreateInfo plci2 {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO}; plci2.pushConstantRangeCount=1; plci2.pPushConstantRanges=&pcr2; plci2.setLayoutCount=1; plci2.pSetLayouts=&impl.desc_layout;
++                vkCreatePipelineLayout(impl.device, &plci2, nullptr, &impl.gbuffer_pipeline_layout);
++                VkGraphicsPipelineCreateInfo gpci2 {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO}; gpci2.stageCount=2; gpci2.pStages=stages; gpci2.pVertexInputState=&vi; gpci2.pInputAssemblyState=&ia; gpci2.pViewportState=&vp; gpci2.pRasterizationState=&rs; gpci2.pMultisampleState=&ms; gpci2.pDepthStencilState=&dss; gpci2.pColorBlendState=&cb; gpci2.layout=impl.gbuffer_pipeline_layout; gpci2.renderPass=impl.gbuffer_render_pass; gpci2.subpass=0;
++                vkCreateGraphicsPipelines(impl.device, VK_NULL_HANDLE, 1, &gpci2, nullptr, &impl.gbuffer_pipeline);
++                vkDestroyShaderModule(impl.device, gv, nullptr);
++                vkDestroyShaderModule(impl.device, gf, nullptr);
++            }
++        }
++
++        // Create SSAO pipeline (fullscreen)
++        {
++            auto sv = load_binary_file("shaders/fullscreen.vert.spv");
++            auto sf = load_binary_file("shaders/ssao.frag.spv");
++            if (!sv.empty() && !sf.empty()) {
++                VkShaderModule v = create_shader_module(impl.device, sv);
++                VkShaderModule f = create_shader_module(impl.device, sf);
++                VkPipelineShaderStageCreateInfo stages[2] = {};
++                stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT; stages[0].module = v; stages[0].pName = "main";
++                stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT; stages[1].module = f; stages[1].pName = "main";
++                VkPipelineVertexInputStateCreateInfo vi {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
++                VkPipelineInputAssemblyStateCreateInfo ia {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO}; ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
++                VkViewport viewport {}; viewport.x=0; viewport.y=0; viewport.width=static_cast<float>(impl.swapchain_extent.width); viewport.height=static_cast<float>(impl.swapchain_extent.height); viewport.minDepth=0.0F; viewport.maxDepth=1.0F;
++                VkRect2D scissor {{0,0}, impl.swapchain_extent};
++                VkPipelineViewportStateCreateInfo vp {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO}; vp.viewportCount=1; vp.pViewports=&viewport; vp.scissorCount=1; vp.pScissors=&scissor;
++                VkPipelineRasterizationStateCreateInfo rs {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO}; rs.polygonMode=VK_POLYGON_MODE_FILL; rs.cullMode=VK_CULL_MODE_NONE; rs.frontFace=VK_FRONT_FACE_COUNTER_CLOCKWISE; rs.lineWidth=1.0F;
++                VkPipelineMultisampleStateCreateInfo ms {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO}; ms.rasterizationSamples=VK_SAMPLE_COUNT_1_BIT;
++                VkPipelineColorBlendAttachmentState cba {}; cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT;
++                VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO}; cb.attachmentCount=1; cb.pAttachments=&cba;
++                VkPipelineLayoutCreateInfo plci3 {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO}; plci3.setLayoutCount=1; plci3.pSetLayouts=&impl.desc_layout;
++                vkCreatePipelineLayout(impl.device, &plci3, nullptr, &impl.ssao_pipeline_layout);
++                VkGraphicsPipelineCreateInfo gpci3 {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO}; gpci3.stageCount=2; gpci3.pStages=stages; gpci3.pVertexInputState=&vi; gpci3.pInputAssemblyState=&ia; gpci3.pViewportState=&vp; gpci3.pRasterizationState=&rs; gpci3.pMultisampleState=&ms; gpci3.pColorBlendState=&cb; gpci3.layout=impl.ssao_pipeline_layout; gpci3.renderPass=impl.ssao_render_pass; gpci3.subpass=0;
++                vkCreateGraphicsPipelines(impl.device, VK_NULL_HANDLE, 1, &gpci3, nullptr, &impl.ssao_pipeline);
++                vkDestroyShaderModule(impl.device, v, nullptr);
++                vkDestroyShaderModule(impl.device, f, nullptr);
++            }
++        }
+     }
+[2025-09-15T17:02:26] apply_patch(auto_approved=true) exited 0 in 79ms:
+Success. Updated the following files:
+M src/vulkan_context.cpp
+[2025-09-15T17:02:26] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+diff --git a/shaders/fullscreen.vert b/shaders/fullscreen.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..47ef99bf5518ea3ce9baaf3e01e4b8041e98e68d
+--- /dev/null
++++ b/shaders/fullscreen.vert
+@@ -0,0 +1,20 @@
++#version 450
++
++layout(location = 0) out vec2 vUV;
++
++void main() {
++    // Fullscreen triangle
++    const vec2 positions[3] = vec2[3](
++        vec2(-1.0, -1.0),
++        vec2( 3.0, -1.0),
++        vec2(-1.0,  3.0)
++    );
++    const vec2 uvs[3] = vec2[3](
++        vec2(0.0, 0.0),
++        vec2(2.0, 0.0),
++        vec2(0.0, 2.0)
++    );
++    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
++    vUV = uvs[gl_VertexIndex];
++}
++
+diff --git a/shaders/gbuffer.frag b/shaders/gbuffer.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..f116ab22511268e2aaef9d7bf34c2a990af23f13
+--- /dev/null
++++ b/shaders/gbuffer.frag
+@@ -0,0 +1,16 @@
++#version 450
++
++layout(location = 0) in vec3 vNormalVS;
++layout(location = 1) in float vDepthVS;
++layout(location = 2) in vec2 vUV;
++
++layout(location = 0) out vec4 outND;
++
++void main() {
++    // Pack view-space normal into RGB ([-1,1] -> [0,1]) and linear depth into A
++    vec3 n = normalize(vNormalVS);
++    vec3 n01 = n * 0.5 + 0.5;
++    float depth = vDepthVS;
++    outND = vec4(n01, depth);
++}
++
+diff --git a/shaders/gbuffer.vert b/shaders/gbuffer.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8c46e3cfe30155fc0601a6b6d4f29b4b593166
+--- /dev/null
++++ b/shaders/gbuffer.vert
+@@ -0,0 +1,33 @@
++#version 450
++
++layout(location = 0) in vec3 inPos;
++layout(location = 1) in vec3 inNormal;
++layout(location = 4) in vec2 inUV;
++
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(location = 0) out vec3 vNormalVS;
++layout(location = 1) out float vDepthVS;
++layout(location = 2) out vec2 vUV;
++
++void main() {
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
++    // view-space normal: ignore translation part
++    mat3 view3 = mat3(ubo.view);
++    vNormalVS = normalize(view3 * inNormal);
++    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
++    vDepthVS = -posVS.z; // positive distance from camera
++    vUV = inUV;
++}
++
+diff --git a/shaders/ssao.frag b/shaders/ssao.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..44f54958184303534d4698354b96ceff72b715e0
+--- /dev/null
++++ b/shaders/ssao.frag
+@@ -0,0 +1,48 @@
++#version 450
++
++layout(location = 0) in vec2 vUV;
++layout(location = 0) out float outAO;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    // x=invWidth, y=invHeight, z=aoPower, w=radius
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(set = 0, binding = 1) uniform sampler2D uND; // gbuffer normal/depth packed
++
++// Simple 2D SSAO kernel
++const int KERNEL = 16;
++const vec2 OFFSETS[KERNEL] = vec2[KERNEL](
++    vec2( 1,  0), vec2(-1,  0), vec2( 0,  1), vec2( 0, -1),
++    vec2( 1,  1), vec2(-1,  1), vec2( 1, -1), vec2(-1, -1),
++    vec2( 2,  0), vec2(-2,  0), vec2( 0,  2), vec2( 0, -2),
++    vec2( 2,  1), vec2(-2,  1), vec2( 1,  2), vec2(-1, -2)
++);
++
++void main() {
++    vec2 texel = vec2(ubo.screen_invW_invH_aoPower_radius.x, ubo.screen_invW_invH_aoPower_radius.y);
++    float radius = max(ubo.screen_invW_invH_aoPower_radius.w, 1.0);
++
++    vec4 nd = texture(uND, vUV);
++    vec3 n = normalize(nd.xyz * 2.0 - 1.0);
++    float depth = nd.w;
++
++    float occlusion = 0.0;
++    for (int i = 0; i < KERNEL; ++i) {
++        vec2 offset = OFFSETS[i] * texel * radius;
++        vec4 ndS = texture(uND, vUV + offset);
++        float depthS = ndS.w;
++        float range = smoothstep(0.0, 1.0, radius);
++        float delta = depthS - depth;
++        float occ = step(0.001, delta) * (1.0 - clamp(delta / (radius), 0.0, 1.0)) * range;
++        occlusion += occ;
++    }
++    occlusion /= float(KERNEL);
++    outAO = 1.0 - occlusion;
++}
++
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index e45d560a53955091853910b65ddcc068813d80f3..3544266a78f78e63850b4af4132cac481ac294b4
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -74,6 +74,25 @@
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
++    // G-buffer (Normals+Depth packed into RGBA16F) prepass resources
++    VkRenderPass gbuffer_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer gbuffer_framebuffer {VK_NULL_HANDLE};
++    VkImage gbuffer_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_view {VK_NULL_HANDLE};
++    VkImage gbuffer_depth_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_depth_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_depth_view {VK_NULL_HANDLE};
++    VkPipelineLayout gbuffer_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline gbuffer_pipeline {VK_NULL_HANDLE};
++
++    // SSAO pass resources (writes AO into ao_image which is sampled in forward)
++    VkRenderPass ssao_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer ssao_framebuffer {VK_NULL_HANDLE};
++    VkPipelineLayout ssao_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline ssao_pipeline {VK_NULL_HANDLE};
++    VkDescriptorSet ssao_desc_set {VK_NULL_HANDLE};
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+@@ -641,6 +660,118 @@
+     if (vkCreateImageView(impl.device, &ivci, nullptr, outView) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image view"}; }
+ }
+ 
++static void create_color_image(VulkanContext& ctx, uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage,
++    VkImage* outImage, VkDeviceMemory* outMem, VkImageView* outView) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
++    ici.imageType = VK_IMAGE_TYPE_2D;
++    ici.extent = {width, height, 1};
++    ici.mipLevels = 1;
++    ici.arrayLayers = 1;
++    ici.format = format;
++    ici.tiling = VK_IMAGE_TILING_OPTIMAL;
++    ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
++    ici.usage = usage;
++    ici.samples = VK_SAMPLE_COUNT_1_BIT;
++    ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (vkCreateImage(impl.device, &ici, nullptr, outImage) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image"}; }
++    VkMemoryRequirements req {};
++    vkGetImageMemoryRequirements(impl.device, *outImage, &req);
++    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
++    mai.allocationSize = req.size;
++    mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++    if (vkAllocateMemory(impl.device, &mai, nullptr, outMem) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc image mem"}; }
++    vkBindImageMemory(impl.device, *outImage, *outMem, 0);
++
++    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
++    ivci.image = *outImage; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = format;
++    ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; ivci.subresourceRange.levelCount = 1; ivci.subresourceRange.layerCount = 1;
++    if (vkCreateImageView(impl.device, &ivci, nullptr, outView) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image view"}; }
++}
++
++static void create_gbuffer_resources(VulkanContext& ctx) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    const uint32_t w = impl.swapchain_extent.width;
++    const uint32_t h = impl.swapchain_extent.height;
++    // Create ND image (RGBA16F) with color attachment + sampled usage
++    create_color_image(ctx, w, h, VK_FORMAT_R16G16B16A16_SFLOAT,
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++        &impl.gbuffer_image, &impl.gbuffer_memory, &impl.gbuffer_view);
++    // Create depth for gbuffer
++    VkFormat df = find_depth_format(ctx);
++    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
++    ici.imageType = VK_IMAGE_TYPE_2D; ici.extent = {w, h, 1}; ici.mipLevels = 1; ici.arrayLayers = 1; ici.format = df;
++    ici.tiling = VK_IMAGE_TILING_OPTIMAL; ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; ici.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT; ici.samples = VK_SAMPLE_COUNT_1_BIT; ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (vkCreateImage(impl.device, &ici, nullptr, &impl.gbuffer_depth_image) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer depth"}; }
++    VkMemoryRequirements req {}; vkGetImageMemoryRequirements(impl.device, impl.gbuffer_depth_image, &req);
++    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO}; mai.allocationSize = req.size; mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++    if (vkAllocateMemory(impl.device, &mai, nullptr, &impl.gbuffer_depth_memory) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc gbuffer depth mem"}; }
++    vkBindImageMemory(impl.device, impl.gbuffer_depth_image, impl.gbuffer_depth_memory, 0);
++    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO}; ivci.image = impl.gbuffer_depth_image; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = df; ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT; ivci.subresourceRange.levelCount=1; ivci.subresourceRange.layerCount=1;
++    if (vkCreateImageView(impl.device, &ivci, nullptr, &impl.gbuffer_depth_view) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer depth view"}; }
++
++    // Render pass for gbuffer
++    VkAttachmentDescription color { };
++    color.format = VK_FORMAT_R16G16B16A16_SFLOAT; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkAttachmentDescription depth { };
++    depth.format = df; depth.samples = VK_SAMPLE_COUNT_1_BIT; depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; depth.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; depth.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
++    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
++    VkAttachmentReference depth_ref {1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
++    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref; sub.pDepthStencilAttachment = &depth_ref;
++    VkAttachmentDescription att[2] = {color, depth};
++    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 2; rpci.pAttachments = att; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
++    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.gbuffer_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer render pass"}; }
++
++    // Framebuffer
++    VkImageView views[2] = {impl.gbuffer_view, impl.gbuffer_depth_view};
++    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.gbuffer_render_pass; fbci.attachmentCount = 2; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
++    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.gbuffer_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer framebuffer"}; }
++}
++
++static void destroy_gbuffer_resources(VulkanContext& ctx) noexcept {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    if (impl.gbuffer_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.gbuffer_framebuffer, nullptr); impl.gbuffer_framebuffer = VK_NULL_HANDLE; }
++    if (impl.gbuffer_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.gbuffer_render_pass, nullptr); impl.gbuffer_render_pass = VK_NULL_HANDLE; }
++    if (impl.gbuffer_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.gbuffer_view, nullptr); impl.gbuffer_view = VK_NULL_HANDLE; }
++    if (impl.gbuffer_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.gbuffer_image, nullptr); impl.gbuffer_image = VK_NULL_HANDLE; }
++    if (impl.gbuffer_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.gbuffer_memory, nullptr); impl.gbuffer_memory = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.gbuffer_depth_view, nullptr); impl.gbuffer_depth_view = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.gbuffer_depth_image, nullptr); impl.gbuffer_depth_image = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.gbuffer_depth_memory, nullptr); impl.gbuffer_depth_memory = VK_NULL_HANDLE; }
++    if (impl.gbuffer_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.gbuffer_pipeline, nullptr); impl.gbuffer_pipeline = VK_NULL_HANDLE; }
++    if (impl.gbuffer_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.gbuffer_pipeline_layout, nullptr); impl.gbuffer_pipeline_layout = VK_NULL_HANDLE; }
++}
++
++static void create_ssao_resources(VulkanContext& ctx) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    const uint32_t w = impl.swapchain_extent.width;
++    const uint32_t h = impl.swapchain_extent.height;
++    // Create AO image as color attachment + sampled (R8)
++    create_color_image(ctx, w, h, VK_FORMAT_R8_UNORM,
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++        &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++
++    // SSAO render pass
++    VkAttachmentDescription color { };
++    color.format = VK_FORMAT_R8_UNORM; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
++    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref;
++    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 1; rpci.pAttachments = &color; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
++    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.ssao_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create ssao render pass"}; }
++
++    VkImageView views[1] = {impl.ao_view};
++    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.ssao_render_pass; fbci.attachmentCount = 1; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
++    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.ssao_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create ssao framebuffer"}; }
++}
++
++static void destroy_ssao_resources(VulkanContext& ctx) noexcept {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    if (impl.ssao_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.ssao_framebuffer, nullptr); impl.ssao_framebuffer = VK_NULL_HANDLE; }
++    if (impl.ssao_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.ssao_render_pass, nullptr); impl.ssao_render_pass = VK_NULL_HANDLE; }
++    if (impl.ssao_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.ssao_pipeline, nullptr); impl.ssao_pipeline = VK_NULL_HANDLE; }
++    if (impl.ssao_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.ssao_pipeline_layout, nullptr); impl.ssao_pipeline_layout = VK_NULL_HANDLE; }
++}
++
+ static void upload_mesh_to_gpu(VulkanContext& ctx, const vulkano::Mesh& mesh) {
+     auto& impl = VulkanContextInternalsHelper::get(ctx);
+     destroy_mesh_buffers(ctx);
+@@ -838,7 +969,7 @@
+     vkDestroyShaderModule(impl.device, vmod, nullptr);
+     vkDestroyShaderModule(impl.device, fmod, nullptr);
+ 
+-    // Material resources for forward shading
++    // Material resources for forward shading and prepasses
+     if (forward) {
+         // Create sampler
+         VkSamplerCreateInfo sci {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+@@ -856,23 +987,28 @@
+         create_image_and_upload(ctx, W, H, albedo.data(), static_cast<VkDeviceSize>(albedo.size()*sizeof(std::uint32_t)), &impl.albedo_image, &impl.albedo_memory, &impl.albedo_view);
+         create_image_and_upload(ctx, W, H, normal.data(), static_cast<VkDeviceSize>(normal.size()*sizeof(std::uint32_t)), &impl.normal_image, &impl.normal_memory, &impl.normal_view);
+ 
+-        // AO texture placeholder: 1x1 white (no occlusion)
+-        const uint32_t AO_W = 1, AO_H = 1; const std::uint32_t white = 0xFFFFFFFFu;
+-        create_image_and_upload(ctx, AO_W, AO_H, &white, sizeof(white), &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++        // Create G-buffer and SSAO render targets sized to swapchain
++        destroy_gbuffer_resources(ctx);
++        destroy_ssao_resources(ctx);
++        create_gbuffer_resources(ctx);
++        create_ssao_resources(ctx);
+ 
+         // Create UBO (256 bytes)
+-        create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        if (impl.ubo_buffer == VK_NULL_HANDLE) {
++            create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        }
+ 
+         // Descriptor pool and set
+         VkDescriptorPoolSize poolSizes[2] = {};
+-        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 1;
+-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 3;
++        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 2; // forward + ssao
++        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 6; // 3 forward + 1 ssao (+spare)
+         VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+-        dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 1;
++        dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 2;
+         vkCreateDescriptorPool(impl.device, &dpci, nullptr, &impl.desc_pool);
+         VkDescriptorSetAllocateInfo dsai {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+         dsai.descriptorPool = impl.desc_pool; dsai.descriptorSetCount = 1; dsai.pSetLayouts = &impl.desc_layout;
+         vkAllocateDescriptorSets(impl.device, &dsai, &impl.desc_set);
++        vkAllocateDescriptorSets(impl.device, &dsai, &impl.ssao_desc_set);
+         VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
+         VkDescriptorImageInfo dai1 {}; dai1.sampler = impl.sampler; dai1.imageView = impl.albedo_view; dai1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+         VkDescriptorImageInfo dai2 {}; dai2.sampler = impl.sampler; dai2.imageView = impl.normal_view; dai2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+@@ -883,6 +1019,78 @@
+         writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = impl.desc_set; writes[2].dstBinding = 2; writes[2].descriptorCount = 1; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[2].pImageInfo = &dai2;
+         writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[3].dstSet = impl.desc_set; writes[3].dstBinding = 3; writes[3].descriptorCount = 1; writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[3].pImageInfo = &dai3;
+         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
++
++        // SSAO descriptor set: UBO + ND texture at binding 1
++        VkDescriptorImageInfo dai_nd {}; dai_nd.sampler = impl.sampler; dai_nd.imageView = impl.gbuffer_view; dai_nd.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++        std::array<VkWriteDescriptorSet,2> writes_ssao {};
++        writes_ssao[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes_ssao[0].dstSet = impl.ssao_desc_set; writes_ssao[0].dstBinding = 0; writes_ssao[0].descriptorCount = 1; writes_ssao[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes_ssao[0].pBufferInfo = &dbi;
++        writes_ssao[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes_ssao[1].dstSet = impl.ssao_desc_set; writes_ssao[1].dstBinding = 1; writes_ssao[1].descriptorCount = 1; writes_ssao[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes_ssao[1].pImageInfo = &dai_nd;
++        vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes_ssao.size()), writes_ssao.data(), 0, nullptr);
++
++        // Create G-buffer pipeline
++        {
++            auto gvs = load_binary_file("shaders/gbuffer.vert.spv");
++            auto gfs = load_binary_file("shaders/gbuffer.frag.spv");
++            if (!gvs.empty() && !gfs.empty()) {
++                VkShaderModule gv = create_shader_module(impl.device, gvs);
++                VkShaderModule gf = create_shader_module(impl.device, gfs);
++                VkPipelineShaderStageCreateInfo stages[2] = {};
++                stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT; stages[0].module = gv; stages[0].pName = "main";
++                stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT; stages[1].module = gf; stages[1].pName = "main";
++                VkVertexInputBindingDescription binding {0, static_cast<uint32_t>(sizeof(vulkano::Vertex)), VK_VERTEX_INPUT_RATE_VERTEX};
++                std::array<VkVertexInputAttributeDescription,5> attrs = {
++                    VkVertexInputAttributeDescription{0,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, position)},
++                    VkVertexInputAttributeDescription{1,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, normal)},
++                    VkVertexInputAttributeDescription{2,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, tangent)},
++                    VkVertexInputAttributeDescription{3,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, bitangent)},
++                    VkVertexInputAttributeDescription{4,0,VK_FORMAT_R32G32_SFLOAT, offsetof(vulkano::Vertex, texcoord)} };
++                VkPipelineVertexInputStateCreateInfo vi {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO}; vi.vertexBindingDescriptionCount=1; vi.pVertexBindingDescriptions=&binding; vi.vertexAttributeDescriptionCount=static_cast<uint32_t>(attrs.size()); vi.pVertexAttributeDescriptions=attrs.data();
++                VkPipelineInputAssemblyStateCreateInfo ia {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO}; ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
++                VkViewport viewport {}; viewport.x=0; viewport.y=0; viewport.width=static_cast<float>(impl.swapchain_extent.width); viewport.height=static_cast<float>(impl.swapchain_extent.height); viewport.minDepth=0.0F; viewport.maxDepth=1.0F;
++                VkRect2D scissor {{0,0}, impl.swapchain_extent};
++                VkPipelineViewportStateCreateInfo vp {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO}; vp.viewportCount=1; vp.pViewports=&viewport; vp.scissorCount=1; vp.pScissors=&scissor;
++                VkPipelineRasterizationStateCreateInfo rs {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO}; rs.polygonMode=VK_POLYGON_MODE_FILL; rs.cullMode=VK_CULL_MODE_BACK_BIT; rs.frontFace=VK_FRONT_FACE_COUNTER_CLOCKWISE; rs.lineWidth=1.0F;
++                VkPipelineMultisampleStateCreateInfo ms {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO}; ms.rasterizationSamples=VK_SAMPLE_COUNT_1_BIT;
++                VkPipelineDepthStencilStateCreateInfo dss {VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO}; dss.depthTestEnable=VK_TRUE; dss.depthWriteEnable=VK_TRUE; dss.depthCompareOp=VK_COMPARE_OP_LESS;
++                VkPipelineColorBlendAttachmentState cba {}; cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT|VK_COLOR_COMPONENT_G_BIT|VK_COLOR_COMPONENT_B_BIT|VK_COLOR_COMPONENT_A_BIT;
++                VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO}; cb.attachmentCount=1; cb.pAttachments=&cba;
++                VkPushConstantRange pcr2 {}; pcr2.offset=0; pcr2.size=static_cast<uint32_t>(sizeof(float)*16U); pcr2.stageFlags=VK_SHADER_STAGE_VERTEX_BIT;
++                VkPipelineLayoutCreateInfo plci2 {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO}; plci2.pushConstantRangeCount=1; plci2.pPushConstantRanges=&pcr2; plci2.setLayoutCount=1; plci2.pSetLayouts=&impl.desc_layout;
++                vkCreatePipelineLayout(impl.device, &plci2, nullptr, &impl.gbuffer_pipeline_layout);
++                VkGraphicsPipelineCreateInfo gpci2 {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO}; gpci2.stageCount=2; gpci2.pStages=stages; gpci2.pVertexInputState=&vi; gpci2.pInputAssemblyState=&ia; gpci2.pViewportState=&vp; gpci2.pRasterizationState=&rs; gpci2.pMultisampleState=&ms; gpci2.pDepthStencilState=&dss; gpci2.pColorBlendState=&cb; gpci2.layout=impl.gbuffer_pipeline_layout; gpci2.renderPass=impl.gbuffer_render_pass; gpci2.subpass=0;
++                vkCreateGraphicsPipelines(impl.device, VK_NULL_HANDLE, 1, &gpci2, nullptr, &impl.gbuffer_pipeline);
++                vkDestroyShaderModule(impl.device, gv, nullptr);
++                vkDestroyShaderModule(impl.device, gf, nullptr);
++            }
++        }
++
++        // Create SSAO pipeline (fullscreen)
++        {
++            auto sv = load_binary_file("shaders/fullscreen.vert.spv");
++            auto sf = load_binary_file("shaders/ssao.frag.spv");
++            if (!sv.empty() && !sf.empty()) {
++                VkShaderModule v = create_shader_module(impl.device, sv);
++                VkShaderModule f = create_shader_module(impl.device, sf);
++                VkPipelineShaderStageCreateInfo stages[2] = {};
++                stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT; stages[0].module = v; stages[0].pName = "main";
++                stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT; stages[1].module = f; stages[1].pName = "main";
++                VkPipelineVertexInputStateCreateInfo vi {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
++                VkPipelineInputAssemblyStateCreateInfo ia {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO}; ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
++                VkViewport viewport {}; viewport.x=0; viewport.y=0; viewport.width=static_cast<float>(impl.swapchain_extent.width); viewport.height=static_cast<float>(impl.swapchain_extent.height); viewport.minDepth=0.0F; viewport.maxDepth=1.0F;
++                VkRect2D scissor {{0,0}, impl.swapchain_extent};
++                VkPipelineViewportStateCreateInfo vp {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO}; vp.viewportCount=1; vp.pViewports=&viewport; vp.scissorCount=1; vp.pScissors=&scissor;
++                VkPipelineRasterizationStateCreateInfo rs {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO}; rs.polygonMode=VK_POLYGON_MODE_FILL; rs.cullMode=VK_CULL_MODE_NONE; rs.frontFace=VK_FRONT_FACE_COUNTER_CLOCKWISE; rs.lineWidth=1.0F;
++                VkPipelineMultisampleStateCreateInfo ms {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO}; ms.rasterizationSamples=VK_SAMPLE_COUNT_1_BIT;
++                VkPipelineColorBlendAttachmentState cba {}; cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT;
++                VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO}; cb.attachmentCount=1; cb.pAttachments=&cba;
++                VkPipelineLayoutCreateInfo plci3 {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO}; plci3.setLayoutCount=1; plci3.pSetLayouts=&impl.desc_layout;
++                vkCreatePipelineLayout(impl.device, &plci3, nullptr, &impl.ssao_pipeline_layout);
++                VkGraphicsPipelineCreateInfo gpci3 {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO}; gpci3.stageCount=2; gpci3.pStages=stages; gpci3.pVertexInputState=&vi; gpci3.pInputAssemblyState=&ia; gpci3.pViewportState=&vp; gpci3.pRasterizationState=&rs; gpci3.pMultisampleState=&ms; gpci3.pColorBlendState=&cb; gpci3.layout=impl.ssao_pipeline_layout; gpci3.renderPass=impl.ssao_render_pass; gpci3.subpass=0;
++                vkCreateGraphicsPipelines(impl.device, VK_NULL_HANDLE, 1, &gpci3, nullptr, &impl.ssao_pipeline);
++                vkDestroyShaderModule(impl.device, v, nullptr);
++                vkDestroyShaderModule(impl.device, f, nullptr);
++            }
++        }
+     }
+ }
+ 
+
+[2025-09-15T17:02:26] tokens used: 119,761
+[2025-09-15T17:02:26] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+diff --git a/shaders/fullscreen.vert b/shaders/fullscreen.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..47ef99bf5518ea3ce9baaf3e01e4b8041e98e68d
+--- /dev/null
++++ b/shaders/fullscreen.vert
+@@ -0,0 +1,20 @@
++#version 450
++
++layout(location = 0) out vec2 vUV;
++
++void main() {
++    // Fullscreen triangle
++    const vec2 positions[3] = vec2[3](
++        vec2(-1.0, -1.0),
++        vec2( 3.0, -1.0),
++        vec2(-1.0,  3.0)
++    );
++    const vec2 uvs[3] = vec2[3](
++        vec2(0.0, 0.0),
++        vec2(2.0, 0.0),
++        vec2(0.0, 2.0)
++    );
++    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
++    vUV = uvs[gl_VertexIndex];
++}
++
+diff --git a/shaders/gbuffer.frag b/shaders/gbuffer.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..f116ab22511268e2aaef9d7bf34c2a990af23f13
+--- /dev/null
++++ b/shaders/gbuffer.frag
+@@ -0,0 +1,16 @@
++#version 450
++
++layout(location = 0) in vec3 vNormalVS;
++layout(location = 1) in float vDepthVS;
++layout(location = 2) in vec2 vUV;
++
++layout(location = 0) out vec4 outND;
++
++void main() {
++    // Pack view-space normal into RGB ([-1,1] -> [0,1]) and linear depth into A
++    vec3 n = normalize(vNormalVS);
++    vec3 n01 = n * 0.5 + 0.5;
++    float depth = vDepthVS;
++    outND = vec4(n01, depth);
++}
++
+diff --git a/shaders/gbuffer.vert b/shaders/gbuffer.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8c46e3cfe30155fc0601a6b6d4f29b4b593166
+--- /dev/null
++++ b/shaders/gbuffer.vert
+@@ -0,0 +1,33 @@
++#version 450
++
++layout(location = 0) in vec3 inPos;
++layout(location = 1) in vec3 inNormal;
++layout(location = 4) in vec2 inUV;
++
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(location = 0) out vec3 vNormalVS;
++layout(location = 1) out float vDepthVS;
++layout(location = 2) out vec2 vUV;
++
++void main() {
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
++    // view-space normal: ignore translation part
++    mat3 view3 = mat3(ubo.view);
++    vNormalVS = normalize(view3 * inNormal);
++    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
++    vDepthVS = -posVS.z; // positive distance from camera
++    vUV = inUV;
++}
++
+diff --git a/shaders/ssao.frag b/shaders/ssao.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..44f54958184303534d4698354b96ceff72b715e0
+--- /dev/null
++++ b/shaders/ssao.frag
+@@ -0,0 +1,48 @@
++#version 450
++
++layout(location = 0) in vec2 vUV;
++layout(location = 0) out float outAO;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    // x=invWidth, y=invHeight, z=aoPower, w=radius
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(set = 0, binding = 1) uniform sampler2D uND; // gbuffer normal/depth packed
++
++// Simple 2D SSAO kernel
++const int KERNEL = 16;
++const vec2 OFFSETS[KERNEL] = vec2[KERNEL](
++    vec2( 1,  0), vec2(-1,  0), vec2( 0,  1), vec2( 0, -1),
++    vec2( 1,  1), vec2(-1,  1), vec2( 1, -1), vec2(-1, -1),
++    vec2( 2,  0), vec2(-2,  0), vec2( 0,  2), vec2( 0, -2),
++    vec2( 2,  1), vec2(-2,  1), vec2( 1,  2), vec2(-1, -2)
++);
++
++void main() {
++    vec2 texel = vec2(ubo.screen_invW_invH_aoPower_radius.x, ubo.screen_invW_invH_aoPower_radius.y);
++    float radius = max(ubo.screen_invW_invH_aoPower_radius.w, 1.0);
++
++    vec4 nd = texture(uND, vUV);
++    vec3 n = normalize(nd.xyz * 2.0 - 1.0);
++    float depth = nd.w;
++
++    float occlusion = 0.0;
++    for (int i = 0; i < KERNEL; ++i) {
++        vec2 offset = OFFSETS[i] * texel * radius;
++        vec4 ndS = texture(uND, vUV + offset);
++        float depthS = ndS.w;
++        float range = smoothstep(0.0, 1.0, radius);
++        float delta = depthS - depth;
++        float occ = step(0.001, delta) * (1.0 - clamp(delta / (radius), 0.0, 1.0)) * range;
++        occlusion += occ;
++    }
++    occlusion /= float(KERNEL);
++    outAO = 1.0 - occlusion;
++}
++
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index e45d560a53955091853910b65ddcc068813d80f3..3544266a78f78e63850b4af4132cac481ac294b4
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -74,6 +74,25 @@
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
++    // G-buffer (Normals+Depth packed into RGBA16F) prepass resources
++    VkRenderPass gbuffer_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer gbuffer_framebuffer {VK_NULL_HANDLE};
++    VkImage gbuffer_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_view {VK_NULL_HANDLE};
++    VkImage gbuffer_depth_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_depth_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_depth_view {VK_NULL_HANDLE};
++    VkPipelineLayout gbuffer_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline gbuffer_pipeline {VK_NULL_HANDLE};
++
++    // SSAO pass resources (writes AO into ao_image which is sampled in forward)
++    VkRenderPass ssao_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer ssao_framebuffer {VK_NULL_HANDLE};
++    VkPipelineLayout ssao_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline ssao_pipeline {VK_NULL_HANDLE};
++    VkDescriptorSet ssao_desc_set {VK_NULL_HANDLE};
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+@@ -641,6 +660,118 @@
+     if (vkCreateImageView(impl.device, &ivci, nullptr, outView) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image view"}; }
+ }
+ 
++static void create_color_image(VulkanContext& ctx, uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage,
++    VkImage* outImage, VkDeviceMemory* outMem, VkImageView* outView) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
++    ici.imageType = VK_IMAGE_TYPE_2D;
++    ici.extent = {width, height, 1};
++    ici.mipLevels = 1;
++    ici.arrayLayers = 1;
++    ici.format = format;
++    ici.tiling = VK_IMAGE_TILING_OPTIMAL;
++    ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
++    ici.usage = usage;
++    ici.samples = VK_SAMPLE_COUNT_1_BIT;
++    ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (vkCreateImage(impl.device, &ici, nullptr, outImage) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image"}; }
++    VkMemoryRequirements req {};
++    vkGetImageMemoryRequirements(impl.device, *outImage, &req);
++    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
++    mai.allocationSize = req.size;
++    mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++    if (vkAllocateMemory(impl.device, &mai, nullptr, outMem) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc image mem"}; }
++    vkBindImageMemory(impl.device, *outImage, *outMem, 0);
++
++    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
++    ivci.image = *outImage; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = format;
++    ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; ivci.subresourceRange.levelCount = 1; ivci.subresourceRange.layerCount = 1;
++    if (vkCreateImageView(impl.device, &ivci, nullptr, outView) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image view"}; }
++}
++
++static void create_gbuffer_resources(VulkanContext& ctx) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    const uint32_t w = impl.swapchain_extent.width;
++    const uint32_t h = impl.swapchain_extent.height;
++    // Create ND image (RGBA16F) with color attachment + sampled usage
++    create_color_image(ctx, w, h, VK_FORMAT_R16G16B16A16_SFLOAT,
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++        &impl.gbuffer_image, &impl.gbuffer_memory, &impl.gbuffer_view);
++    // Create depth for gbuffer
++    VkFormat df = find_depth_format(ctx);
++    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
++    ici.imageType = VK_IMAGE_TYPE_2D; ici.extent = {w, h, 1}; ici.mipLevels = 1; ici.arrayLayers = 1; ici.format = df;
++    ici.tiling = VK_IMAGE_TILING_OPTIMAL; ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; ici.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT; ici.samples = VK_SAMPLE_COUNT_1_BIT; ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (vkCreateImage(impl.device, &ici, nullptr, &impl.gbuffer_depth_image) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer depth"}; }
++    VkMemoryRequirements req {}; vkGetImageMemoryRequirements(impl.device, impl.gbuffer_depth_image, &req);
++    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO}; mai.allocationSize = req.size; mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++    if (vkAllocateMemory(impl.device, &mai, nullptr, &impl.gbuffer_depth_memory) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc gbuffer depth mem"}; }
++    vkBindImageMemory(impl.device, impl.gbuffer_depth_image, impl.gbuffer_depth_memory, 0);
++    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO}; ivci.image = impl.gbuffer_depth_image; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = df; ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT; ivci.subresourceRange.levelCount=1; ivci.subresourceRange.layerCount=1;
++    if (vkCreateImageView(impl.device, &ivci, nullptr, &impl.gbuffer_depth_view) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer depth view"}; }
++
++    // Render pass for gbuffer
++    VkAttachmentDescription color { };
++    color.format = VK_FORMAT_R16G16B16A16_SFLOAT; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkAttachmentDescription depth { };
++    depth.format = df; depth.samples = VK_SAMPLE_COUNT_1_BIT; depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; depth.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; depth.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
++    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
++    VkAttachmentReference depth_ref {1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
++    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref; sub.pDepthStencilAttachment = &depth_ref;
++    VkAttachmentDescription att[2] = {color, depth};
++    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 2; rpci.pAttachments = att; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
++    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.gbuffer_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer render pass"}; }
++
++    // Framebuffer
++    VkImageView views[2] = {impl.gbuffer_view, impl.gbuffer_depth_view};
++    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.gbuffer_render_pass; fbci.attachmentCount = 2; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
++    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.gbuffer_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer framebuffer"}; }
++}
++
++static void destroy_gbuffer_resources(VulkanContext& ctx) noexcept {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    if (impl.gbuffer_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.gbuffer_framebuffer, nullptr); impl.gbuffer_framebuffer = VK_NULL_HANDLE; }
++    if (impl.gbuffer_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.gbuffer_render_pass, nullptr); impl.gbuffer_render_pass = VK_NULL_HANDLE; }
++    if (impl.gbuffer_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.gbuffer_view, nullptr); impl.gbuffer_view = VK_NULL_HANDLE; }
++    if (impl.gbuffer_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.gbuffer_image, nullptr); impl.gbuffer_image = VK_NULL_HANDLE; }
++    if (impl.gbuffer_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.gbuffer_memory, nullptr); impl.gbuffer_memory = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.gbuffer_depth_view, nullptr); impl.gbuffer_depth_view = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.gbuffer_depth_image, nullptr); impl.gbuffer_depth_image = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.gbuffer_depth_memory, nullptr); impl.gbuffer_depth_memory = VK_NULL_HANDLE; }
++    if (impl.gbuffer_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.gbuffer_pipeline, nullptr); impl.gbuffer_pipeline = VK_NULL_HANDLE; }
++    if (impl.gbuffer_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.gbuffer_pipeline_layout, nullptr); impl.gbuffer_pipeline_layout = VK_NULL_HANDLE; }
++}
++
++static void create_ssao_resources(VulkanContext& ctx) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    const uint32_t w = impl.swapchain_extent.width;
++    const uint32_t h = impl.swapchain_extent.height;
++    // Create AO image as color attachment + sampled (R8)
++    create_color_image(ctx, w, h, VK_FORMAT_R8_UNORM,
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++        &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++
++    // SSAO render pass
++    VkAttachmentDescription color { };
++    color.format = VK_FORMAT_R8_UNORM; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
++    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref;
++    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 1; rpci.pAttachments = &color; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
++    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.ssao_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create ssao render pass"}; }
++
++    VkImageView views[1] = {impl.ao_view};
++    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.ssao_render_pass; fbci.attachmentCount = 1; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
++    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.ssao_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create ssao framebuffer"}; }
++}
++
++static void destroy_ssao_resources(VulkanContext& ctx) noexcept {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    if (impl.ssao_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.ssao_framebuffer, nullptr); impl.ssao_framebuffer = VK_NULL_HANDLE; }
++    if (impl.ssao_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.ssao_render_pass, nullptr); impl.ssao_render_pass = VK_NULL_HANDLE; }
++    if (impl.ssao_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.ssao_pipeline, nullptr); impl.ssao_pipeline = VK_NULL_HANDLE; }
++    if (impl.ssao_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.ssao_pipeline_layout, nullptr); impl.ssao_pipeline_layout = VK_NULL_HANDLE; }
++}
++
+ static void upload_mesh_to_gpu(VulkanContext& ctx, const vulkano::Mesh& mesh) {
+     auto& impl = VulkanContextInternalsHelper::get(ctx);
+     destroy_mesh_buffers(ctx);
+@@ -838,7 +969,7 @@
+     vkDestroyShaderModule(impl.device, vmod, nullptr);
+     vkDestroyShaderModule(impl.device, fmod, nullptr);
+ 
+-    // Material resources for forward shading
++    // Material resources for forward shading and prepasses
+     if (forward) {
+         // Create sampler
+         VkSamplerCreateInfo sci {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+@@ -856,23 +987,28 @@
+         create_image_and_upload(ctx, W, H, albedo.data(), static_cast<VkDeviceSize>(albedo.size()*sizeof(std::uint32_t)), &impl.albedo_image, &impl.albedo_memory, &impl.albedo_view);
+         create_image_and_upload(ctx, W, H, normal.data(), static_cast<VkDeviceSize>(normal.size()*sizeof(std::uint32_t)), &impl.normal_image, &impl.normal_memory, &impl.normal_view);
+ 
+-        // AO texture placeholder: 1x1 white (no occlusion)
+-        const uint32_t AO_W = 1, AO_H = 1; const std::uint32_t white = 0xFFFFFFFFu;
+-        create_image_and_upload(ctx, AO_W, AO_H, &white, sizeof(white), &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++        // Create G-buffer and SSAO render targets sized to swapchain
++        destroy_gbuffer_resources(ctx);
++        destroy_ssao_resources(ctx);
++        create_gbuffer_resources(ctx);
++        create_ssao_resources(ctx);
+ 
+         // Create UBO (256 bytes)
+-        create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        if (impl.ubo_buffer == VK_NULL_HANDLE) {
++            create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        }
+ 
+         // Descriptor pool and set
+         VkDescriptorPoolSize poolSizes[2] = {};
+-        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 1;
+-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 3;
++        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 2; // forward + ssao
++        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 6; // 3 forward + 1 ssao (+spare)
+         VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+-        dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 1;
++        dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 2;
+         vkCreateDescriptorPool(impl.device, &dpci, nullptr, &impl.desc_pool);
+         VkDescriptorSetAllocateInfo dsai {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+         dsai.descriptorPool = impl.desc_pool; dsai.descriptorSetCount = 1; dsai.pSetLayouts = &impl.desc_layout;
+         vkAllocateDescriptorSets(impl.device, &dsai, &impl.desc_set);
++        vkAllocateDescriptorSets(impl.device, &dsai, &impl.ssao_desc_set);
+         VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
+         VkDescriptorImageInfo dai1 {}; dai1.sampler = impl.sampler; dai1.imageView = impl.albedo_view; dai1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+         VkDescriptorImageInfo dai2 {}; dai2.sampler = impl.sampler; dai2.imageView = impl.normal_view; dai2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+@@ -883,6 +1019,78 @@
+         writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = impl.desc_set; writes[2].dstBinding = 2; writes[2].descriptorCount = 1; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[2].pImageInfo = &dai2;
+         writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[3].dstSet = impl.desc_set; writes[3].dstBinding = 3; writes[3].descriptorCount = 1; writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[3].pImageInfo = &dai3;
+         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
++
++        // SSAO descriptor set: UBO + ND texture at binding 1
++        VkDescriptorImageInfo dai_nd {}; dai_nd.sampler = impl.sampler; dai_nd.imageView = impl.gbuffer_view; dai_nd.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++        std::array<VkWriteDescriptorSet,2> writes_ssao {};
++        writes_ssao[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes_ssao[0].dstSet = impl.ssao_desc_set; writes_ssao[0].dstBinding = 0; writes_ssao[0].descriptorCount = 1; writes_ssao[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes_ssao[0].pBufferInfo = &dbi;
++        writes_ssao[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes_ssao[1].dstSet = impl.ssao_desc_set; writes_ssao[1].dstBinding = 1; writes_ssao[1].descriptorCount = 1; writes_ssao[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes_ssao[1].pImageInfo = &dai_nd;
++        vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes_ssao.size()), writes_ssao.data(), 0, nullptr);
++
++        // Create G-buffer pipeline
++        {
++            auto gvs = load_binary_file("shaders/gbuffer.vert.spv");
++            auto gfs = load_binary_file("shaders/gbuffer.frag.spv");
++            if (!gvs.empty() && !gfs.empty()) {
++                VkShaderModule gv = create_shader_module(impl.device, gvs);
++                VkShaderModule gf = create_shader_module(impl.device, gfs);
++                VkPipelineShaderStageCreateInfo stages[2] = {};
++                stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT; stages[0].module = gv; stages[0].pName = "main";
++                stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT; stages[1].module = gf; stages[1].pName = "main";
++                VkVertexInputBindingDescription binding {0, static_cast<uint32_t>(sizeof(vulkano::Vertex)), VK_VERTEX_INPUT_RATE_VERTEX};
++                std::array<VkVertexInputAttributeDescription,5> attrs = {
++                    VkVertexInputAttributeDescription{0,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, position)},
++                    VkVertexInputAttributeDescription{1,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, normal)},
++                    VkVertexInputAttributeDescription{2,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, tangent)},
++                    VkVertexInputAttributeDescription{3,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, bitangent)},
++                    VkVertexInputAttributeDescription{4,0,VK_FORMAT_R32G32_SFLOAT, offsetof(vulkano::Vertex, texcoord)} };
++                VkPipelineVertexInputStateCreateInfo vi {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO}; vi.vertexBindingDescriptionCount=1; vi.pVertexBindingDescriptions=&binding; vi.vertexAttributeDescriptionCount=static_cast<uint32_t>(attrs.size()); vi.pVertexAttributeDescriptions=attrs.data();
++                VkPipelineInputAssemblyStateCreateInfo ia {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO}; ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
++                VkViewport viewport {}; viewport.x=0; viewport.y=0; viewport.width=static_cast<float>(impl.swapchain_extent.width); viewport.height=static_cast<float>(impl.swapchain_extent.height); viewport.minDepth=0.0F; viewport.maxDepth=1.0F;
++                VkRect2D scissor {{0,0}, impl.swapchain_extent};
++                VkPipelineViewportStateCreateInfo vp {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO}; vp.viewportCount=1; vp.pViewports=&viewport; vp.scissorCount=1; vp.pScissors=&scissor;
++                VkPipelineRasterizationStateCreateInfo rs {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO}; rs.polygonMode=VK_POLYGON_MODE_FILL; rs.cullMode=VK_CULL_MODE_BACK_BIT; rs.frontFace=VK_FRONT_FACE_COUNTER_CLOCKWISE; rs.lineWidth=1.0F;
++                VkPipelineMultisampleStateCreateInfo ms {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO}; ms.rasterizationSamples=VK_SAMPLE_COUNT_1_BIT;
++                VkPipelineDepthStencilStateCreateInfo dss {VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO}; dss.depthTestEnable=VK_TRUE; dss.depthWriteEnable=VK_TRUE; dss.depthCompareOp=VK_COMPARE_OP_LESS;
++                VkPipelineColorBlendAttachmentState cba {}; cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT|VK_COLOR_COMPONENT_G_BIT|VK_COLOR_COMPONENT_B_BIT|VK_COLOR_COMPONENT_A_BIT;
++                VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO}; cb.attachmentCount=1; cb.pAttachments=&cba;
++                VkPushConstantRange pcr2 {}; pcr2.offset=0; pcr2.size=static_cast<uint32_t>(sizeof(float)*16U); pcr2.stageFlags=VK_SHADER_STAGE_VERTEX_BIT;
++                VkPipelineLayoutCreateInfo plci2 {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO}; plci2.pushConstantRangeCount=1; plci2.pPushConstantRanges=&pcr2; plci2.setLayoutCount=1; plci2.pSetLayouts=&impl.desc_layout;
++                vkCreatePipelineLayout(impl.device, &plci2, nullptr, &impl.gbuffer_pipeline_layout);
++                VkGraphicsPipelineCreateInfo gpci2 {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO}; gpci2.stageCount=2; gpci2.pStages=stages; gpci2.pVertexInputState=&vi; gpci2.pInputAssemblyState=&ia; gpci2.pViewportState=&vp; gpci2.pRasterizationState=&rs; gpci2.pMultisampleState=&ms; gpci2.pDepthStencilState=&dss; gpci2.pColorBlendState=&cb; gpci2.layout=impl.gbuffer_pipeline_layout; gpci2.renderPass=impl.gbuffer_render_pass; gpci2.subpass=0;
++                vkCreateGraphicsPipelines(impl.device, VK_NULL_HANDLE, 1, &gpci2, nullptr, &impl.gbuffer_pipeline);
++                vkDestroyShaderModule(impl.device, gv, nullptr);
++                vkDestroyShaderModule(impl.device, gf, nullptr);
++            }
++        }
++
++        // Create SSAO pipeline (fullscreen)
++        {
++            auto sv = load_binary_file("shaders/fullscreen.vert.spv");
++            auto sf = load_binary_file("shaders/ssao.frag.spv");
++            if (!sv.empty() && !sf.empty()) {
++                VkShaderModule v = create_shader_module(impl.device, sv);
++                VkShaderModule f = create_shader_module(impl.device, sf);
++                VkPipelineShaderStageCreateInfo stages[2] = {};
++                stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT; stages[0].module = v; stages[0].pName = "main";
++                stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT; stages[1].module = f; stages[1].pName = "main";
++                VkPipelineVertexInputStateCreateInfo vi {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
++                VkPipelineInputAssemblyStateCreateInfo ia {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO}; ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
++                VkViewport viewport {}; viewport.x=0; viewport.y=0; viewport.width=static_cast<float>(impl.swapchain_extent.width); viewport.height=static_cast<float>(impl.swapchain_extent.height); viewport.minDepth=0.0F; viewport.maxDepth=1.0F;
++                VkRect2D scissor {{0,0}, impl.swapchain_extent};
++                VkPipelineViewportStateCreateInfo vp {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO}; vp.viewportCount=1; vp.pViewports=&viewport; vp.scissorCount=1; vp.pScissors=&scissor;
++                VkPipelineRasterizationStateCreateInfo rs {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO}; rs.polygonMode=VK_POLYGON_MODE_FILL; rs.cullMode=VK_CULL_MODE_NONE; rs.frontFace=VK_FRONT_FACE_COUNTER_CLOCKWISE; rs.lineWidth=1.0F;
++                VkPipelineMultisampleStateCreateInfo ms {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO}; ms.rasterizationSamples=VK_SAMPLE_COUNT_1_BIT;
++                VkPipelineColorBlendAttachmentState cba {}; cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT;
++                VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO}; cb.attachmentCount=1; cb.pAttachments=&cba;
++                VkPipelineLayoutCreateInfo plci3 {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO}; plci3.setLayoutCount=1; plci3.pSetLayouts=&impl.desc_layout;
++                vkCreatePipelineLayout(impl.device, &plci3, nullptr, &impl.ssao_pipeline_layout);
++                VkGraphicsPipelineCreateInfo gpci3 {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO}; gpci3.stageCount=2; gpci3.pStages=stages; gpci3.pVertexInputState=&vi; gpci3.pInputAssemblyState=&ia; gpci3.pViewportState=&vp; gpci3.pRasterizationState=&rs; gpci3.pMultisampleState=&ms; gpci3.pColorBlendState=&cb; gpci3.layout=impl.ssao_pipeline_layout; gpci3.renderPass=impl.ssao_render_pass; gpci3.subpass=0;
++                vkCreateGraphicsPipelines(impl.device, VK_NULL_HANDLE, 1, &gpci3, nullptr, &impl.ssao_pipeline);
++                vkDestroyShaderModule(impl.device, v, nullptr);
++                vkDestroyShaderModule(impl.device, f, nullptr);
++            }
++        }
+     }
+ }
+ 
+
+
+[2025-09-15T17:02:33] thinking
+
+**Modifying rendering passes**
+
+I'm looking to update the draw_frame function to record gbuffer and ssao passes before the swapchain. I see where the command buffer and render pass begin, so I’ll be modifying this section.
+
+First, I'll start the gbuffer render pass with some clear settings and then bind the necessary pipelines and buffers. Following that, I'll initiate the ssao pass and clear it. I also need to ensure that I push the MVP constant for the gbuffer pass and reuse the computed view/proj. This will involve restructuring the calculation of view and projection matrices before the other passes. Let's patch draw_frame accordingly!
+[2025-09-15T17:03:52] tokens used: 125,124
+[2025-09-15T17:03:52] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+diff --git a/shaders/fullscreen.vert b/shaders/fullscreen.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..47ef99bf5518ea3ce9baaf3e01e4b8041e98e68d
+--- /dev/null
++++ b/shaders/fullscreen.vert
+@@ -0,0 +1,20 @@
++#version 450
++
++layout(location = 0) out vec2 vUV;
++
++void main() {
++    // Fullscreen triangle
++    const vec2 positions[3] = vec2[3](
++        vec2(-1.0, -1.0),
++        vec2( 3.0, -1.0),
++        vec2(-1.0,  3.0)
++    );
++    const vec2 uvs[3] = vec2[3](
++        vec2(0.0, 0.0),
++        vec2(2.0, 0.0),
++        vec2(0.0, 2.0)
++    );
++    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
++    vUV = uvs[gl_VertexIndex];
++}
++
+diff --git a/shaders/gbuffer.frag b/shaders/gbuffer.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..f116ab22511268e2aaef9d7bf34c2a990af23f13
+--- /dev/null
++++ b/shaders/gbuffer.frag
+@@ -0,0 +1,16 @@
++#version 450
++
++layout(location = 0) in vec3 vNormalVS;
++layout(location = 1) in float vDepthVS;
++layout(location = 2) in vec2 vUV;
++
++layout(location = 0) out vec4 outND;
++
++void main() {
++    // Pack view-space normal into RGB ([-1,1] -> [0,1]) and linear depth into A
++    vec3 n = normalize(vNormalVS);
++    vec3 n01 = n * 0.5 + 0.5;
++    float depth = vDepthVS;
++    outND = vec4(n01, depth);
++}
++
+diff --git a/shaders/gbuffer.vert b/shaders/gbuffer.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8c46e3cfe30155fc0601a6b6d4f29b4b593166
+--- /dev/null
++++ b/shaders/gbuffer.vert
+@@ -0,0 +1,33 @@
++#version 450
++
++layout(location = 0) in vec3 inPos;
++layout(location = 1) in vec3 inNormal;
++layout(location = 4) in vec2 inUV;
++
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(location = 0) out vec3 vNormalVS;
++layout(location = 1) out float vDepthVS;
++layout(location = 2) out vec2 vUV;
++
++void main() {
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
++    // view-space normal: ignore translation part
++    mat3 view3 = mat3(ubo.view);
++    vNormalVS = normalize(view3 * inNormal);
++    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
++    vDepthVS = -posVS.z; // positive distance from camera
++    vUV = inUV;
++}
++
+diff --git a/shaders/ssao.frag b/shaders/ssao.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..44f54958184303534d4698354b96ceff72b715e0
+--- /dev/null
++++ b/shaders/ssao.frag
+@@ -0,0 +1,48 @@
++#version 450
++
++layout(location = 0) in vec2 vUV;
++layout(location = 0) out float outAO;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    // x=invWidth, y=invHeight, z=aoPower, w=radius
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(set = 0, binding = 1) uniform sampler2D uND; // gbuffer normal/depth packed
++
++// Simple 2D SSAO kernel
++const int KERNEL = 16;
++const vec2 OFFSETS[KERNEL] = vec2[KERNEL](
++    vec2( 1,  0), vec2(-1,  0), vec2( 0,  1), vec2( 0, -1),
++    vec2( 1,  1), vec2(-1,  1), vec2( 1, -1), vec2(-1, -1),
++    vec2( 2,  0), vec2(-2,  0), vec2( 0,  2), vec2( 0, -2),
++    vec2( 2,  1), vec2(-2,  1), vec2( 1,  2), vec2(-1, -2)
++);
++
++void main() {
++    vec2 texel = vec2(ubo.screen_invW_invH_aoPower_radius.x, ubo.screen_invW_invH_aoPower_radius.y);
++    float radius = max(ubo.screen_invW_invH_aoPower_radius.w, 1.0);
++
++    vec4 nd = texture(uND, vUV);
++    vec3 n = normalize(nd.xyz * 2.0 - 1.0);
++    float depth = nd.w;
++
++    float occlusion = 0.0;
++    for (int i = 0; i < KERNEL; ++i) {
++        vec2 offset = OFFSETS[i] * texel * radius;
++        vec4 ndS = texture(uND, vUV + offset);
++        float depthS = ndS.w;
++        float range = smoothstep(0.0, 1.0, radius);
++        float delta = depthS - depth;
++        float occ = step(0.001, delta) * (1.0 - clamp(delta / (radius), 0.0, 1.0)) * range;
++        occlusion += occ;
++    }
++    occlusion /= float(KERNEL);
++    outAO = 1.0 - occlusion;
++}
++
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index e45d560a53955091853910b65ddcc068813d80f3..3544266a78f78e63850b4af4132cac481ac294b4
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -74,6 +74,25 @@
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
++    // G-buffer (Normals+Depth packed into RGBA16F) prepass resources
++    VkRenderPass gbuffer_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer gbuffer_framebuffer {VK_NULL_HANDLE};
++    VkImage gbuffer_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_view {VK_NULL_HANDLE};
++    VkImage gbuffer_depth_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_depth_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_depth_view {VK_NULL_HANDLE};
++    VkPipelineLayout gbuffer_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline gbuffer_pipeline {VK_NULL_HANDLE};
++
++    // SSAO pass resources (writes AO into ao_image which is sampled in forward)
++    VkRenderPass ssao_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer ssao_framebuffer {VK_NULL_HANDLE};
++    VkPipelineLayout ssao_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline ssao_pipeline {VK_NULL_HANDLE};
++    VkDescriptorSet ssao_desc_set {VK_NULL_HANDLE};
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+@@ -641,6 +660,118 @@
+     if (vkCreateImageView(impl.device, &ivci, nullptr, outView) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image view"}; }
+ }
+ 
++static void create_color_image(VulkanContext& ctx, uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage,
++    VkImage* outImage, VkDeviceMemory* outMem, VkImageView* outView) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
++    ici.imageType = VK_IMAGE_TYPE_2D;
++    ici.extent = {width, height, 1};
++    ici.mipLevels = 1;
++    ici.arrayLayers = 1;
++    ici.format = format;
++    ici.tiling = VK_IMAGE_TILING_OPTIMAL;
++    ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
++    ici.usage = usage;
++    ici.samples = VK_SAMPLE_COUNT_1_BIT;
++    ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (vkCreateImage(impl.device, &ici, nullptr, outImage) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image"}; }
++    VkMemoryRequirements req {};
++    vkGetImageMemoryRequirements(impl.device, *outImage, &req);
++    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
++    mai.allocationSize = req.size;
++    mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++    if (vkAllocateMemory(impl.device, &mai, nullptr, outMem) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc image mem"}; }
++    vkBindImageMemory(impl.device, *outImage, *outMem, 0);
++
++    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
++    ivci.image = *outImage; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = format;
++    ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; ivci.subresourceRange.levelCount = 1; ivci.subresourceRange.layerCount = 1;
++    if (vkCreateImageView(impl.device, &ivci, nullptr, outView) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image view"}; }
++}
++
++static void create_gbuffer_resources(VulkanContext& ctx) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    const uint32_t w = impl.swapchain_extent.width;
++    const uint32_t h = impl.swapchain_extent.height;
++    // Create ND image (RGBA16F) with color attachment + sampled usage
++    create_color_image(ctx, w, h, VK_FORMAT_R16G16B16A16_SFLOAT,
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++        &impl.gbuffer_image, &impl.gbuffer_memory, &impl.gbuffer_view);
++    // Create depth for gbuffer
++    VkFormat df = find_depth_format(ctx);
++    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
++    ici.imageType = VK_IMAGE_TYPE_2D; ici.extent = {w, h, 1}; ici.mipLevels = 1; ici.arrayLayers = 1; ici.format = df;
++    ici.tiling = VK_IMAGE_TILING_OPTIMAL; ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; ici.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT; ici.samples = VK_SAMPLE_COUNT_1_BIT; ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (vkCreateImage(impl.device, &ici, nullptr, &impl.gbuffer_depth_image) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer depth"}; }
++    VkMemoryRequirements req {}; vkGetImageMemoryRequirements(impl.device, impl.gbuffer_depth_image, &req);
++    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO}; mai.allocationSize = req.size; mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++    if (vkAllocateMemory(impl.device, &mai, nullptr, &impl.gbuffer_depth_memory) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc gbuffer depth mem"}; }
++    vkBindImageMemory(impl.device, impl.gbuffer_depth_image, impl.gbuffer_depth_memory, 0);
++    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO}; ivci.image = impl.gbuffer_depth_image; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = df; ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT; ivci.subresourceRange.levelCount=1; ivci.subresourceRange.layerCount=1;
++    if (vkCreateImageView(impl.device, &ivci, nullptr, &impl.gbuffer_depth_view) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer depth view"}; }
++
++    // Render pass for gbuffer
++    VkAttachmentDescription color { };
++    color.format = VK_FORMAT_R16G16B16A16_SFLOAT; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkAttachmentDescription depth { };
++    depth.format = df; depth.samples = VK_SAMPLE_COUNT_1_BIT; depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; depth.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; depth.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
++    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
++    VkAttachmentReference depth_ref {1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
++    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref; sub.pDepthStencilAttachment = &depth_ref;
++    VkAttachmentDescription att[2] = {color, depth};
++    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 2; rpci.pAttachments = att; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
++    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.gbuffer_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer render pass"}; }
++
++    // Framebuffer
++    VkImageView views[2] = {impl.gbuffer_view, impl.gbuffer_depth_view};
++    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.gbuffer_render_pass; fbci.attachmentCount = 2; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
++    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.gbuffer_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer framebuffer"}; }
++}
++
++static void destroy_gbuffer_resources(VulkanContext& ctx) noexcept {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    if (impl.gbuffer_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.gbuffer_framebuffer, nullptr); impl.gbuffer_framebuffer = VK_NULL_HANDLE; }
++    if (impl.gbuffer_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.gbuffer_render_pass, nullptr); impl.gbuffer_render_pass = VK_NULL_HANDLE; }
++    if (impl.gbuffer_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.gbuffer_view, nullptr); impl.gbuffer_view = VK_NULL_HANDLE; }
++    if (impl.gbuffer_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.gbuffer_image, nullptr); impl.gbuffer_image = VK_NULL_HANDLE; }
++    if (impl.gbuffer_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.gbuffer_memory, nullptr); impl.gbuffer_memory = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.gbuffer_depth_view, nullptr); impl.gbuffer_depth_view = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.gbuffer_depth_image, nullptr); impl.gbuffer_depth_image = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.gbuffer_depth_memory, nullptr); impl.gbuffer_depth_memory = VK_NULL_HANDLE; }
++    if (impl.gbuffer_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.gbuffer_pipeline, nullptr); impl.gbuffer_pipeline = VK_NULL_HANDLE; }
++    if (impl.gbuffer_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.gbuffer_pipeline_layout, nullptr); impl.gbuffer_pipeline_layout = VK_NULL_HANDLE; }
++}
++
++static void create_ssao_resources(VulkanContext& ctx) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    const uint32_t w = impl.swapchain_extent.width;
++    const uint32_t h = impl.swapchain_extent.height;
++    // Create AO image as color attachment + sampled (R8)
++    create_color_image(ctx, w, h, VK_FORMAT_R8_UNORM,
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++        &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++
++    // SSAO render pass
++    VkAttachmentDescription color { };
++    color.format = VK_FORMAT_R8_UNORM; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
++    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref;
++    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 1; rpci.pAttachments = &color; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
++    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.ssao_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create ssao render pass"}; }
++
++    VkImageView views[1] = {impl.ao_view};
++    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.ssao_render_pass; fbci.attachmentCount = 1; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
++    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.ssao_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create ssao framebuffer"}; }
++}
++
++static void destroy_ssao_resources(VulkanContext& ctx) noexcept {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    if (impl.ssao_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.ssao_framebuffer, nullptr); impl.ssao_framebuffer = VK_NULL_HANDLE; }
++    if (impl.ssao_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.ssao_render_pass, nullptr); impl.ssao_render_pass = VK_NULL_HANDLE; }
++    if (impl.ssao_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.ssao_pipeline, nullptr); impl.ssao_pipeline = VK_NULL_HANDLE; }
++    if (impl.ssao_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.ssao_pipeline_layout, nullptr); impl.ssao_pipeline_layout = VK_NULL_HANDLE; }
++}
++
+ static void upload_mesh_to_gpu(VulkanContext& ctx, const vulkano::Mesh& mesh) {
+     auto& impl = VulkanContextInternalsHelper::get(ctx);
+     destroy_mesh_buffers(ctx);
+@@ -838,7 +969,7 @@
+     vkDestroyShaderModule(impl.device, vmod, nullptr);
+     vkDestroyShaderModule(impl.device, fmod, nullptr);
+ 
+-    // Material resources for forward shading
++    // Material resources for forward shading and prepasses
+     if (forward) {
+         // Create sampler
+         VkSamplerCreateInfo sci {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+@@ -856,23 +987,28 @@
+         create_image_and_upload(ctx, W, H, albedo.data(), static_cast<VkDeviceSize>(albedo.size()*sizeof(std::uint32_t)), &impl.albedo_image, &impl.albedo_memory, &impl.albedo_view);
+         create_image_and_upload(ctx, W, H, normal.data(), static_cast<VkDeviceSize>(normal.size()*sizeof(std::uint32_t)), &impl.normal_image, &impl.normal_memory, &impl.normal_view);
+ 
+-        // AO texture placeholder: 1x1 white (no occlusion)
+-        const uint32_t AO_W = 1, AO_H = 1; const std::uint32_t white = 0xFFFFFFFFu;
+-        create_image_and_upload(ctx, AO_W, AO_H, &white, sizeof(white), &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++        // Create G-buffer and SSAO render targets sized to swapchain
++        destroy_gbuffer_resources(ctx);
++        destroy_ssao_resources(ctx);
++        create_gbuffer_resources(ctx);
++        create_ssao_resources(ctx);
+ 
+         // Create UBO (256 bytes)
+-        create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        if (impl.ubo_buffer == VK_NULL_HANDLE) {
++            create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        }
+ 
+         // Descriptor pool and set
+         VkDescriptorPoolSize poolSizes[2] = {};
+-        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 1;
+-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 3;
++        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 2; // forward + ssao
++        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 6; // 3 forward + 1 ssao (+spare)
+         VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+-        dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 1;
++        dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 2;
+         vkCreateDescriptorPool(impl.device, &dpci, nullptr, &impl.desc_pool);
+         VkDescriptorSetAllocateInfo dsai {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+         dsai.descriptorPool = impl.desc_pool; dsai.descriptorSetCount = 1; dsai.pSetLayouts = &impl.desc_layout;
+         vkAllocateDescriptorSets(impl.device, &dsai, &impl.desc_set);
++        vkAllocateDescriptorSets(impl.device, &dsai, &impl.ssao_desc_set);
+         VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
+         VkDescriptorImageInfo dai1 {}; dai1.sampler = impl.sampler; dai1.imageView = impl.albedo_view; dai1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+         VkDescriptorImageInfo dai2 {}; dai2.sampler = impl.sampler; dai2.imageView = impl.normal_view; dai2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+@@ -883,6 +1019,78 @@
+         writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = impl.desc_set; writes[2].dstBinding = 2; writes[2].descriptorCount = 1; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[2].pImageInfo = &dai2;
+         writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[3].dstSet = impl.desc_set; writes[3].dstBinding = 3; writes[3].descriptorCount = 1; writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[3].pImageInfo = &dai3;
+         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
++
++        // SSAO descriptor set: UBO + ND texture at binding 1
++        VkDescriptorImageInfo dai_nd {}; dai_nd.sampler = impl.sampler; dai_nd.imageView = impl.gbuffer_view; dai_nd.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++        std::array<VkWriteDescriptorSet,2> writes_ssao {};
++        writes_ssao[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes_ssao[0].dstSet = impl.ssao_desc_set; writes_ssao[0].dstBinding = 0; writes_ssao[0].descriptorCount = 1; writes_ssao[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes_ssao[0].pBufferInfo = &dbi;
++        writes_ssao[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes_ssao[1].dstSet = impl.ssao_desc_set; writes_ssao[1].dstBinding = 1; writes_ssao[1].descriptorCount = 1; writes_ssao[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes_ssao[1].pImageInfo = &dai_nd;
++        vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes_ssao.size()), writes_ssao.data(), 0, nullptr);
++
++        // Create G-buffer pipeline
++        {
++            auto gvs = load_binary_file("shaders/gbuffer.vert.spv");
++            auto gfs = load_binary_file("shaders/gbuffer.frag.spv");
++            if (!gvs.empty() && !gfs.empty()) {
++                VkShaderModule gv = create_shader_module(impl.device, gvs);
++                VkShaderModule gf = create_shader_module(impl.device, gfs);
++                VkPipelineShaderStageCreateInfo stages[2] = {};
++                stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT; stages[0].module = gv; stages[0].pName = "main";
++                stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT; stages[1].module = gf; stages[1].pName = "main";
++                VkVertexInputBindingDescription binding {0, static_cast<uint32_t>(sizeof(vulkano::Vertex)), VK_VERTEX_INPUT_RATE_VERTEX};
++                std::array<VkVertexInputAttributeDescription,5> attrs = {
++                    VkVertexInputAttributeDescription{0,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, position)},
++                    VkVertexInputAttributeDescription{1,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, normal)},
++                    VkVertexInputAttributeDescription{2,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, tangent)},
++                    VkVertexInputAttributeDescription{3,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, bitangent)},
++                    VkVertexInputAttributeDescription{4,0,VK_FORMAT_R32G32_SFLOAT, offsetof(vulkano::Vertex, texcoord)} };
++                VkPipelineVertexInputStateCreateInfo vi {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO}; vi.vertexBindingDescriptionCount=1; vi.pVertexBindingDescriptions=&binding; vi.vertexAttributeDescriptionCount=static_cast<uint32_t>(attrs.size()); vi.pVertexAttributeDescriptions=attrs.data();
++                VkPipelineInputAssemblyStateCreateInfo ia {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO}; ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
++                VkViewport viewport {}; viewport.x=0; viewport.y=0; viewport.width=static_cast<float>(impl.swapchain_extent.width); viewport.height=static_cast<float>(impl.swapchain_extent.height); viewport.minDepth=0.0F; viewport.maxDepth=1.0F;
++                VkRect2D scissor {{0,0}, impl.swapchain_extent};
++                VkPipelineViewportStateCreateInfo vp {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO}; vp.viewportCount=1; vp.pViewports=&viewport; vp.scissorCount=1; vp.pScissors=&scissor;
++                VkPipelineRasterizationStateCreateInfo rs {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO}; rs.polygonMode=VK_POLYGON_MODE_FILL; rs.cullMode=VK_CULL_MODE_BACK_BIT; rs.frontFace=VK_FRONT_FACE_COUNTER_CLOCKWISE; rs.lineWidth=1.0F;
++                VkPipelineMultisampleStateCreateInfo ms {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO}; ms.rasterizationSamples=VK_SAMPLE_COUNT_1_BIT;
++                VkPipelineDepthStencilStateCreateInfo dss {VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO}; dss.depthTestEnable=VK_TRUE; dss.depthWriteEnable=VK_TRUE; dss.depthCompareOp=VK_COMPARE_OP_LESS;
++                VkPipelineColorBlendAttachmentState cba {}; cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT|VK_COLOR_COMPONENT_G_BIT|VK_COLOR_COMPONENT_B_BIT|VK_COLOR_COMPONENT_A_BIT;
++                VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO}; cb.attachmentCount=1; cb.pAttachments=&cba;
++                VkPushConstantRange pcr2 {}; pcr2.offset=0; pcr2.size=static_cast<uint32_t>(sizeof(float)*16U); pcr2.stageFlags=VK_SHADER_STAGE_VERTEX_BIT;
++                VkPipelineLayoutCreateInfo plci2 {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO}; plci2.pushConstantRangeCount=1; plci2.pPushConstantRanges=&pcr2; plci2.setLayoutCount=1; plci2.pSetLayouts=&impl.desc_layout;
++                vkCreatePipelineLayout(impl.device, &plci2, nullptr, &impl.gbuffer_pipeline_layout);
++                VkGraphicsPipelineCreateInfo gpci2 {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO}; gpci2.stageCount=2; gpci2.pStages=stages; gpci2.pVertexInputState=&vi; gpci2.pInputAssemblyState=&ia; gpci2.pViewportState=&vp; gpci2.pRasterizationState=&rs; gpci2.pMultisampleState=&ms; gpci2.pDepthStencilState=&dss; gpci2.pColorBlendState=&cb; gpci2.layout=impl.gbuffer_pipeline_layout; gpci2.renderPass=impl.gbuffer_render_pass; gpci2.subpass=0;
++                vkCreateGraphicsPipelines(impl.device, VK_NULL_HANDLE, 1, &gpci2, nullptr, &impl.gbuffer_pipeline);
++                vkDestroyShaderModule(impl.device, gv, nullptr);
++                vkDestroyShaderModule(impl.device, gf, nullptr);
++            }
++        }
++
++        // Create SSAO pipeline (fullscreen)
++        {
++            auto sv = load_binary_file("shaders/fullscreen.vert.spv");
++            auto sf = load_binary_file("shaders/ssao.frag.spv");
++            if (!sv.empty() && !sf.empty()) {
++                VkShaderModule v = create_shader_module(impl.device, sv);
++                VkShaderModule f = create_shader_module(impl.device, sf);
++                VkPipelineShaderStageCreateInfo stages[2] = {};
++                stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT; stages[0].module = v; stages[0].pName = "main";
++                stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT; stages[1].module = f; stages[1].pName = "main";
++                VkPipelineVertexInputStateCreateInfo vi {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
++                VkPipelineInputAssemblyStateCreateInfo ia {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO}; ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
++                VkViewport viewport {}; viewport.x=0; viewport.y=0; viewport.width=static_cast<float>(impl.swapchain_extent.width); viewport.height=static_cast<float>(impl.swapchain_extent.height); viewport.minDepth=0.0F; viewport.maxDepth=1.0F;
++                VkRect2D scissor {{0,0}, impl.swapchain_extent};
++                VkPipelineViewportStateCreateInfo vp {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO}; vp.viewportCount=1; vp.pViewports=&viewport; vp.scissorCount=1; vp.pScissors=&scissor;
++                VkPipelineRasterizationStateCreateInfo rs {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO}; rs.polygonMode=VK_POLYGON_MODE_FILL; rs.cullMode=VK_CULL_MODE_NONE; rs.frontFace=VK_FRONT_FACE_COUNTER_CLOCKWISE; rs.lineWidth=1.0F;
++                VkPipelineMultisampleStateCreateInfo ms {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO}; ms.rasterizationSamples=VK_SAMPLE_COUNT_1_BIT;
++                VkPipelineColorBlendAttachmentState cba {}; cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT;
++                VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO}; cb.attachmentCount=1; cb.pAttachments=&cba;
++                VkPipelineLayoutCreateInfo plci3 {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO}; plci3.setLayoutCount=1; plci3.pSetLayouts=&impl.desc_layout;
++                vkCreatePipelineLayout(impl.device, &plci3, nullptr, &impl.ssao_pipeline_layout);
++                VkGraphicsPipelineCreateInfo gpci3 {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO}; gpci3.stageCount=2; gpci3.pStages=stages; gpci3.pVertexInputState=&vi; gpci3.pInputAssemblyState=&ia; gpci3.pViewportState=&vp; gpci3.pRasterizationState=&rs; gpci3.pMultisampleState=&ms; gpci3.pColorBlendState=&cb; gpci3.layout=impl.ssao_pipeline_layout; gpci3.renderPass=impl.ssao_render_pass; gpci3.subpass=0;
++                vkCreateGraphicsPipelines(impl.device, VK_NULL_HANDLE, 1, &gpci3, nullptr, &impl.ssao_pipeline);
++                vkDestroyShaderModule(impl.device, v, nullptr);
++                vkDestroyShaderModule(impl.device, f, nullptr);
++            }
++        }
+     }
+ }
+ 
+
+[2025-09-15T17:03:55] exec bash -lc "sed -n '996,1144p' src/vulkan_context.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T17:03:55] bash -lc "sed -n '996,1144p' src/vulkan_context.cpp" succeeded in 29ms:
+        // Create UBO (256 bytes)
+        if (impl.ubo_buffer == VK_NULL_HANDLE) {
+            create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
+        }
+
+        // Descriptor pool and set
+        VkDescriptorPoolSize poolSizes[2] = {};
+        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 2; // forward + ssao
+        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 6; // 3 forward + 1 ssao (+spare)
+        VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+        dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 2;
+        vkCreateDescriptorPool(impl.device, &dpci, nullptr, &impl.desc_pool);
+        VkDescriptorSetAllocateInfo dsai {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+        dsai.descriptorPool = impl.desc_pool; dsai.descriptorSetCount = 1; dsai.pSetLayouts = &impl.desc_layout;
+        vkAllocateDescriptorSets(impl.device, &dsai, &impl.desc_set);
+        vkAllocateDescriptorSets(impl.device, &dsai, &impl.ssao_desc_set);
+        VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
+        VkDescriptorImageInfo dai1 {}; dai1.sampler = impl.sampler; dai1.imageView = impl.albedo_view; dai1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        VkDescriptorImageInfo dai2 {}; dai2.sampler = impl.sampler; dai2.imageView = impl.normal_view; dai2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        VkDescriptorImageInfo dai3 {}; dai3.sampler = impl.sampler; dai3.imageView = impl.ao_view; dai3.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+[2025-09-15T17:03:55] tokens used: 128,463
+[2025-09-15T17:03:55] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+diff --git a/shaders/fullscreen.vert b/shaders/fullscreen.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..47ef99bf5518ea3ce9baaf3e01e4b8041e98e68d
+--- /dev/null
++++ b/shaders/fullscreen.vert
+@@ -0,0 +1,20 @@
++#version 450
++
++layout(location = 0) out vec2 vUV;
++
++void main() {
++    // Fullscreen triangle
++    const vec2 positions[3] = vec2[3](
++        vec2(-1.0, -1.0),
++        vec2( 3.0, -1.0),
++        vec2(-1.0,  3.0)
++    );
++    const vec2 uvs[3] = vec2[3](
++        vec2(0.0, 0.0),
++        vec2(2.0, 0.0),
++        vec2(0.0, 2.0)
++    );
++    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
++    vUV = uvs[gl_VertexIndex];
++}
++
+diff --git a/shaders/gbuffer.frag b/shaders/gbuffer.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..f116ab22511268e2aaef9d7bf34c2a990af23f13
+--- /dev/null
++++ b/shaders/gbuffer.frag
+@@ -0,0 +1,16 @@
++#version 450
++
++layout(location = 0) in vec3 vNormalVS;
++layout(location = 1) in float vDepthVS;
++layout(location = 2) in vec2 vUV;
++
++layout(location = 0) out vec4 outND;
++
++void main() {
++    // Pack view-space normal into RGB ([-1,1] -> [0,1]) and linear depth into A
++    vec3 n = normalize(vNormalVS);
++    vec3 n01 = n * 0.5 + 0.5;
++    float depth = vDepthVS;
++    outND = vec4(n01, depth);
++}
++
+diff --git a/shaders/gbuffer.vert b/shaders/gbuffer.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8c46e3cfe30155fc0601a6b6d4f29b4b593166
+--- /dev/null
++++ b/shaders/gbuffer.vert
+@@ -0,0 +1,33 @@
++#version 450
++
++layout(location = 0) in vec3 inPos;
++layout(location = 1) in vec3 inNormal;
++layout(location = 4) in vec2 inUV;
++
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(location = 0) out vec3 vNormalVS;
++layout(location = 1) out float vDepthVS;
++layout(location = 2) out vec2 vUV;
++
++void main() {
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
++    // view-space normal: ignore translation part
++    mat3 view3 = mat3(ubo.view);
++    vNormalVS = normalize(view3 * inNormal);
++    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
++    vDepthVS = -posVS.z; // positive distance from camera
++    vUV = inUV;
++}
++
+diff --git a/shaders/ssao.frag b/shaders/ssao.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..44f54958184303534d4698354b96ceff72b715e0
+--- /dev/null
++++ b/shaders/ssao.frag
+@@ -0,0 +1,48 @@
++#version 450
++
++layout(location = 0) in vec2 vUV;
++layout(location = 0) out float outAO;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    // x=invWidth, y=invHeight, z=aoPower, w=radius
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(set = 0, binding = 1) uniform sampler2D uND; // gbuffer normal/depth packed
++
++// Simple 2D SSAO kernel
++const int KERNEL = 16;
++const vec2 OFFSETS[KERNEL] = vec2[KERNEL](
++    vec2( 1,  0), vec2(-1,  0), vec2( 0,  1), vec2( 0, -1),
++    vec2( 1,  1), vec2(-1,  1), vec2( 1, -1), vec2(-1, -1),
++    vec2( 2,  0), vec2(-2,  0), vec2( 0,  2), vec2( 0, -2),
++    vec2( 2,  1), vec2(-2,  1), vec2( 1,  2), vec2(-1, -2)
++);
++
++void main() {
++    vec2 texel = vec2(ubo.screen_invW_invH_aoPower_radius.x, ubo.screen_invW_invH_aoPower_radius.y);
++    float radius = max(ubo.screen_invW_invH_aoPower_radius.w, 1.0);
++
++    vec4 nd = texture(uND, vUV);
++    vec3 n = normalize(nd.xyz * 2.0 - 1.0);
++    float depth = nd.w;
++
++    float occlusion = 0.0;
++    for (int i = 0; i < KERNEL; ++i) {
++        vec2 offset = OFFSETS[i] * texel * radius;
++        vec4 ndS = texture(uND, vUV + offset);
++        float depthS = ndS.w;
++        float range = smoothstep(0.0, 1.0, radius);
++        float delta = depthS - depth;
++        float occ = step(0.001, delta) * (1.0 - clamp(delta / (radius), 0.0, 1.0)) * range;
++        occlusion += occ;
++    }
++    occlusion /= float(KERNEL);
++    outAO = 1.0 - occlusion;
++}
++
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index e45d560a53955091853910b65ddcc068813d80f3..3544266a78f78e63850b4af4132cac481ac294b4
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -74,6 +74,25 @@
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
++    // G-buffer (Normals+Depth packed into RGBA16F) prepass resources
++    VkRenderPass gbuffer_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer gbuffer_framebuffer {VK_NULL_HANDLE};
++    VkImage gbuffer_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_view {VK_NULL_HANDLE};
++    VkImage gbuffer_depth_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_depth_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_depth_view {VK_NULL_HANDLE};
++    VkPipelineLayout gbuffer_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline gbuffer_pipeline {VK_NULL_HANDLE};
++
++    // SSAO pass resources (writes AO into ao_image which is sampled in forward)
++    VkRenderPass ssao_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer ssao_framebuffer {VK_NULL_HANDLE};
++    VkPipelineLayout ssao_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline ssao_pipeline {VK_NULL_HANDLE};
++    VkDescriptorSet ssao_desc_set {VK_NULL_HANDLE};
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+@@ -641,6 +660,118 @@
+     if (vkCreateImageView(impl.device, &ivci, nullptr, outView) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image view"}; }
+ }
+ 
++static void create_color_image(VulkanContext& ctx, uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage,
++    VkImage* outImage, VkDeviceMemory* outMem, VkImageView* outView) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
++    ici.imageType = VK_IMAGE_TYPE_2D;
++    ici.extent = {width, height, 1};
++    ici.mipLevels = 1;
++    ici.arrayLayers = 1;
++    ici.format = format;
++    ici.tiling = VK_IMAGE_TILING_OPTIMAL;
++    ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
++    ici.usage = usage;
++    ici.samples = VK_SAMPLE_COUNT_1_BIT;
++    ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (vkCreateImage(impl.device, &ici, nullptr, outImage) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image"}; }
++    VkMemoryRequirements req {};
++    vkGetImageMemoryRequirements(impl.device, *outImage, &req);
++    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
++    mai.allocationSize = req.size;
++    mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++    if (vkAllocateMemory(impl.device, &mai, nullptr, outMem) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc image mem"}; }
++    vkBindImageMemory(impl.device, *outImage, *outMem, 0);
++
++    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
++    ivci.image = *outImage; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = format;
++    ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; ivci.subresourceRange.levelCount = 1; ivci.subresourceRange.layerCount = 1;
++    if (vkCreateImageView(impl.device, &ivci, nullptr, outView) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image view"}; }
++}
++
++static void create_gbuffer_resources(VulkanContext& ctx) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    const uint32_t w = impl.swapchain_extent.width;
++    const uint32_t h = impl.swapchain_extent.height;
++    // Create ND image (RGBA16F) with color attachment + sampled usage
++    create_color_image(ctx, w, h, VK_FORMAT_R16G16B16A16_SFLOAT,
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++        &impl.gbuffer_image, &impl.gbuffer_memory, &impl.gbuffer_view);
++    // Create depth for gbuffer
++    VkFormat df = find_depth_format(ctx);
++    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
++    ici.imageType = VK_IMAGE_TYPE_2D; ici.extent = {w, h, 1}; ici.mipLevels = 1; ici.arrayLayers = 1; ici.format = df;
++    ici.tiling = VK_IMAGE_TILING_OPTIMAL; ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; ici.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT; ici.samples = VK_SAMPLE_COUNT_1_BIT; ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (vkCreateImage(impl.device, &ici, nullptr, &impl.gbuffer_depth_image) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer depth"}; }
++    VkMemoryRequirements req {}; vkGetImageMemoryRequirements(impl.device, impl.gbuffer_depth_image, &req);
++    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO}; mai.allocationSize = req.size; mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++    if (vkAllocateMemory(impl.device, &mai, nullptr, &impl.gbuffer_depth_memory) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc gbuffer depth mem"}; }
++    vkBindImageMemory(impl.device, impl.gbuffer_depth_image, impl.gbuffer_depth_memory, 0);
++    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO}; ivci.image = impl.gbuffer_depth_image; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = df; ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT; ivci.subresourceRange.levelCount=1; ivci.subresourceRange.layerCount=1;
++    if (vkCreateImageView(impl.device, &ivci, nullptr, &impl.gbuffer_depth_view) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer depth view"}; }
++
++    // Render pass for gbuffer
++    VkAttachmentDescription color { };
++    color.format = VK_FORMAT_R16G16B16A16_SFLOAT; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkAttachmentDescription depth { };
++    depth.format = df; depth.samples = VK_SAMPLE_COUNT_1_BIT; depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; depth.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; depth.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
++    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
++    VkAttachmentReference depth_ref {1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
++    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref; sub.pDepthStencilAttachment = &depth_ref;
++    VkAttachmentDescription att[2] = {color, depth};
++    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 2; rpci.pAttachments = att; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
++    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.gbuffer_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer render pass"}; }
++
++    // Framebuffer
++    VkImageView views[2] = {impl.gbuffer_view, impl.gbuffer_depth_view};
++    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.gbuffer_render_pass; fbci.attachmentCount = 2; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
++    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.gbuffer_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer framebuffer"}; }
++}
++
++static void destroy_gbuffer_resources(VulkanContext& ctx) noexcept {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    if (impl.gbuffer_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.gbuffer_framebuffer, nullptr); impl.gbuffer_framebuffer = VK_NULL_HANDLE; }
++    if (impl.gbuffer_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.gbuffer_render_pass, nullptr); impl.gbuffer_render_pass = VK_NULL_HANDLE; }
++    if (impl.gbuffer_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.gbuffer_view, nullptr); impl.gbuffer_view = VK_NULL_HANDLE; }
++    if (impl.gbuffer_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.gbuffer_image, nullptr); impl.gbuffer_image = VK_NULL_HANDLE; }
++    if (impl.gbuffer_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.gbuffer_memory, nullptr); impl.gbuffer_memory = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.gbuffer_depth_view, nullptr); impl.gbuffer_depth_view = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.gbuffer_depth_image, nullptr); impl.gbuffer_depth_image = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.gbuffer_depth_memory, nullptr); impl.gbuffer_depth_memory = VK_NULL_HANDLE; }
++    if (impl.gbuffer_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.gbuffer_pipeline, nullptr); impl.gbuffer_pipeline = VK_NULL_HANDLE; }
++    if (impl.gbuffer_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.gbuffer_pipeline_layout, nullptr); impl.gbuffer_pipeline_layout = VK_NULL_HANDLE; }
++}
++
++static void create_ssao_resources(VulkanContext& ctx) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    const uint32_t w = impl.swapchain_extent.width;
++    const uint32_t h = impl.swapchain_extent.height;
++    // Create AO image as color attachment + sampled (R8)
++    create_color_image(ctx, w, h, VK_FORMAT_R8_UNORM,
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++        &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++
++    // SSAO render pass
++    VkAttachmentDescription color { };
++    color.format = VK_FORMAT_R8_UNORM; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
++    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref;
++    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 1; rpci.pAttachments = &color; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
++    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.ssao_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create ssao render pass"}; }
++
++    VkImageView views[1] = {impl.ao_view};
++    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.ssao_render_pass; fbci.attachmentCount = 1; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
++    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.ssao_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create ssao framebuffer"}; }
++}
++
++static void destroy_ssao_resources(VulkanContext& ctx) noexcept {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    if (impl.ssao_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.ssao_framebuffer, nullptr); impl.ssao_framebuffer = VK_NULL_HANDLE; }
++    if (impl.ssao_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.ssao_render_pass, nullptr); impl.ssao_render_pass = VK_NULL_HANDLE; }
++    if (impl.ssao_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.ssao_pipeline, nullptr); impl.ssao_pipeline = VK_NULL_HANDLE; }
++    if (impl.ssao_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.ssao_pipeline_layout, nullptr); impl.ssao_pipeline_layout = VK_NULL_HANDLE; }
++}
++
+ static void upload_mesh_to_gpu(VulkanContext& ctx, const vulkano::Mesh& mesh) {
+     auto& impl = VulkanContextInternalsHelper::get(ctx);
+     destroy_mesh_buffers(ctx);
+@@ -838,7 +969,7 @@
+     vkDestroyShaderModule(impl.device, vmod, nullptr);
+     vkDestroyShaderModule(impl.device, fmod, nullptr);
+ 
+-    // Material resources for forward shading
++    // Material resources for forward shading and prepasses
+     if (forward) {
+         // Create sampler
+         VkSamplerCreateInfo sci {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+@@ -856,23 +987,28 @@
+         create_image_and_upload(ctx, W, H, albedo.data(), static_cast<VkDeviceSize>(albedo.size()*sizeof(std::uint32_t)), &impl.albedo_image, &impl.albedo_memory, &impl.albedo_view);
+         create_image_and_upload(ctx, W, H, normal.data(), static_cast<VkDeviceSize>(normal.size()*sizeof(std::uint32_t)), &impl.normal_image, &impl.normal_memory, &impl.normal_view);
+ 
+-        // AO texture placeholder: 1x1 white (no occlusion)
+-        const uint32_t AO_W = 1, AO_H = 1; const std::uint32_t white = 0xFFFFFFFFu;
+-        create_image_and_upload(ctx, AO_W, AO_H, &white, sizeof(white), &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++        // Create G-buffer and SSAO render targets sized to swapchain
++        destroy_gbuffer_resources(ctx);
++        destroy_ssao_resources(ctx);
++        create_gbuffer_resources(ctx);
++        create_ssao_resources(ctx);
+ 
+         // Create UBO (256 bytes)
+-        create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        if (impl.ubo_buffer == VK_NULL_HANDLE) {
++            create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        }
+ 
+         // Descriptor pool and set
+         VkDescriptorPoolSize poolSizes[2] = {};
+-        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 1;
+-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 3;
++        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 2; // forward + ssao
++        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 6; // 3 forward + 1 ssao (+spare)
+         VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+-        dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 1;
++        dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 2;
+         vkCreateDescriptorPool(impl.device, &dpci, nullptr, &impl.desc_pool);
+         VkDescriptorSetAllocateInfo dsai {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+         dsai.descriptorPool = impl.desc_pool; dsai.descriptorSetCount = 1; dsai.pSetLayouts = &impl.desc_layout;
+         vkAllocateDescriptorSets(impl.device, &dsai, &impl.desc_set);
++        vkAllocateDescriptorSets(impl.device, &dsai, &impl.ssao_desc_set);
+         VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
+         VkDescriptorImageInfo dai1 {}; dai1.sampler = impl.sampler; dai1.imageView = impl.albedo_view; dai1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+         VkDescriptorImageInfo dai2 {}; dai2.sampler = impl.sampler; dai2.imageView = impl.normal_view; dai2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+@@ -883,6 +1019,78 @@
+         writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = impl.desc_set; writes[2].dstBinding = 2; writes[2].descriptorCount = 1; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[2].pImageInfo = &dai2;
+         writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[3].dstSet = impl.desc_set; writes[3].dstBinding = 3; writes[3].descriptorCount = 1; writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[3].pImageInfo = &dai3;
+         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
++
++        // SSAO descriptor set: UBO + ND texture at binding 1
++        VkDescriptorImageInfo dai_nd {}; dai_nd.sampler = impl.sampler; dai_nd.imageView = impl.gbuffer_view; dai_nd.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++        std::array<VkWriteDescriptorSet,2> writes_ssao {};
++        writes_ssao[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes_ssao[0].dstSet = impl.ssao_desc_set; writes_ssao[0].dstBinding = 0; writes_ssao[0].descriptorCount = 1; writes_ssao[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes_ssao[0].pBufferInfo = &dbi;
++        writes_ssao[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes_ssao[1].dstSet = impl.ssao_desc_set; writes_ssao[1].dstBinding = 1; writes_ssao[1].descriptorCount = 1; writes_ssao[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes_ssao[1].pImageInfo = &dai_nd;
++        vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes_ssao.size()), writes_ssao.data(), 0, nullptr);
++
++        // Create G-buffer pipeline
++        {
++            auto gvs = load_binary_file("shaders/gbuffer.vert.spv");
++            auto gfs = load_binary_file("shaders/gbuffer.frag.spv");
++            if (!gvs.empty() && !gfs.empty()) {
++                VkShaderModule gv = create_shader_module(impl.device, gvs);
++                VkShaderModule gf = create_shader_module(impl.device, gfs);
++                VkPipelineShaderStageCreateInfo stages[2] = {};
++                stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT; stages[0].module = gv; stages[0].pName = "main";
++                stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT; stages[1].module = gf; stages[1].pName = "main";
++                VkVertexInputBindingDescription binding {0, static_cast<uint32_t>(sizeof(vulkano::Vertex)), VK_VERTEX_INPUT_RATE_VERTEX};
++                std::array<VkVertexInputAttributeDescription,5> attrs = {
++                    VkVertexInputAttributeDescription{0,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, position)},
++                    VkVertexInputAttributeDescription{1,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, normal)},
++                    VkVertexInputAttributeDescription{2,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, tangent)},
++                    VkVertexInputAttributeDescription{3,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, bitangent)},
++                    VkVertexInputAttributeDescription{4,0,VK_FORMAT_R32G32_SFLOAT, offsetof(vulkano::Vertex, texcoord)} };
++                VkPipelineVertexInputStateCreateInfo vi {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO}; vi.vertexBindingDescriptionCount=1; vi.pVertexBindingDescriptions=&binding; vi.vertexAttributeDescriptionCount=static_cast<uint32_t>(attrs.size()); vi.pVertexAttributeDescriptions=attrs.data();
++                VkPipelineInputAssemblyStateCreateInfo ia {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO}; ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
++                VkViewport viewport {}; viewport.x=0; viewport.y=0; viewport.width=static_cast<float>(impl.swapchain_extent.width); viewport.height=static_cast<float>(impl.swapchain_extent.height); viewport.minDepth=0.0F; viewport.maxDepth=1.0F;
++                VkRect2D scissor {{0,0}, impl.swapchain_extent};
++                VkPipelineViewportStateCreateInfo vp {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO}; vp.viewportCount=1; vp.pViewports=&viewport; vp.scissorCount=1; vp.pScissors=&scissor;
++                VkPipelineRasterizationStateCreateInfo rs {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO}; rs.polygonMode=VK_POLYGON_MODE_FILL; rs.cullMode=VK_CULL_MODE_BACK_BIT; rs.frontFace=VK_FRONT_FACE_COUNTER_CLOCKWISE; rs.lineWidth=1.0F;
++                VkPipelineMultisampleStateCreateInfo ms {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO}; ms.rasterizationSamples=VK_SAMPLE_COUNT_1_BIT;
++                VkPipelineDepthStencilStateCreateInfo dss {VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO}; dss.depthTestEnable=VK_TRUE; dss.depthWriteEnable=VK_TRUE; dss.depthCompareOp=VK_COMPARE_OP_LESS;
++                VkPipelineColorBlendAttachmentState cba {}; cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT|VK_COLOR_COMPONENT_G_BIT|VK_COLOR_COMPONENT_B_BIT|VK_COLOR_COMPONENT_A_BIT;
++                VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO}; cb.attachmentCount=1; cb.pAttachments=&cba;
++                VkPushConstantRange pcr2 {}; pcr2.offset=0; pcr2.size=static_cast<uint32_t>(sizeof(float)*16U); pcr2.stageFlags=VK_SHADER_STAGE_VERTEX_BIT;
++                VkPipelineLayoutCreateInfo plci2 {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO}; plci2.pushConstantRangeCount=1; plci2.pPushConstantRanges=&pcr2; plci2.setLayoutCount=1; plci2.pSetLayouts=&impl.desc_layout;
++                vkCreatePipelineLayout(impl.device, &plci2, nullptr, &impl.gbuffer_pipeline_layout);
++                VkGraphicsPipelineCreateInfo gpci2 {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO}; gpci2.stageCount=2; gpci2.pStages=stages; gpci2.pVertexInputState=&vi; gpci2.pInputAssemblyState=&ia; gpci2.pViewportState=&vp; gpci2.pRasterizationState=&rs; gpci2.pMultisampleState=&ms; gpci2.pDepthStencilState=&dss; gpci2.pColorBlendState=&cb; gpci2.layout=impl.gbuffer_pipeline_layout; gpci2.renderPass=impl.gbuffer_render_pass; gpci2.subpass=0;
++                vkCreateGraphicsPipelines(impl.device, VK_NULL_HANDLE, 1, &gpci2, nullptr, &impl.gbuffer_pipeline);
++                vkDestroyShaderModule(impl.device, gv, nullptr);
++                vkDestroyShaderModule(impl.device, gf, nullptr);
++            }
++        }
++
++        // Create SSAO pipeline (fullscreen)
++        {
++            auto sv = load_binary_file("shaders/fullscreen.vert.spv");
++            auto sf = load_binary_file("shaders/ssao.frag.spv");
++            if (!sv.empty() && !sf.empty()) {
++                VkShaderModule v = create_shader_module(impl.device, sv);
++                VkShaderModule f = create_shader_module(impl.device, sf);
++                VkPipelineShaderStageCreateInfo stages[2] = {};
++                stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT; stages[0].module = v; stages[0].pName = "main";
++                stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT; stages[1].module = f; stages[1].pName = "main";
++                VkPipelineVertexInputStateCreateInfo vi {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
++                VkPipelineInputAssemblyStateCreateInfo ia {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO}; ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
++                VkViewport viewport {}; viewport.x=0; viewport.y=0; viewport.width=static_cast<float>(impl.swapchain_extent.width); viewport.height=static_cast<float>(impl.swapchain_extent.height); viewport.minDepth=0.0F; viewport.maxDepth=1.0F;
++                VkRect2D scissor {{0,0}, impl.swapchain_extent};
++                VkPipelineViewportStateCreateInfo vp {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO}; vp.viewportCount=1; vp.pViewports=&viewport; vp.scissorCount=1; vp.pScissors=&scissor;
++                VkPipelineRasterizationStateCreateInfo rs {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO}; rs.polygonMode=VK_POLYGON_MODE_FILL; rs.cullMode=VK_CULL_MODE_NONE; rs.frontFace=VK_FRONT_FACE_COUNTER_CLOCKWISE; rs.lineWidth=1.0F;
++                VkPipelineMultisampleStateCreateInfo ms {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO}; ms.rasterizationSamples=VK_SAMPLE_COUNT_1_BIT;
++                VkPipelineColorBlendAttachmentState cba {}; cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT;
++                VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO}; cb.attachmentCount=1; cb.pAttachments=&cba;
++                VkPipelineLayoutCreateInfo plci3 {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO}; plci3.setLayoutCount=1; plci3.pSetLayouts=&impl.desc_layout;
++                vkCreatePipelineLayout(impl.device, &plci3, nullptr, &impl.ssao_pipeline_layout);
++                VkGraphicsPipelineCreateInfo gpci3 {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO}; gpci3.stageCount=2; gpci3.pStages=stages; gpci3.pVertexInputState=&vi; gpci3.pInputAssemblyState=&ia; gpci3.pViewportState=&vp; gpci3.pRasterizationState=&rs; gpci3.pMultisampleState=&ms; gpci3.pColorBlendState=&cb; gpci3.layout=impl.ssao_pipeline_layout; gpci3.renderPass=impl.ssao_render_pass; gpci3.subpass=0;
++                vkCreateGraphicsPipelines(impl.device, VK_NULL_HANDLE, 1, &gpci3, nullptr, &impl.ssao_pipeline);
++                vkDestroyShaderModule(impl.device, v, nullptr);
++                vkDestroyShaderModule(impl.device, f, nullptr);
++            }
++        }
+     }
+ }
+ 
+
+[2025-09-15T17:03:59] exec bash -lc "sed -n '1144,1320p' src/vulkan_context.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T17:03:59] bash -lc "sed -n '1144,1320p' src/vulkan_context.cpp" succeeded in 18ms:
+    dci.pQueueCreateInfos = &qci;
+    const char* dev_exts[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+    dci.enabledExtensionCount = 1U;
+    dci.ppEnabledExtensionNames = dev_exts;
+
+    if (vkCreateDevice(impl->physical_device, &dci, nullptr, &impl->device) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create logical device"};
+    }
+    vkGetDeviceQueue(impl->device, gfx_index, 0U, &impl->graphics_queue);
+
+    create_swapchain_and_views(*this, glfw_win);
+    create_renderpass_and_framebuffers(*this);
+    create_commands_and_sync(*this);
+    record_clear_cmds(*this);
+}
+
+VulkanContext::~VulkanContext() {
+    if (impl != nullptr) {
+        if (impl->device != VK_NULL_HANDLE) {
+            vkDeviceWaitIdle(impl->device);
+[2025-09-15T17:03:59] tokens used: 130,227
+[2025-09-15T17:03:59] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+diff --git a/shaders/fullscreen.vert b/shaders/fullscreen.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..47ef99bf5518ea3ce9baaf3e01e4b8041e98e68d
+--- /dev/null
++++ b/shaders/fullscreen.vert
+@@ -0,0 +1,20 @@
++#version 450
++
++layout(location = 0) out vec2 vUV;
++
++void main() {
++    // Fullscreen triangle
++    const vec2 positions[3] = vec2[3](
++        vec2(-1.0, -1.0),
++        vec2( 3.0, -1.0),
++        vec2(-1.0,  3.0)
++    );
++    const vec2 uvs[3] = vec2[3](
++        vec2(0.0, 0.0),
++        vec2(2.0, 0.0),
++        vec2(0.0, 2.0)
++    );
++    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
++    vUV = uvs[gl_VertexIndex];
++}
++
+diff --git a/shaders/gbuffer.frag b/shaders/gbuffer.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..f116ab22511268e2aaef9d7bf34c2a990af23f13
+--- /dev/null
++++ b/shaders/gbuffer.frag
+@@ -0,0 +1,16 @@
++#version 450
++
++layout(location = 0) in vec3 vNormalVS;
++layout(location = 1) in float vDepthVS;
++layout(location = 2) in vec2 vUV;
++
++layout(location = 0) out vec4 outND;
++
++void main() {
++    // Pack view-space normal into RGB ([-1,1] -> [0,1]) and linear depth into A
++    vec3 n = normalize(vNormalVS);
++    vec3 n01 = n * 0.5 + 0.5;
++    float depth = vDepthVS;
++    outND = vec4(n01, depth);
++}
++
+diff --git a/shaders/gbuffer.vert b/shaders/gbuffer.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8c46e3cfe30155fc0601a6b6d4f29b4b593166
+--- /dev/null
++++ b/shaders/gbuffer.vert
+@@ -0,0 +1,33 @@
++#version 450
++
++layout(location = 0) in vec3 inPos;
++layout(location = 1) in vec3 inNormal;
++layout(location = 4) in vec2 inUV;
++
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(location = 0) out vec3 vNormalVS;
++layout(location = 1) out float vDepthVS;
++layout(location = 2) out vec2 vUV;
++
++void main() {
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
++    // view-space normal: ignore translation part
++    mat3 view3 = mat3(ubo.view);
++    vNormalVS = normalize(view3 * inNormal);
++    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
++    vDepthVS = -posVS.z; // positive distance from camera
++    vUV = inUV;
++}
++
+diff --git a/shaders/ssao.frag b/shaders/ssao.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..44f54958184303534d4698354b96ceff72b715e0
+--- /dev/null
++++ b/shaders/ssao.frag
+@@ -0,0 +1,48 @@
++#version 450
++
++layout(location = 0) in vec2 vUV;
++layout(location = 0) out float outAO;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    // x=invWidth, y=invHeight, z=aoPower, w=radius
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(set = 0, binding = 1) uniform sampler2D uND; // gbuffer normal/depth packed
++
++// Simple 2D SSAO kernel
++const int KERNEL = 16;
++const vec2 OFFSETS[KERNEL] = vec2[KERNEL](
++    vec2( 1,  0), vec2(-1,  0), vec2( 0,  1), vec2( 0, -1),
++    vec2( 1,  1), vec2(-1,  1), vec2( 1, -1), vec2(-1, -1),
++    vec2( 2,  0), vec2(-2,  0), vec2( 0,  2), vec2( 0, -2),
++    vec2( 2,  1), vec2(-2,  1), vec2( 1,  2), vec2(-1, -2)
++);
++
++void main() {
++    vec2 texel = vec2(ubo.screen_invW_invH_aoPower_radius.x, ubo.screen_invW_invH_aoPower_radius.y);
++    float radius = max(ubo.screen_invW_invH_aoPower_radius.w, 1.0);
++
++    vec4 nd = texture(uND, vUV);
++    vec3 n = normalize(nd.xyz * 2.0 - 1.0);
++    float depth = nd.w;
++
++    float occlusion = 0.0;
++    for (int i = 0; i < KERNEL; ++i) {
++        vec2 offset = OFFSETS[i] * texel * radius;
++        vec4 ndS = texture(uND, vUV + offset);
++        float depthS = ndS.w;
++        float range = smoothstep(0.0, 1.0, radius);
++        float delta = depthS - depth;
++        float occ = step(0.001, delta) * (1.0 - clamp(delta / (radius), 0.0, 1.0)) * range;
++        occlusion += occ;
++    }
++    occlusion /= float(KERNEL);
++    outAO = 1.0 - occlusion;
++}
++
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index e45d560a53955091853910b65ddcc068813d80f3..3544266a78f78e63850b4af4132cac481ac294b4
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -74,6 +74,25 @@
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
++    // G-buffer (Normals+Depth packed into RGBA16F) prepass resources
++    VkRenderPass gbuffer_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer gbuffer_framebuffer {VK_NULL_HANDLE};
++    VkImage gbuffer_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_view {VK_NULL_HANDLE};
++    VkImage gbuffer_depth_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_depth_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_depth_view {VK_NULL_HANDLE};
++    VkPipelineLayout gbuffer_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline gbuffer_pipeline {VK_NULL_HANDLE};
++
++    // SSAO pass resources (writes AO into ao_image which is sampled in forward)
++    VkRenderPass ssao_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer ssao_framebuffer {VK_NULL_HANDLE};
++    VkPipelineLayout ssao_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline ssao_pipeline {VK_NULL_HANDLE};
++    VkDescriptorSet ssao_desc_set {VK_NULL_HANDLE};
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+@@ -641,6 +660,118 @@
+     if (vkCreateImageView(impl.device, &ivci, nullptr, outView) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image view"}; }
+ }
+ 
++static void create_color_image(VulkanContext& ctx, uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage,
++    VkImage* outImage, VkDeviceMemory* outMem, VkImageView* outView) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
++    ici.imageType = VK_IMAGE_TYPE_2D;
++    ici.extent = {width, height, 1};
++    ici.mipLevels = 1;
++    ici.arrayLayers = 1;
++    ici.format = format;
++    ici.tiling = VK_IMAGE_TILING_OPTIMAL;
++    ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
++    ici.usage = usage;
++    ici.samples = VK_SAMPLE_COUNT_1_BIT;
++    ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (vkCreateImage(impl.device, &ici, nullptr, outImage) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image"}; }
++    VkMemoryRequirements req {};
++    vkGetImageMemoryRequirements(impl.device, *outImage, &req);
++    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
++    mai.allocationSize = req.size;
++    mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++    if (vkAllocateMemory(impl.device, &mai, nullptr, outMem) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc image mem"}; }
++    vkBindImageMemory(impl.device, *outImage, *outMem, 0);
++
++    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
++    ivci.image = *outImage; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = format;
++    ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; ivci.subresourceRange.levelCount = 1; ivci.subresourceRange.layerCount = 1;
++    if (vkCreateImageView(impl.device, &ivci, nullptr, outView) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image view"}; }
++}
++
++static void create_gbuffer_resources(VulkanContext& ctx) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    const uint32_t w = impl.swapchain_extent.width;
++    const uint32_t h = impl.swapchain_extent.height;
++    // Create ND image (RGBA16F) with color attachment + sampled usage
++    create_color_image(ctx, w, h, VK_FORMAT_R16G16B16A16_SFLOAT,
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++        &impl.gbuffer_image, &impl.gbuffer_memory, &impl.gbuffer_view);
++    // Create depth for gbuffer
++    VkFormat df = find_depth_format(ctx);
++    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
++    ici.imageType = VK_IMAGE_TYPE_2D; ici.extent = {w, h, 1}; ici.mipLevels = 1; ici.arrayLayers = 1; ici.format = df;
++    ici.tiling = VK_IMAGE_TILING_OPTIMAL; ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; ici.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT; ici.samples = VK_SAMPLE_COUNT_1_BIT; ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (vkCreateImage(impl.device, &ici, nullptr, &impl.gbuffer_depth_image) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer depth"}; }
++    VkMemoryRequirements req {}; vkGetImageMemoryRequirements(impl.device, impl.gbuffer_depth_image, &req);
++    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO}; mai.allocationSize = req.size; mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++    if (vkAllocateMemory(impl.device, &mai, nullptr, &impl.gbuffer_depth_memory) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc gbuffer depth mem"}; }
++    vkBindImageMemory(impl.device, impl.gbuffer_depth_image, impl.gbuffer_depth_memory, 0);
++    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO}; ivci.image = impl.gbuffer_depth_image; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = df; ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT; ivci.subresourceRange.levelCount=1; ivci.subresourceRange.layerCount=1;
++    if (vkCreateImageView(impl.device, &ivci, nullptr, &impl.gbuffer_depth_view) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer depth view"}; }
++
++    // Render pass for gbuffer
++    VkAttachmentDescription color { };
++    color.format = VK_FORMAT_R16G16B16A16_SFLOAT; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkAttachmentDescription depth { };
++    depth.format = df; depth.samples = VK_SAMPLE_COUNT_1_BIT; depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; depth.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; depth.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
++    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
++    VkAttachmentReference depth_ref {1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
++    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref; sub.pDepthStencilAttachment = &depth_ref;
++    VkAttachmentDescription att[2] = {color, depth};
++    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 2; rpci.pAttachments = att; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
++    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.gbuffer_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer render pass"}; }
++
++    // Framebuffer
++    VkImageView views[2] = {impl.gbuffer_view, impl.gbuffer_depth_view};
++    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.gbuffer_render_pass; fbci.attachmentCount = 2; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
++    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.gbuffer_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer framebuffer"}; }
++}
++
++static void destroy_gbuffer_resources(VulkanContext& ctx) noexcept {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    if (impl.gbuffer_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.gbuffer_framebuffer, nullptr); impl.gbuffer_framebuffer = VK_NULL_HANDLE; }
++    if (impl.gbuffer_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.gbuffer_render_pass, nullptr); impl.gbuffer_render_pass = VK_NULL_HANDLE; }
++    if (impl.gbuffer_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.gbuffer_view, nullptr); impl.gbuffer_view = VK_NULL_HANDLE; }
++    if (impl.gbuffer_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.gbuffer_image, nullptr); impl.gbuffer_image = VK_NULL_HANDLE; }
++    if (impl.gbuffer_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.gbuffer_memory, nullptr); impl.gbuffer_memory = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.gbuffer_depth_view, nullptr); impl.gbuffer_depth_view = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.gbuffer_depth_image, nullptr); impl.gbuffer_depth_image = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.gbuffer_depth_memory, nullptr); impl.gbuffer_depth_memory = VK_NULL_HANDLE; }
++    if (impl.gbuffer_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.gbuffer_pipeline, nullptr); impl.gbuffer_pipeline = VK_NULL_HANDLE; }
++    if (impl.gbuffer_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.gbuffer_pipeline_layout, nullptr); impl.gbuffer_pipeline_layout = VK_NULL_HANDLE; }
++}
++
++static void create_ssao_resources(VulkanContext& ctx) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    const uint32_t w = impl.swapchain_extent.width;
++    const uint32_t h = impl.swapchain_extent.height;
++    // Create AO image as color attachment + sampled (R8)
++    create_color_image(ctx, w, h, VK_FORMAT_R8_UNORM,
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++        &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++
++    // SSAO render pass
++    VkAttachmentDescription color { };
++    color.format = VK_FORMAT_R8_UNORM; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
++    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref;
++    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 1; rpci.pAttachments = &color; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
++    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.ssao_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create ssao render pass"}; }
++
++    VkImageView views[1] = {impl.ao_view};
++    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.ssao_render_pass; fbci.attachmentCount = 1; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
++    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.ssao_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create ssao framebuffer"}; }
++}
++
++static void destroy_ssao_resources(VulkanContext& ctx) noexcept {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    if (impl.ssao_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.ssao_framebuffer, nullptr); impl.ssao_framebuffer = VK_NULL_HANDLE; }
++    if (impl.ssao_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.ssao_render_pass, nullptr); impl.ssao_render_pass = VK_NULL_HANDLE; }
++    if (impl.ssao_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.ssao_pipeline, nullptr); impl.ssao_pipeline = VK_NULL_HANDLE; }
++    if (impl.ssao_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.ssao_pipeline_layout, nullptr); impl.ssao_pipeline_layout = VK_NULL_HANDLE; }
++}
++
+ static void upload_mesh_to_gpu(VulkanContext& ctx, const vulkano::Mesh& mesh) {
+     auto& impl = VulkanContextInternalsHelper::get(ctx);
+     destroy_mesh_buffers(ctx);
+@@ -838,7 +969,7 @@
+     vkDestroyShaderModule(impl.device, vmod, nullptr);
+     vkDestroyShaderModule(impl.device, fmod, nullptr);
+ 
+-    // Material resources for forward shading
++    // Material resources for forward shading and prepasses
+     if (forward) {
+         // Create sampler
+         VkSamplerCreateInfo sci {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+@@ -856,23 +987,28 @@
+         create_image_and_upload(ctx, W, H, albedo.data(), static_cast<VkDeviceSize>(albedo.size()*sizeof(std::uint32_t)), &impl.albedo_image, &impl.albedo_memory, &impl.albedo_view);
+         create_image_and_upload(ctx, W, H, normal.data(), static_cast<VkDeviceSize>(normal.size()*sizeof(std::uint32_t)), &impl.normal_image, &impl.normal_memory, &impl.normal_view);
+ 
+-        // AO texture placeholder: 1x1 white (no occlusion)
+-        const uint32_t AO_W = 1, AO_H = 1; const std::uint32_t white = 0xFFFFFFFFu;
+-        create_image_and_upload(ctx, AO_W, AO_H, &white, sizeof(white), &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++        // Create G-buffer and SSAO render targets sized to swapchain
++        destroy_gbuffer_resources(ctx);
++        destroy_ssao_resources(ctx);
++        create_gbuffer_resources(ctx);
++        create_ssao_resources(ctx);
+ 
+         // Create UBO (256 bytes)
+-        create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        if (impl.ubo_buffer == VK_NULL_HANDLE) {
++            create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        }
+ 
+         // Descriptor pool and set
+         VkDescriptorPoolSize poolSizes[2] = {};
+-        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 1;
+-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 3;
++        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 2; // forward + ssao
++        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 6; // 3 forward + 1 ssao (+spare)
+         VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+-        dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 1;
++        dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 2;
+         vkCreateDescriptorPool(impl.device, &dpci, nullptr, &impl.desc_pool);
+         VkDescriptorSetAllocateInfo dsai {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+         dsai.descriptorPool = impl.desc_pool; dsai.descriptorSetCount = 1; dsai.pSetLayouts = &impl.desc_layout;
+         vkAllocateDescriptorSets(impl.device, &dsai, &impl.desc_set);
++        vkAllocateDescriptorSets(impl.device, &dsai, &impl.ssao_desc_set);
+         VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
+         VkDescriptorImageInfo dai1 {}; dai1.sampler = impl.sampler; dai1.imageView = impl.albedo_view; dai1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+         VkDescriptorImageInfo dai2 {}; dai2.sampler = impl.sampler; dai2.imageView = impl.normal_view; dai2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+@@ -883,6 +1019,78 @@
+         writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = impl.desc_set; writes[2].dstBinding = 2; writes[2].descriptorCount = 1; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[2].pImageInfo = &dai2;
+         writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[3].dstSet = impl.desc_set; writes[3].dstBinding = 3; writes[3].descriptorCount = 1; writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[3].pImageInfo = &dai3;
+         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
++
++        // SSAO descriptor set: UBO + ND texture at binding 1
++        VkDescriptorImageInfo dai_nd {}; dai_nd.sampler = impl.sampler; dai_nd.imageView = impl.gbuffer_view; dai_nd.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++        std::array<VkWriteDescriptorSet,2> writes_ssao {};
++        writes_ssao[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes_ssao[0].dstSet = impl.ssao_desc_set; writes_ssao[0].dstBinding = 0; writes_ssao[0].descriptorCount = 1; writes_ssao[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes_ssao[0].pBufferInfo = &dbi;
++        writes_ssao[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes_ssao[1].dstSet = impl.ssao_desc_set; writes_ssao[1].dstBinding = 1; writes_ssao[1].descriptorCount = 1; writes_ssao[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes_ssao[1].pImageInfo = &dai_nd;
++        vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes_ssao.size()), writes_ssao.data(), 0, nullptr);
++
++        // Create G-buffer pipeline
++        {
++            auto gvs = load_binary_file("shaders/gbuffer.vert.spv");
++            auto gfs = load_binary_file("shaders/gbuffer.frag.spv");
++            if (!gvs.empty() && !gfs.empty()) {
++                VkShaderModule gv = create_shader_module(impl.device, gvs);
++                VkShaderModule gf = create_shader_module(impl.device, gfs);
++                VkPipelineShaderStageCreateInfo stages[2] = {};
++                stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT; stages[0].module = gv; stages[0].pName = "main";
++                stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT; stages[1].module = gf; stages[1].pName = "main";
++                VkVertexInputBindingDescription binding {0, static_cast<uint32_t>(sizeof(vulkano::Vertex)), VK_VERTEX_INPUT_RATE_VERTEX};
++                std::array<VkVertexInputAttributeDescription,5> attrs = {
++                    VkVertexInputAttributeDescription{0,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, position)},
++                    VkVertexInputAttributeDescription{1,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, normal)},
++                    VkVertexInputAttributeDescription{2,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, tangent)},
++                    VkVertexInputAttributeDescription{3,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, bitangent)},
++                    VkVertexInputAttributeDescription{4,0,VK_FORMAT_R32G32_SFLOAT, offsetof(vulkano::Vertex, texcoord)} };
++                VkPipelineVertexInputStateCreateInfo vi {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO}; vi.vertexBindingDescriptionCount=1; vi.pVertexBindingDescriptions=&binding; vi.vertexAttributeDescriptionCount=static_cast<uint32_t>(attrs.size()); vi.pVertexAttributeDescriptions=attrs.data();
++                VkPipelineInputAssemblyStateCreateInfo ia {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO}; ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
++                VkViewport viewport {}; viewport.x=0; viewport.y=0; viewport.width=static_cast<float>(impl.swapchain_extent.width); viewport.height=static_cast<float>(impl.swapchain_extent.height); viewport.minDepth=0.0F; viewport.maxDepth=1.0F;
++                VkRect2D scissor {{0,0}, impl.swapchain_extent};
++                VkPipelineViewportStateCreateInfo vp {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO}; vp.viewportCount=1; vp.pViewports=&viewport; vp.scissorCount=1; vp.pScissors=&scissor;
++                VkPipelineRasterizationStateCreateInfo rs {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO}; rs.polygonMode=VK_POLYGON_MODE_FILL; rs.cullMode=VK_CULL_MODE_BACK_BIT; rs.frontFace=VK_FRONT_FACE_COUNTER_CLOCKWISE; rs.lineWidth=1.0F;
++                VkPipelineMultisampleStateCreateInfo ms {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO}; ms.rasterizationSamples=VK_SAMPLE_COUNT_1_BIT;
++                VkPipelineDepthStencilStateCreateInfo dss {VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO}; dss.depthTestEnable=VK_TRUE; dss.depthWriteEnable=VK_TRUE; dss.depthCompareOp=VK_COMPARE_OP_LESS;
++                VkPipelineColorBlendAttachmentState cba {}; cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT|VK_COLOR_COMPONENT_G_BIT|VK_COLOR_COMPONENT_B_BIT|VK_COLOR_COMPONENT_A_BIT;
++                VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO}; cb.attachmentCount=1; cb.pAttachments=&cba;
++                VkPushConstantRange pcr2 {}; pcr2.offset=0; pcr2.size=static_cast<uint32_t>(sizeof(float)*16U); pcr2.stageFlags=VK_SHADER_STAGE_VERTEX_BIT;
++                VkPipelineLayoutCreateInfo plci2 {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO}; plci2.pushConstantRangeCount=1; plci2.pPushConstantRanges=&pcr2; plci2.setLayoutCount=1; plci2.pSetLayouts=&impl.desc_layout;
++                vkCreatePipelineLayout(impl.device, &plci2, nullptr, &impl.gbuffer_pipeline_layout);
++                VkGraphicsPipelineCreateInfo gpci2 {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO}; gpci2.stageCount=2; gpci2.pStages=stages; gpci2.pVertexInputState=&vi; gpci2.pInputAssemblyState=&ia; gpci2.pViewportState=&vp; gpci2.pRasterizationState=&rs; gpci2.pMultisampleState=&ms; gpci2.pDepthStencilState=&dss; gpci2.pColorBlendState=&cb; gpci2.layout=impl.gbuffer_pipeline_layout; gpci2.renderPass=impl.gbuffer_render_pass; gpci2.subpass=0;
++                vkCreateGraphicsPipelines(impl.device, VK_NULL_HANDLE, 1, &gpci2, nullptr, &impl.gbuffer_pipeline);
++                vkDestroyShaderModule(impl.device, gv, nullptr);
++                vkDestroyShaderModule(impl.device, gf, nullptr);
++            }
++        }
++
++        // Create SSAO pipeline (fullscreen)
++        {
++            auto sv = load_binary_file("shaders/fullscreen.vert.spv");
++            auto sf = load_binary_file("shaders/ssao.frag.spv");
++            if (!sv.empty() && !sf.empty()) {
++                VkShaderModule v = create_shader_module(impl.device, sv);
++                VkShaderModule f = create_shader_module(impl.device, sf);
++                VkPipelineShaderStageCreateInfo stages[2] = {};
++                stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT; stages[0].module = v; stages[0].pName = "main";
++                stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT; stages[1].module = f; stages[1].pName = "main";
++                VkPipelineVertexInputStateCreateInfo vi {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
++                VkPipelineInputAssemblyStateCreateInfo ia {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO}; ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
++                VkViewport viewport {}; viewport.x=0; viewport.y=0; viewport.width=static_cast<float>(impl.swapchain_extent.width); viewport.height=static_cast<float>(impl.swapchain_extent.height); viewport.minDepth=0.0F; viewport.maxDepth=1.0F;
++                VkRect2D scissor {{0,0}, impl.swapchain_extent};
++                VkPipelineViewportStateCreateInfo vp {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO}; vp.viewportCount=1; vp.pViewports=&viewport; vp.scissorCount=1; vp.pScissors=&scissor;
++                VkPipelineRasterizationStateCreateInfo rs {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO}; rs.polygonMode=VK_POLYGON_MODE_FILL; rs.cullMode=VK_CULL_MODE_NONE; rs.frontFace=VK_FRONT_FACE_COUNTER_CLOCKWISE; rs.lineWidth=1.0F;
++                VkPipelineMultisampleStateCreateInfo ms {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO}; ms.rasterizationSamples=VK_SAMPLE_COUNT_1_BIT;
++                VkPipelineColorBlendAttachmentState cba {}; cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT;
++                VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO}; cb.attachmentCount=1; cb.pAttachments=&cba;
++                VkPipelineLayoutCreateInfo plci3 {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO}; plci3.setLayoutCount=1; plci3.pSetLayouts=&impl.desc_layout;
++                vkCreatePipelineLayout(impl.device, &plci3, nullptr, &impl.ssao_pipeline_layout);
++                VkGraphicsPipelineCreateInfo gpci3 {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO}; gpci3.stageCount=2; gpci3.pStages=stages; gpci3.pVertexInputState=&vi; gpci3.pInputAssemblyState=&ia; gpci3.pViewportState=&vp; gpci3.pRasterizationState=&rs; gpci3.pMultisampleState=&ms; gpci3.pColorBlendState=&cb; gpci3.layout=impl.ssao_pipeline_layout; gpci3.renderPass=impl.ssao_render_pass; gpci3.subpass=0;
++                vkCreateGraphicsPipelines(impl.device, VK_NULL_HANDLE, 1, &gpci3, nullptr, &impl.ssao_pipeline);
++                vkDestroyShaderModule(impl.device, v, nullptr);
++                vkDestroyShaderModule(impl.device, f, nullptr);
++            }
++        }
+     }
+ }
+ 
+
+
+[2025-09-15T17:04:06] thinking
+
+**Considering a simpler injection**
+
+It seems like directly patching is complex, so I'm thinking about implementing a simpler injection instead. I’ll perform gbuffer and ssao passes just before the swapchain render pass begins, using additional code. 
+
+This means inserting a block right after `vkBeginCommandBuffer` and before defining `clear_color`. I need to compute view, proj, and model there, and I'll replicate the code. I'll craft a patch to compute matrices, do gbuffer and ssao, and then continue with the existing code. Towards the end, I’ll also update UBO screen[3] from 0.0F to `s.ssao_radius`.
+[2025-09-15T17:05:17] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp
+@@ -1224,2 +1224,60 @@
+         vkBeginCommandBuffer(cmd, &bi);
++        // Optional prepasses: G-buffer then SSAO
++        if (impl->gbuffer_render_pass != VK_NULL_HANDLE && impl->gbuffer_pipeline != VK_NULL_HANDLE) {
++            // Build matrices
++            const float fov = 45.0F;
++            const float radians = fov * 3.1415926535F / 180.0F;
++            const float aspect = static_cast<float>(impl->swapchain_extent.width) / static_cast<float>(impl->swapchain_extent.height == 0 ? 1 : impl->swapchain_extent.height);
++            const float znear = 0.1F;
++            const float zfar = 100.0F;
++            const float f = 1.0F / std::tanf(radians * 0.5F);
++            float proj[16] = {0}; proj[0] = f / aspect; proj[5] = f; proj[10] = (zfar + znear) / (znear - zfar); proj[11] = -1.0F; proj[14] = (2.0F * zfar * znear) / (znear - zfar);
++            const float eye[3] = {0.0F, 0.0F, 3.0F}; const float center[3] = {0.0F, 0.0F, 0.0F}; const float upv[3] = {0.0F, 1.0F, 0.0F};
++            auto norm3 = [](float v[3]) noexcept { const float len = std::sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]); if (len>0.0F){ v[0]/=len; v[1]/=len; v[2]/=len; } };
++            float fwd[3] = {center[0]-eye[0], center[1]-eye[1], center[2]-eye[2]}; norm3(fwd);
++            float s[3] = {fwd[1]*upv[2] - fwd[2]*upv[1], fwd[2]*upv[0] - fwd[0]*upv[2], fwd[0]*upv[1] - fwd[1]*upv[0]}; norm3(s);
++            float u[3] = {s[1]*fwd[2] - s[2]*fwd[1], s[2]*fwd[0] - s[0]*fwd[2], s[0]*fwd[1] - s[1]*fwd[0]};
++            float view[16] = {0}; view[0]=s[0]; view[4]=s[1]; view[8]=s[2]; view[1]=u[0]; view[5]=u[1]; view[9]=u[2]; view[2]=-fwd[0]; view[6]=-fwd[1]; view[10]=-fwd[2]; view[15]=1.0F; view[12]=-(s[0]*eye[0]+s[1]*eye[1]+s[2]*eye[2]); view[13]=-(u[0]*eye[0]+u[1]*eye[1]+u[2]*eye[2]); view[14]=-(-fwd[0]*eye[0]+-fwd[1]*eye[1]+-fwd[2]*eye[2]);
++            float model[16] = {0}; model[0]=1.0F; model[5]=1.0F; model[10]=1.0F; model[15]=1.0F;
++            auto matmul = [](const float a[16], const float b[16], float out[16]) noexcept { for (int r=0;r<4;++r){ for (int c=0;c<4;++c){ out[r*4+c]=a[r*4+0]*b[0*4+c]+a[r*4+1]*b[1*4+c]+a[r*4+2]*b[2*4+c]+a[r*4+3]*b[3*4+c]; } } };
++            float pv[16]={0}; float mvp[16]={0}; matmul(proj, view, pv); matmul(pv, model, mvp);
++
++            // Update UBO screen params early for SSAO
++            if (impl->ubo_buffer != VK_NULL_HANDLE) {
++                struct Align16UBO { float viewM[16]; float projM[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; float screen[4]; } uboData {};
++                for (int i=0;i<16;++i){ uboData.viewM[i]=view[i]; uboData.projM[i]=proj[i]; }
++                const auto sConf = impl->settings;
++                uboData.cam_pos[0]=eye[0]; uboData.cam_pos[1]=eye[1]; uboData.cam_pos[2]=eye[2]; uboData.cam_pos[3]=sConf.normal_strength;
++                uboData.light_pos[0]=sConf.light_pos[0]; uboData.light_pos[1]=sConf.light_pos[1]; uboData.light_pos[2]=sConf.light_pos[2]; uboData.light_pos[3]=sConf.shininess;
++                uboData.light_color[0]=sConf.light_color[0]; uboData.light_color[1]=sConf.light_color[1]; uboData.light_color[2]=sConf.light_color[2]; uboData.light_color[3]=sConf.light_intensity;
++                const float invW = impl->swapchain_extent.width>0 ? 1.0F/static_cast<float>(impl->swapchain_extent.width) : 0.0F;
++                const float invH = impl->swapchain_extent.height>0 ? 1.0F/static_cast<float>(impl->swapchain_extent.height) : 0.0F;
++                uboData.screen[0]=invW; uboData.screen[1]=invH; uboData.screen[2]=sConf.ssao_power; uboData.screen[3]=sConf.ssao_radius;
++                void* ptr=nullptr; vkMapMemory(impl->device, impl->ubo_memory, 0, sizeof(uboData), 0, &ptr); std::memcpy(ptr, &uboData, sizeof(uboData)); vkUnmapMemory(impl->device, impl->ubo_memory);
++            }
++
++            VkClearValue gclears[2]; gclears[0].color={{0,0,0,0}}; gclears[1].depthStencil={1.0F,0};
++            VkRenderPassBeginInfo grbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO}; grbi.renderPass=impl->gbuffer_render_pass; grbi.framebuffer=impl->gbuffer_framebuffer; grbi.renderArea.offset={0,0}; grbi.renderArea.extent=impl->swapchain_extent; grbi.clearValueCount=2; grbi.pClearValues=gclears;
++            vkCmdBeginRenderPass(cmd, &grbi, VK_SUBPASS_CONTENTS_INLINE);
++            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->gbuffer_pipeline);
++            vkCmdPushConstants(cmd, impl->gbuffer_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0U, static_cast<uint32_t>(sizeof(float)*16U), mvp);
++            if (impl->desc_set != VK_NULL_HANDLE) { vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->gbuffer_pipeline_layout, 0, 1, &impl->desc_set, 0, nullptr); }
++            if (impl->vertex_buffer != VK_NULL_HANDLE && impl->index_buffer != VK_NULL_HANDLE && impl->index_count>0U) {
++                VkDeviceSize offs[] = {0}; VkBuffer vbs[] = {impl->vertex_buffer};
++                vkCmdBindVertexBuffers(cmd, 0, 1, vbs, offs);
++                vkCmdBindIndexBuffer(cmd, impl->index_buffer, 0, VK_INDEX_TYPE_UINT32);
++                vkCmdDrawIndexed(cmd, impl->index_count, 1, 0, 0, 0);
++            }
++            vkCmdEndRenderPass(cmd);
++
++            if (impl->ssao_render_pass != VK_NULL_HANDLE && impl->ssao_pipeline != VK_NULL_HANDLE) {
++                VkClearValue sclear; sclear.color={{1.0F,0,0,0}};
++                VkRenderPassBeginInfo srp {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO}; srp.renderPass=impl->ssao_render_pass; srp.framebuffer=impl->ssao_framebuffer; srp.renderArea.offset={0,0}; srp.renderArea.extent=impl->swapchain_extent; srp.clearValueCount=1; srp.pClearValues=&sclear;
++                vkCmdBeginRenderPass(cmd, &srp, VK_SUBPASS_CONTENTS_INLINE);
++                vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->ssao_pipeline);
++                if (impl->ssao_desc_set != VK_NULL_HANDLE) { vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->ssao_pipeline_layout, 0, 1, &impl->ssao_desc_set, 0, nullptr); }
++                vkCmdDraw(cmd, 3, 1, 0, 0);
++                vkCmdEndRenderPass(cmd);
++            }
++        }
+         VkClearValue clear_color {};
+@@ -1301,3 +1359,3 @@
+                 const float invH = impl->swapchain_extent.height > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.height) : 0.0F;
+-                u.screen[0]=invW; u.screen[1]=invH; u.screen[2]=s.ssao_power; u.screen[3]=0.0F;
++                u.screen[0]=invW; u.screen[1]=invH; u.screen[2]=s.ssao_power; u.screen[3]=s.ssao_radius;
+                 void* ubodata=nullptr; vkMapMemory(impl->device, impl->ubo_memory, 0, sizeof(u), 0, &ubodata); std::memcpy(ubodata, &u, sizeof(u)); vkUnmapMemory(impl->device, impl->ubo_memory);
+[2025-09-15T17:05:17] apply_patch(auto_approved=true) exited 0 in 70ms:
+Success. Updated the following files:
+M src/vulkan_context.cpp
+[2025-09-15T17:05:17] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+diff --git a/shaders/fullscreen.vert b/shaders/fullscreen.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..47ef99bf5518ea3ce9baaf3e01e4b8041e98e68d
+--- /dev/null
++++ b/shaders/fullscreen.vert
+@@ -0,0 +1,20 @@
++#version 450
++
++layout(location = 0) out vec2 vUV;
++
++void main() {
++    // Fullscreen triangle
++    const vec2 positions[3] = vec2[3](
++        vec2(-1.0, -1.0),
++        vec2( 3.0, -1.0),
++        vec2(-1.0,  3.0)
++    );
++    const vec2 uvs[3] = vec2[3](
++        vec2(0.0, 0.0),
++        vec2(2.0, 0.0),
++        vec2(0.0, 2.0)
++    );
++    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
++    vUV = uvs[gl_VertexIndex];
++}
++
+diff --git a/shaders/gbuffer.frag b/shaders/gbuffer.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..f116ab22511268e2aaef9d7bf34c2a990af23f13
+--- /dev/null
++++ b/shaders/gbuffer.frag
+@@ -0,0 +1,16 @@
++#version 450
++
++layout(location = 0) in vec3 vNormalVS;
++layout(location = 1) in float vDepthVS;
++layout(location = 2) in vec2 vUV;
++
++layout(location = 0) out vec4 outND;
++
++void main() {
++    // Pack view-space normal into RGB ([-1,1] -> [0,1]) and linear depth into A
++    vec3 n = normalize(vNormalVS);
++    vec3 n01 = n * 0.5 + 0.5;
++    float depth = vDepthVS;
++    outND = vec4(n01, depth);
++}
++
+diff --git a/shaders/gbuffer.vert b/shaders/gbuffer.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8c46e3cfe30155fc0601a6b6d4f29b4b593166
+--- /dev/null
++++ b/shaders/gbuffer.vert
+@@ -0,0 +1,33 @@
++#version 450
++
++layout(location = 0) in vec3 inPos;
++layout(location = 1) in vec3 inNormal;
++layout(location = 4) in vec2 inUV;
++
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(location = 0) out vec3 vNormalVS;
++layout(location = 1) out float vDepthVS;
++layout(location = 2) out vec2 vUV;
++
++void main() {
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
++    // view-space normal: ignore translation part
++    mat3 view3 = mat3(ubo.view);
++    vNormalVS = normalize(view3 * inNormal);
++    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
++    vDepthVS = -posVS.z; // positive distance from camera
++    vUV = inUV;
++}
++
+diff --git a/shaders/ssao.frag b/shaders/ssao.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..44f54958184303534d4698354b96ceff72b715e0
+--- /dev/null
++++ b/shaders/ssao.frag
+@@ -0,0 +1,48 @@
++#version 450
++
++layout(location = 0) in vec2 vUV;
++layout(location = 0) out float outAO;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    // x=invWidth, y=invHeight, z=aoPower, w=radius
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(set = 0, binding = 1) uniform sampler2D uND; // gbuffer normal/depth packed
++
++// Simple 2D SSAO kernel
++const int KERNEL = 16;
++const vec2 OFFSETS[KERNEL] = vec2[KERNEL](
++    vec2( 1,  0), vec2(-1,  0), vec2( 0,  1), vec2( 0, -1),
++    vec2( 1,  1), vec2(-1,  1), vec2( 1, -1), vec2(-1, -1),
++    vec2( 2,  0), vec2(-2,  0), vec2( 0,  2), vec2( 0, -2),
++    vec2( 2,  1), vec2(-2,  1), vec2( 1,  2), vec2(-1, -2)
++);
++
++void main() {
++    vec2 texel = vec2(ubo.screen_invW_invH_aoPower_radius.x, ubo.screen_invW_invH_aoPower_radius.y);
++    float radius = max(ubo.screen_invW_invH_aoPower_radius.w, 1.0);
++
++    vec4 nd = texture(uND, vUV);
++    vec3 n = normalize(nd.xyz * 2.0 - 1.0);
++    float depth = nd.w;
++
++    float occlusion = 0.0;
++    for (int i = 0; i < KERNEL; ++i) {
++        vec2 offset = OFFSETS[i] * texel * radius;
++        vec4 ndS = texture(uND, vUV + offset);
++        float depthS = ndS.w;
++        float range = smoothstep(0.0, 1.0, radius);
++        float delta = depthS - depth;
++        float occ = step(0.001, delta) * (1.0 - clamp(delta / (radius), 0.0, 1.0)) * range;
++        occlusion += occ;
++    }
++    occlusion /= float(KERNEL);
++    outAO = 1.0 - occlusion;
++}
++
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index e45d560a53955091853910b65ddcc068813d80f3..d648cc39740b74eae1cc483d2df2be5aea6db021
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -74,6 +74,25 @@
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
++    // G-buffer (Normals+Depth packed into RGBA16F) prepass resources
++    VkRenderPass gbuffer_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer gbuffer_framebuffer {VK_NULL_HANDLE};
++    VkImage gbuffer_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_view {VK_NULL_HANDLE};
++    VkImage gbuffer_depth_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_depth_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_depth_view {VK_NULL_HANDLE};
++    VkPipelineLayout gbuffer_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline gbuffer_pipeline {VK_NULL_HANDLE};
++
++    // SSAO pass resources (writes AO into ao_image which is sampled in forward)
++    VkRenderPass ssao_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer ssao_framebuffer {VK_NULL_HANDLE};
++    VkPipelineLayout ssao_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline ssao_pipeline {VK_NULL_HANDLE};
++    VkDescriptorSet ssao_desc_set {VK_NULL_HANDLE};
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+@@ -641,6 +660,118 @@
+     if (vkCreateImageView(impl.device, &ivci, nullptr, outView) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image view"}; }
+ }
+ 
++static void create_color_image(VulkanContext& ctx, uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage,
++    VkImage* outImage, VkDeviceMemory* outMem, VkImageView* outView) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
++    ici.imageType = VK_IMAGE_TYPE_2D;
++    ici.extent = {width, height, 1};
++    ici.mipLevels = 1;
++    ici.arrayLayers = 1;
++    ici.format = format;
++    ici.tiling = VK_IMAGE_TILING_OPTIMAL;
++    ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
++    ici.usage = usage;
++    ici.samples = VK_SAMPLE_COUNT_1_BIT;
++    ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (vkCreateImage(impl.device, &ici, nullptr, outImage) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image"}; }
++    VkMemoryRequirements req {};
++    vkGetImageMemoryRequirements(impl.device, *outImage, &req);
++    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
++    mai.allocationSize = req.size;
++    mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++    if (vkAllocateMemory(impl.device, &mai, nullptr, outMem) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc image mem"}; }
++    vkBindImageMemory(impl.device, *outImage, *outMem, 0);
++
++    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
++    ivci.image = *outImage; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = format;
++    ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; ivci.subresourceRange.levelCount = 1; ivci.subresourceRange.layerCount = 1;
++    if (vkCreateImageView(impl.device, &ivci, nullptr, outView) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image view"}; }
++}
++
++static void create_gbuffer_resources(VulkanContext& ctx) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    const uint32_t w = impl.swapchain_extent.width;
++    const uint32_t h = impl.swapchain_extent.height;
++    // Create ND image (RGBA16F) with color attachment + sampled usage
++    create_color_image(ctx, w, h, VK_FORMAT_R16G16B16A16_SFLOAT,
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++        &impl.gbuffer_image, &impl.gbuffer_memory, &impl.gbuffer_view);
++    // Create depth for gbuffer
++    VkFormat df = find_depth_format(ctx);
++    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
++    ici.imageType = VK_IMAGE_TYPE_2D; ici.extent = {w, h, 1}; ici.mipLevels = 1; ici.arrayLayers = 1; ici.format = df;
++    ici.tiling = VK_IMAGE_TILING_OPTIMAL; ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; ici.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT; ici.samples = VK_SAMPLE_COUNT_1_BIT; ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (vkCreateImage(impl.device, &ici, nullptr, &impl.gbuffer_depth_image) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer depth"}; }
++    VkMemoryRequirements req {}; vkGetImageMemoryRequirements(impl.device, impl.gbuffer_depth_image, &req);
++    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO}; mai.allocationSize = req.size; mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++    if (vkAllocateMemory(impl.device, &mai, nullptr, &impl.gbuffer_depth_memory) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc gbuffer depth mem"}; }
++    vkBindImageMemory(impl.device, impl.gbuffer_depth_image, impl.gbuffer_depth_memory, 0);
++    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO}; ivci.image = impl.gbuffer_depth_image; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = df; ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT; ivci.subresourceRange.levelCount=1; ivci.subresourceRange.layerCount=1;
++    if (vkCreateImageView(impl.device, &ivci, nullptr, &impl.gbuffer_depth_view) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer depth view"}; }
++
++    // Render pass for gbuffer
++    VkAttachmentDescription color { };
++    color.format = VK_FORMAT_R16G16B16A16_SFLOAT; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkAttachmentDescription depth { };
++    depth.format = df; depth.samples = VK_SAMPLE_COUNT_1_BIT; depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; depth.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; depth.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
++    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
++    VkAttachmentReference depth_ref {1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
++    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref; sub.pDepthStencilAttachment = &depth_ref;
++    VkAttachmentDescription att[2] = {color, depth};
++    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 2; rpci.pAttachments = att; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
++    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.gbuffer_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer render pass"}; }
++
++    // Framebuffer
++    VkImageView views[2] = {impl.gbuffer_view, impl.gbuffer_depth_view};
++    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.gbuffer_render_pass; fbci.attachmentCount = 2; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
++    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.gbuffer_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer framebuffer"}; }
++}
++
++static void destroy_gbuffer_resources(VulkanContext& ctx) noexcept {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    if (impl.gbuffer_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.gbuffer_framebuffer, nullptr); impl.gbuffer_framebuffer = VK_NULL_HANDLE; }
++    if (impl.gbuffer_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.gbuffer_render_pass, nullptr); impl.gbuffer_render_pass = VK_NULL_HANDLE; }
++    if (impl.gbuffer_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.gbuffer_view, nullptr); impl.gbuffer_view = VK_NULL_HANDLE; }
++    if (impl.gbuffer_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.gbuffer_image, nullptr); impl.gbuffer_image = VK_NULL_HANDLE; }
++    if (impl.gbuffer_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.gbuffer_memory, nullptr); impl.gbuffer_memory = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.gbuffer_depth_view, nullptr); impl.gbuffer_depth_view = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.gbuffer_depth_image, nullptr); impl.gbuffer_depth_image = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.gbuffer_depth_memory, nullptr); impl.gbuffer_depth_memory = VK_NULL_HANDLE; }
++    if (impl.gbuffer_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.gbuffer_pipeline, nullptr); impl.gbuffer_pipeline = VK_NULL_HANDLE; }
++    if (impl.gbuffer_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.gbuffer_pipeline_layout, nullptr); impl.gbuffer_pipeline_layout = VK_NULL_HANDLE; }
++}
++
++static void create_ssao_resources(VulkanContext& ctx) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    const uint32_t w = impl.swapchain_extent.width;
++    const uint32_t h = impl.swapchain_extent.height;
++    // Create AO image as color attachment + sampled (R8)
++    create_color_image(ctx, w, h, VK_FORMAT_R8_UNORM,
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++        &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++
++    // SSAO render pass
++    VkAttachmentDescription color { };
++    color.format = VK_FORMAT_R8_UNORM; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
++    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref;
++    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 1; rpci.pAttachments = &color; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
++    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.ssao_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create ssao render pass"}; }
++
++    VkImageView views[1] = {impl.ao_view};
++    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.ssao_render_pass; fbci.attachmentCount = 1; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
++    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.ssao_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create ssao framebuffer"}; }
++}
++
++static void destroy_ssao_resources(VulkanContext& ctx) noexcept {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    if (impl.ssao_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.ssao_framebuffer, nullptr); impl.ssao_framebuffer = VK_NULL_HANDLE; }
++    if (impl.ssao_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.ssao_render_pass, nullptr); impl.ssao_render_pass = VK_NULL_HANDLE; }
++    if (impl.ssao_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.ssao_pipeline, nullptr); impl.ssao_pipeline = VK_NULL_HANDLE; }
++    if (impl.ssao_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.ssao_pipeline_layout, nullptr); impl.ssao_pipeline_layout = VK_NULL_HANDLE; }
++}
++
+ static void upload_mesh_to_gpu(VulkanContext& ctx, const vulkano::Mesh& mesh) {
+     auto& impl = VulkanContextInternalsHelper::get(ctx);
+     destroy_mesh_buffers(ctx);
+@@ -838,7 +969,7 @@
+     vkDestroyShaderModule(impl.device, vmod, nullptr);
+     vkDestroyShaderModule(impl.device, fmod, nullptr);
+ 
+-    // Material resources for forward shading
++    // Material resources for forward shading and prepasses
+     if (forward) {
+         // Create sampler
+         VkSamplerCreateInfo sci {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+@@ -856,23 +987,28 @@
+         create_image_and_upload(ctx, W, H, albedo.data(), static_cast<VkDeviceSize>(albedo.size()*sizeof(std::uint32_t)), &impl.albedo_image, &impl.albedo_memory, &impl.albedo_view);
+         create_image_and_upload(ctx, W, H, normal.data(), static_cast<VkDeviceSize>(normal.size()*sizeof(std::uint32_t)), &impl.normal_image, &impl.normal_memory, &impl.normal_view);
+ 
+-        // AO texture placeholder: 1x1 white (no occlusion)
+-        const uint32_t AO_W = 1, AO_H = 1; const std::uint32_t white = 0xFFFFFFFFu;
+-        create_image_and_upload(ctx, AO_W, AO_H, &white, sizeof(white), &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++        // Create G-buffer and SSAO render targets sized to swapchain
++        destroy_gbuffer_resources(ctx);
++        destroy_ssao_resources(ctx);
++        create_gbuffer_resources(ctx);
++        create_ssao_resources(ctx);
+ 
+         // Create UBO (256 bytes)
+-        create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        if (impl.ubo_buffer == VK_NULL_HANDLE) {
++            create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        }
+ 
+         // Descriptor pool and set
+         VkDescriptorPoolSize poolSizes[2] = {};
+-        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 1;
+-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 3;
++        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 2; // forward + ssao
++        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 6; // 3 forward + 1 ssao (+spare)
+         VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+-        dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 1;
++        dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 2;
+         vkCreateDescriptorPool(impl.device, &dpci, nullptr, &impl.desc_pool);
+         VkDescriptorSetAllocateInfo dsai {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+         dsai.descriptorPool = impl.desc_pool; dsai.descriptorSetCount = 1; dsai.pSetLayouts = &impl.desc_layout;
+         vkAllocateDescriptorSets(impl.device, &dsai, &impl.desc_set);
++        vkAllocateDescriptorSets(impl.device, &dsai, &impl.ssao_desc_set);
+         VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
+         VkDescriptorImageInfo dai1 {}; dai1.sampler = impl.sampler; dai1.imageView = impl.albedo_view; dai1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+         VkDescriptorImageInfo dai2 {}; dai2.sampler = impl.sampler; dai2.imageView = impl.normal_view; dai2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+@@ -883,6 +1019,78 @@
+         writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = impl.desc_set; writes[2].dstBinding = 2; writes[2].descriptorCount = 1; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[2].pImageInfo = &dai2;
+         writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[3].dstSet = impl.desc_set; writes[3].dstBinding = 3; writes[3].descriptorCount = 1; writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[3].pImageInfo = &dai3;
+         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
++
++        // SSAO descriptor set: UBO + ND texture at binding 1
++        VkDescriptorImageInfo dai_nd {}; dai_nd.sampler = impl.sampler; dai_nd.imageView = impl.gbuffer_view; dai_nd.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++        std::array<VkWriteDescriptorSet,2> writes_ssao {};
++        writes_ssao[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes_ssao[0].dstSet = impl.ssao_desc_set; writes_ssao[0].dstBinding = 0; writes_ssao[0].descriptorCount = 1; writes_ssao[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes_ssao[0].pBufferInfo = &dbi;
++        writes_ssao[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes_ssao[1].dstSet = impl.ssao_desc_set; writes_ssao[1].dstBinding = 1; writes_ssao[1].descriptorCount = 1; writes_ssao[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes_ssao[1].pImageInfo = &dai_nd;
++        vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes_ssao.size()), writes_ssao.data(), 0, nullptr);
++
++        // Create G-buffer pipeline
++        {
++            auto gvs = load_binary_file("shaders/gbuffer.vert.spv");
++            auto gfs = load_binary_file("shaders/gbuffer.frag.spv");
++            if (!gvs.empty() && !gfs.empty()) {
++                VkShaderModule gv = create_shader_module(impl.device, gvs);
++                VkShaderModule gf = create_shader_module(impl.device, gfs);
++                VkPipelineShaderStageCreateInfo stages[2] = {};
++                stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT; stages[0].module = gv; stages[0].pName = "main";
++                stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT; stages[1].module = gf; stages[1].pName = "main";
++                VkVertexInputBindingDescription binding {0, static_cast<uint32_t>(sizeof(vulkano::Vertex)), VK_VERTEX_INPUT_RATE_VERTEX};
++                std::array<VkVertexInputAttributeDescription,5> attrs = {
++                    VkVertexInputAttributeDescription{0,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, position)},
++                    VkVertexInputAttributeDescription{1,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, normal)},
++                    VkVertexInputAttributeDescription{2,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, tangent)},
++                    VkVertexInputAttributeDescription{3,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, bitangent)},
++                    VkVertexInputAttributeDescription{4,0,VK_FORMAT_R32G32_SFLOAT, offsetof(vulkano::Vertex, texcoord)} };
++                VkPipelineVertexInputStateCreateInfo vi {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO}; vi.vertexBindingDescriptionCount=1; vi.pVertexBindingDescriptions=&binding; vi.vertexAttributeDescriptionCount=static_cast<uint32_t>(attrs.size()); vi.pVertexAttributeDescriptions=attrs.data();
++                VkPipelineInputAssemblyStateCreateInfo ia {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO}; ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
++                VkViewport viewport {}; viewport.x=0; viewport.y=0; viewport.width=static_cast<float>(impl.swapchain_extent.width); viewport.height=static_cast<float>(impl.swapchain_extent.height); viewport.minDepth=0.0F; viewport.maxDepth=1.0F;
++                VkRect2D scissor {{0,0}, impl.swapchain_extent};
++                VkPipelineViewportStateCreateInfo vp {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO}; vp.viewportCount=1; vp.pViewports=&viewport; vp.scissorCount=1; vp.pScissors=&scissor;
++                VkPipelineRasterizationStateCreateInfo rs {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO}; rs.polygonMode=VK_POLYGON_MODE_FILL; rs.cullMode=VK_CULL_MODE_BACK_BIT; rs.frontFace=VK_FRONT_FACE_COUNTER_CLOCKWISE; rs.lineWidth=1.0F;
++                VkPipelineMultisampleStateCreateInfo ms {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO}; ms.rasterizationSamples=VK_SAMPLE_COUNT_1_BIT;
++                VkPipelineDepthStencilStateCreateInfo dss {VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO}; dss.depthTestEnable=VK_TRUE; dss.depthWriteEnable=VK_TRUE; dss.depthCompareOp=VK_COMPARE_OP_LESS;
++                VkPipelineColorBlendAttachmentState cba {}; cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT|VK_COLOR_COMPONENT_G_BIT|VK_COLOR_COMPONENT_B_BIT|VK_COLOR_COMPONENT_A_BIT;
++                VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO}; cb.attachmentCount=1; cb.pAttachments=&cba;
++                VkPushConstantRange pcr2 {}; pcr2.offset=0; pcr2.size=static_cast<uint32_t>(sizeof(float)*16U); pcr2.stageFlags=VK_SHADER_STAGE_VERTEX_BIT;
++                VkPipelineLayoutCreateInfo plci2 {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO}; plci2.pushConstantRangeCount=1; plci2.pPushConstantRanges=&pcr2; plci2.setLayoutCount=1; plci2.pSetLayouts=&impl.desc_layout;
++                vkCreatePipelineLayout(impl.device, &plci2, nullptr, &impl.gbuffer_pipeline_layout);
++                VkGraphicsPipelineCreateInfo gpci2 {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO}; gpci2.stageCount=2; gpci2.pStages=stages; gpci2.pVertexInputState=&vi; gpci2.pInputAssemblyState=&ia; gpci2.pViewportState=&vp; gpci2.pRasterizationState=&rs; gpci2.pMultisampleState=&ms; gpci2.pDepthStencilState=&dss; gpci2.pColorBlendState=&cb; gpci2.layout=impl.gbuffer_pipeline_layout; gpci2.renderPass=impl.gbuffer_render_pass; gpci2.subpass=0;
++                vkCreateGraphicsPipelines(impl.device, VK_NULL_HANDLE, 1, &gpci2, nullptr, &impl.gbuffer_pipeline);
++                vkDestroyShaderModule(impl.device, gv, nullptr);
++                vkDestroyShaderModule(impl.device, gf, nullptr);
++            }
++        }
++
++        // Create SSAO pipeline (fullscreen)
++        {
++            auto sv = load_binary_file("shaders/fullscreen.vert.spv");
++            auto sf = load_binary_file("shaders/ssao.frag.spv");
++            if (!sv.empty() && !sf.empty()) {
++                VkShaderModule v = create_shader_module(impl.device, sv);
++                VkShaderModule f = create_shader_module(impl.device, sf);
++                VkPipelineShaderStageCreateInfo stages[2] = {};
++                stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT; stages[0].module = v; stages[0].pName = "main";
++                stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT; stages[1].module = f; stages[1].pName = "main";
++                VkPipelineVertexInputStateCreateInfo vi {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
++                VkPipelineInputAssemblyStateCreateInfo ia {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO}; ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
++                VkViewport viewport {}; viewport.x=0; viewport.y=0; viewport.width=static_cast<float>(impl.swapchain_extent.width); viewport.height=static_cast<float>(impl.swapchain_extent.height); viewport.minDepth=0.0F; viewport.maxDepth=1.0F;
++                VkRect2D scissor {{0,0}, impl.swapchain_extent};
++                VkPipelineViewportStateCreateInfo vp {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO}; vp.viewportCount=1; vp.pViewports=&viewport; vp.scissorCount=1; vp.pScissors=&scissor;
++                VkPipelineRasterizationStateCreateInfo rs {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO}; rs.polygonMode=VK_POLYGON_MODE_FILL; rs.cullMode=VK_CULL_MODE_NONE; rs.frontFace=VK_FRONT_FACE_COUNTER_CLOCKWISE; rs.lineWidth=1.0F;
++                VkPipelineMultisampleStateCreateInfo ms {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO}; ms.rasterizationSamples=VK_SAMPLE_COUNT_1_BIT;
++                VkPipelineColorBlendAttachmentState cba {}; cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT;
++                VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO}; cb.attachmentCount=1; cb.pAttachments=&cba;
++                VkPipelineLayoutCreateInfo plci3 {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO}; plci3.setLayoutCount=1; plci3.pSetLayouts=&impl.desc_layout;
++                vkCreatePipelineLayout(impl.device, &plci3, nullptr, &impl.ssao_pipeline_layout);
++                VkGraphicsPipelineCreateInfo gpci3 {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO}; gpci3.stageCount=2; gpci3.pStages=stages; gpci3.pVertexInputState=&vi; gpci3.pInputAssemblyState=&ia; gpci3.pViewportState=&vp; gpci3.pRasterizationState=&rs; gpci3.pMultisampleState=&ms; gpci3.pColorBlendState=&cb; gpci3.layout=impl.ssao_pipeline_layout; gpci3.renderPass=impl.ssao_render_pass; gpci3.subpass=0;
++                vkCreateGraphicsPipelines(impl.device, VK_NULL_HANDLE, 1, &gpci3, nullptr, &impl.ssao_pipeline);
++                vkDestroyShaderModule(impl.device, v, nullptr);
++                vkDestroyShaderModule(impl.device, f, nullptr);
++            }
++        }
+     }
+ }
+ 
+@@ -1014,6 +1222,64 @@
+         VkCommandBuffer cmd = impl->command_buffers[image_index];
+         VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+         vkBeginCommandBuffer(cmd, &bi);
++        // Optional prepasses: G-buffer then SSAO
++        if (impl->gbuffer_render_pass != VK_NULL_HANDLE && impl->gbuffer_pipeline != VK_NULL_HANDLE) {
++            // Build matrices
++            const float fov = 45.0F;
++            const float radians = fov * 3.1415926535F / 180.0F;
++            const float aspect = static_cast<float>(impl->swapchain_extent.width) / static_cast<float>(impl->swapchain_extent.height == 0 ? 1 : impl->swapchain_extent.height);
++            const float znear = 0.1F;
++            const float zfar = 100.0F;
++            const float f = 1.0F / std::tanf(radians * 0.5F);
++            float proj[16] = {0}; proj[0] = f / aspect; proj[5] = f; proj[10] = (zfar + znear) / (znear - zfar); proj[11] = -1.0F; proj[14] = (2.0F * zfar * znear) / (znear - zfar);
++            const float eye[3] = {0.0F, 0.0F, 3.0F}; const float center[3] = {0.0F, 0.0F, 0.0F}; const float upv[3] = {0.0F, 1.0F, 0.0F};
++            auto norm3 = [](float v[3]) noexcept { const float len = std::sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]); if (len>0.0F){ v[0]/=len; v[1]/=len; v[2]/=len; } };
++            float fwd[3] = {center[0]-eye[0], center[1]-eye[1], center[2]-eye[2]}; norm3(fwd);
++            float s[3] = {fwd[1]*upv[2] - fwd[2]*upv[1], fwd[2]*upv[0] - fwd[0]*upv[2], fwd[0]*upv[1] - fwd[1]*upv[0]}; norm3(s);
++            float u[3] = {s[1]*fwd[2] - s[2]*fwd[1], s[2]*fwd[0] - s[0]*fwd[2], s[0]*fwd[1] - s[1]*fwd[0]};
++            float view[16] = {0}; view[0]=s[0]; view[4]=s[1]; view[8]=s[2]; view[1]=u[0]; view[5]=u[1]; view[9]=u[2]; view[2]=-fwd[0]; view[6]=-fwd[1]; view[10]=-fwd[2]; view[15]=1.0F; view[12]=-(s[0]*eye[0]+s[1]*eye[1]+s[2]*eye[2]); view[13]=-(u[0]*eye[0]+u[1]*eye[1]+u[2]*eye[2]); view[14]=-(-fwd[0]*eye[0]+-fwd[1]*eye[1]+-fwd[2]*eye[2]);
++            float model[16] = {0}; model[0]=1.0F; model[5]=1.0F; model[10]=1.0F; model[15]=1.0F;
++            auto matmul = [](const float a[16], const float b[16], float out[16]) noexcept { for (int r=0;r<4;++r){ for (int c=0;c<4;++c){ out[r*4+c]=a[r*4+0]*b[0*4+c]+a[r*4+1]*b[1*4+c]+a[r*4+2]*b[2*4+c]+a[r*4+3]*b[3*4+c]; } } };
++            float pv[16]={0}; float mvp[16]={0}; matmul(proj, view, pv); matmul(pv, model, mvp);
++
++            // Update UBO screen params early for SSAO
++            if (impl->ubo_buffer != VK_NULL_HANDLE) {
++                struct Align16UBO { float viewM[16]; float projM[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; float screen[4]; } uboData {};
++                for (int i=0;i<16;++i){ uboData.viewM[i]=view[i]; uboData.projM[i]=proj[i]; }
++                const auto sConf = impl->settings;
++                uboData.cam_pos[0]=eye[0]; uboData.cam_pos[1]=eye[1]; uboData.cam_pos[2]=eye[2]; uboData.cam_pos[3]=sConf.normal_strength;
++                uboData.light_pos[0]=sConf.light_pos[0]; uboData.light_pos[1]=sConf.light_pos[1]; uboData.light_pos[2]=sConf.light_pos[2]; uboData.light_pos[3]=sConf.shininess;
++                uboData.light_color[0]=sConf.light_color[0]; uboData.light_color[1]=sConf.light_color[1]; uboData.light_color[2]=sConf.light_color[2]; uboData.light_color[3]=sConf.light_intensity;
++                const float invW = impl->swapchain_extent.width>0 ? 1.0F/static_cast<float>(impl->swapchain_extent.width) : 0.0F;
++                const float invH = impl->swapchain_extent.height>0 ? 1.0F/static_cast<float>(impl->swapchain_extent.height) : 0.0F;
++                uboData.screen[0]=invW; uboData.screen[1]=invH; uboData.screen[2]=sConf.ssao_power; uboData.screen[3]=sConf.ssao_radius;
++                void* ptr=nullptr; vkMapMemory(impl->device, impl->ubo_memory, 0, sizeof(uboData), 0, &ptr); std::memcpy(ptr, &uboData, sizeof(uboData)); vkUnmapMemory(impl->device, impl->ubo_memory);
++            }
++
++            VkClearValue gclears[2]; gclears[0].color={{0,0,0,0}}; gclears[1].depthStencil={1.0F,0};
++            VkRenderPassBeginInfo grbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO}; grbi.renderPass=impl->gbuffer_render_pass; grbi.framebuffer=impl->gbuffer_framebuffer; grbi.renderArea.offset={0,0}; grbi.renderArea.extent=impl->swapchain_extent; grbi.clearValueCount=2; grbi.pClearValues=gclears;
++            vkCmdBeginRenderPass(cmd, &grbi, VK_SUBPASS_CONTENTS_INLINE);
++            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->gbuffer_pipeline);
++            vkCmdPushConstants(cmd, impl->gbuffer_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0U, static_cast<uint32_t>(sizeof(float)*16U), mvp);
++            if (impl->desc_set != VK_NULL_HANDLE) { vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->gbuffer_pipeline_layout, 0, 1, &impl->desc_set, 0, nullptr); }
++            if (impl->vertex_buffer != VK_NULL_HANDLE && impl->index_buffer != VK_NULL_HANDLE && impl->index_count>0U) {
++                VkDeviceSize offs[] = {0}; VkBuffer vbs[] = {impl->vertex_buffer};
++                vkCmdBindVertexBuffers(cmd, 0, 1, vbs, offs);
++                vkCmdBindIndexBuffer(cmd, impl->index_buffer, 0, VK_INDEX_TYPE_UINT32);
++                vkCmdDrawIndexed(cmd, impl->index_count, 1, 0, 0, 0);
++            }
++            vkCmdEndRenderPass(cmd);
++
++            if (impl->ssao_render_pass != VK_NULL_HANDLE && impl->ssao_pipeline != VK_NULL_HANDLE) {
++                VkClearValue sclear; sclear.color={{1.0F,0,0,0}};
++                VkRenderPassBeginInfo srp {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO}; srp.renderPass=impl->ssao_render_pass; srp.framebuffer=impl->ssao_framebuffer; srp.renderArea.offset={0,0}; srp.renderArea.extent=impl->swapchain_extent; srp.clearValueCount=1; srp.pClearValues=&sclear;
++                vkCmdBeginRenderPass(cmd, &srp, VK_SUBPASS_CONTENTS_INLINE);
++                vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->ssao_pipeline);
++                if (impl->ssao_desc_set != VK_NULL_HANDLE) { vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->ssao_pipeline_layout, 0, 1, &impl->ssao_desc_set, 0, nullptr); }
++                vkCmdDraw(cmd, 3, 1, 0, 0);
++                vkCmdEndRenderPass(cmd);
++            }
++        }
+         VkClearValue clear_color {};
+         clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
+         VkClearValue clear_depth {};
+@@ -1091,7 +1357,7 @@
+                 u.light_color[0]=s.light_color[0]; u.light_color[1]=s.light_color[1]; u.light_color[2]=s.light_color[2]; u.light_color[3]=s.light_intensity;
+                 const float invW = impl->swapchain_extent.width > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.width) : 0.0F;
+                 const float invH = impl->swapchain_extent.height > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.height) : 0.0F;
+-                u.screen[0]=invW; u.screen[1]=invH; u.screen[2]=s.ssao_power; u.screen[3]=0.0F;
++                u.screen[0]=invW; u.screen[1]=invH; u.screen[2]=s.ssao_power; u.screen[3]=s.ssao_radius;
+                 void* ubodata=nullptr; vkMapMemory(impl->device, impl->ubo_memory, 0, sizeof(u), 0, &ubodata); std::memcpy(ubodata, &u, sizeof(u)); vkUnmapMemory(impl->device, impl->ubo_memory);
+             }
+         }
+
+[2025-09-15T17:05:17] tokens used: 135,818
+[2025-09-15T17:05:17] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+diff --git a/shaders/fullscreen.vert b/shaders/fullscreen.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..47ef99bf5518ea3ce9baaf3e01e4b8041e98e68d
+--- /dev/null
++++ b/shaders/fullscreen.vert
+@@ -0,0 +1,20 @@
++#version 450
++
++layout(location = 0) out vec2 vUV;
++
++void main() {
++    // Fullscreen triangle
++    const vec2 positions[3] = vec2[3](
++        vec2(-1.0, -1.0),
++        vec2( 3.0, -1.0),
++        vec2(-1.0,  3.0)
++    );
++    const vec2 uvs[3] = vec2[3](
++        vec2(0.0, 0.0),
++        vec2(2.0, 0.0),
++        vec2(0.0, 2.0)
++    );
++    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
++    vUV = uvs[gl_VertexIndex];
++}
++
+diff --git a/shaders/gbuffer.frag b/shaders/gbuffer.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..f116ab22511268e2aaef9d7bf34c2a990af23f13
+--- /dev/null
++++ b/shaders/gbuffer.frag
+@@ -0,0 +1,16 @@
++#version 450
++
++layout(location = 0) in vec3 vNormalVS;
++layout(location = 1) in float vDepthVS;
++layout(location = 2) in vec2 vUV;
++
++layout(location = 0) out vec4 outND;
++
++void main() {
++    // Pack view-space normal into RGB ([-1,1] -> [0,1]) and linear depth into A
++    vec3 n = normalize(vNormalVS);
++    vec3 n01 = n * 0.5 + 0.5;
++    float depth = vDepthVS;
++    outND = vec4(n01, depth);
++}
++
+diff --git a/shaders/gbuffer.vert b/shaders/gbuffer.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8c46e3cfe30155fc0601a6b6d4f29b4b593166
+--- /dev/null
++++ b/shaders/gbuffer.vert
+@@ -0,0 +1,33 @@
++#version 450
++
++layout(location = 0) in vec3 inPos;
++layout(location = 1) in vec3 inNormal;
++layout(location = 4) in vec2 inUV;
++
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(location = 0) out vec3 vNormalVS;
++layout(location = 1) out float vDepthVS;
++layout(location = 2) out vec2 vUV;
++
++void main() {
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
++    // view-space normal: ignore translation part
++    mat3 view3 = mat3(ubo.view);
++    vNormalVS = normalize(view3 * inNormal);
++    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
++    vDepthVS = -posVS.z; // positive distance from camera
++    vUV = inUV;
++}
++
+diff --git a/shaders/ssao.frag b/shaders/ssao.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..44f54958184303534d4698354b96ceff72b715e0
+--- /dev/null
++++ b/shaders/ssao.frag
+@@ -0,0 +1,48 @@
++#version 450
++
++layout(location = 0) in vec2 vUV;
++layout(location = 0) out float outAO;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    // x=invWidth, y=invHeight, z=aoPower, w=radius
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(set = 0, binding = 1) uniform sampler2D uND; // gbuffer normal/depth packed
++
++// Simple 2D SSAO kernel
++const int KERNEL = 16;
++const vec2 OFFSETS[KERNEL] = vec2[KERNEL](
++    vec2( 1,  0), vec2(-1,  0), vec2( 0,  1), vec2( 0, -1),
++    vec2( 1,  1), vec2(-1,  1), vec2( 1, -1), vec2(-1, -1),
++    vec2( 2,  0), vec2(-2,  0), vec2( 0,  2), vec2( 0, -2),
++    vec2( 2,  1), vec2(-2,  1), vec2( 1,  2), vec2(-1, -2)
++);
++
++void main() {
++    vec2 texel = vec2(ubo.screen_invW_invH_aoPower_radius.x, ubo.screen_invW_invH_aoPower_radius.y);
++    float radius = max(ubo.screen_invW_invH_aoPower_radius.w, 1.0);
++
++    vec4 nd = texture(uND, vUV);
++    vec3 n = normalize(nd.xyz * 2.0 - 1.0);
++    float depth = nd.w;
++
++    float occlusion = 0.0;
++    for (int i = 0; i < KERNEL; ++i) {
++        vec2 offset = OFFSETS[i] * texel * radius;
++        vec4 ndS = texture(uND, vUV + offset);
++        float depthS = ndS.w;
++        float range = smoothstep(0.0, 1.0, radius);
++        float delta = depthS - depth;
++        float occ = step(0.001, delta) * (1.0 - clamp(delta / (radius), 0.0, 1.0)) * range;
++        occlusion += occ;
++    }
++    occlusion /= float(KERNEL);
++    outAO = 1.0 - occlusion;
++}
++
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index e45d560a53955091853910b65ddcc068813d80f3..d648cc39740b74eae1cc483d2df2be5aea6db021
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -74,6 +74,25 @@
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
++    // G-buffer (Normals+Depth packed into RGBA16F) prepass resources
++    VkRenderPass gbuffer_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer gbuffer_framebuffer {VK_NULL_HANDLE};
++    VkImage gbuffer_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_view {VK_NULL_HANDLE};
++    VkImage gbuffer_depth_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_depth_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_depth_view {VK_NULL_HANDLE};
++    VkPipelineLayout gbuffer_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline gbuffer_pipeline {VK_NULL_HANDLE};
++
++    // SSAO pass resources (writes AO into ao_image which is sampled in forward)
++    VkRenderPass ssao_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer ssao_framebuffer {VK_NULL_HANDLE};
++    VkPipelineLayout ssao_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline ssao_pipeline {VK_NULL_HANDLE};
++    VkDescriptorSet ssao_desc_set {VK_NULL_HANDLE};
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+@@ -641,6 +660,118 @@
+     if (vkCreateImageView(impl.device, &ivci, nullptr, outView) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image view"}; }
+ }
+ 
++static void create_color_image(VulkanContext& ctx, uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage,
++    VkImage* outImage, VkDeviceMemory* outMem, VkImageView* outView) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
++    ici.imageType = VK_IMAGE_TYPE_2D;
++    ici.extent = {width, height, 1};
++    ici.mipLevels = 1;
++    ici.arrayLayers = 1;
++    ici.format = format;
++    ici.tiling = VK_IMAGE_TILING_OPTIMAL;
++    ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
++    ici.usage = usage;
++    ici.samples = VK_SAMPLE_COUNT_1_BIT;
++    ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (vkCreateImage(impl.device, &ici, nullptr, outImage) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image"}; }
++    VkMemoryRequirements req {};
++    vkGetImageMemoryRequirements(impl.device, *outImage, &req);
++    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
++    mai.allocationSize = req.size;
++    mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++    if (vkAllocateMemory(impl.device, &mai, nullptr, outMem) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc image mem"}; }
++    vkBindImageMemory(impl.device, *outImage, *outMem, 0);
++
++    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
++    ivci.image = *outImage; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = format;
++    ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; ivci.subresourceRange.levelCount = 1; ivci.subresourceRange.layerCount = 1;
++    if (vkCreateImageView(impl.device, &ivci, nullptr, outView) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image view"}; }
++}
++
++static void create_gbuffer_resources(VulkanContext& ctx) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    const uint32_t w = impl.swapchain_extent.width;
++    const uint32_t h = impl.swapchain_extent.height;
++    // Create ND image (RGBA16F) with color attachment + sampled usage
++    create_color_image(ctx, w, h, VK_FORMAT_R16G16B16A16_SFLOAT,
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++        &impl.gbuffer_image, &impl.gbuffer_memory, &impl.gbuffer_view);
++    // Create depth for gbuffer
++    VkFormat df = find_depth_format(ctx);
++    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
++    ici.imageType = VK_IMAGE_TYPE_2D; ici.extent = {w, h, 1}; ici.mipLevels = 1; ici.arrayLayers = 1; ici.format = df;
++    ici.tiling = VK_IMAGE_TILING_OPTIMAL; ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; ici.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT; ici.samples = VK_SAMPLE_COUNT_1_BIT; ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (vkCreateImage(impl.device, &ici, nullptr, &impl.gbuffer_depth_image) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer depth"}; }
++    VkMemoryRequirements req {}; vkGetImageMemoryRequirements(impl.device, impl.gbuffer_depth_image, &req);
++    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO}; mai.allocationSize = req.size; mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++    if (vkAllocateMemory(impl.device, &mai, nullptr, &impl.gbuffer_depth_memory) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc gbuffer depth mem"}; }
++    vkBindImageMemory(impl.device, impl.gbuffer_depth_image, impl.gbuffer_depth_memory, 0);
++    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO}; ivci.image = impl.gbuffer_depth_image; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = df; ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT; ivci.subresourceRange.levelCount=1; ivci.subresourceRange.layerCount=1;
++    if (vkCreateImageView(impl.device, &ivci, nullptr, &impl.gbuffer_depth_view) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer depth view"}; }
++
++    // Render pass for gbuffer
++    VkAttachmentDescription color { };
++    color.format = VK_FORMAT_R16G16B16A16_SFLOAT; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkAttachmentDescription depth { };
++    depth.format = df; depth.samples = VK_SAMPLE_COUNT_1_BIT; depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; depth.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; depth.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
++    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
++    VkAttachmentReference depth_ref {1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
++    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref; sub.pDepthStencilAttachment = &depth_ref;
++    VkAttachmentDescription att[2] = {color, depth};
++    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 2; rpci.pAttachments = att; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
++    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.gbuffer_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer render pass"}; }
++
++    // Framebuffer
++    VkImageView views[2] = {impl.gbuffer_view, impl.gbuffer_depth_view};
++    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.gbuffer_render_pass; fbci.attachmentCount = 2; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
++    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.gbuffer_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer framebuffer"}; }
++}
++
++static void destroy_gbuffer_resources(VulkanContext& ctx) noexcept {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    if (impl.gbuffer_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.gbuffer_framebuffer, nullptr); impl.gbuffer_framebuffer = VK_NULL_HANDLE; }
++    if (impl.gbuffer_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.gbuffer_render_pass, nullptr); impl.gbuffer_render_pass = VK_NULL_HANDLE; }
++    if (impl.gbuffer_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.gbuffer_view, nullptr); impl.gbuffer_view = VK_NULL_HANDLE; }
++    if (impl.gbuffer_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.gbuffer_image, nullptr); impl.gbuffer_image = VK_NULL_HANDLE; }
++    if (impl.gbuffer_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.gbuffer_memory, nullptr); impl.gbuffer_memory = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.gbuffer_depth_view, nullptr); impl.gbuffer_depth_view = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.gbuffer_depth_image, nullptr); impl.gbuffer_depth_image = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.gbuffer_depth_memory, nullptr); impl.gbuffer_depth_memory = VK_NULL_HANDLE; }
++    if (impl.gbuffer_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.gbuffer_pipeline, nullptr); impl.gbuffer_pipeline = VK_NULL_HANDLE; }
++    if (impl.gbuffer_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.gbuffer_pipeline_layout, nullptr); impl.gbuffer_pipeline_layout = VK_NULL_HANDLE; }
++}
++
++static void create_ssao_resources(VulkanContext& ctx) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    const uint32_t w = impl.swapchain_extent.width;
++    const uint32_t h = impl.swapchain_extent.height;
++    // Create AO image as color attachment + sampled (R8)
++    create_color_image(ctx, w, h, VK_FORMAT_R8_UNORM,
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++        &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++
++    // SSAO render pass
++    VkAttachmentDescription color { };
++    color.format = VK_FORMAT_R8_UNORM; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
++    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref;
++    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 1; rpci.pAttachments = &color; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
++    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.ssao_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create ssao render pass"}; }
++
++    VkImageView views[1] = {impl.ao_view};
++    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.ssao_render_pass; fbci.attachmentCount = 1; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
++    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.ssao_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create ssao framebuffer"}; }
++}
++
++static void destroy_ssao_resources(VulkanContext& ctx) noexcept {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    if (impl.ssao_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.ssao_framebuffer, nullptr); impl.ssao_framebuffer = VK_NULL_HANDLE; }
++    if (impl.ssao_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.ssao_render_pass, nullptr); impl.ssao_render_pass = VK_NULL_HANDLE; }
++    if (impl.ssao_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.ssao_pipeline, nullptr); impl.ssao_pipeline = VK_NULL_HANDLE; }
++    if (impl.ssao_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.ssao_pipeline_layout, nullptr); impl.ssao_pipeline_layout = VK_NULL_HANDLE; }
++}
++
+ static void upload_mesh_to_gpu(VulkanContext& ctx, const vulkano::Mesh& mesh) {
+     auto& impl = VulkanContextInternalsHelper::get(ctx);
+     destroy_mesh_buffers(ctx);
+@@ -838,7 +969,7 @@
+     vkDestroyShaderModule(impl.device, vmod, nullptr);
+     vkDestroyShaderModule(impl.device, fmod, nullptr);
+ 
+-    // Material resources for forward shading
++    // Material resources for forward shading and prepasses
+     if (forward) {
+         // Create sampler
+         VkSamplerCreateInfo sci {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+@@ -856,23 +987,28 @@
+         create_image_and_upload(ctx, W, H, albedo.data(), static_cast<VkDeviceSize>(albedo.size()*sizeof(std::uint32_t)), &impl.albedo_image, &impl.albedo_memory, &impl.albedo_view);
+         create_image_and_upload(ctx, W, H, normal.data(), static_cast<VkDeviceSize>(normal.size()*sizeof(std::uint32_t)), &impl.normal_image, &impl.normal_memory, &impl.normal_view);
+ 
+-        // AO texture placeholder: 1x1 white (no occlusion)
+-        const uint32_t AO_W = 1, AO_H = 1; const std::uint32_t white = 0xFFFFFFFFu;
+-        create_image_and_upload(ctx, AO_W, AO_H, &white, sizeof(white), &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++        // Create G-buffer and SSAO render targets sized to swapchain
++        destroy_gbuffer_resources(ctx);
++        destroy_ssao_resources(ctx);
++        create_gbuffer_resources(ctx);
++        create_ssao_resources(ctx);
+ 
+         // Create UBO (256 bytes)
+-        create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        if (impl.ubo_buffer == VK_NULL_HANDLE) {
++            create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        }
+ 
+         // Descriptor pool and set
+         VkDescriptorPoolSize poolSizes[2] = {};
+-        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 1;
+-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 3;
++        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 2; // forward + ssao
++        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 6; // 3 forward + 1 ssao (+spare)
+         VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+-        dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 1;
++        dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 2;
+         vkCreateDescriptorPool(impl.device, &dpci, nullptr, &impl.desc_pool);
+         VkDescriptorSetAllocateInfo dsai {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+         dsai.descriptorPool = impl.desc_pool; dsai.descriptorSetCount = 1; dsai.pSetLayouts = &impl.desc_layout;
+         vkAllocateDescriptorSets(impl.device, &dsai, &impl.desc_set);
++        vkAllocateDescriptorSets(impl.device, &dsai, &impl.ssao_desc_set);
+         VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
+         VkDescriptorImageInfo dai1 {}; dai1.sampler = impl.sampler; dai1.imageView = impl.albedo_view; dai1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+         VkDescriptorImageInfo dai2 {}; dai2.sampler = impl.sampler; dai2.imageView = impl.normal_view; dai2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+@@ -883,6 +1019,78 @@
+         writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = impl.desc_set; writes[2].dstBinding = 2; writes[2].descriptorCount = 1; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[2].pImageInfo = &dai2;
+         writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[3].dstSet = impl.desc_set; writes[3].dstBinding = 3; writes[3].descriptorCount = 1; writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[3].pImageInfo = &dai3;
+         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
++
++        // SSAO descriptor set: UBO + ND texture at binding 1
++        VkDescriptorImageInfo dai_nd {}; dai_nd.sampler = impl.sampler; dai_nd.imageView = impl.gbuffer_view; dai_nd.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++        std::array<VkWriteDescriptorSet,2> writes_ssao {};
++        writes_ssao[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes_ssao[0].dstSet = impl.ssao_desc_set; writes_ssao[0].dstBinding = 0; writes_ssao[0].descriptorCount = 1; writes_ssao[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes_ssao[0].pBufferInfo = &dbi;
++        writes_ssao[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes_ssao[1].dstSet = impl.ssao_desc_set; writes_ssao[1].dstBinding = 1; writes_ssao[1].descriptorCount = 1; writes_ssao[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes_ssao[1].pImageInfo = &dai_nd;
++        vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes_ssao.size()), writes_ssao.data(), 0, nullptr);
++
++        // Create G-buffer pipeline
++        {
++            auto gvs = load_binary_file("shaders/gbuffer.vert.spv");
++            auto gfs = load_binary_file("shaders/gbuffer.frag.spv");
++            if (!gvs.empty() && !gfs.empty()) {
++                VkShaderModule gv = create_shader_module(impl.device, gvs);
++                VkShaderModule gf = create_shader_module(impl.device, gfs);
++                VkPipelineShaderStageCreateInfo stages[2] = {};
++                stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT; stages[0].module = gv; stages[0].pName = "main";
++                stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT; stages[1].module = gf; stages[1].pName = "main";
++                VkVertexInputBindingDescription binding {0, static_cast<uint32_t>(sizeof(vulkano::Vertex)), VK_VERTEX_INPUT_RATE_VERTEX};
++                std::array<VkVertexInputAttributeDescription,5> attrs = {
++                    VkVertexInputAttributeDescription{0,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, position)},
++                    VkVertexInputAttributeDescription{1,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, normal)},
++                    VkVertexInputAttributeDescription{2,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, tangent)},
++                    VkVertexInputAttributeDescription{3,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, bitangent)},
++                    VkVertexInputAttributeDescription{4,0,VK_FORMAT_R32G32_SFLOAT, offsetof(vulkano::Vertex, texcoord)} };
++                VkPipelineVertexInputStateCreateInfo vi {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO}; vi.vertexBindingDescriptionCount=1; vi.pVertexBindingDescriptions=&binding; vi.vertexAttributeDescriptionCount=static_cast<uint32_t>(attrs.size()); vi.pVertexAttributeDescriptions=attrs.data();
++                VkPipelineInputAssemblyStateCreateInfo ia {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO}; ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
++                VkViewport viewport {}; viewport.x=0; viewport.y=0; viewport.width=static_cast<float>(impl.swapchain_extent.width); viewport.height=static_cast<float>(impl.swapchain_extent.height); viewport.minDepth=0.0F; viewport.maxDepth=1.0F;
++                VkRect2D scissor {{0,0}, impl.swapchain_extent};
++                VkPipelineViewportStateCreateInfo vp {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO}; vp.viewportCount=1; vp.pViewports=&viewport; vp.scissorCount=1; vp.pScissors=&scissor;
++                VkPipelineRasterizationStateCreateInfo rs {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO}; rs.polygonMode=VK_POLYGON_MODE_FILL; rs.cullMode=VK_CULL_MODE_BACK_BIT; rs.frontFace=VK_FRONT_FACE_COUNTER_CLOCKWISE; rs.lineWidth=1.0F;
++                VkPipelineMultisampleStateCreateInfo ms {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO}; ms.rasterizationSamples=VK_SAMPLE_COUNT_1_BIT;
++                VkPipelineDepthStencilStateCreateInfo dss {VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO}; dss.depthTestEnable=VK_TRUE; dss.depthWriteEnable=VK_TRUE; dss.depthCompareOp=VK_COMPARE_OP_LESS;
++                VkPipelineColorBlendAttachmentState cba {}; cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT|VK_COLOR_COMPONENT_G_BIT|VK_COLOR_COMPONENT_B_BIT|VK_COLOR_COMPONENT_A_BIT;
++                VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO}; cb.attachmentCount=1; cb.pAttachments=&cba;
++                VkPushConstantRange pcr2 {}; pcr2.offset=0; pcr2.size=static_cast<uint32_t>(sizeof(float)*16U); pcr2.stageFlags=VK_SHADER_STAGE_VERTEX_BIT;
++                VkPipelineLayoutCreateInfo plci2 {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO}; plci2.pushConstantRangeCount=1; plci2.pPushConstantRanges=&pcr2; plci2.setLayoutCount=1; plci2.pSetLayouts=&impl.desc_layout;
++                vkCreatePipelineLayout(impl.device, &plci2, nullptr, &impl.gbuffer_pipeline_layout);
++                VkGraphicsPipelineCreateInfo gpci2 {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO}; gpci2.stageCount=2; gpci2.pStages=stages; gpci2.pVertexInputState=&vi; gpci2.pInputAssemblyState=&ia; gpci2.pViewportState=&vp; gpci2.pRasterizationState=&rs; gpci2.pMultisampleState=&ms; gpci2.pDepthStencilState=&dss; gpci2.pColorBlendState=&cb; gpci2.layout=impl.gbuffer_pipeline_layout; gpci2.renderPass=impl.gbuffer_render_pass; gpci2.subpass=0;
++                vkCreateGraphicsPipelines(impl.device, VK_NULL_HANDLE, 1, &gpci2, nullptr, &impl.gbuffer_pipeline);
++                vkDestroyShaderModule(impl.device, gv, nullptr);
++                vkDestroyShaderModule(impl.device, gf, nullptr);
++            }
++        }
++
++        // Create SSAO pipeline (fullscreen)
++        {
++            auto sv = load_binary_file("shaders/fullscreen.vert.spv");
++            auto sf = load_binary_file("shaders/ssao.frag.spv");
++            if (!sv.empty() && !sf.empty()) {
++                VkShaderModule v = create_shader_module(impl.device, sv);
++                VkShaderModule f = create_shader_module(impl.device, sf);
++                VkPipelineShaderStageCreateInfo stages[2] = {};
++                stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT; stages[0].module = v; stages[0].pName = "main";
++                stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT; stages[1].module = f; stages[1].pName = "main";
++                VkPipelineVertexInputStateCreateInfo vi {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
++                VkPipelineInputAssemblyStateCreateInfo ia {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO}; ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
++                VkViewport viewport {}; viewport.x=0; viewport.y=0; viewport.width=static_cast<float>(impl.swapchain_extent.width); viewport.height=static_cast<float>(impl.swapchain_extent.height); viewport.minDepth=0.0F; viewport.maxDepth=1.0F;
++                VkRect2D scissor {{0,0}, impl.swapchain_extent};
++                VkPipelineViewportStateCreateInfo vp {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO}; vp.viewportCount=1; vp.pViewports=&viewport; vp.scissorCount=1; vp.pScissors=&scissor;
++                VkPipelineRasterizationStateCreateInfo rs {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO}; rs.polygonMode=VK_POLYGON_MODE_FILL; rs.cullMode=VK_CULL_MODE_NONE; rs.frontFace=VK_FRONT_FACE_COUNTER_CLOCKWISE; rs.lineWidth=1.0F;
++                VkPipelineMultisampleStateCreateInfo ms {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO}; ms.rasterizationSamples=VK_SAMPLE_COUNT_1_BIT;
++                VkPipelineColorBlendAttachmentState cba {}; cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT;
++                VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO}; cb.attachmentCount=1; cb.pAttachments=&cba;
++                VkPipelineLayoutCreateInfo plci3 {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO}; plci3.setLayoutCount=1; plci3.pSetLayouts=&impl.desc_layout;
++                vkCreatePipelineLayout(impl.device, &plci3, nullptr, &impl.ssao_pipeline_layout);
++                VkGraphicsPipelineCreateInfo gpci3 {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO}; gpci3.stageCount=2; gpci3.pStages=stages; gpci3.pVertexInputState=&vi; gpci3.pInputAssemblyState=&ia; gpci3.pViewportState=&vp; gpci3.pRasterizationState=&rs; gpci3.pMultisampleState=&ms; gpci3.pColorBlendState=&cb; gpci3.layout=impl.ssao_pipeline_layout; gpci3.renderPass=impl.ssao_render_pass; gpci3.subpass=0;
++                vkCreateGraphicsPipelines(impl.device, VK_NULL_HANDLE, 1, &gpci3, nullptr, &impl.ssao_pipeline);
++                vkDestroyShaderModule(impl.device, v, nullptr);
++                vkDestroyShaderModule(impl.device, f, nullptr);
++            }
++        }
+     }
+ }
+ 
+@@ -1014,6 +1222,64 @@
+         VkCommandBuffer cmd = impl->command_buffers[image_index];
+         VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+         vkBeginCommandBuffer(cmd, &bi);
++        // Optional prepasses: G-buffer then SSAO
++        if (impl->gbuffer_render_pass != VK_NULL_HANDLE && impl->gbuffer_pipeline != VK_NULL_HANDLE) {
++            // Build matrices
++            const float fov = 45.0F;
++            const float radians = fov * 3.1415926535F / 180.0F;
++            const float aspect = static_cast<float>(impl->swapchain_extent.width) / static_cast<float>(impl->swapchain_extent.height == 0 ? 1 : impl->swapchain_extent.height);
++            const float znear = 0.1F;
++            const float zfar = 100.0F;
++            const float f = 1.0F / std::tanf(radians * 0.5F);
++            float proj[16] = {0}; proj[0] = f / aspect; proj[5] = f; proj[10] = (zfar + znear) / (znear - zfar); proj[11] = -1.0F; proj[14] = (2.0F * zfar * znear) / (znear - zfar);
++            const float eye[3] = {0.0F, 0.0F, 3.0F}; const float center[3] = {0.0F, 0.0F, 0.0F}; const float upv[3] = {0.0F, 1.0F, 0.0F};
++            auto norm3 = [](float v[3]) noexcept { const float len = std::sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]); if (len>0.0F){ v[0]/=len; v[1]/=len; v[2]/=len; } };
++            float fwd[3] = {center[0]-eye[0], center[1]-eye[1], center[2]-eye[2]}; norm3(fwd);
++            float s[3] = {fwd[1]*upv[2] - fwd[2]*upv[1], fwd[2]*upv[0] - fwd[0]*upv[2], fwd[0]*upv[1] - fwd[1]*upv[0]}; norm3(s);
++            float u[3] = {s[1]*fwd[2] - s[2]*fwd[1], s[2]*fwd[0] - s[0]*fwd[2], s[0]*fwd[1] - s[1]*fwd[0]};
++            float view[16] = {0}; view[0]=s[0]; view[4]=s[1]; view[8]=s[2]; view[1]=u[0]; view[5]=u[1]; view[9]=u[2]; view[2]=-fwd[0]; view[6]=-fwd[1]; view[10]=-fwd[2]; view[15]=1.0F; view[12]=-(s[0]*eye[0]+s[1]*eye[1]+s[2]*eye[2]); view[13]=-(u[0]*eye[0]+u[1]*eye[1]+u[2]*eye[2]); view[14]=-(-fwd[0]*eye[0]+-fwd[1]*eye[1]+-fwd[2]*eye[2]);
++            float model[16] = {0}; model[0]=1.0F; model[5]=1.0F; model[10]=1.0F; model[15]=1.0F;
++            auto matmul = [](const float a[16], const float b[16], float out[16]) noexcept { for (int r=0;r<4;++r){ for (int c=0;c<4;++c){ out[r*4+c]=a[r*4+0]*b[0*4+c]+a[r*4+1]*b[1*4+c]+a[r*4+2]*b[2*4+c]+a[r*4+3]*b[3*4+c]; } } };
++            float pv[16]={0}; float mvp[16]={0}; matmul(proj, view, pv); matmul(pv, model, mvp);
++
++            // Update UBO screen params early for SSAO
++            if (impl->ubo_buffer != VK_NULL_HANDLE) {
++                struct Align16UBO { float viewM[16]; float projM[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; float screen[4]; } uboData {};
++                for (int i=0;i<16;++i){ uboData.viewM[i]=view[i]; uboData.projM[i]=proj[i]; }
++                const auto sConf = impl->settings;
++                uboData.cam_pos[0]=eye[0]; uboData.cam_pos[1]=eye[1]; uboData.cam_pos[2]=eye[2]; uboData.cam_pos[3]=sConf.normal_strength;
++                uboData.light_pos[0]=sConf.light_pos[0]; uboData.light_pos[1]=sConf.light_pos[1]; uboData.light_pos[2]=sConf.light_pos[2]; uboData.light_pos[3]=sConf.shininess;
++                uboData.light_color[0]=sConf.light_color[0]; uboData.light_color[1]=sConf.light_color[1]; uboData.light_color[2]=sConf.light_color[2]; uboData.light_color[3]=sConf.light_intensity;
++                const float invW = impl->swapchain_extent.width>0 ? 1.0F/static_cast<float>(impl->swapchain_extent.width) : 0.0F;
++                const float invH = impl->swapchain_extent.height>0 ? 1.0F/static_cast<float>(impl->swapchain_extent.height) : 0.0F;
++                uboData.screen[0]=invW; uboData.screen[1]=invH; uboData.screen[2]=sConf.ssao_power; uboData.screen[3]=sConf.ssao_radius;
++                void* ptr=nullptr; vkMapMemory(impl->device, impl->ubo_memory, 0, sizeof(uboData), 0, &ptr); std::memcpy(ptr, &uboData, sizeof(uboData)); vkUnmapMemory(impl->device, impl->ubo_memory);
++            }
++
++            VkClearValue gclears[2]; gclears[0].color={{0,0,0,0}}; gclears[1].depthStencil={1.0F,0};
++            VkRenderPassBeginInfo grbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO}; grbi.renderPass=impl->gbuffer_render_pass; grbi.framebuffer=impl->gbuffer_framebuffer; grbi.renderArea.offset={0,0}; grbi.renderArea.extent=impl->swapchain_extent; grbi.clearValueCount=2; grbi.pClearValues=gclears;
++            vkCmdBeginRenderPass(cmd, &grbi, VK_SUBPASS_CONTENTS_INLINE);
++            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->gbuffer_pipeline);
++            vkCmdPushConstants(cmd, impl->gbuffer_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0U, static_cast<uint32_t>(sizeof(float)*16U), mvp);
++            if (impl->desc_set != VK_NULL_HANDLE) { vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->gbuffer_pipeline_layout, 0, 1, &impl->desc_set, 0, nullptr); }
++            if (impl->vertex_buffer != VK_NULL_HANDLE && impl->index_buffer != VK_NULL_HANDLE && impl->index_count>0U) {
++                VkDeviceSize offs[] = {0}; VkBuffer vbs[] = {impl->vertex_buffer};
++                vkCmdBindVertexBuffers(cmd, 0, 1, vbs, offs);
++                vkCmdBindIndexBuffer(cmd, impl->index_buffer, 0, VK_INDEX_TYPE_UINT32);
++                vkCmdDrawIndexed(cmd, impl->index_count, 1, 0, 0, 0);
++            }
++            vkCmdEndRenderPass(cmd);
++
++            if (impl->ssao_render_pass != VK_NULL_HANDLE && impl->ssao_pipeline != VK_NULL_HANDLE) {
++                VkClearValue sclear; sclear.color={{1.0F,0,0,0}};
++                VkRenderPassBeginInfo srp {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO}; srp.renderPass=impl->ssao_render_pass; srp.framebuffer=impl->ssao_framebuffer; srp.renderArea.offset={0,0}; srp.renderArea.extent=impl->swapchain_extent; srp.clearValueCount=1; srp.pClearValues=&sclear;
++                vkCmdBeginRenderPass(cmd, &srp, VK_SUBPASS_CONTENTS_INLINE);
++                vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->ssao_pipeline);
++                if (impl->ssao_desc_set != VK_NULL_HANDLE) { vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->ssao_pipeline_layout, 0, 1, &impl->ssao_desc_set, 0, nullptr); }
++                vkCmdDraw(cmd, 3, 1, 0, 0);
++                vkCmdEndRenderPass(cmd);
++            }
++        }
+         VkClearValue clear_color {};
+         clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
+         VkClearValue clear_depth {};
+@@ -1091,7 +1357,7 @@
+                 u.light_color[0]=s.light_color[0]; u.light_color[1]=s.light_color[1]; u.light_color[2]=s.light_color[2]; u.light_color[3]=s.light_intensity;
+                 const float invW = impl->swapchain_extent.width > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.width) : 0.0F;
+                 const float invH = impl->swapchain_extent.height > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.height) : 0.0F;
+-                u.screen[0]=invW; u.screen[1]=invH; u.screen[2]=s.ssao_power; u.screen[3]=0.0F;
++                u.screen[0]=invW; u.screen[1]=invH; u.screen[2]=s.ssao_power; u.screen[3]=s.ssao_radius;
+                 void* ubodata=nullptr; vkMapMemory(impl->device, impl->ubo_memory, 0, sizeof(u), 0, &ubodata); std::memcpy(ubodata, &u, sizeof(u)); vkUnmapMemory(impl->device, impl->ubo_memory);
+             }
+         }
+
+
+[2025-09-15T17:05:21] thinking
+
+**Streamlining resource destruction**
+
+I need to make sure we are freeing the gbuffer and ssao resources correctly. We created functions to destroy these resources, and I think we should call them in the destructor before we destroy the device. In the destroy_pipeline function, we're already freeing certain resources, but it doesn't call the gbuffer or ssao destroy functions. I need to add those calls to ensure everything is cleaned up properly, ideally before destroying depth resources.
+[2025-09-15T17:05:23] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp
+@@ -1165,2 +1165,4 @@
+         destroy_pipeline(*this);
++        destroy_ssao_resources(*this);
++        destroy_gbuffer_resources(*this);
+         destroy_depth_resources(*this);
+[2025-09-15T17:05:23] apply_patch(auto_approved=true) exited 0 in 79ms:
+Success. Updated the following files:
+M src/vulkan_context.cpp
+[2025-09-15T17:05:23] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+diff --git a/shaders/fullscreen.vert b/shaders/fullscreen.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..47ef99bf5518ea3ce9baaf3e01e4b8041e98e68d
+--- /dev/null
++++ b/shaders/fullscreen.vert
+@@ -0,0 +1,20 @@
++#version 450
++
++layout(location = 0) out vec2 vUV;
++
++void main() {
++    // Fullscreen triangle
++    const vec2 positions[3] = vec2[3](
++        vec2(-1.0, -1.0),
++        vec2( 3.0, -1.0),
++        vec2(-1.0,  3.0)
++    );
++    const vec2 uvs[3] = vec2[3](
++        vec2(0.0, 0.0),
++        vec2(2.0, 0.0),
++        vec2(0.0, 2.0)
++    );
++    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
++    vUV = uvs[gl_VertexIndex];
++}
++
+diff --git a/shaders/gbuffer.frag b/shaders/gbuffer.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..f116ab22511268e2aaef9d7bf34c2a990af23f13
+--- /dev/null
++++ b/shaders/gbuffer.frag
+@@ -0,0 +1,16 @@
++#version 450
++
++layout(location = 0) in vec3 vNormalVS;
++layout(location = 1) in float vDepthVS;
++layout(location = 2) in vec2 vUV;
++
++layout(location = 0) out vec4 outND;
++
++void main() {
++    // Pack view-space normal into RGB ([-1,1] -> [0,1]) and linear depth into A
++    vec3 n = normalize(vNormalVS);
++    vec3 n01 = n * 0.5 + 0.5;
++    float depth = vDepthVS;
++    outND = vec4(n01, depth);
++}
++
+diff --git a/shaders/gbuffer.vert b/shaders/gbuffer.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8c46e3cfe30155fc0601a6b6d4f29b4b593166
+--- /dev/null
++++ b/shaders/gbuffer.vert
+@@ -0,0 +1,33 @@
++#version 450
++
++layout(location = 0) in vec3 inPos;
++layout(location = 1) in vec3 inNormal;
++layout(location = 4) in vec2 inUV;
++
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(location = 0) out vec3 vNormalVS;
++layout(location = 1) out float vDepthVS;
++layout(location = 2) out vec2 vUV;
++
++void main() {
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
++    // view-space normal: ignore translation part
++    mat3 view3 = mat3(ubo.view);
++    vNormalVS = normalize(view3 * inNormal);
++    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
++    vDepthVS = -posVS.z; // positive distance from camera
++    vUV = inUV;
++}
++
+diff --git a/shaders/ssao.frag b/shaders/ssao.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..44f54958184303534d4698354b96ceff72b715e0
+--- /dev/null
++++ b/shaders/ssao.frag
+@@ -0,0 +1,48 @@
++#version 450
++
++layout(location = 0) in vec2 vUV;
++layout(location = 0) out float outAO;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    // x=invWidth, y=invHeight, z=aoPower, w=radius
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(set = 0, binding = 1) uniform sampler2D uND; // gbuffer normal/depth packed
++
++// Simple 2D SSAO kernel
++const int KERNEL = 16;
++const vec2 OFFSETS[KERNEL] = vec2[KERNEL](
++    vec2( 1,  0), vec2(-1,  0), vec2( 0,  1), vec2( 0, -1),
++    vec2( 1,  1), vec2(-1,  1), vec2( 1, -1), vec2(-1, -1),
++    vec2( 2,  0), vec2(-2,  0), vec2( 0,  2), vec2( 0, -2),
++    vec2( 2,  1), vec2(-2,  1), vec2( 1,  2), vec2(-1, -2)
++);
++
++void main() {
++    vec2 texel = vec2(ubo.screen_invW_invH_aoPower_radius.x, ubo.screen_invW_invH_aoPower_radius.y);
++    float radius = max(ubo.screen_invW_invH_aoPower_radius.w, 1.0);
++
++    vec4 nd = texture(uND, vUV);
++    vec3 n = normalize(nd.xyz * 2.0 - 1.0);
++    float depth = nd.w;
++
++    float occlusion = 0.0;
++    for (int i = 0; i < KERNEL; ++i) {
++        vec2 offset = OFFSETS[i] * texel * radius;
++        vec4 ndS = texture(uND, vUV + offset);
++        float depthS = ndS.w;
++        float range = smoothstep(0.0, 1.0, radius);
++        float delta = depthS - depth;
++        float occ = step(0.001, delta) * (1.0 - clamp(delta / (radius), 0.0, 1.0)) * range;
++        occlusion += occ;
++    }
++    occlusion /= float(KERNEL);
++    outAO = 1.0 - occlusion;
++}
++
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index e45d560a53955091853910b65ddcc068813d80f3..c3c0d07965e0bb8e89927f2b780a21d31e72b5a9
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -74,6 +74,25 @@
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
++    // G-buffer (Normals+Depth packed into RGBA16F) prepass resources
++    VkRenderPass gbuffer_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer gbuffer_framebuffer {VK_NULL_HANDLE};
++    VkImage gbuffer_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_view {VK_NULL_HANDLE};
++    VkImage gbuffer_depth_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_depth_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_depth_view {VK_NULL_HANDLE};
++    VkPipelineLayout gbuffer_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline gbuffer_pipeline {VK_NULL_HANDLE};
++
++    // SSAO pass resources (writes AO into ao_image which is sampled in forward)
++    VkRenderPass ssao_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer ssao_framebuffer {VK_NULL_HANDLE};
++    VkPipelineLayout ssao_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline ssao_pipeline {VK_NULL_HANDLE};
++    VkDescriptorSet ssao_desc_set {VK_NULL_HANDLE};
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+@@ -641,6 +660,118 @@
+     if (vkCreateImageView(impl.device, &ivci, nullptr, outView) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image view"}; }
+ }
+ 
++static void create_color_image(VulkanContext& ctx, uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage,
++    VkImage* outImage, VkDeviceMemory* outMem, VkImageView* outView) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
++    ici.imageType = VK_IMAGE_TYPE_2D;
++    ici.extent = {width, height, 1};
++    ici.mipLevels = 1;
++    ici.arrayLayers = 1;
++    ici.format = format;
++    ici.tiling = VK_IMAGE_TILING_OPTIMAL;
++    ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
++    ici.usage = usage;
++    ici.samples = VK_SAMPLE_COUNT_1_BIT;
++    ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (vkCreateImage(impl.device, &ici, nullptr, outImage) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image"}; }
++    VkMemoryRequirements req {};
++    vkGetImageMemoryRequirements(impl.device, *outImage, &req);
++    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
++    mai.allocationSize = req.size;
++    mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++    if (vkAllocateMemory(impl.device, &mai, nullptr, outMem) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc image mem"}; }
++    vkBindImageMemory(impl.device, *outImage, *outMem, 0);
++
++    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
++    ivci.image = *outImage; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = format;
++    ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; ivci.subresourceRange.levelCount = 1; ivci.subresourceRange.layerCount = 1;
++    if (vkCreateImageView(impl.device, &ivci, nullptr, outView) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image view"}; }
++}
++
++static void create_gbuffer_resources(VulkanContext& ctx) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    const uint32_t w = impl.swapchain_extent.width;
++    const uint32_t h = impl.swapchain_extent.height;
++    // Create ND image (RGBA16F) with color attachment + sampled usage
++    create_color_image(ctx, w, h, VK_FORMAT_R16G16B16A16_SFLOAT,
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++        &impl.gbuffer_image, &impl.gbuffer_memory, &impl.gbuffer_view);
++    // Create depth for gbuffer
++    VkFormat df = find_depth_format(ctx);
++    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
++    ici.imageType = VK_IMAGE_TYPE_2D; ici.extent = {w, h, 1}; ici.mipLevels = 1; ici.arrayLayers = 1; ici.format = df;
++    ici.tiling = VK_IMAGE_TILING_OPTIMAL; ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; ici.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT; ici.samples = VK_SAMPLE_COUNT_1_BIT; ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (vkCreateImage(impl.device, &ici, nullptr, &impl.gbuffer_depth_image) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer depth"}; }
++    VkMemoryRequirements req {}; vkGetImageMemoryRequirements(impl.device, impl.gbuffer_depth_image, &req);
++    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO}; mai.allocationSize = req.size; mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++    if (vkAllocateMemory(impl.device, &mai, nullptr, &impl.gbuffer_depth_memory) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc gbuffer depth mem"}; }
++    vkBindImageMemory(impl.device, impl.gbuffer_depth_image, impl.gbuffer_depth_memory, 0);
++    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO}; ivci.image = impl.gbuffer_depth_image; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = df; ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT; ivci.subresourceRange.levelCount=1; ivci.subresourceRange.layerCount=1;
++    if (vkCreateImageView(impl.device, &ivci, nullptr, &impl.gbuffer_depth_view) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer depth view"}; }
++
++    // Render pass for gbuffer
++    VkAttachmentDescription color { };
++    color.format = VK_FORMAT_R16G16B16A16_SFLOAT; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkAttachmentDescription depth { };
++    depth.format = df; depth.samples = VK_SAMPLE_COUNT_1_BIT; depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; depth.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; depth.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
++    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
++    VkAttachmentReference depth_ref {1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
++    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref; sub.pDepthStencilAttachment = &depth_ref;
++    VkAttachmentDescription att[2] = {color, depth};
++    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 2; rpci.pAttachments = att; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
++    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.gbuffer_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer render pass"}; }
++
++    // Framebuffer
++    VkImageView views[2] = {impl.gbuffer_view, impl.gbuffer_depth_view};
++    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.gbuffer_render_pass; fbci.attachmentCount = 2; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
++    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.gbuffer_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer framebuffer"}; }
++}
++
++static void destroy_gbuffer_resources(VulkanContext& ctx) noexcept {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    if (impl.gbuffer_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.gbuffer_framebuffer, nullptr); impl.gbuffer_framebuffer = VK_NULL_HANDLE; }
++    if (impl.gbuffer_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.gbuffer_render_pass, nullptr); impl.gbuffer_render_pass = VK_NULL_HANDLE; }
++    if (impl.gbuffer_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.gbuffer_view, nullptr); impl.gbuffer_view = VK_NULL_HANDLE; }
++    if (impl.gbuffer_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.gbuffer_image, nullptr); impl.gbuffer_image = VK_NULL_HANDLE; }
++    if (impl.gbuffer_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.gbuffer_memory, nullptr); impl.gbuffer_memory = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.gbuffer_depth_view, nullptr); impl.gbuffer_depth_view = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.gbuffer_depth_image, nullptr); impl.gbuffer_depth_image = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.gbuffer_depth_memory, nullptr); impl.gbuffer_depth_memory = VK_NULL_HANDLE; }
++    if (impl.gbuffer_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.gbuffer_pipeline, nullptr); impl.gbuffer_pipeline = VK_NULL_HANDLE; }
++    if (impl.gbuffer_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.gbuffer_pipeline_layout, nullptr); impl.gbuffer_pipeline_layout = VK_NULL_HANDLE; }
++}
++
++static void create_ssao_resources(VulkanContext& ctx) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    const uint32_t w = impl.swapchain_extent.width;
++    const uint32_t h = impl.swapchain_extent.height;
++    // Create AO image as color attachment + sampled (R8)
++    create_color_image(ctx, w, h, VK_FORMAT_R8_UNORM,
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++        &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++
++    // SSAO render pass
++    VkAttachmentDescription color { };
++    color.format = VK_FORMAT_R8_UNORM; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
++    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref;
++    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 1; rpci.pAttachments = &color; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
++    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.ssao_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create ssao render pass"}; }
++
++    VkImageView views[1] = {impl.ao_view};
++    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.ssao_render_pass; fbci.attachmentCount = 1; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
++    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.ssao_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create ssao framebuffer"}; }
++}
++
++static void destroy_ssao_resources(VulkanContext& ctx) noexcept {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    if (impl.ssao_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.ssao_framebuffer, nullptr); impl.ssao_framebuffer = VK_NULL_HANDLE; }
++    if (impl.ssao_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.ssao_render_pass, nullptr); impl.ssao_render_pass = VK_NULL_HANDLE; }
++    if (impl.ssao_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.ssao_pipeline, nullptr); impl.ssao_pipeline = VK_NULL_HANDLE; }
++    if (impl.ssao_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.ssao_pipeline_layout, nullptr); impl.ssao_pipeline_layout = VK_NULL_HANDLE; }
++}
++
+ static void upload_mesh_to_gpu(VulkanContext& ctx, const vulkano::Mesh& mesh) {
+     auto& impl = VulkanContextInternalsHelper::get(ctx);
+     destroy_mesh_buffers(ctx);
+@@ -838,7 +969,7 @@
+     vkDestroyShaderModule(impl.device, vmod, nullptr);
+     vkDestroyShaderModule(impl.device, fmod, nullptr);
+ 
+-    // Material resources for forward shading
++    // Material resources for forward shading and prepasses
+     if (forward) {
+         // Create sampler
+         VkSamplerCreateInfo sci {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+@@ -856,23 +987,28 @@
+         create_image_and_upload(ctx, W, H, albedo.data(), static_cast<VkDeviceSize>(albedo.size()*sizeof(std::uint32_t)), &impl.albedo_image, &impl.albedo_memory, &impl.albedo_view);
+         create_image_and_upload(ctx, W, H, normal.data(), static_cast<VkDeviceSize>(normal.size()*sizeof(std::uint32_t)), &impl.normal_image, &impl.normal_memory, &impl.normal_view);
+ 
+-        // AO texture placeholder: 1x1 white (no occlusion)
+-        const uint32_t AO_W = 1, AO_H = 1; const std::uint32_t white = 0xFFFFFFFFu;
+-        create_image_and_upload(ctx, AO_W, AO_H, &white, sizeof(white), &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++        // Create G-buffer and SSAO render targets sized to swapchain
++        destroy_gbuffer_resources(ctx);
++        destroy_ssao_resources(ctx);
++        create_gbuffer_resources(ctx);
++        create_ssao_resources(ctx);
+ 
+         // Create UBO (256 bytes)
+-        create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        if (impl.ubo_buffer == VK_NULL_HANDLE) {
++            create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        }
+ 
+         // Descriptor pool and set
+         VkDescriptorPoolSize poolSizes[2] = {};
+-        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 1;
+-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 3;
++        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 2; // forward + ssao
++        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 6; // 3 forward + 1 ssao (+spare)
+         VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+-        dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 1;
++        dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 2;
+         vkCreateDescriptorPool(impl.device, &dpci, nullptr, &impl.desc_pool);
+         VkDescriptorSetAllocateInfo dsai {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+         dsai.descriptorPool = impl.desc_pool; dsai.descriptorSetCount = 1; dsai.pSetLayouts = &impl.desc_layout;
+         vkAllocateDescriptorSets(impl.device, &dsai, &impl.desc_set);
++        vkAllocateDescriptorSets(impl.device, &dsai, &impl.ssao_desc_set);
+         VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
+         VkDescriptorImageInfo dai1 {}; dai1.sampler = impl.sampler; dai1.imageView = impl.albedo_view; dai1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+         VkDescriptorImageInfo dai2 {}; dai2.sampler = impl.sampler; dai2.imageView = impl.normal_view; dai2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+@@ -883,6 +1019,78 @@
+         writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = impl.desc_set; writes[2].dstBinding = 2; writes[2].descriptorCount = 1; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[2].pImageInfo = &dai2;
+         writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[3].dstSet = impl.desc_set; writes[3].dstBinding = 3; writes[3].descriptorCount = 1; writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[3].pImageInfo = &dai3;
+         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
++
++        // SSAO descriptor set: UBO + ND texture at binding 1
++        VkDescriptorImageInfo dai_nd {}; dai_nd.sampler = impl.sampler; dai_nd.imageView = impl.gbuffer_view; dai_nd.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++        std::array<VkWriteDescriptorSet,2> writes_ssao {};
++        writes_ssao[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes_ssao[0].dstSet = impl.ssao_desc_set; writes_ssao[0].dstBinding = 0; writes_ssao[0].descriptorCount = 1; writes_ssao[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes_ssao[0].pBufferInfo = &dbi;
++        writes_ssao[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes_ssao[1].dstSet = impl.ssao_desc_set; writes_ssao[1].dstBinding = 1; writes_ssao[1].descriptorCount = 1; writes_ssao[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes_ssao[1].pImageInfo = &dai_nd;
++        vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes_ssao.size()), writes_ssao.data(), 0, nullptr);
++
++        // Create G-buffer pipeline
++        {
++            auto gvs = load_binary_file("shaders/gbuffer.vert.spv");
++            auto gfs = load_binary_file("shaders/gbuffer.frag.spv");
++            if (!gvs.empty() && !gfs.empty()) {
++                VkShaderModule gv = create_shader_module(impl.device, gvs);
++                VkShaderModule gf = create_shader_module(impl.device, gfs);
++                VkPipelineShaderStageCreateInfo stages[2] = {};
++                stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT; stages[0].module = gv; stages[0].pName = "main";
++                stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT; stages[1].module = gf; stages[1].pName = "main";
++                VkVertexInputBindingDescription binding {0, static_cast<uint32_t>(sizeof(vulkano::Vertex)), VK_VERTEX_INPUT_RATE_VERTEX};
++                std::array<VkVertexInputAttributeDescription,5> attrs = {
++                    VkVertexInputAttributeDescription{0,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, position)},
++                    VkVertexInputAttributeDescription{1,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, normal)},
++                    VkVertexInputAttributeDescription{2,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, tangent)},
++                    VkVertexInputAttributeDescription{3,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, bitangent)},
++                    VkVertexInputAttributeDescription{4,0,VK_FORMAT_R32G32_SFLOAT, offsetof(vulkano::Vertex, texcoord)} };
++                VkPipelineVertexInputStateCreateInfo vi {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO}; vi.vertexBindingDescriptionCount=1; vi.pVertexBindingDescriptions=&binding; vi.vertexAttributeDescriptionCount=static_cast<uint32_t>(attrs.size()); vi.pVertexAttributeDescriptions=attrs.data();
++                VkPipelineInputAssemblyStateCreateInfo ia {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO}; ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
++                VkViewport viewport {}; viewport.x=0; viewport.y=0; viewport.width=static_cast<float>(impl.swapchain_extent.width); viewport.height=static_cast<float>(impl.swapchain_extent.height); viewport.minDepth=0.0F; viewport.maxDepth=1.0F;
++                VkRect2D scissor {{0,0}, impl.swapchain_extent};
++                VkPipelineViewportStateCreateInfo vp {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO}; vp.viewportCount=1; vp.pViewports=&viewport; vp.scissorCount=1; vp.pScissors=&scissor;
++                VkPipelineRasterizationStateCreateInfo rs {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO}; rs.polygonMode=VK_POLYGON_MODE_FILL; rs.cullMode=VK_CULL_MODE_BACK_BIT; rs.frontFace=VK_FRONT_FACE_COUNTER_CLOCKWISE; rs.lineWidth=1.0F;
++                VkPipelineMultisampleStateCreateInfo ms {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO}; ms.rasterizationSamples=VK_SAMPLE_COUNT_1_BIT;
++                VkPipelineDepthStencilStateCreateInfo dss {VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO}; dss.depthTestEnable=VK_TRUE; dss.depthWriteEnable=VK_TRUE; dss.depthCompareOp=VK_COMPARE_OP_LESS;
++                VkPipelineColorBlendAttachmentState cba {}; cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT|VK_COLOR_COMPONENT_G_BIT|VK_COLOR_COMPONENT_B_BIT|VK_COLOR_COMPONENT_A_BIT;
++                VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO}; cb.attachmentCount=1; cb.pAttachments=&cba;
++                VkPushConstantRange pcr2 {}; pcr2.offset=0; pcr2.size=static_cast<uint32_t>(sizeof(float)*16U); pcr2.stageFlags=VK_SHADER_STAGE_VERTEX_BIT;
++                VkPipelineLayoutCreateInfo plci2 {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO}; plci2.pushConstantRangeCount=1; plci2.pPushConstantRanges=&pcr2; plci2.setLayoutCount=1; plci2.pSetLayouts=&impl.desc_layout;
++                vkCreatePipelineLayout(impl.device, &plci2, nullptr, &impl.gbuffer_pipeline_layout);
++                VkGraphicsPipelineCreateInfo gpci2 {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO}; gpci2.stageCount=2; gpci2.pStages=stages; gpci2.pVertexInputState=&vi; gpci2.pInputAssemblyState=&ia; gpci2.pViewportState=&vp; gpci2.pRasterizationState=&rs; gpci2.pMultisampleState=&ms; gpci2.pDepthStencilState=&dss; gpci2.pColorBlendState=&cb; gpci2.layout=impl.gbuffer_pipeline_layout; gpci2.renderPass=impl.gbuffer_render_pass; gpci2.subpass=0;
++                vkCreateGraphicsPipelines(impl.device, VK_NULL_HANDLE, 1, &gpci2, nullptr, &impl.gbuffer_pipeline);
++                vkDestroyShaderModule(impl.device, gv, nullptr);
++                vkDestroyShaderModule(impl.device, gf, nullptr);
++            }
++        }
++
++        // Create SSAO pipeline (fullscreen)
++        {
++            auto sv = load_binary_file("shaders/fullscreen.vert.spv");
++            auto sf = load_binary_file("shaders/ssao.frag.spv");
++            if (!sv.empty() && !sf.empty()) {
++                VkShaderModule v = create_shader_module(impl.device, sv);
++                VkShaderModule f = create_shader_module(impl.device, sf);
++                VkPipelineShaderStageCreateInfo stages[2] = {};
++                stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT; stages[0].module = v; stages[0].pName = "main";
++                stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT; stages[1].module = f; stages[1].pName = "main";
++                VkPipelineVertexInputStateCreateInfo vi {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
++                VkPipelineInputAssemblyStateCreateInfo ia {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO}; ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
++                VkViewport viewport {}; viewport.x=0; viewport.y=0; viewport.width=static_cast<float>(impl.swapchain_extent.width); viewport.height=static_cast<float>(impl.swapchain_extent.height); viewport.minDepth=0.0F; viewport.maxDepth=1.0F;
++                VkRect2D scissor {{0,0}, impl.swapchain_extent};
++                VkPipelineViewportStateCreateInfo vp {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO}; vp.viewportCount=1; vp.pViewports=&viewport; vp.scissorCount=1; vp.pScissors=&scissor;
++                VkPipelineRasterizationStateCreateInfo rs {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO}; rs.polygonMode=VK_POLYGON_MODE_FILL; rs.cullMode=VK_CULL_MODE_NONE; rs.frontFace=VK_FRONT_FACE_COUNTER_CLOCKWISE; rs.lineWidth=1.0F;
++                VkPipelineMultisampleStateCreateInfo ms {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO}; ms.rasterizationSamples=VK_SAMPLE_COUNT_1_BIT;
++                VkPipelineColorBlendAttachmentState cba {}; cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT;
++                VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO}; cb.attachmentCount=1; cb.pAttachments=&cba;
++                VkPipelineLayoutCreateInfo plci3 {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO}; plci3.setLayoutCount=1; plci3.pSetLayouts=&impl.desc_layout;
++                vkCreatePipelineLayout(impl.device, &plci3, nullptr, &impl.ssao_pipeline_layout);
++                VkGraphicsPipelineCreateInfo gpci3 {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO}; gpci3.stageCount=2; gpci3.pStages=stages; gpci3.pVertexInputState=&vi; gpci3.pInputAssemblyState=&ia; gpci3.pViewportState=&vp; gpci3.pRasterizationState=&rs; gpci3.pMultisampleState=&ms; gpci3.pColorBlendState=&cb; gpci3.layout=impl.ssao_pipeline_layout; gpci3.renderPass=impl.ssao_render_pass; gpci3.subpass=0;
++                vkCreateGraphicsPipelines(impl.device, VK_NULL_HANDLE, 1, &gpci3, nullptr, &impl.ssao_pipeline);
++                vkDestroyShaderModule(impl.device, v, nullptr);
++                vkDestroyShaderModule(impl.device, f, nullptr);
++            }
++        }
+     }
+ }
+ 
+@@ -955,6 +1163,8 @@
+             vkDeviceWaitIdle(impl->device);
+         }
+         destroy_pipeline(*this);
++        destroy_ssao_resources(*this);
++        destroy_gbuffer_resources(*this);
+         destroy_depth_resources(*this);
+         destroy_mesh_buffers(*this);
+         if (impl->in_flight != VK_NULL_HANDLE) {
+@@ -1014,6 +1224,64 @@
+         VkCommandBuffer cmd = impl->command_buffers[image_index];
+         VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+         vkBeginCommandBuffer(cmd, &bi);
++        // Optional prepasses: G-buffer then SSAO
++        if (impl->gbuffer_render_pass != VK_NULL_HANDLE && impl->gbuffer_pipeline != VK_NULL_HANDLE) {
++            // Build matrices
++            const float fov = 45.0F;
++            const float radians = fov * 3.1415926535F / 180.0F;
++            const float aspect = static_cast<float>(impl->swapchain_extent.width) / static_cast<float>(impl->swapchain_extent.height == 0 ? 1 : impl->swapchain_extent.height);
++            const float znear = 0.1F;
++            const float zfar = 100.0F;
++            const float f = 1.0F / std::tanf(radians * 0.5F);
++            float proj[16] = {0}; proj[0] = f / aspect; proj[5] = f; proj[10] = (zfar + znear) / (znear - zfar); proj[11] = -1.0F; proj[14] = (2.0F * zfar * znear) / (znear - zfar);
++            const float eye[3] = {0.0F, 0.0F, 3.0F}; const float center[3] = {0.0F, 0.0F, 0.0F}; const float upv[3] = {0.0F, 1.0F, 0.0F};
++            auto norm3 = [](float v[3]) noexcept { const float len = std::sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]); if (len>0.0F){ v[0]/=len; v[1]/=len; v[2]/=len; } };
++            float fwd[3] = {center[0]-eye[0], center[1]-eye[1], center[2]-eye[2]}; norm3(fwd);
++            float s[3] = {fwd[1]*upv[2] - fwd[2]*upv[1], fwd[2]*upv[0] - fwd[0]*upv[2], fwd[0]*upv[1] - fwd[1]*upv[0]}; norm3(s);
++            float u[3] = {s[1]*fwd[2] - s[2]*fwd[1], s[2]*fwd[0] - s[0]*fwd[2], s[0]*fwd[1] - s[1]*fwd[0]};
++            float view[16] = {0}; view[0]=s[0]; view[4]=s[1]; view[8]=s[2]; view[1]=u[0]; view[5]=u[1]; view[9]=u[2]; view[2]=-fwd[0]; view[6]=-fwd[1]; view[10]=-fwd[2]; view[15]=1.0F; view[12]=-(s[0]*eye[0]+s[1]*eye[1]+s[2]*eye[2]); view[13]=-(u[0]*eye[0]+u[1]*eye[1]+u[2]*eye[2]); view[14]=-(-fwd[0]*eye[0]+-fwd[1]*eye[1]+-fwd[2]*eye[2]);
++            float model[16] = {0}; model[0]=1.0F; model[5]=1.0F; model[10]=1.0F; model[15]=1.0F;
++            auto matmul = [](const float a[16], const float b[16], float out[16]) noexcept { for (int r=0;r<4;++r){ for (int c=0;c<4;++c){ out[r*4+c]=a[r*4+0]*b[0*4+c]+a[r*4+1]*b[1*4+c]+a[r*4+2]*b[2*4+c]+a[r*4+3]*b[3*4+c]; } } };
++            float pv[16]={0}; float mvp[16]={0}; matmul(proj, view, pv); matmul(pv, model, mvp);
++
++            // Update UBO screen params early for SSAO
++            if (impl->ubo_buffer != VK_NULL_HANDLE) {
++                struct Align16UBO { float viewM[16]; float projM[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; float screen[4]; } uboData {};
++                for (int i=0;i<16;++i){ uboData.viewM[i]=view[i]; uboData.projM[i]=proj[i]; }
++                const auto sConf = impl->settings;
++                uboData.cam_pos[0]=eye[0]; uboData.cam_pos[1]=eye[1]; uboData.cam_pos[2]=eye[2]; uboData.cam_pos[3]=sConf.normal_strength;
++                uboData.light_pos[0]=sConf.light_pos[0]; uboData.light_pos[1]=sConf.light_pos[1]; uboData.light_pos[2]=sConf.light_pos[2]; uboData.light_pos[3]=sConf.shininess;
++                uboData.light_color[0]=sConf.light_color[0]; uboData.light_color[1]=sConf.light_color[1]; uboData.light_color[2]=sConf.light_color[2]; uboData.light_color[3]=sConf.light_intensity;
++                const float invW = impl->swapchain_extent.width>0 ? 1.0F/static_cast<float>(impl->swapchain_extent.width) : 0.0F;
++                const float invH = impl->swapchain_extent.height>0 ? 1.0F/static_cast<float>(impl->swapchain_extent.height) : 0.0F;
++                uboData.screen[0]=invW; uboData.screen[1]=invH; uboData.screen[2]=sConf.ssao_power; uboData.screen[3]=sConf.ssao_radius;
++                void* ptr=nullptr; vkMapMemory(impl->device, impl->ubo_memory, 0, sizeof(uboData), 0, &ptr); std::memcpy(ptr, &uboData, sizeof(uboData)); vkUnmapMemory(impl->device, impl->ubo_memory);
++            }
++
++            VkClearValue gclears[2]; gclears[0].color={{0,0,0,0}}; gclears[1].depthStencil={1.0F,0};
++            VkRenderPassBeginInfo grbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO}; grbi.renderPass=impl->gbuffer_render_pass; grbi.framebuffer=impl->gbuffer_framebuffer; grbi.renderArea.offset={0,0}; grbi.renderArea.extent=impl->swapchain_extent; grbi.clearValueCount=2; grbi.pClearValues=gclears;
++            vkCmdBeginRenderPass(cmd, &grbi, VK_SUBPASS_CONTENTS_INLINE);
++            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->gbuffer_pipeline);
++            vkCmdPushConstants(cmd, impl->gbuffer_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0U, static_cast<uint32_t>(sizeof(float)*16U), mvp);
++            if (impl->desc_set != VK_NULL_HANDLE) { vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->gbuffer_pipeline_layout, 0, 1, &impl->desc_set, 0, nullptr); }
++            if (impl->vertex_buffer != VK_NULL_HANDLE && impl->index_buffer != VK_NULL_HANDLE && impl->index_count>0U) {
++                VkDeviceSize offs[] = {0}; VkBuffer vbs[] = {impl->vertex_buffer};
++                vkCmdBindVertexBuffers(cmd, 0, 1, vbs, offs);
++                vkCmdBindIndexBuffer(cmd, impl->index_buffer, 0, VK_INDEX_TYPE_UINT32);
++                vkCmdDrawIndexed(cmd, impl->index_count, 1, 0, 0, 0);
++            }
++            vkCmdEndRenderPass(cmd);
++
++            if (impl->ssao_render_pass != VK_NULL_HANDLE && impl->ssao_pipeline != VK_NULL_HANDLE) {
++                VkClearValue sclear; sclear.color={{1.0F,0,0,0}};
++                VkRenderPassBeginInfo srp {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO}; srp.renderPass=impl->ssao_render_pass; srp.framebuffer=impl->ssao_framebuffer; srp.renderArea.offset={0,0}; srp.renderArea.extent=impl->swapchain_extent; srp.clearValueCount=1; srp.pClearValues=&sclear;
++                vkCmdBeginRenderPass(cmd, &srp, VK_SUBPASS_CONTENTS_INLINE);
++                vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->ssao_pipeline);
++                if (impl->ssao_desc_set != VK_NULL_HANDLE) { vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->ssao_pipeline_layout, 0, 1, &impl->ssao_desc_set, 0, nullptr); }
++                vkCmdDraw(cmd, 3, 1, 0, 0);
++                vkCmdEndRenderPass(cmd);
++            }
++        }
+         VkClearValue clear_color {};
+         clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
+         VkClearValue clear_depth {};
+@@ -1091,7 +1359,7 @@
+                 u.light_color[0]=s.light_color[0]; u.light_color[1]=s.light_color[1]; u.light_color[2]=s.light_color[2]; u.light_color[3]=s.light_intensity;
+                 const float invW = impl->swapchain_extent.width > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.width) : 0.0F;
+                 const float invH = impl->swapchain_extent.height > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.height) : 0.0F;
+-                u.screen[0]=invW; u.screen[1]=invH; u.screen[2]=s.ssao_power; u.screen[3]=0.0F;
++                u.screen[0]=invW; u.screen[1]=invH; u.screen[2]=s.ssao_power; u.screen[3]=s.ssao_radius;
+                 void* ubodata=nullptr; vkMapMemory(impl->device, impl->ubo_memory, 0, sizeof(u), 0, &ubodata); std::memcpy(ubodata, &u, sizeof(u)); vkUnmapMemory(impl->device, impl->ubo_memory);
+             }
+         }
+
+[2025-09-15T17:05:23] tokens used: 138,427
+[2025-09-15T17:05:23] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+diff --git a/shaders/fullscreen.vert b/shaders/fullscreen.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..47ef99bf5518ea3ce9baaf3e01e4b8041e98e68d
+--- /dev/null
++++ b/shaders/fullscreen.vert
+@@ -0,0 +1,20 @@
++#version 450
++
++layout(location = 0) out vec2 vUV;
++
++void main() {
++    // Fullscreen triangle
++    const vec2 positions[3] = vec2[3](
++        vec2(-1.0, -1.0),
++        vec2( 3.0, -1.0),
++        vec2(-1.0,  3.0)
++    );
++    const vec2 uvs[3] = vec2[3](
++        vec2(0.0, 0.0),
++        vec2(2.0, 0.0),
++        vec2(0.0, 2.0)
++    );
++    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
++    vUV = uvs[gl_VertexIndex];
++}
++
+diff --git a/shaders/gbuffer.frag b/shaders/gbuffer.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..f116ab22511268e2aaef9d7bf34c2a990af23f13
+--- /dev/null
++++ b/shaders/gbuffer.frag
+@@ -0,0 +1,16 @@
++#version 450
++
++layout(location = 0) in vec3 vNormalVS;
++layout(location = 1) in float vDepthVS;
++layout(location = 2) in vec2 vUV;
++
++layout(location = 0) out vec4 outND;
++
++void main() {
++    // Pack view-space normal into RGB ([-1,1] -> [0,1]) and linear depth into A
++    vec3 n = normalize(vNormalVS);
++    vec3 n01 = n * 0.5 + 0.5;
++    float depth = vDepthVS;
++    outND = vec4(n01, depth);
++}
++
+diff --git a/shaders/gbuffer.vert b/shaders/gbuffer.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8c46e3cfe30155fc0601a6b6d4f29b4b593166
+--- /dev/null
++++ b/shaders/gbuffer.vert
+@@ -0,0 +1,33 @@
++#version 450
++
++layout(location = 0) in vec3 inPos;
++layout(location = 1) in vec3 inNormal;
++layout(location = 4) in vec2 inUV;
++
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(location = 0) out vec3 vNormalVS;
++layout(location = 1) out float vDepthVS;
++layout(location = 2) out vec2 vUV;
++
++void main() {
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
++    // view-space normal: ignore translation part
++    mat3 view3 = mat3(ubo.view);
++    vNormalVS = normalize(view3 * inNormal);
++    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
++    vDepthVS = -posVS.z; // positive distance from camera
++    vUV = inUV;
++}
++
+diff --git a/shaders/ssao.frag b/shaders/ssao.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..44f54958184303534d4698354b96ceff72b715e0
+--- /dev/null
++++ b/shaders/ssao.frag
+@@ -0,0 +1,48 @@
++#version 450
++
++layout(location = 0) in vec2 vUV;
++layout(location = 0) out float outAO;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    // x=invWidth, y=invHeight, z=aoPower, w=radius
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(set = 0, binding = 1) uniform sampler2D uND; // gbuffer normal/depth packed
++
++// Simple 2D SSAO kernel
++const int KERNEL = 16;
++const vec2 OFFSETS[KERNEL] = vec2[KERNEL](
++    vec2( 1,  0), vec2(-1,  0), vec2( 0,  1), vec2( 0, -1),
++    vec2( 1,  1), vec2(-1,  1), vec2( 1, -1), vec2(-1, -1),
++    vec2( 2,  0), vec2(-2,  0), vec2( 0,  2), vec2( 0, -2),
++    vec2( 2,  1), vec2(-2,  1), vec2( 1,  2), vec2(-1, -2)
++);
++
++void main() {
++    vec2 texel = vec2(ubo.screen_invW_invH_aoPower_radius.x, ubo.screen_invW_invH_aoPower_radius.y);
++    float radius = max(ubo.screen_invW_invH_aoPower_radius.w, 1.0);
++
++    vec4 nd = texture(uND, vUV);
++    vec3 n = normalize(nd.xyz * 2.0 - 1.0);
++    float depth = nd.w;
++
++    float occlusion = 0.0;
++    for (int i = 0; i < KERNEL; ++i) {
++        vec2 offset = OFFSETS[i] * texel * radius;
++        vec4 ndS = texture(uND, vUV + offset);
++        float depthS = ndS.w;
++        float range = smoothstep(0.0, 1.0, radius);
++        float delta = depthS - depth;
++        float occ = step(0.001, delta) * (1.0 - clamp(delta / (radius), 0.0, 1.0)) * range;
++        occlusion += occ;
++    }
++    occlusion /= float(KERNEL);
++    outAO = 1.0 - occlusion;
++}
++
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index e45d560a53955091853910b65ddcc068813d80f3..c3c0d07965e0bb8e89927f2b780a21d31e72b5a9
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -74,6 +74,25 @@
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
++    // G-buffer (Normals+Depth packed into RGBA16F) prepass resources
++    VkRenderPass gbuffer_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer gbuffer_framebuffer {VK_NULL_HANDLE};
++    VkImage gbuffer_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_view {VK_NULL_HANDLE};
++    VkImage gbuffer_depth_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_depth_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_depth_view {VK_NULL_HANDLE};
++    VkPipelineLayout gbuffer_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline gbuffer_pipeline {VK_NULL_HANDLE};
++
++    // SSAO pass resources (writes AO into ao_image which is sampled in forward)
++    VkRenderPass ssao_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer ssao_framebuffer {VK_NULL_HANDLE};
++    VkPipelineLayout ssao_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline ssao_pipeline {VK_NULL_HANDLE};
++    VkDescriptorSet ssao_desc_set {VK_NULL_HANDLE};
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+@@ -641,6 +660,118 @@
+     if (vkCreateImageView(impl.device, &ivci, nullptr, outView) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image view"}; }
+ }
+ 
++static void create_color_image(VulkanContext& ctx, uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage,
++    VkImage* outImage, VkDeviceMemory* outMem, VkImageView* outView) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
++    ici.imageType = VK_IMAGE_TYPE_2D;
++    ici.extent = {width, height, 1};
++    ici.mipLevels = 1;
++    ici.arrayLayers = 1;
++    ici.format = format;
++    ici.tiling = VK_IMAGE_TILING_OPTIMAL;
++    ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
++    ici.usage = usage;
++    ici.samples = VK_SAMPLE_COUNT_1_BIT;
++    ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (vkCreateImage(impl.device, &ici, nullptr, outImage) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image"}; }
++    VkMemoryRequirements req {};
++    vkGetImageMemoryRequirements(impl.device, *outImage, &req);
++    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
++    mai.allocationSize = req.size;
++    mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++    if (vkAllocateMemory(impl.device, &mai, nullptr, outMem) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc image mem"}; }
++    vkBindImageMemory(impl.device, *outImage, *outMem, 0);
++
++    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
++    ivci.image = *outImage; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = format;
++    ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; ivci.subresourceRange.levelCount = 1; ivci.subresourceRange.layerCount = 1;
++    if (vkCreateImageView(impl.device, &ivci, nullptr, outView) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image view"}; }
++}
++
++static void create_gbuffer_resources(VulkanContext& ctx) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    const uint32_t w = impl.swapchain_extent.width;
++    const uint32_t h = impl.swapchain_extent.height;
++    // Create ND image (RGBA16F) with color attachment + sampled usage
++    create_color_image(ctx, w, h, VK_FORMAT_R16G16B16A16_SFLOAT,
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++        &impl.gbuffer_image, &impl.gbuffer_memory, &impl.gbuffer_view);
++    // Create depth for gbuffer
++    VkFormat df = find_depth_format(ctx);
++    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
++    ici.imageType = VK_IMAGE_TYPE_2D; ici.extent = {w, h, 1}; ici.mipLevels = 1; ici.arrayLayers = 1; ici.format = df;
++    ici.tiling = VK_IMAGE_TILING_OPTIMAL; ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; ici.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT; ici.samples = VK_SAMPLE_COUNT_1_BIT; ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (vkCreateImage(impl.device, &ici, nullptr, &impl.gbuffer_depth_image) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer depth"}; }
++    VkMemoryRequirements req {}; vkGetImageMemoryRequirements(impl.device, impl.gbuffer_depth_image, &req);
++    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO}; mai.allocationSize = req.size; mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++    if (vkAllocateMemory(impl.device, &mai, nullptr, &impl.gbuffer_depth_memory) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc gbuffer depth mem"}; }
++    vkBindImageMemory(impl.device, impl.gbuffer_depth_image, impl.gbuffer_depth_memory, 0);
++    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO}; ivci.image = impl.gbuffer_depth_image; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = df; ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT; ivci.subresourceRange.levelCount=1; ivci.subresourceRange.layerCount=1;
++    if (vkCreateImageView(impl.device, &ivci, nullptr, &impl.gbuffer_depth_view) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer depth view"}; }
++
++    // Render pass for gbuffer
++    VkAttachmentDescription color { };
++    color.format = VK_FORMAT_R16G16B16A16_SFLOAT; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkAttachmentDescription depth { };
++    depth.format = df; depth.samples = VK_SAMPLE_COUNT_1_BIT; depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; depth.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; depth.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
++    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
++    VkAttachmentReference depth_ref {1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
++    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref; sub.pDepthStencilAttachment = &depth_ref;
++    VkAttachmentDescription att[2] = {color, depth};
++    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 2; rpci.pAttachments = att; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
++    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.gbuffer_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer render pass"}; }
++
++    // Framebuffer
++    VkImageView views[2] = {impl.gbuffer_view, impl.gbuffer_depth_view};
++    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.gbuffer_render_pass; fbci.attachmentCount = 2; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
++    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.gbuffer_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer framebuffer"}; }
++}
++
++static void destroy_gbuffer_resources(VulkanContext& ctx) noexcept {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    if (impl.gbuffer_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.gbuffer_framebuffer, nullptr); impl.gbuffer_framebuffer = VK_NULL_HANDLE; }
++    if (impl.gbuffer_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.gbuffer_render_pass, nullptr); impl.gbuffer_render_pass = VK_NULL_HANDLE; }
++    if (impl.gbuffer_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.gbuffer_view, nullptr); impl.gbuffer_view = VK_NULL_HANDLE; }
++    if (impl.gbuffer_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.gbuffer_image, nullptr); impl.gbuffer_image = VK_NULL_HANDLE; }
++    if (impl.gbuffer_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.gbuffer_memory, nullptr); impl.gbuffer_memory = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.gbuffer_depth_view, nullptr); impl.gbuffer_depth_view = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.gbuffer_depth_image, nullptr); impl.gbuffer_depth_image = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.gbuffer_depth_memory, nullptr); impl.gbuffer_depth_memory = VK_NULL_HANDLE; }
++    if (impl.gbuffer_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.gbuffer_pipeline, nullptr); impl.gbuffer_pipeline = VK_NULL_HANDLE; }
++    if (impl.gbuffer_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.gbuffer_pipeline_layout, nullptr); impl.gbuffer_pipeline_layout = VK_NULL_HANDLE; }
++}
++
++static void create_ssao_resources(VulkanContext& ctx) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    const uint32_t w = impl.swapchain_extent.width;
++    const uint32_t h = impl.swapchain_extent.height;
++    // Create AO image as color attachment + sampled (R8)
++    create_color_image(ctx, w, h, VK_FORMAT_R8_UNORM,
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++        &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++
++    // SSAO render pass
++    VkAttachmentDescription color { };
++    color.format = VK_FORMAT_R8_UNORM; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
++    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref;
++    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 1; rpci.pAttachments = &color; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
++    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.ssao_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create ssao render pass"}; }
++
++    VkImageView views[1] = {impl.ao_view};
++    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.ssao_render_pass; fbci.attachmentCount = 1; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
++    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.ssao_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create ssao framebuffer"}; }
++}
++
++static void destroy_ssao_resources(VulkanContext& ctx) noexcept {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    if (impl.ssao_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.ssao_framebuffer, nullptr); impl.ssao_framebuffer = VK_NULL_HANDLE; }
++    if (impl.ssao_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.ssao_render_pass, nullptr); impl.ssao_render_pass = VK_NULL_HANDLE; }
++    if (impl.ssao_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.ssao_pipeline, nullptr); impl.ssao_pipeline = VK_NULL_HANDLE; }
++    if (impl.ssao_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.ssao_pipeline_layout, nullptr); impl.ssao_pipeline_layout = VK_NULL_HANDLE; }
++}
++
+ static void upload_mesh_to_gpu(VulkanContext& ctx, const vulkano::Mesh& mesh) {
+     auto& impl = VulkanContextInternalsHelper::get(ctx);
+     destroy_mesh_buffers(ctx);
+@@ -838,7 +969,7 @@
+     vkDestroyShaderModule(impl.device, vmod, nullptr);
+     vkDestroyShaderModule(impl.device, fmod, nullptr);
+ 
+-    // Material resources for forward shading
++    // Material resources for forward shading and prepasses
+     if (forward) {
+         // Create sampler
+         VkSamplerCreateInfo sci {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+@@ -856,23 +987,28 @@
+         create_image_and_upload(ctx, W, H, albedo.data(), static_cast<VkDeviceSize>(albedo.size()*sizeof(std::uint32_t)), &impl.albedo_image, &impl.albedo_memory, &impl.albedo_view);
+         create_image_and_upload(ctx, W, H, normal.data(), static_cast<VkDeviceSize>(normal.size()*sizeof(std::uint32_t)), &impl.normal_image, &impl.normal_memory, &impl.normal_view);
+ 
+-        // AO texture placeholder: 1x1 white (no occlusion)
+-        const uint32_t AO_W = 1, AO_H = 1; const std::uint32_t white = 0xFFFFFFFFu;
+-        create_image_and_upload(ctx, AO_W, AO_H, &white, sizeof(white), &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++        // Create G-buffer and SSAO render targets sized to swapchain
++        destroy_gbuffer_resources(ctx);
++        destroy_ssao_resources(ctx);
++        create_gbuffer_resources(ctx);
++        create_ssao_resources(ctx);
+ 
+         // Create UBO (256 bytes)
+-        create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        if (impl.ubo_buffer == VK_NULL_HANDLE) {
++            create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        }
+ 
+         // Descriptor pool and set
+         VkDescriptorPoolSize poolSizes[2] = {};
+-        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 1;
+-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 3;
++        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 2; // forward + ssao
++        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 6; // 3 forward + 1 ssao (+spare)
+         VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+-        dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 1;
++        dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 2;
+         vkCreateDescriptorPool(impl.device, &dpci, nullptr, &impl.desc_pool);
+         VkDescriptorSetAllocateInfo dsai {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+         dsai.descriptorPool = impl.desc_pool; dsai.descriptorSetCount = 1; dsai.pSetLayouts = &impl.desc_layout;
+         vkAllocateDescriptorSets(impl.device, &dsai, &impl.desc_set);
++        vkAllocateDescriptorSets(impl.device, &dsai, &impl.ssao_desc_set);
+         VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
+         VkDescriptorImageInfo dai1 {}; dai1.sampler = impl.sampler; dai1.imageView = impl.albedo_view; dai1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+         VkDescriptorImageInfo dai2 {}; dai2.sampler = impl.sampler; dai2.imageView = impl.normal_view; dai2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+@@ -883,6 +1019,78 @@
+         writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = impl.desc_set; writes[2].dstBinding = 2; writes[2].descriptorCount = 1; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[2].pImageInfo = &dai2;
+         writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[3].dstSet = impl.desc_set; writes[3].dstBinding = 3; writes[3].descriptorCount = 1; writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[3].pImageInfo = &dai3;
+         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
++
++        // SSAO descriptor set: UBO + ND texture at binding 1
++        VkDescriptorImageInfo dai_nd {}; dai_nd.sampler = impl.sampler; dai_nd.imageView = impl.gbuffer_view; dai_nd.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++        std::array<VkWriteDescriptorSet,2> writes_ssao {};
++        writes_ssao[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes_ssao[0].dstSet = impl.ssao_desc_set; writes_ssao[0].dstBinding = 0; writes_ssao[0].descriptorCount = 1; writes_ssao[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes_ssao[0].pBufferInfo = &dbi;
++        writes_ssao[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes_ssao[1].dstSet = impl.ssao_desc_set; writes_ssao[1].dstBinding = 1; writes_ssao[1].descriptorCount = 1; writes_ssao[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes_ssao[1].pImageInfo = &dai_nd;
++        vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes_ssao.size()), writes_ssao.data(), 0, nullptr);
++
++        // Create G-buffer pipeline
++        {
++            auto gvs = load_binary_file("shaders/gbuffer.vert.spv");
++            auto gfs = load_binary_file("shaders/gbuffer.frag.spv");
++            if (!gvs.empty() && !gfs.empty()) {
++                VkShaderModule gv = create_shader_module(impl.device, gvs);
++                VkShaderModule gf = create_shader_module(impl.device, gfs);
++                VkPipelineShaderStageCreateInfo stages[2] = {};
++                stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT; stages[0].module = gv; stages[0].pName = "main";
++                stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT; stages[1].module = gf; stages[1].pName = "main";
++                VkVertexInputBindingDescription binding {0, static_cast<uint32_t>(sizeof(vulkano::Vertex)), VK_VERTEX_INPUT_RATE_VERTEX};
++                std::array<VkVertexInputAttributeDescription,5> attrs = {
++                    VkVertexInputAttributeDescription{0,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, position)},
++                    VkVertexInputAttributeDescription{1,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, normal)},
++                    VkVertexInputAttributeDescription{2,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, tangent)},
++                    VkVertexInputAttributeDescription{3,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, bitangent)},
++                    VkVertexInputAttributeDescription{4,0,VK_FORMAT_R32G32_SFLOAT, offsetof(vulkano::Vertex, texcoord)} };
++                VkPipelineVertexInputStateCreateInfo vi {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO}; vi.vertexBindingDescriptionCount=1; vi.pVertexBindingDescriptions=&binding; vi.vertexAttributeDescriptionCount=static_cast<uint32_t>(attrs.size()); vi.pVertexAttributeDescriptions=attrs.data();
++                VkPipelineInputAssemblyStateCreateInfo ia {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO}; ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
++                VkViewport viewport {}; viewport.x=0; viewport.y=0; viewport.width=static_cast<float>(impl.swapchain_extent.width); viewport.height=static_cast<float>(impl.swapchain_extent.height); viewport.minDepth=0.0F; viewport.maxDepth=1.0F;
++                VkRect2D scissor {{0,0}, impl.swapchain_extent};
++                VkPipelineViewportStateCreateInfo vp {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO}; vp.viewportCount=1; vp.pViewports=&viewport; vp.scissorCount=1; vp.pScissors=&scissor;
++                VkPipelineRasterizationStateCreateInfo rs {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO}; rs.polygonMode=VK_POLYGON_MODE_FILL; rs.cullMode=VK_CULL_MODE_BACK_BIT; rs.frontFace=VK_FRONT_FACE_COUNTER_CLOCKWISE; rs.lineWidth=1.0F;
++                VkPipelineMultisampleStateCreateInfo ms {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO}; ms.rasterizationSamples=VK_SAMPLE_COUNT_1_BIT;
++                VkPipelineDepthStencilStateCreateInfo dss {VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO}; dss.depthTestEnable=VK_TRUE; dss.depthWriteEnable=VK_TRUE; dss.depthCompareOp=VK_COMPARE_OP_LESS;
++                VkPipelineColorBlendAttachmentState cba {}; cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT|VK_COLOR_COMPONENT_G_BIT|VK_COLOR_COMPONENT_B_BIT|VK_COLOR_COMPONENT_A_BIT;
++                VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO}; cb.attachmentCount=1; cb.pAttachments=&cba;
++                VkPushConstantRange pcr2 {}; pcr2.offset=0; pcr2.size=static_cast<uint32_t>(sizeof(float)*16U); pcr2.stageFlags=VK_SHADER_STAGE_VERTEX_BIT;
++                VkPipelineLayoutCreateInfo plci2 {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO}; plci2.pushConstantRangeCount=1; plci2.pPushConstantRanges=&pcr2; plci2.setLayoutCount=1; plci2.pSetLayouts=&impl.desc_layout;
++                vkCreatePipelineLayout(impl.device, &plci2, nullptr, &impl.gbuffer_pipeline_layout);
++                VkGraphicsPipelineCreateInfo gpci2 {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO}; gpci2.stageCount=2; gpci2.pStages=stages; gpci2.pVertexInputState=&vi; gpci2.pInputAssemblyState=&ia; gpci2.pViewportState=&vp; gpci2.pRasterizationState=&rs; gpci2.pMultisampleState=&ms; gpci2.pDepthStencilState=&dss; gpci2.pColorBlendState=&cb; gpci2.layout=impl.gbuffer_pipeline_layout; gpci2.renderPass=impl.gbuffer_render_pass; gpci2.subpass=0;
++                vkCreateGraphicsPipelines(impl.device, VK_NULL_HANDLE, 1, &gpci2, nullptr, &impl.gbuffer_pipeline);
++                vkDestroyShaderModule(impl.device, gv, nullptr);
++                vkDestroyShaderModule(impl.device, gf, nullptr);
++            }
++        }
++
++        // Create SSAO pipeline (fullscreen)
++        {
++            auto sv = load_binary_file("shaders/fullscreen.vert.spv");
++            auto sf = load_binary_file("shaders/ssao.frag.spv");
++            if (!sv.empty() && !sf.empty()) {
++                VkShaderModule v = create_shader_module(impl.device, sv);
++                VkShaderModule f = create_shader_module(impl.device, sf);
++                VkPipelineShaderStageCreateInfo stages[2] = {};
++                stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT; stages[0].module = v; stages[0].pName = "main";
++                stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT; stages[1].module = f; stages[1].pName = "main";
++                VkPipelineVertexInputStateCreateInfo vi {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
++                VkPipelineInputAssemblyStateCreateInfo ia {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO}; ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
++                VkViewport viewport {}; viewport.x=0; viewport.y=0; viewport.width=static_cast<float>(impl.swapchain_extent.width); viewport.height=static_cast<float>(impl.swapchain_extent.height); viewport.minDepth=0.0F; viewport.maxDepth=1.0F;
++                VkRect2D scissor {{0,0}, impl.swapchain_extent};
++                VkPipelineViewportStateCreateInfo vp {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO}; vp.viewportCount=1; vp.pViewports=&viewport; vp.scissorCount=1; vp.pScissors=&scissor;
++                VkPipelineRasterizationStateCreateInfo rs {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO}; rs.polygonMode=VK_POLYGON_MODE_FILL; rs.cullMode=VK_CULL_MODE_NONE; rs.frontFace=VK_FRONT_FACE_COUNTER_CLOCKWISE; rs.lineWidth=1.0F;
++                VkPipelineMultisampleStateCreateInfo ms {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO}; ms.rasterizationSamples=VK_SAMPLE_COUNT_1_BIT;
++                VkPipelineColorBlendAttachmentState cba {}; cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT;
++                VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO}; cb.attachmentCount=1; cb.pAttachments=&cba;
++                VkPipelineLayoutCreateInfo plci3 {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO}; plci3.setLayoutCount=1; plci3.pSetLayouts=&impl.desc_layout;
++                vkCreatePipelineLayout(impl.device, &plci3, nullptr, &impl.ssao_pipeline_layout);
++                VkGraphicsPipelineCreateInfo gpci3 {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO}; gpci3.stageCount=2; gpci3.pStages=stages; gpci3.pVertexInputState=&vi; gpci3.pInputAssemblyState=&ia; gpci3.pViewportState=&vp; gpci3.pRasterizationState=&rs; gpci3.pMultisampleState=&ms; gpci3.pColorBlendState=&cb; gpci3.layout=impl.ssao_pipeline_layout; gpci3.renderPass=impl.ssao_render_pass; gpci3.subpass=0;
++                vkCreateGraphicsPipelines(impl.device, VK_NULL_HANDLE, 1, &gpci3, nullptr, &impl.ssao_pipeline);
++                vkDestroyShaderModule(impl.device, v, nullptr);
++                vkDestroyShaderModule(impl.device, f, nullptr);
++            }
++        }
+     }
+ }
+ 
+@@ -955,6 +1163,8 @@
+             vkDeviceWaitIdle(impl->device);
+         }
+         destroy_pipeline(*this);
++        destroy_ssao_resources(*this);
++        destroy_gbuffer_resources(*this);
+         destroy_depth_resources(*this);
+         destroy_mesh_buffers(*this);
+         if (impl->in_flight != VK_NULL_HANDLE) {
+@@ -1014,6 +1224,64 @@
+         VkCommandBuffer cmd = impl->command_buffers[image_index];
+         VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+         vkBeginCommandBuffer(cmd, &bi);
++        // Optional prepasses: G-buffer then SSAO
++        if (impl->gbuffer_render_pass != VK_NULL_HANDLE && impl->gbuffer_pipeline != VK_NULL_HANDLE) {
++            // Build matrices
++            const float fov = 45.0F;
++            const float radians = fov * 3.1415926535F / 180.0F;
++            const float aspect = static_cast<float>(impl->swapchain_extent.width) / static_cast<float>(impl->swapchain_extent.height == 0 ? 1 : impl->swapchain_extent.height);
++            const float znear = 0.1F;
++            const float zfar = 100.0F;
++            const float f = 1.0F / std::tanf(radians * 0.5F);
++            float proj[16] = {0}; proj[0] = f / aspect; proj[5] = f; proj[10] = (zfar + znear) / (znear - zfar); proj[11] = -1.0F; proj[14] = (2.0F * zfar * znear) / (znear - zfar);
++            const float eye[3] = {0.0F, 0.0F, 3.0F}; const float center[3] = {0.0F, 0.0F, 0.0F}; const float upv[3] = {0.0F, 1.0F, 0.0F};
++            auto norm3 = [](float v[3]) noexcept { const float len = std::sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]); if (len>0.0F){ v[0]/=len; v[1]/=len; v[2]/=len; } };
++            float fwd[3] = {center[0]-eye[0], center[1]-eye[1], center[2]-eye[2]}; norm3(fwd);
++            float s[3] = {fwd[1]*upv[2] - fwd[2]*upv[1], fwd[2]*upv[0] - fwd[0]*upv[2], fwd[0]*upv[1] - fwd[1]*upv[0]}; norm3(s);
++            float u[3] = {s[1]*fwd[2] - s[2]*fwd[1], s[2]*fwd[0] - s[0]*fwd[2], s[0]*fwd[1] - s[1]*fwd[0]};
++            float view[16] = {0}; view[0]=s[0]; view[4]=s[1]; view[8]=s[2]; view[1]=u[0]; view[5]=u[1]; view[9]=u[2]; view[2]=-fwd[0]; view[6]=-fwd[1]; view[10]=-fwd[2]; view[15]=1.0F; view[12]=-(s[0]*eye[0]+s[1]*eye[1]+s[2]*eye[2]); view[13]=-(u[0]*eye[0]+u[1]*eye[1]+u[2]*eye[2]); view[14]=-(-fwd[0]*eye[0]+-fwd[1]*eye[1]+-fwd[2]*eye[2]);
++            float model[16] = {0}; model[0]=1.0F; model[5]=1.0F; model[10]=1.0F; model[15]=1.0F;
++            auto matmul = [](const float a[16], const float b[16], float out[16]) noexcept { for (int r=0;r<4;++r){ for (int c=0;c<4;++c){ out[r*4+c]=a[r*4+0]*b[0*4+c]+a[r*4+1]*b[1*4+c]+a[r*4+2]*b[2*4+c]+a[r*4+3]*b[3*4+c]; } } };
++            float pv[16]={0}; float mvp[16]={0}; matmul(proj, view, pv); matmul(pv, model, mvp);
++
++            // Update UBO screen params early for SSAO
++            if (impl->ubo_buffer != VK_NULL_HANDLE) {
++                struct Align16UBO { float viewM[16]; float projM[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; float screen[4]; } uboData {};
++                for (int i=0;i<16;++i){ uboData.viewM[i]=view[i]; uboData.projM[i]=proj[i]; }
++                const auto sConf = impl->settings;
++                uboData.cam_pos[0]=eye[0]; uboData.cam_pos[1]=eye[1]; uboData.cam_pos[2]=eye[2]; uboData.cam_pos[3]=sConf.normal_strength;
++                uboData.light_pos[0]=sConf.light_pos[0]; uboData.light_pos[1]=sConf.light_pos[1]; uboData.light_pos[2]=sConf.light_pos[2]; uboData.light_pos[3]=sConf.shininess;
++                uboData.light_color[0]=sConf.light_color[0]; uboData.light_color[1]=sConf.light_color[1]; uboData.light_color[2]=sConf.light_color[2]; uboData.light_color[3]=sConf.light_intensity;
++                const float invW = impl->swapchain_extent.width>0 ? 1.0F/static_cast<float>(impl->swapchain_extent.width) : 0.0F;
++                const float invH = impl->swapchain_extent.height>0 ? 1.0F/static_cast<float>(impl->swapchain_extent.height) : 0.0F;
++                uboData.screen[0]=invW; uboData.screen[1]=invH; uboData.screen[2]=sConf.ssao_power; uboData.screen[3]=sConf.ssao_radius;
++                void* ptr=nullptr; vkMapMemory(impl->device, impl->ubo_memory, 0, sizeof(uboData), 0, &ptr); std::memcpy(ptr, &uboData, sizeof(uboData)); vkUnmapMemory(impl->device, impl->ubo_memory);
++            }
++
++            VkClearValue gclears[2]; gclears[0].color={{0,0,0,0}}; gclears[1].depthStencil={1.0F,0};
++            VkRenderPassBeginInfo grbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO}; grbi.renderPass=impl->gbuffer_render_pass; grbi.framebuffer=impl->gbuffer_framebuffer; grbi.renderArea.offset={0,0}; grbi.renderArea.extent=impl->swapchain_extent; grbi.clearValueCount=2; grbi.pClearValues=gclears;
++            vkCmdBeginRenderPass(cmd, &grbi, VK_SUBPASS_CONTENTS_INLINE);
++            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->gbuffer_pipeline);
++            vkCmdPushConstants(cmd, impl->gbuffer_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0U, static_cast<uint32_t>(sizeof(float)*16U), mvp);
++            if (impl->desc_set != VK_NULL_HANDLE) { vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->gbuffer_pipeline_layout, 0, 1, &impl->desc_set, 0, nullptr); }
++            if (impl->vertex_buffer != VK_NULL_HANDLE && impl->index_buffer != VK_NULL_HANDLE && impl->index_count>0U) {
++                VkDeviceSize offs[] = {0}; VkBuffer vbs[] = {impl->vertex_buffer};
++                vkCmdBindVertexBuffers(cmd, 0, 1, vbs, offs);
++                vkCmdBindIndexBuffer(cmd, impl->index_buffer, 0, VK_INDEX_TYPE_UINT32);
++                vkCmdDrawIndexed(cmd, impl->index_count, 1, 0, 0, 0);
++            }
++            vkCmdEndRenderPass(cmd);
++
++            if (impl->ssao_render_pass != VK_NULL_HANDLE && impl->ssao_pipeline != VK_NULL_HANDLE) {
++                VkClearValue sclear; sclear.color={{1.0F,0,0,0}};
++                VkRenderPassBeginInfo srp {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO}; srp.renderPass=impl->ssao_render_pass; srp.framebuffer=impl->ssao_framebuffer; srp.renderArea.offset={0,0}; srp.renderArea.extent=impl->swapchain_extent; srp.clearValueCount=1; srp.pClearValues=&sclear;
++                vkCmdBeginRenderPass(cmd, &srp, VK_SUBPASS_CONTENTS_INLINE);
++                vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->ssao_pipeline);
++                if (impl->ssao_desc_set != VK_NULL_HANDLE) { vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->ssao_pipeline_layout, 0, 1, &impl->ssao_desc_set, 0, nullptr); }
++                vkCmdDraw(cmd, 3, 1, 0, 0);
++                vkCmdEndRenderPass(cmd);
++            }
++        }
+         VkClearValue clear_color {};
+         clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
+         VkClearValue clear_depth {};
+@@ -1091,7 +1359,7 @@
+                 u.light_color[0]=s.light_color[0]; u.light_color[1]=s.light_color[1]; u.light_color[2]=s.light_color[2]; u.light_color[3]=s.light_intensity;
+                 const float invW = impl->swapchain_extent.width > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.width) : 0.0F;
+                 const float invH = impl->swapchain_extent.height > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.height) : 0.0F;
+-                u.screen[0]=invW; u.screen[1]=invH; u.screen[2]=s.ssao_power; u.screen[3]=0.0F;
++                u.screen[0]=invW; u.screen[1]=invH; u.screen[2]=s.ssao_power; u.screen[3]=s.ssao_radius;
+                 void* ubodata=nullptr; vkMapMemory(impl->device, impl->ubo_memory, 0, sizeof(u), 0, &ubodata); std::memcpy(ubodata, &u, sizeof(u)); vkUnmapMemory(impl->device, impl->ubo_memory);
+             }
+         }
+
+
+[2025-09-15T17:05:29] thinking
+
+**Checking project build requirements**
+
+I need to make sure the includes are in angle brackets as specified in AGENTS.md for the project. It looks like they are. Our GLSL files seem fine too. Now, I’ll run the CMake build again to check if everything compiles correctly. The changes are specifically under VULKANO_HAS_VULKAN, so I want to confirm if the non-Vulkan build will have issues with these added functions since they’re in the #if VULKANO_HAS_VULKAN region. Now, let's build!
+[2025-09-15T17:05:32] exec bash -lc 'cmake --build build -j' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T17:05:33] bash -lc 'cmake --build build -j' succeeded in 1.24s:
+[  1%] Built target glm
+[ 16%] Built target glfw
+[ 17%] Building CXX object src/CMakeFiles/vulkano.dir/vulkan_context.cpp.o
+[ 87%] Built target Catch2
+[ 88%] Built target Catch2WithMain
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:290:63: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  290 |     VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+      |                                                               ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:306:69: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  306 |     VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+      |                                                                     ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:314:73: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  314 |     VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+      |                                                                         ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:428:71: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  428 |     VkSemaphoreCreateInfo sci {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+      |                                                                       ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:435:63: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  435 |     VkFenceCreateInfo fci {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+      |                                                               ^
+[2025-09-15T17:05:33] tokens used: 138,674
+[2025-09-15T17:05:33] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+diff --git a/shaders/fullscreen.vert b/shaders/fullscreen.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..47ef99bf5518ea3ce9baaf3e01e4b8041e98e68d
+--- /dev/null
++++ b/shaders/fullscreen.vert
+@@ -0,0 +1,20 @@
++#version 450
++
++layout(location = 0) out vec2 vUV;
++
++void main() {
++    // Fullscreen triangle
++    const vec2 positions[3] = vec2[3](
++        vec2(-1.0, -1.0),
++        vec2( 3.0, -1.0),
++        vec2(-1.0,  3.0)
++    );
++    const vec2 uvs[3] = vec2[3](
++        vec2(0.0, 0.0),
++        vec2(2.0, 0.0),
++        vec2(0.0, 2.0)
++    );
++    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
++    vUV = uvs[gl_VertexIndex];
++}
++
+diff --git a/shaders/gbuffer.frag b/shaders/gbuffer.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..f116ab22511268e2aaef9d7bf34c2a990af23f13
+--- /dev/null
++++ b/shaders/gbuffer.frag
+@@ -0,0 +1,16 @@
++#version 450
++
++layout(location = 0) in vec3 vNormalVS;
++layout(location = 1) in float vDepthVS;
++layout(location = 2) in vec2 vUV;
++
++layout(location = 0) out vec4 outND;
++
++void main() {
++    // Pack view-space normal into RGB ([-1,1] -> [0,1]) and linear depth into A
++    vec3 n = normalize(vNormalVS);
++    vec3 n01 = n * 0.5 + 0.5;
++    float depth = vDepthVS;
++    outND = vec4(n01, depth);
++}
++
+diff --git a/shaders/gbuffer.vert b/shaders/gbuffer.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8c46e3cfe30155fc0601a6b6d4f29b4b593166
+--- /dev/null
++++ b/shaders/gbuffer.vert
+@@ -0,0 +1,33 @@
++#version 450
++
++layout(location = 0) in vec3 inPos;
++layout(location = 1) in vec3 inNormal;
++layout(location = 4) in vec2 inUV;
++
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(location = 0) out vec3 vNormalVS;
++layout(location = 1) out float vDepthVS;
++layout(location = 2) out vec2 vUV;
++
++void main() {
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
++    // view-space normal: ignore translation part
++    mat3 view3 = mat3(ubo.view);
++    vNormalVS = normalize(view3 * inNormal);
++    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
++    vDepthVS = -posVS.z; // positive distance from camera
++    vUV = inUV;
++}
++
+diff --git a/shaders/ssao.frag b/shaders/ssao.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..44f54958184303534d4698354b96ceff72b715e0
+--- /dev/null
++++ b/shaders/ssao.frag
+@@ -0,0 +1,48 @@
++#version 450
++
++layout(location = 0) in vec2 vUV;
++layout(location = 0) out float outAO;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    // x=invWidth, y=invHeight, z=aoPower, w=radius
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(set = 0, binding = 1) uniform sampler2D uND; // gbuffer normal/depth packed
++
++// Simple 2D SSAO kernel
++const int KERNEL = 16;
++const vec2 OFFSETS[KERNEL] = vec2[KERNEL](
++    vec2( 1,  0), vec2(-1,  0), vec2( 0,  1), vec2( 0, -1),
++    vec2( 1,  1), vec2(-1,  1), vec2( 1, -1), vec2(-1, -1),
++    vec2( 2,  0), vec2(-2,  0), vec2( 0,  2), vec2( 0, -2),
++    vec2( 2,  1), vec2(-2,  1), vec2( 1,  2), vec2(-1, -2)
++);
++
++void main() {
++    vec2 texel = vec2(ubo.screen_invW_invH_aoPower_radius.x, ubo.screen_invW_invH_aoPower_radius.y);
++    float radius = max(ubo.screen_invW_invH_aoPower_radius.w, 1.0);
++
++    vec4 nd = texture(uND, vUV);
++    vec3 n = normalize(nd.xyz * 2.0 - 1.0);
++    float depth = nd.w;
++
++    float occlusion = 0.0;
++    for (int i = 0; i < KERNEL; ++i) {
++        vec2 offset = OFFSETS[i] * texel * radius;
++        vec4 ndS = texture(uND, vUV + offset);
++        float depthS = ndS.w;
++        float range = smoothstep(0.0, 1.0, radius);
++        float delta = depthS - depth;
++        float occ = step(0.001, delta) * (1.0 - clamp(delta / (radius), 0.0, 1.0)) * range;
++        occlusion += occ;
++    }
++    occlusion /= float(KERNEL);
++    outAO = 1.0 - occlusion;
++}
++
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index e45d560a53955091853910b65ddcc068813d80f3..c3c0d07965e0bb8e89927f2b780a21d31e72b5a9
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -74,6 +74,25 @@
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
++    // G-buffer (Normals+Depth packed into RGBA16F) prepass resources
++    VkRenderPass gbuffer_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer gbuffer_framebuffer {VK_NULL_HANDLE};
++    VkImage gbuffer_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_view {VK_NULL_HANDLE};
++    VkImage gbuffer_depth_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_depth_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_depth_view {VK_NULL_HANDLE};
++    VkPipelineLayout gbuffer_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline gbuffer_pipeline {VK_NULL_HANDLE};
++
++    // SSAO pass resources (writes AO into ao_image which is sampled in forward)
++    VkRenderPass ssao_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer ssao_framebuffer {VK_NULL_HANDLE};
++    VkPipelineLayout ssao_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline ssao_pipeline {VK_NULL_HANDLE};
++    VkDescriptorSet ssao_desc_set {VK_NULL_HANDLE};
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+@@ -641,6 +660,118 @@
+     if (vkCreateImageView(impl.device, &ivci, nullptr, outView) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image view"}; }
+ }
+ 
++static void create_color_image(VulkanContext& ctx, uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage,
++    VkImage* outImage, VkDeviceMemory* outMem, VkImageView* outView) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
++    ici.imageType = VK_IMAGE_TYPE_2D;
++    ici.extent = {width, height, 1};
++    ici.mipLevels = 1;
++    ici.arrayLayers = 1;
++    ici.format = format;
++    ici.tiling = VK_IMAGE_TILING_OPTIMAL;
++    ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
++    ici.usage = usage;
++    ici.samples = VK_SAMPLE_COUNT_1_BIT;
++    ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (vkCreateImage(impl.device, &ici, nullptr, outImage) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image"}; }
++    VkMemoryRequirements req {};
++    vkGetImageMemoryRequirements(impl.device, *outImage, &req);
++    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
++    mai.allocationSize = req.size;
++    mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++    if (vkAllocateMemory(impl.device, &mai, nullptr, outMem) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc image mem"}; }
++    vkBindImageMemory(impl.device, *outImage, *outMem, 0);
++
++    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
++    ivci.image = *outImage; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = format;
++    ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; ivci.subresourceRange.levelCount = 1; ivci.subresourceRange.layerCount = 1;
++    if (vkCreateImageView(impl.device, &ivci, nullptr, outView) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image view"}; }
++}
++
++static void create_gbuffer_resources(VulkanContext& ctx) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    const uint32_t w = impl.swapchain_extent.width;
++    const uint32_t h = impl.swapchain_extent.height;
++    // Create ND image (RGBA16F) with color attachment + sampled usage
++    create_color_image(ctx, w, h, VK_FORMAT_R16G16B16A16_SFLOAT,
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++        &impl.gbuffer_image, &impl.gbuffer_memory, &impl.gbuffer_view);
++    // Create depth for gbuffer
++    VkFormat df = find_depth_format(ctx);
++    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
++    ici.imageType = VK_IMAGE_TYPE_2D; ici.extent = {w, h, 1}; ici.mipLevels = 1; ici.arrayLayers = 1; ici.format = df;
++    ici.tiling = VK_IMAGE_TILING_OPTIMAL; ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; ici.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT; ici.samples = VK_SAMPLE_COUNT_1_BIT; ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (vkCreateImage(impl.device, &ici, nullptr, &impl.gbuffer_depth_image) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer depth"}; }
++    VkMemoryRequirements req {}; vkGetImageMemoryRequirements(impl.device, impl.gbuffer_depth_image, &req);
++    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO}; mai.allocationSize = req.size; mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++    if (vkAllocateMemory(impl.device, &mai, nullptr, &impl.gbuffer_depth_memory) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc gbuffer depth mem"}; }
++    vkBindImageMemory(impl.device, impl.gbuffer_depth_image, impl.gbuffer_depth_memory, 0);
++    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO}; ivci.image = impl.gbuffer_depth_image; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = df; ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT; ivci.subresourceRange.levelCount=1; ivci.subresourceRange.layerCount=1;
++    if (vkCreateImageView(impl.device, &ivci, nullptr, &impl.gbuffer_depth_view) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer depth view"}; }
++
++    // Render pass for gbuffer
++    VkAttachmentDescription color { };
++    color.format = VK_FORMAT_R16G16B16A16_SFLOAT; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkAttachmentDescription depth { };
++    depth.format = df; depth.samples = VK_SAMPLE_COUNT_1_BIT; depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; depth.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; depth.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
++    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
++    VkAttachmentReference depth_ref {1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
++    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref; sub.pDepthStencilAttachment = &depth_ref;
++    VkAttachmentDescription att[2] = {color, depth};
++    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 2; rpci.pAttachments = att; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
++    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.gbuffer_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer render pass"}; }
++
++    // Framebuffer
++    VkImageView views[2] = {impl.gbuffer_view, impl.gbuffer_depth_view};
++    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.gbuffer_render_pass; fbci.attachmentCount = 2; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
++    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.gbuffer_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer framebuffer"}; }
++}
++
++static void destroy_gbuffer_resources(VulkanContext& ctx) noexcept {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    if (impl.gbuffer_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.gbuffer_framebuffer, nullptr); impl.gbuffer_framebuffer = VK_NULL_HANDLE; }
++    if (impl.gbuffer_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.gbuffer_render_pass, nullptr); impl.gbuffer_render_pass = VK_NULL_HANDLE; }
++    if (impl.gbuffer_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.gbuffer_view, nullptr); impl.gbuffer_view = VK_NULL_HANDLE; }
++    if (impl.gbuffer_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.gbuffer_image, nullptr); impl.gbuffer_image = VK_NULL_HANDLE; }
++    if (impl.gbuffer_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.gbuffer_memory, nullptr); impl.gbuffer_memory = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.gbuffer_depth_view, nullptr); impl.gbuffer_depth_view = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.gbuffer_depth_image, nullptr); impl.gbuffer_depth_image = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.gbuffer_depth_memory, nullptr); impl.gbuffer_depth_memory = VK_NULL_HANDLE; }
++    if (impl.gbuffer_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.gbuffer_pipeline, nullptr); impl.gbuffer_pipeline = VK_NULL_HANDLE; }
++    if (impl.gbuffer_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.gbuffer_pipeline_layout, nullptr); impl.gbuffer_pipeline_layout = VK_NULL_HANDLE; }
++}
++
++static void create_ssao_resources(VulkanContext& ctx) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    const uint32_t w = impl.swapchain_extent.width;
++    const uint32_t h = impl.swapchain_extent.height;
++    // Create AO image as color attachment + sampled (R8)
++    create_color_image(ctx, w, h, VK_FORMAT_R8_UNORM,
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++        &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++
++    // SSAO render pass
++    VkAttachmentDescription color { };
++    color.format = VK_FORMAT_R8_UNORM; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
++    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref;
++    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 1; rpci.pAttachments = &color; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
++    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.ssao_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create ssao render pass"}; }
++
++    VkImageView views[1] = {impl.ao_view};
++    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.ssao_render_pass; fbci.attachmentCount = 1; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
++    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.ssao_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create ssao framebuffer"}; }
++}
++
++static void destroy_ssao_resources(VulkanContext& ctx) noexcept {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    if (impl.ssao_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.ssao_framebuffer, nullptr); impl.ssao_framebuffer = VK_NULL_HANDLE; }
++    if (impl.ssao_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.ssao_render_pass, nullptr); impl.ssao_render_pass = VK_NULL_HANDLE; }
++    if (impl.ssao_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.ssao_pipeline, nullptr); impl.ssao_pipeline = VK_NULL_HANDLE; }
++    if (impl.ssao_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.ssao_pipeline_layout, nullptr); impl.ssao_pipeline_layout = VK_NULL_HANDLE; }
++}
++
+ static void upload_mesh_to_gpu(VulkanContext& ctx, const vulkano::Mesh& mesh) {
+     auto& impl = VulkanContextInternalsHelper::get(ctx);
+     destroy_mesh_buffers(ctx);
+@@ -838,7 +969,7 @@
+     vkDestroyShaderModule(impl.device, vmod, nullptr);
+     vkDestroyShaderModule(impl.device, fmod, nullptr);
+ 
+-    // Material resources for forward shading
++    // Material resources for forward shading and prepasses
+     if (forward) {
+         // Create sampler
+         VkSamplerCreateInfo sci {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+@@ -856,23 +987,28 @@
+         create_image_and_upload(ctx, W, H, albedo.data(), static_cast<VkDeviceSize>(albedo.size()*sizeof(std::uint32_t)), &impl.albedo_image, &impl.albedo_memory, &impl.albedo_view);
+         create_image_and_upload(ctx, W, H, normal.data(), static_cast<VkDeviceSize>(normal.size()*sizeof(std::uint32_t)), &impl.normal_image, &impl.normal_memory, &impl.normal_view);
+ 
+-        // AO texture placeholder: 1x1 white (no occlusion)
+-        const uint32_t AO_W = 1, AO_H = 1; const std::uint32_t white = 0xFFFFFFFFu;
+-        create_image_and_upload(ctx, AO_W, AO_H, &white, sizeof(white), &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++        // Create G-buffer and SSAO render targets sized to swapchain
++        destroy_gbuffer_resources(ctx);
++        destroy_ssao_resources(ctx);
++        create_gbuffer_resources(ctx);
++        create_ssao_resources(ctx);
+ 
+         // Create UBO (256 bytes)
+-        create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        if (impl.ubo_buffer == VK_NULL_HANDLE) {
++            create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        }
+ 
+         // Descriptor pool and set
+         VkDescriptorPoolSize poolSizes[2] = {};
+-        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 1;
+-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 3;
++        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 2; // forward + ssao
++        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 6; // 3 forward + 1 ssao (+spare)
+         VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+-        dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 1;
++        dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 2;
+         vkCreateDescriptorPool(impl.device, &dpci, nullptr, &impl.desc_pool);
+         VkDescriptorSetAllocateInfo dsai {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+         dsai.descriptorPool = impl.desc_pool; dsai.descriptorSetCount = 1; dsai.pSetLayouts = &impl.desc_layout;
+         vkAllocateDescriptorSets(impl.device, &dsai, &impl.desc_set);
++        vkAllocateDescriptorSets(impl.device, &dsai, &impl.ssao_desc_set);
+         VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
+         VkDescriptorImageInfo dai1 {}; dai1.sampler = impl.sampler; dai1.imageView = impl.albedo_view; dai1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+         VkDescriptorImageInfo dai2 {}; dai2.sampler = impl.sampler; dai2.imageView = impl.normal_view; dai2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+@@ -883,6 +1019,78 @@
+         writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = impl.desc_set; writes[2].dstBinding = 2; writes[2].descriptorCount = 1; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[2].pImageInfo = &dai2;
+         writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[3].dstSet = impl.desc_set; writes[3].dstBinding = 3; writes[3].descriptorCount = 1; writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[3].pImageInfo = &dai3;
+         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
++
++        // SSAO descriptor set: UBO + ND texture at binding 1
++        VkDescriptorImageInfo dai_nd {}; dai_nd.sampler = impl.sampler; dai_nd.imageView = impl.gbuffer_view; dai_nd.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++        std::array<VkWriteDescriptorSet,2> writes_ssao {};
++        writes_ssao[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes_ssao[0].dstSet = impl.ssao_desc_set; writes_ssao[0].dstBinding = 0; writes_ssao[0].descriptorCount = 1; writes_ssao[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes_ssao[0].pBufferInfo = &dbi;
++        writes_ssao[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes_ssao[1].dstSet = impl.ssao_desc_set; writes_ssao[1].dstBinding = 1; writes_ssao[1].descriptorCount = 1; writes_ssao[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes_ssao[1].pImageInfo = &dai_nd;
++        vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes_ssao.size()), writes_ssao.data(), 0, nullptr);
++
++        // Create G-buffer pipeline
++        {
++            auto gvs = load_binary_file("shaders/gbuffer.vert.spv");
++            auto gfs = load_binary_file("shaders/gbuffer.frag.spv");
++            if (!gvs.empty() && !gfs.empty()) {
++                VkShaderModule gv = create_shader_module(impl.device, gvs);
++                VkShaderModule gf = create_shader_module(impl.device, gfs);
++                VkPipelineShaderStageCreateInfo stages[2] = {};
++                stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT; stages[0].module = gv; stages[0].pName = "main";
++                stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT; stages[1].module = gf; stages[1].pName = "main";
++                VkVertexInputBindingDescription binding {0, static_cast<uint32_t>(sizeof(vulkano::Vertex)), VK_VERTEX_INPUT_RATE_VERTEX};
++                std::array<VkVertexInputAttributeDescription,5> attrs = {
++                    VkVertexInputAttributeDescription{0,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, position)},
++                    VkVertexInputAttributeDescription{1,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, normal)},
++                    VkVertexInputAttributeDescription{2,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, tangent)},
++                    VkVertexInputAttributeDescription{3,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, bitangent)},
++                    VkVertexInputAttributeDescription{4,0,VK_FORMAT_R32G32_SFLOAT, offsetof(vulkano::Vertex, texcoord)} };
++                VkPipelineVertexInputStateCreateInfo vi {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO}; vi.vertexBindingDescriptionCount=1; vi.pVertexBindingDescriptions=&binding; vi.vertexAttributeDescriptionCount=static_cast<uint32_t>(attrs.size()); vi.pVertexAttributeDescriptions=attrs.data();
++                VkPipelineInputAssemblyStateCreateInfo ia {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO}; ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
++                VkViewport viewport {}; viewport.x=0; viewport.y=0; viewport.width=static_cast<float>(impl.swapchain_extent.width); viewport.height=static_cast<float>(impl.swapchain_extent.height); viewport.minDepth=0.0F; viewport.maxDepth=1.0F;
++                VkRect2D scissor {{0,0}, impl.swapchain_extent};
++                VkPipelineViewportStateCreateInfo vp {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO}; vp.viewportCount=1; vp.pViewports=&viewport; vp.scissorCount=1; vp.pScissors=&scissor;
++                VkPipelineRasterizationStateCreateInfo rs {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO}; rs.polygonMode=VK_POLYGON_MODE_FILL; rs.cullMode=VK_CULL_MODE_BACK_BIT; rs.frontFace=VK_FRONT_FACE_COUNTER_CLOCKWISE; rs.lineWidth=1.0F;
++                VkPipelineMultisampleStateCreateInfo ms {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO}; ms.rasterizationSamples=VK_SAMPLE_COUNT_1_BIT;
++                VkPipelineDepthStencilStateCreateInfo dss {VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO}; dss.depthTestEnable=VK_TRUE; dss.depthWriteEnable=VK_TRUE; dss.depthCompareOp=VK_COMPARE_OP_LESS;
++                VkPipelineColorBlendAttachmentState cba {}; cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT|VK_COLOR_COMPONENT_G_BIT|VK_COLOR_COMPONENT_B_BIT|VK_COLOR_COMPONENT_A_BIT;
++                VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO}; cb.attachmentCount=1; cb.pAttachments=&cba;
++                VkPushConstantRange pcr2 {}; pcr2.offset=0; pcr2.size=static_cast<uint32_t>(sizeof(float)*16U); pcr2.stageFlags=VK_SHADER_STAGE_VERTEX_BIT;
++                VkPipelineLayoutCreateInfo plci2 {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO}; plci2.pushConstantRangeCount=1; plci2.pPushConstantRanges=&pcr2; plci2.setLayoutCount=1; plci2.pSetLayouts=&impl.desc_layout;
++                vkCreatePipelineLayout(impl.device, &plci2, nullptr, &impl.gbuffer_pipeline_layout);
++                VkGraphicsPipelineCreateInfo gpci2 {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO}; gpci2.stageCount=2; gpci2.pStages=stages; gpci2.pVertexInputState=&vi; gpci2.pInputAssemblyState=&ia; gpci2.pViewportState=&vp; gpci2.pRasterizationState=&rs; gpci2.pMultisampleState=&ms; gpci2.pDepthStencilState=&dss; gpci2.pColorBlendState=&cb; gpci2.layout=impl.gbuffer_pipeline_layout; gpci2.renderPass=impl.gbuffer_render_pass; gpci2.subpass=0;
++                vkCreateGraphicsPipelines(impl.device, VK_NULL_HANDLE, 1, &gpci2, nullptr, &impl.gbuffer_pipeline);
++                vkDestroyShaderModule(impl.device, gv, nullptr);
++                vkDestroyShaderModule(impl.device, gf, nullptr);
++            }
++        }
++
++        // Create SSAO pipeline (fullscreen)
++        {
++            auto sv = load_binary_file("shaders/fullscreen.vert.spv");
++            auto sf = load_binary_file("shaders/ssao.frag.spv");
++            if (!sv.empty() && !sf.empty()) {
++                VkShaderModule v = create_shader_module(impl.device, sv);
++                VkShaderModule f = create_shader_module(impl.device, sf);
++                VkPipelineShaderStageCreateInfo stages[2] = {};
++                stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT; stages[0].module = v; stages[0].pName = "main";
++                stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT; stages[1].module = f; stages[1].pName = "main";
++                VkPipelineVertexInputStateCreateInfo vi {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
++                VkPipelineInputAssemblyStateCreateInfo ia {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO}; ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
++                VkViewport viewport {}; viewport.x=0; viewport.y=0; viewport.width=static_cast<float>(impl.swapchain_extent.width); viewport.height=static_cast<float>(impl.swapchain_extent.height); viewport.minDepth=0.0F; viewport.maxDepth=1.0F;
++                VkRect2D scissor {{0,0}, impl.swapchain_extent};
++                VkPipelineViewportStateCreateInfo vp {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO}; vp.viewportCount=1; vp.pViewports=&viewport; vp.scissorCount=1; vp.pScissors=&scissor;
++                VkPipelineRasterizationStateCreateInfo rs {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO}; rs.polygonMode=VK_POLYGON_MODE_FILL; rs.cullMode=VK_CULL_MODE_NONE; rs.frontFace=VK_FRONT_FACE_COUNTER_CLOCKWISE; rs.lineWidth=1.0F;
++                VkPipelineMultisampleStateCreateInfo ms {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO}; ms.rasterizationSamples=VK_SAMPLE_COUNT_1_BIT;
++                VkPipelineColorBlendAttachmentState cba {}; cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT;
++                VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO}; cb.attachmentCount=1; cb.pAttachments=&cba;
++                VkPipelineLayoutCreateInfo plci3 {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO}; plci3.setLayoutCount=1; plci3.pSetLayouts=&impl.desc_layout;
++                vkCreatePipelineLayout(impl.device, &plci3, nullptr, &impl.ssao_pipeline_layout);
++                VkGraphicsPipelineCreateInfo gpci3 {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO}; gpci3.stageCount=2; gpci3.pStages=stages; gpci3.pVertexInputState=&vi; gpci3.pInputAssemblyState=&ia; gpci3.pViewportState=&vp; gpci3.pRasterizationState=&rs; gpci3.pMultisampleState=&ms; gpci3.pColorBlendState=&cb; gpci3.layout=impl.ssao_pipeline_layout; gpci3.renderPass=impl.ssao_render_pass; gpci3.subpass=0;
++                vkCreateGraphicsPipelines(impl.device, VK_NULL_HANDLE, 1, &gpci3, nullptr, &impl.ssao_pipeline);
++                vkDestroyShaderModule(impl.device, v, nullptr);
++                vkDestroyShaderModule(impl.device, f, nullptr);
++            }
++        }
+     }
+ }
+ 
+@@ -955,6 +1163,8 @@
+             vkDeviceWaitIdle(impl->device);
+         }
+         destroy_pipeline(*this);
++        destroy_ssao_resources(*this);
++        destroy_gbuffer_resources(*this);
+         destroy_depth_resources(*this);
+         destroy_mesh_buffers(*this);
+         if (impl->in_flight != VK_NULL_HANDLE) {
+@@ -1014,6 +1224,64 @@
+         VkCommandBuffer cmd = impl->command_buffers[image_index];
+         VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+         vkBeginCommandBuffer(cmd, &bi);
++        // Optional prepasses: G-buffer then SSAO
++        if (impl->gbuffer_render_pass != VK_NULL_HANDLE && impl->gbuffer_pipeline != VK_NULL_HANDLE) {
++            // Build matrices
++            const float fov = 45.0F;
++            const float radians = fov * 3.1415926535F / 180.0F;
++            const float aspect = static_cast<float>(impl->swapchain_extent.width) / static_cast<float>(impl->swapchain_extent.height == 0 ? 1 : impl->swapchain_extent.height);
++            const float znear = 0.1F;
++            const float zfar = 100.0F;
++            const float f = 1.0F / std::tanf(radians * 0.5F);
++            float proj[16] = {0}; proj[0] = f / aspect; proj[5] = f; proj[10] = (zfar + znear) / (znear - zfar); proj[11] = -1.0F; proj[14] = (2.0F * zfar * znear) / (znear - zfar);
++            const float eye[3] = {0.0F, 0.0F, 3.0F}; const float center[3] = {0.0F, 0.0F, 0.0F}; const float upv[3] = {0.0F, 1.0F, 0.0F};
++            auto norm3 = [](float v[3]) noexcept { const float len = std::sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]); if (len>0.0F){ v[0]/=len; v[1]/=len; v[2]/=len; } };
++            float fwd[3] = {center[0]-eye[0], center[1]-eye[1], center[2]-eye[2]}; norm3(fwd);
++            float s[3] = {fwd[1]*upv[2] - fwd[2]*upv[1], fwd[2]*upv[0] - fwd[0]*upv[2], fwd[0]*upv[1] - fwd[1]*upv[0]}; norm3(s);
++            float u[3] = {s[1]*fwd[2] - s[2]*fwd[1], s[2]*fwd[0] - s[0]*fwd[2], s[0]*fwd[1] - s[1]*fwd[0]};
++            float view[16] = {0}; view[0]=s[0]; view[4]=s[1]; view[8]=s[2]; view[1]=u[0]; view[5]=u[1]; view[9]=u[2]; view[2]=-fwd[0]; view[6]=-fwd[1]; view[10]=-fwd[2]; view[15]=1.0F; view[12]=-(s[0]*eye[0]+s[1]*eye[1]+s[2]*eye[2]); view[13]=-(u[0]*eye[0]+u[1]*eye[1]+u[2]*eye[2]); view[14]=-(-fwd[0]*eye[0]+-fwd[1]*eye[1]+-fwd[2]*eye[2]);
++            float model[16] = {0}; model[0]=1.0F; model[5]=1.0F; model[10]=1.0F; model[15]=1.0F;
++            auto matmul = [](const float a[16], const float b[16], float out[16]) noexcept { for (int r=0;r<4;++r){ for (int c=0;c<4;++c){ out[r*4+c]=a[r*4+0]*b[0*4+c]+a[r*4+1]*b[1*4+c]+a[r*4+2]*b[2*4+c]+a[r*4+3]*b[3*4+c]; } } };
++            float pv[16]={0}; float mvp[16]={0}; matmul(proj, view, pv); matmul(pv, model, mvp);
++
++            // Update UBO screen params early for SSAO
++            if (impl->ubo_buffer != VK_NULL_HANDLE) {
++                struct Align16UBO { float viewM[16]; float projM[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; float screen[4]; } uboData {};
++                for (int i=0;i<16;++i){ uboData.viewM[i]=view[i]; uboData.projM[i]=proj[i]; }
++                const auto sConf = impl->settings;
++                uboData.cam_pos[0]=eye[0]; uboData.cam_pos[1]=eye[1]; uboData.cam_pos[2]=eye[2]; uboData.cam_pos[3]=sConf.normal_strength;
++                uboData.light_pos[0]=sConf.light_pos[0]; uboData.light_pos[1]=sConf.light_pos[1]; uboData.light_pos[2]=sConf.light_pos[2]; uboData.light_pos[3]=sConf.shininess;
++                uboData.light_color[0]=sConf.light_color[0]; uboData.light_color[1]=sConf.light_color[1]; uboData.light_color[2]=sConf.light_color[2]; uboData.light_color[3]=sConf.light_intensity;
++                const float invW = impl->swapchain_extent.width>0 ? 1.0F/static_cast<float>(impl->swapchain_extent.width) : 0.0F;
++                const float invH = impl->swapchain_extent.height>0 ? 1.0F/static_cast<float>(impl->swapchain_extent.height) : 0.0F;
++                uboData.screen[0]=invW; uboData.screen[1]=invH; uboData.screen[2]=sConf.ssao_power; uboData.screen[3]=sConf.ssao_radius;
++                void* ptr=nullptr; vkMapMemory(impl->device, impl->ubo_memory, 0, sizeof(uboData), 0, &ptr); std::memcpy(ptr, &uboData, sizeof(uboData)); vkUnmapMemory(impl->device, impl->ubo_memory);
++            }
++
++            VkClearValue gclears[2]; gclears[0].color={{0,0,0,0}}; gclears[1].depthStencil={1.0F,0};
++            VkRenderPassBeginInfo grbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO}; grbi.renderPass=impl->gbuffer_render_pass; grbi.framebuffer=impl->gbuffer_framebuffer; grbi.renderArea.offset={0,0}; grbi.renderArea.extent=impl->swapchain_extent; grbi.clearValueCount=2; grbi.pClearValues=gclears;
++            vkCmdBeginRenderPass(cmd, &grbi, VK_SUBPASS_CONTENTS_INLINE);
++            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->gbuffer_pipeline);
++            vkCmdPushConstants(cmd, impl->gbuffer_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0U, static_cast<uint32_t>(sizeof(float)*16U), mvp);
++            if (impl->desc_set != VK_NULL_HANDLE) { vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->gbuffer_pipeline_layout, 0, 1, &impl->desc_set, 0, nullptr); }
++            if (impl->vertex_buffer != VK_NULL_HANDLE && impl->index_buffer != VK_NULL_HANDLE && impl->index_count>0U) {
++                VkDeviceSize offs[] = {0}; VkBuffer vbs[] = {impl->vertex_buffer};
++                vkCmdBindVertexBuffers(cmd, 0, 1, vbs, offs);
++                vkCmdBindIndexBuffer(cmd, impl->index_buffer, 0, VK_INDEX_TYPE_UINT32);
++                vkCmdDrawIndexed(cmd, impl->index_count, 1, 0, 0, 0);
++            }
++            vkCmdEndRenderPass(cmd);
++
++            if (impl->ssao_render_pass != VK_NULL_HANDLE && impl->ssao_pipeline != VK_NULL_HANDLE) {
++                VkClearValue sclear; sclear.color={{1.0F,0,0,0}};
++                VkRenderPassBeginInfo srp {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO}; srp.renderPass=impl->ssao_render_pass; srp.framebuffer=impl->ssao_framebuffer; srp.renderArea.offset={0,0}; srp.renderArea.extent=impl->swapchain_extent; srp.clearValueCount=1; srp.pClearValues=&sclear;
++                vkCmdBeginRenderPass(cmd, &srp, VK_SUBPASS_CONTENTS_INLINE);
++                vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->ssao_pipeline);
++                if (impl->ssao_desc_set != VK_NULL_HANDLE) { vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->ssao_pipeline_layout, 0, 1, &impl->ssao_desc_set, 0, nullptr); }
++                vkCmdDraw(cmd, 3, 1, 0, 0);
++                vkCmdEndRenderPass(cmd);
++            }
++        }
+         VkClearValue clear_color {};
+         clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
+         VkClearValue clear_depth {};
+@@ -1091,7 +1359,7 @@
+                 u.light_color[0]=s.light_color[0]; u.light_color[1]=s.light_color[1]; u.light_color[2]=s.light_color[2]; u.light_color[3]=s.light_intensity;
+                 const float invW = impl->swapchain_extent.width > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.width) : 0.0F;
+                 const float invH = impl->swapchain_extent.height > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.height) : 0.0F;
+-                u.screen[0]=invW; u.screen[1]=invH; u.screen[2]=s.ssao_power; u.screen[3]=0.0F;
++                u.screen[0]=invW; u.screen[1]=invH; u.screen[2]=s.ssao_power; u.screen[3]=s.ssao_radius;
+                 void* ubodata=nullptr; vkMapMemory(impl->device, impl->ubo_memory, 0, sizeof(u), 0, &ubodata); std::memcpy(ubodata, &u, sizeof(u)); vkUnmapMemory(impl->device, impl->ubo_memory);
+             }
+         }
+
+
+[2025-09-15T17:05:35] thinking
+
+I'm noting that the build succeeded, but there are some warnings present. That’s a little concerning, so I’ll need to keep an eye on those. Also, it seems like tests have already been built; I’ll want to run those tests again just to make sure everything passes. It’s essential to confirm that everything is functioning properly before moving forward. Double-checking things is always a good practice!
+[2025-09-15T17:05:36] exec bash -lc 'ctest --test-dir build -C Debug --output-on-failure' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-15T17:05:37] bash -lc 'ctest --test-dir build -C Debug --output-on-failure' succeeded in 381ms:
+Test project /Users/bruno/Documents/Development/bruno/vulkano_codex/build
+    Start 1: vulkano_tests
+1/1 Test #1: vulkano_tests ....................   Passed    0.33 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.33 sec
+[2025-09-15T17:05:37] tokens used: 141,255
+[2025-09-15T17:05:37] turn diff:
+diff --git a/.agent/TODO.md b/.agent/TODO.md
+index 9dec06e98c038a2419e6aec850608f5501a1e40b..30f7be918095682684f69a141d185279b7636738
+--- a/.agent/TODO.md
++++ b/.agent/TODO.md
+@@ -1,7 +1,7 @@
+ # Vulkano Codex – TODO
+ 
+ Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
+-Update: SSAO controls added and AO hook in forward shader. AO texture currently placeholder (white); next step is to implement prepass normals+depth and SSAO + blur to fill AO.
++Update: SSAO controls added and AO hook in forward shader. Adding scaffolding for G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and optional blur. AO will replace the placeholder texture and feed forward pass.
+ 
+ ## High-level Plan
+ - Scaffold CMake project and folders
+@@ -41,6 +41,13 @@
+ - [ ] Integrate: forward shading samples AO_blur (already wired)
+ - [ ] Resize-safe swapchain recreation for multi-pass images
+ 
++## Session Plan (short)
++- Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
++- Add offscreen images + render passes + pipelines (guarded by VULKAN)
++- Record command buffers: G-buffer -> SSAO -> forward
++- Keep non-Vulkan build working; run headless app to verify
++- Commit often; push at end
++
+ ## Notes
+ - All includes must use angle brackets.
+ - No code in headers; only declarations.
+diff --git a/shaders/fullscreen.vert b/shaders/fullscreen.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..47ef99bf5518ea3ce9baaf3e01e4b8041e98e68d
+--- /dev/null
++++ b/shaders/fullscreen.vert
+@@ -0,0 +1,20 @@
++#version 450
++
++layout(location = 0) out vec2 vUV;
++
++void main() {
++    // Fullscreen triangle
++    const vec2 positions[3] = vec2[3](
++        vec2(-1.0, -1.0),
++        vec2( 3.0, -1.0),
++        vec2(-1.0,  3.0)
++    );
++    const vec2 uvs[3] = vec2[3](
++        vec2(0.0, 0.0),
++        vec2(2.0, 0.0),
++        vec2(0.0, 2.0)
++    );
++    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
++    vUV = uvs[gl_VertexIndex];
++}
++
+diff --git a/shaders/gbuffer.frag b/shaders/gbuffer.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..f116ab22511268e2aaef9d7bf34c2a990af23f13
+--- /dev/null
++++ b/shaders/gbuffer.frag
+@@ -0,0 +1,16 @@
++#version 450
++
++layout(location = 0) in vec3 vNormalVS;
++layout(location = 1) in float vDepthVS;
++layout(location = 2) in vec2 vUV;
++
++layout(location = 0) out vec4 outND;
++
++void main() {
++    // Pack view-space normal into RGB ([-1,1] -> [0,1]) and linear depth into A
++    vec3 n = normalize(vNormalVS);
++    vec3 n01 = n * 0.5 + 0.5;
++    float depth = vDepthVS;
++    outND = vec4(n01, depth);
++}
++
+diff --git a/shaders/gbuffer.vert b/shaders/gbuffer.vert
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8c46e3cfe30155fc0601a6b6d4f29b4b593166
+--- /dev/null
++++ b/shaders/gbuffer.vert
+@@ -0,0 +1,33 @@
++#version 450
++
++layout(location = 0) in vec3 inPos;
++layout(location = 1) in vec3 inNormal;
++layout(location = 4) in vec2 inUV;
++
++layout(push_constant) uniform PC {
++    mat4 mvp;
++} pc;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(location = 0) out vec3 vNormalVS;
++layout(location = 1) out float vDepthVS;
++layout(location = 2) out vec2 vUV;
++
++void main() {
++    gl_Position = pc.mvp * vec4(inPos, 1.0);
++    // view-space normal: ignore translation part
++    mat3 view3 = mat3(ubo.view);
++    vNormalVS = normalize(view3 * inNormal);
++    vec3 posVS = (ubo.view * vec4(inPos, 1.0)).xyz;
++    vDepthVS = -posVS.z; // positive distance from camera
++    vUV = inUV;
++}
++
+diff --git a/shaders/ssao.frag b/shaders/ssao.frag
+new file mode 100644
+index 0000000000000000000000000000000000000000..44f54958184303534d4698354b96ceff72b715e0
+--- /dev/null
++++ b/shaders/ssao.frag
+@@ -0,0 +1,48 @@
++#version 450
++
++layout(location = 0) in vec2 vUV;
++layout(location = 0) out float outAO;
++
++layout(set = 0, binding = 0) uniform UBO {
++    mat4 view;
++    mat4 proj;
++    vec4 camPos_normalStrength;
++    vec4 lightPos_shininess;
++    vec4 lightColor_intensity;
++    // x=invWidth, y=invHeight, z=aoPower, w=radius
++    vec4 screen_invW_invH_aoPower_radius;
++} ubo;
++
++layout(set = 0, binding = 1) uniform sampler2D uND; // gbuffer normal/depth packed
++
++// Simple 2D SSAO kernel
++const int KERNEL = 16;
++const vec2 OFFSETS[KERNEL] = vec2[KERNEL](
++    vec2( 1,  0), vec2(-1,  0), vec2( 0,  1), vec2( 0, -1),
++    vec2( 1,  1), vec2(-1,  1), vec2( 1, -1), vec2(-1, -1),
++    vec2( 2,  0), vec2(-2,  0), vec2( 0,  2), vec2( 0, -2),
++    vec2( 2,  1), vec2(-2,  1), vec2( 1,  2), vec2(-1, -2)
++);
++
++void main() {
++    vec2 texel = vec2(ubo.screen_invW_invH_aoPower_radius.x, ubo.screen_invW_invH_aoPower_radius.y);
++    float radius = max(ubo.screen_invW_invH_aoPower_radius.w, 1.0);
++
++    vec4 nd = texture(uND, vUV);
++    vec3 n = normalize(nd.xyz * 2.0 - 1.0);
++    float depth = nd.w;
++
++    float occlusion = 0.0;
++    for (int i = 0; i < KERNEL; ++i) {
++        vec2 offset = OFFSETS[i] * texel * radius;
++        vec4 ndS = texture(uND, vUV + offset);
++        float depthS = ndS.w;
++        float range = smoothstep(0.0, 1.0, radius);
++        float delta = depthS - depth;
++        float occ = step(0.001, delta) * (1.0 - clamp(delta / (radius), 0.0, 1.0)) * range;
++        occlusion += occ;
++    }
++    occlusion /= float(KERNEL);
++    outAO = 1.0 - occlusion;
++}
++
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index e45d560a53955091853910b65ddcc068813d80f3..c3c0d07965e0bb8e89927f2b780a21d31e72b5a9
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -74,6 +74,25 @@
+     VkBuffer ubo_buffer {VK_NULL_HANDLE};
+     VkDeviceMemory ubo_memory {VK_NULL_HANDLE};
+ 
++    // G-buffer (Normals+Depth packed into RGBA16F) prepass resources
++    VkRenderPass gbuffer_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer gbuffer_framebuffer {VK_NULL_HANDLE};
++    VkImage gbuffer_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_view {VK_NULL_HANDLE};
++    VkImage gbuffer_depth_image {VK_NULL_HANDLE};
++    VkDeviceMemory gbuffer_depth_memory {VK_NULL_HANDLE};
++    VkImageView gbuffer_depth_view {VK_NULL_HANDLE};
++    VkPipelineLayout gbuffer_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline gbuffer_pipeline {VK_NULL_HANDLE};
++
++    // SSAO pass resources (writes AO into ao_image which is sampled in forward)
++    VkRenderPass ssao_render_pass {VK_NULL_HANDLE};
++    VkFramebuffer ssao_framebuffer {VK_NULL_HANDLE};
++    VkPipelineLayout ssao_pipeline_layout {VK_NULL_HANDLE};
++    VkPipeline ssao_pipeline {VK_NULL_HANDLE};
++    VkDescriptorSet ssao_desc_set {VK_NULL_HANDLE};
++
+     Impl() = default;
+     ~Impl() = default;
+ };
+@@ -641,6 +660,118 @@
+     if (vkCreateImageView(impl.device, &ivci, nullptr, outView) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image view"}; }
+ }
+ 
++static void create_color_image(VulkanContext& ctx, uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage,
++    VkImage* outImage, VkDeviceMemory* outMem, VkImageView* outView) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
++    ici.imageType = VK_IMAGE_TYPE_2D;
++    ici.extent = {width, height, 1};
++    ici.mipLevels = 1;
++    ici.arrayLayers = 1;
++    ici.format = format;
++    ici.tiling = VK_IMAGE_TILING_OPTIMAL;
++    ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
++    ici.usage = usage;
++    ici.samples = VK_SAMPLE_COUNT_1_BIT;
++    ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (vkCreateImage(impl.device, &ici, nullptr, outImage) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image"}; }
++    VkMemoryRequirements req {};
++    vkGetImageMemoryRequirements(impl.device, *outImage, &req);
++    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
++    mai.allocationSize = req.size;
++    mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++    if (vkAllocateMemory(impl.device, &mai, nullptr, outMem) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc image mem"}; }
++    vkBindImageMemory(impl.device, *outImage, *outMem, 0);
++
++    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
++    ivci.image = *outImage; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = format;
++    ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; ivci.subresourceRange.levelCount = 1; ivci.subresourceRange.layerCount = 1;
++    if (vkCreateImageView(impl.device, &ivci, nullptr, outView) != VK_SUCCESS) { throw std::runtime_error{"Failed to create image view"}; }
++}
++
++static void create_gbuffer_resources(VulkanContext& ctx) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    const uint32_t w = impl.swapchain_extent.width;
++    const uint32_t h = impl.swapchain_extent.height;
++    // Create ND image (RGBA16F) with color attachment + sampled usage
++    create_color_image(ctx, w, h, VK_FORMAT_R16G16B16A16_SFLOAT,
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++        &impl.gbuffer_image, &impl.gbuffer_memory, &impl.gbuffer_view);
++    // Create depth for gbuffer
++    VkFormat df = find_depth_format(ctx);
++    VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
++    ici.imageType = VK_IMAGE_TYPE_2D; ici.extent = {w, h, 1}; ici.mipLevels = 1; ici.arrayLayers = 1; ici.format = df;
++    ici.tiling = VK_IMAGE_TILING_OPTIMAL; ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; ici.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT; ici.samples = VK_SAMPLE_COUNT_1_BIT; ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    if (vkCreateImage(impl.device, &ici, nullptr, &impl.gbuffer_depth_image) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer depth"}; }
++    VkMemoryRequirements req {}; vkGetImageMemoryRequirements(impl.device, impl.gbuffer_depth_image, &req);
++    VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO}; mai.allocationSize = req.size; mai.memoryTypeIndex = find_memory_type(impl.physical_device, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++    if (vkAllocateMemory(impl.device, &mai, nullptr, &impl.gbuffer_depth_memory) != VK_SUCCESS) { throw std::runtime_error{"Failed to alloc gbuffer depth mem"}; }
++    vkBindImageMemory(impl.device, impl.gbuffer_depth_image, impl.gbuffer_depth_memory, 0);
++    VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO}; ivci.image = impl.gbuffer_depth_image; ivci.viewType = VK_IMAGE_VIEW_TYPE_2D; ivci.format = df; ivci.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT; ivci.subresourceRange.levelCount=1; ivci.subresourceRange.layerCount=1;
++    if (vkCreateImageView(impl.device, &ivci, nullptr, &impl.gbuffer_depth_view) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer depth view"}; }
++
++    // Render pass for gbuffer
++    VkAttachmentDescription color { };
++    color.format = VK_FORMAT_R16G16B16A16_SFLOAT; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkAttachmentDescription depth { };
++    depth.format = df; depth.samples = VK_SAMPLE_COUNT_1_BIT; depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; depth.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; depth.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
++    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
++    VkAttachmentReference depth_ref {1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
++    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref; sub.pDepthStencilAttachment = &depth_ref;
++    VkAttachmentDescription att[2] = {color, depth};
++    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 2; rpci.pAttachments = att; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
++    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.gbuffer_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer render pass"}; }
++
++    // Framebuffer
++    VkImageView views[2] = {impl.gbuffer_view, impl.gbuffer_depth_view};
++    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.gbuffer_render_pass; fbci.attachmentCount = 2; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
++    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.gbuffer_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create gbuffer framebuffer"}; }
++}
++
++static void destroy_gbuffer_resources(VulkanContext& ctx) noexcept {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    if (impl.gbuffer_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.gbuffer_framebuffer, nullptr); impl.gbuffer_framebuffer = VK_NULL_HANDLE; }
++    if (impl.gbuffer_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.gbuffer_render_pass, nullptr); impl.gbuffer_render_pass = VK_NULL_HANDLE; }
++    if (impl.gbuffer_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.gbuffer_view, nullptr); impl.gbuffer_view = VK_NULL_HANDLE; }
++    if (impl.gbuffer_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.gbuffer_image, nullptr); impl.gbuffer_image = VK_NULL_HANDLE; }
++    if (impl.gbuffer_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.gbuffer_memory, nullptr); impl.gbuffer_memory = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_view != VK_NULL_HANDLE) { vkDestroyImageView(impl.device, impl.gbuffer_depth_view, nullptr); impl.gbuffer_depth_view = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_image != VK_NULL_HANDLE) { vkDestroyImage(impl.device, impl.gbuffer_depth_image, nullptr); impl.gbuffer_depth_image = VK_NULL_HANDLE; }
++    if (impl.gbuffer_depth_memory != VK_NULL_HANDLE) { vkFreeMemory(impl.device, impl.gbuffer_depth_memory, nullptr); impl.gbuffer_depth_memory = VK_NULL_HANDLE; }
++    if (impl.gbuffer_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.gbuffer_pipeline, nullptr); impl.gbuffer_pipeline = VK_NULL_HANDLE; }
++    if (impl.gbuffer_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.gbuffer_pipeline_layout, nullptr); impl.gbuffer_pipeline_layout = VK_NULL_HANDLE; }
++}
++
++static void create_ssao_resources(VulkanContext& ctx) {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    const uint32_t w = impl.swapchain_extent.width;
++    const uint32_t h = impl.swapchain_extent.height;
++    // Create AO image as color attachment + sampled (R8)
++    create_color_image(ctx, w, h, VK_FORMAT_R8_UNORM,
++        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
++        &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++
++    // SSAO render pass
++    VkAttachmentDescription color { };
++    color.format = VK_FORMAT_R8_UNORM; color.samples = VK_SAMPLE_COUNT_1_BIT; color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; color.storeOp = VK_ATTACHMENT_STORE_OP_STORE; color.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; color.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++    VkAttachmentReference color_ref {0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
++    VkSubpassDescription sub { }; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1; sub.pColorAttachments = &color_ref;
++    VkRenderPassCreateInfo rpci {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO}; rpci.attachmentCount = 1; rpci.pAttachments = &color; rpci.subpassCount = 1; rpci.pSubpasses = &sub;
++    if (vkCreateRenderPass(impl.device, &rpci, nullptr, &impl.ssao_render_pass) != VK_SUCCESS) { throw std::runtime_error{"Failed to create ssao render pass"}; }
++
++    VkImageView views[1] = {impl.ao_view};
++    VkFramebufferCreateInfo fbci {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO}; fbci.renderPass = impl.ssao_render_pass; fbci.attachmentCount = 1; fbci.pAttachments = views; fbci.width = w; fbci.height = h; fbci.layers = 1;
++    if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.ssao_framebuffer) != VK_SUCCESS) { throw std::runtime_error{"Failed to create ssao framebuffer"}; }
++}
++
++static void destroy_ssao_resources(VulkanContext& ctx) noexcept {
++    auto& impl = VulkanContextInternalsHelper::get(ctx);
++    if (impl.ssao_framebuffer != VK_NULL_HANDLE) { vkDestroyFramebuffer(impl.device, impl.ssao_framebuffer, nullptr); impl.ssao_framebuffer = VK_NULL_HANDLE; }
++    if (impl.ssao_render_pass != VK_NULL_HANDLE) { vkDestroyRenderPass(impl.device, impl.ssao_render_pass, nullptr); impl.ssao_render_pass = VK_NULL_HANDLE; }
++    if (impl.ssao_pipeline != VK_NULL_HANDLE) { vkDestroyPipeline(impl.device, impl.ssao_pipeline, nullptr); impl.ssao_pipeline = VK_NULL_HANDLE; }
++    if (impl.ssao_pipeline_layout != VK_NULL_HANDLE) { vkDestroyPipelineLayout(impl.device, impl.ssao_pipeline_layout, nullptr); impl.ssao_pipeline_layout = VK_NULL_HANDLE; }
++}
++
+ static void upload_mesh_to_gpu(VulkanContext& ctx, const vulkano::Mesh& mesh) {
+     auto& impl = VulkanContextInternalsHelper::get(ctx);
+     destroy_mesh_buffers(ctx);
+@@ -838,7 +969,7 @@
+     vkDestroyShaderModule(impl.device, vmod, nullptr);
+     vkDestroyShaderModule(impl.device, fmod, nullptr);
+ 
+-    // Material resources for forward shading
++    // Material resources for forward shading and prepasses
+     if (forward) {
+         // Create sampler
+         VkSamplerCreateInfo sci {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+@@ -856,23 +987,28 @@
+         create_image_and_upload(ctx, W, H, albedo.data(), static_cast<VkDeviceSize>(albedo.size()*sizeof(std::uint32_t)), &impl.albedo_image, &impl.albedo_memory, &impl.albedo_view);
+         create_image_and_upload(ctx, W, H, normal.data(), static_cast<VkDeviceSize>(normal.size()*sizeof(std::uint32_t)), &impl.normal_image, &impl.normal_memory, &impl.normal_view);
+ 
+-        // AO texture placeholder: 1x1 white (no occlusion)
+-        const uint32_t AO_W = 1, AO_H = 1; const std::uint32_t white = 0xFFFFFFFFu;
+-        create_image_and_upload(ctx, AO_W, AO_H, &white, sizeof(white), &impl.ao_image, &impl.ao_memory, &impl.ao_view);
++        // Create G-buffer and SSAO render targets sized to swapchain
++        destroy_gbuffer_resources(ctx);
++        destroy_ssao_resources(ctx);
++        create_gbuffer_resources(ctx);
++        create_ssao_resources(ctx);
+ 
+         // Create UBO (256 bytes)
+-        create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        if (impl.ubo_buffer == VK_NULL_HANDLE) {
++            create_buffer(ctx, 256, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &impl.ubo_buffer, &impl.ubo_memory);
++        }
+ 
+         // Descriptor pool and set
+         VkDescriptorPoolSize poolSizes[2] = {};
+-        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 1;
+-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 3;
++        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; poolSizes[0].descriptorCount = 2; // forward + ssao
++        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; poolSizes[1].descriptorCount = 6; // 3 forward + 1 ssao (+spare)
+         VkDescriptorPoolCreateInfo dpci {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+-        dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 1;
++        dpci.poolSizeCount = 2; dpci.pPoolSizes = poolSizes; dpci.maxSets = 2;
+         vkCreateDescriptorPool(impl.device, &dpci, nullptr, &impl.desc_pool);
+         VkDescriptorSetAllocateInfo dsai {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+         dsai.descriptorPool = impl.desc_pool; dsai.descriptorSetCount = 1; dsai.pSetLayouts = &impl.desc_layout;
+         vkAllocateDescriptorSets(impl.device, &dsai, &impl.desc_set);
++        vkAllocateDescriptorSets(impl.device, &dsai, &impl.ssao_desc_set);
+         VkDescriptorBufferInfo dbi {}; dbi.buffer = impl.ubo_buffer; dbi.offset = 0; dbi.range = VK_WHOLE_SIZE;
+         VkDescriptorImageInfo dai1 {}; dai1.sampler = impl.sampler; dai1.imageView = impl.albedo_view; dai1.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+         VkDescriptorImageInfo dai2 {}; dai2.sampler = impl.sampler; dai2.imageView = impl.normal_view; dai2.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+@@ -883,6 +1019,78 @@
+         writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = impl.desc_set; writes[2].dstBinding = 2; writes[2].descriptorCount = 1; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[2].pImageInfo = &dai2;
+         writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[3].dstSet = impl.desc_set; writes[3].dstBinding = 3; writes[3].descriptorCount = 1; writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[3].pImageInfo = &dai3;
+         vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
++
++        // SSAO descriptor set: UBO + ND texture at binding 1
++        VkDescriptorImageInfo dai_nd {}; dai_nd.sampler = impl.sampler; dai_nd.imageView = impl.gbuffer_view; dai_nd.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
++        std::array<VkWriteDescriptorSet,2> writes_ssao {};
++        writes_ssao[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes_ssao[0].dstSet = impl.ssao_desc_set; writes_ssao[0].dstBinding = 0; writes_ssao[0].descriptorCount = 1; writes_ssao[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes_ssao[0].pBufferInfo = &dbi;
++        writes_ssao[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes_ssao[1].dstSet = impl.ssao_desc_set; writes_ssao[1].dstBinding = 1; writes_ssao[1].descriptorCount = 1; writes_ssao[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes_ssao[1].pImageInfo = &dai_nd;
++        vkUpdateDescriptorSets(impl.device, static_cast<uint32_t>(writes_ssao.size()), writes_ssao.data(), 0, nullptr);
++
++        // Create G-buffer pipeline
++        {
++            auto gvs = load_binary_file("shaders/gbuffer.vert.spv");
++            auto gfs = load_binary_file("shaders/gbuffer.frag.spv");
++            if (!gvs.empty() && !gfs.empty()) {
++                VkShaderModule gv = create_shader_module(impl.device, gvs);
++                VkShaderModule gf = create_shader_module(impl.device, gfs);
++                VkPipelineShaderStageCreateInfo stages[2] = {};
++                stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT; stages[0].module = gv; stages[0].pName = "main";
++                stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT; stages[1].module = gf; stages[1].pName = "main";
++                VkVertexInputBindingDescription binding {0, static_cast<uint32_t>(sizeof(vulkano::Vertex)), VK_VERTEX_INPUT_RATE_VERTEX};
++                std::array<VkVertexInputAttributeDescription,5> attrs = {
++                    VkVertexInputAttributeDescription{0,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, position)},
++                    VkVertexInputAttributeDescription{1,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, normal)},
++                    VkVertexInputAttributeDescription{2,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, tangent)},
++                    VkVertexInputAttributeDescription{3,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, bitangent)},
++                    VkVertexInputAttributeDescription{4,0,VK_FORMAT_R32G32_SFLOAT, offsetof(vulkano::Vertex, texcoord)} };
++                VkPipelineVertexInputStateCreateInfo vi {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO}; vi.vertexBindingDescriptionCount=1; vi.pVertexBindingDescriptions=&binding; vi.vertexAttributeDescriptionCount=static_cast<uint32_t>(attrs.size()); vi.pVertexAttributeDescriptions=attrs.data();
++                VkPipelineInputAssemblyStateCreateInfo ia {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO}; ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
++                VkViewport viewport {}; viewport.x=0; viewport.y=0; viewport.width=static_cast<float>(impl.swapchain_extent.width); viewport.height=static_cast<float>(impl.swapchain_extent.height); viewport.minDepth=0.0F; viewport.maxDepth=1.0F;
++                VkRect2D scissor {{0,0}, impl.swapchain_extent};
++                VkPipelineViewportStateCreateInfo vp {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO}; vp.viewportCount=1; vp.pViewports=&viewport; vp.scissorCount=1; vp.pScissors=&scissor;
++                VkPipelineRasterizationStateCreateInfo rs {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO}; rs.polygonMode=VK_POLYGON_MODE_FILL; rs.cullMode=VK_CULL_MODE_BACK_BIT; rs.frontFace=VK_FRONT_FACE_COUNTER_CLOCKWISE; rs.lineWidth=1.0F;
++                VkPipelineMultisampleStateCreateInfo ms {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO}; ms.rasterizationSamples=VK_SAMPLE_COUNT_1_BIT;
++                VkPipelineDepthStencilStateCreateInfo dss {VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO}; dss.depthTestEnable=VK_TRUE; dss.depthWriteEnable=VK_TRUE; dss.depthCompareOp=VK_COMPARE_OP_LESS;
++                VkPipelineColorBlendAttachmentState cba {}; cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT|VK_COLOR_COMPONENT_G_BIT|VK_COLOR_COMPONENT_B_BIT|VK_COLOR_COMPONENT_A_BIT;
++                VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO}; cb.attachmentCount=1; cb.pAttachments=&cba;
++                VkPushConstantRange pcr2 {}; pcr2.offset=0; pcr2.size=static_cast<uint32_t>(sizeof(float)*16U); pcr2.stageFlags=VK_SHADER_STAGE_VERTEX_BIT;
++                VkPipelineLayoutCreateInfo plci2 {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO}; plci2.pushConstantRangeCount=1; plci2.pPushConstantRanges=&pcr2; plci2.setLayoutCount=1; plci2.pSetLayouts=&impl.desc_layout;
++                vkCreatePipelineLayout(impl.device, &plci2, nullptr, &impl.gbuffer_pipeline_layout);
++                VkGraphicsPipelineCreateInfo gpci2 {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO}; gpci2.stageCount=2; gpci2.pStages=stages; gpci2.pVertexInputState=&vi; gpci2.pInputAssemblyState=&ia; gpci2.pViewportState=&vp; gpci2.pRasterizationState=&rs; gpci2.pMultisampleState=&ms; gpci2.pDepthStencilState=&dss; gpci2.pColorBlendState=&cb; gpci2.layout=impl.gbuffer_pipeline_layout; gpci2.renderPass=impl.gbuffer_render_pass; gpci2.subpass=0;
++                vkCreateGraphicsPipelines(impl.device, VK_NULL_HANDLE, 1, &gpci2, nullptr, &impl.gbuffer_pipeline);
++                vkDestroyShaderModule(impl.device, gv, nullptr);
++                vkDestroyShaderModule(impl.device, gf, nullptr);
++            }
++        }
++
++        // Create SSAO pipeline (fullscreen)
++        {
++            auto sv = load_binary_file("shaders/fullscreen.vert.spv");
++            auto sf = load_binary_file("shaders/ssao.frag.spv");
++            if (!sv.empty() && !sf.empty()) {
++                VkShaderModule v = create_shader_module(impl.device, sv);
++                VkShaderModule f = create_shader_module(impl.device, sf);
++                VkPipelineShaderStageCreateInfo stages[2] = {};
++                stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT; stages[0].module = v; stages[0].pName = "main";
++                stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT; stages[1].module = f; stages[1].pName = "main";
++                VkPipelineVertexInputStateCreateInfo vi {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
++                VkPipelineInputAssemblyStateCreateInfo ia {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO}; ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
++                VkViewport viewport {}; viewport.x=0; viewport.y=0; viewport.width=static_cast<float>(impl.swapchain_extent.width); viewport.height=static_cast<float>(impl.swapchain_extent.height); viewport.minDepth=0.0F; viewport.maxDepth=1.0F;
++                VkRect2D scissor {{0,0}, impl.swapchain_extent};
++                VkPipelineViewportStateCreateInfo vp {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO}; vp.viewportCount=1; vp.pViewports=&viewport; vp.scissorCount=1; vp.pScissors=&scissor;
++                VkPipelineRasterizationStateCreateInfo rs {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO}; rs.polygonMode=VK_POLYGON_MODE_FILL; rs.cullMode=VK_CULL_MODE_NONE; rs.frontFace=VK_FRONT_FACE_COUNTER_CLOCKWISE; rs.lineWidth=1.0F;
++                VkPipelineMultisampleStateCreateInfo ms {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO}; ms.rasterizationSamples=VK_SAMPLE_COUNT_1_BIT;
++                VkPipelineColorBlendAttachmentState cba {}; cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT;
++                VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO}; cb.attachmentCount=1; cb.pAttachments=&cba;
++                VkPipelineLayoutCreateInfo plci3 {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO}; plci3.setLayoutCount=1; plci3.pSetLayouts=&impl.desc_layout;
++                vkCreatePipelineLayout(impl.device, &plci3, nullptr, &impl.ssao_pipeline_layout);
++                VkGraphicsPipelineCreateInfo gpci3 {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO}; gpci3.stageCount=2; gpci3.pStages=stages; gpci3.pVertexInputState=&vi; gpci3.pInputAssemblyState=&ia; gpci3.pViewportState=&vp; gpci3.pRasterizationState=&rs; gpci3.pMultisampleState=&ms; gpci3.pColorBlendState=&cb; gpci3.layout=impl.ssao_pipeline_layout; gpci3.renderPass=impl.ssao_render_pass; gpci3.subpass=0;
++                vkCreateGraphicsPipelines(impl.device, VK_NULL_HANDLE, 1, &gpci3, nullptr, &impl.ssao_pipeline);
++                vkDestroyShaderModule(impl.device, v, nullptr);
++                vkDestroyShaderModule(impl.device, f, nullptr);
++            }
++        }
+     }
+ }
+ 
+@@ -955,6 +1163,8 @@
+             vkDeviceWaitIdle(impl->device);
+         }
+         destroy_pipeline(*this);
++        destroy_ssao_resources(*this);
++        destroy_gbuffer_resources(*this);
+         destroy_depth_resources(*this);
+         destroy_mesh_buffers(*this);
+         if (impl->in_flight != VK_NULL_HANDLE) {
+@@ -1014,6 +1224,64 @@
+         VkCommandBuffer cmd = impl->command_buffers[image_index];
+         VkCommandBufferBeginInfo bi {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+         vkBeginCommandBuffer(cmd, &bi);
++        // Optional prepasses: G-buffer then SSAO
++        if (impl->gbuffer_render_pass != VK_NULL_HANDLE && impl->gbuffer_pipeline != VK_NULL_HANDLE) {
++            // Build matrices
++            const float fov = 45.0F;
++            const float radians = fov * 3.1415926535F / 180.0F;
++            const float aspect = static_cast<float>(impl->swapchain_extent.width) / static_cast<float>(impl->swapchain_extent.height == 0 ? 1 : impl->swapchain_extent.height);
++            const float znear = 0.1F;
++            const float zfar = 100.0F;
++            const float f = 1.0F / std::tanf(radians * 0.5F);
++            float proj[16] = {0}; proj[0] = f / aspect; proj[5] = f; proj[10] = (zfar + znear) / (znear - zfar); proj[11] = -1.0F; proj[14] = (2.0F * zfar * znear) / (znear - zfar);
++            const float eye[3] = {0.0F, 0.0F, 3.0F}; const float center[3] = {0.0F, 0.0F, 0.0F}; const float upv[3] = {0.0F, 1.0F, 0.0F};
++            auto norm3 = [](float v[3]) noexcept { const float len = std::sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]); if (len>0.0F){ v[0]/=len; v[1]/=len; v[2]/=len; } };
++            float fwd[3] = {center[0]-eye[0], center[1]-eye[1], center[2]-eye[2]}; norm3(fwd);
++            float s[3] = {fwd[1]*upv[2] - fwd[2]*upv[1], fwd[2]*upv[0] - fwd[0]*upv[2], fwd[0]*upv[1] - fwd[1]*upv[0]}; norm3(s);
++            float u[3] = {s[1]*fwd[2] - s[2]*fwd[1], s[2]*fwd[0] - s[0]*fwd[2], s[0]*fwd[1] - s[1]*fwd[0]};
++            float view[16] = {0}; view[0]=s[0]; view[4]=s[1]; view[8]=s[2]; view[1]=u[0]; view[5]=u[1]; view[9]=u[2]; view[2]=-fwd[0]; view[6]=-fwd[1]; view[10]=-fwd[2]; view[15]=1.0F; view[12]=-(s[0]*eye[0]+s[1]*eye[1]+s[2]*eye[2]); view[13]=-(u[0]*eye[0]+u[1]*eye[1]+u[2]*eye[2]); view[14]=-(-fwd[0]*eye[0]+-fwd[1]*eye[1]+-fwd[2]*eye[2]);
++            float model[16] = {0}; model[0]=1.0F; model[5]=1.0F; model[10]=1.0F; model[15]=1.0F;
++            auto matmul = [](const float a[16], const float b[16], float out[16]) noexcept { for (int r=0;r<4;++r){ for (int c=0;c<4;++c){ out[r*4+c]=a[r*4+0]*b[0*4+c]+a[r*4+1]*b[1*4+c]+a[r*4+2]*b[2*4+c]+a[r*4+3]*b[3*4+c]; } } };
++            float pv[16]={0}; float mvp[16]={0}; matmul(proj, view, pv); matmul(pv, model, mvp);
++
++            // Update UBO screen params early for SSAO
++            if (impl->ubo_buffer != VK_NULL_HANDLE) {
++                struct Align16UBO { float viewM[16]; float projM[16]; float cam_pos[4]; float light_pos[4]; float light_color[4]; float screen[4]; } uboData {};
++                for (int i=0;i<16;++i){ uboData.viewM[i]=view[i]; uboData.projM[i]=proj[i]; }
++                const auto sConf = impl->settings;
++                uboData.cam_pos[0]=eye[0]; uboData.cam_pos[1]=eye[1]; uboData.cam_pos[2]=eye[2]; uboData.cam_pos[3]=sConf.normal_strength;
++                uboData.light_pos[0]=sConf.light_pos[0]; uboData.light_pos[1]=sConf.light_pos[1]; uboData.light_pos[2]=sConf.light_pos[2]; uboData.light_pos[3]=sConf.shininess;
++                uboData.light_color[0]=sConf.light_color[0]; uboData.light_color[1]=sConf.light_color[1]; uboData.light_color[2]=sConf.light_color[2]; uboData.light_color[3]=sConf.light_intensity;
++                const float invW = impl->swapchain_extent.width>0 ? 1.0F/static_cast<float>(impl->swapchain_extent.width) : 0.0F;
++                const float invH = impl->swapchain_extent.height>0 ? 1.0F/static_cast<float>(impl->swapchain_extent.height) : 0.0F;
++                uboData.screen[0]=invW; uboData.screen[1]=invH; uboData.screen[2]=sConf.ssao_power; uboData.screen[3]=sConf.ssao_radius;
++                void* ptr=nullptr; vkMapMemory(impl->device, impl->ubo_memory, 0, sizeof(uboData), 0, &ptr); std::memcpy(ptr, &uboData, sizeof(uboData)); vkUnmapMemory(impl->device, impl->ubo_memory);
++            }
++
++            VkClearValue gclears[2]; gclears[0].color={{0,0,0,0}}; gclears[1].depthStencil={1.0F,0};
++            VkRenderPassBeginInfo grbi {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO}; grbi.renderPass=impl->gbuffer_render_pass; grbi.framebuffer=impl->gbuffer_framebuffer; grbi.renderArea.offset={0,0}; grbi.renderArea.extent=impl->swapchain_extent; grbi.clearValueCount=2; grbi.pClearValues=gclears;
++            vkCmdBeginRenderPass(cmd, &grbi, VK_SUBPASS_CONTENTS_INLINE);
++            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->gbuffer_pipeline);
++            vkCmdPushConstants(cmd, impl->gbuffer_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0U, static_cast<uint32_t>(sizeof(float)*16U), mvp);
++            if (impl->desc_set != VK_NULL_HANDLE) { vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->gbuffer_pipeline_layout, 0, 1, &impl->desc_set, 0, nullptr); }
++            if (impl->vertex_buffer != VK_NULL_HANDLE && impl->index_buffer != VK_NULL_HANDLE && impl->index_count>0U) {
++                VkDeviceSize offs[] = {0}; VkBuffer vbs[] = {impl->vertex_buffer};
++                vkCmdBindVertexBuffers(cmd, 0, 1, vbs, offs);
++                vkCmdBindIndexBuffer(cmd, impl->index_buffer, 0, VK_INDEX_TYPE_UINT32);
++                vkCmdDrawIndexed(cmd, impl->index_count, 1, 0, 0, 0);
++            }
++            vkCmdEndRenderPass(cmd);
++
++            if (impl->ssao_render_pass != VK_NULL_HANDLE && impl->ssao_pipeline != VK_NULL_HANDLE) {
++                VkClearValue sclear; sclear.color={{1.0F,0,0,0}};
++                VkRenderPassBeginInfo srp {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO}; srp.renderPass=impl->ssao_render_pass; srp.framebuffer=impl->ssao_framebuffer; srp.renderArea.offset={0,0}; srp.renderArea.extent=impl->swapchain_extent; srp.clearValueCount=1; srp.pClearValues=&sclear;
++                vkCmdBeginRenderPass(cmd, &srp, VK_SUBPASS_CONTENTS_INLINE);
++                vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->ssao_pipeline);
++                if (impl->ssao_desc_set != VK_NULL_HANDLE) { vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, impl->ssao_pipeline_layout, 0, 1, &impl->ssao_desc_set, 0, nullptr); }
++                vkCmdDraw(cmd, 3, 1, 0, 0);
++                vkCmdEndRenderPass(cmd);
++            }
++        }
+         VkClearValue clear_color {};
+         clear_color.color = {{0.05F, 0.15F, 0.30F, 1.0F}};
+         VkClearValue clear_depth {};
+@@ -1091,7 +1359,7 @@
+                 u.light_color[0]=s.light_color[0]; u.light_color[1]=s.light_color[1]; u.light_color[2]=s.light_color[2]; u.light_color[3]=s.light_intensity;
+                 const float invW = impl->swapchain_extent.width > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.width) : 0.0F;
+                 const float invH = impl->swapchain_extent.height > 0 ? 1.0F/static_cast<float>(impl->swapchain_extent.height) : 0.0F;
+-                u.screen[0]=invW; u.screen[1]=invH; u.screen[2]=s.ssao_power; u.screen[3]=0.0F;
++                u.screen[0]=invW; u.screen[1]=invH; u.screen[2]=s.ssao_power; u.screen[3]=s.ssao_radius;
+                 void* ubodata=nullptr; vkMapMemory(impl->device, impl->ubo_memory, 0, sizeof(u), 0, &ubodata); std::memcpy(ubodata, &u, sizeof(u)); vkUnmapMemory(impl->device, impl->ubo_memory);
+             }
+         }
+
+[2025-09-15T17:05:40] exec bash -lc 'git add -A && git commit -m "feat(renderer): scaffold G-buffer + SSAO passes (offscreen images, pipelines, and command recording); wire UBO radius; keep forward AO sampling"' in /Users/bruno/Documents/Development/bruno/vulkano_codex
