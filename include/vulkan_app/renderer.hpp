@@ -17,6 +17,7 @@ struct CameraUBO;
 struct Light;
 struct Material;
 struct SsaoParams;
+class ImGuiLayer;
 
 class Renderer final {
 public:
@@ -29,6 +30,15 @@ public:
     void update_mesh(const Mesh& mesh);
     void draw_frame(const CameraUBO& camera, const Light& light, const Material& material, const SsaoParams& ssao);
     [[nodiscard]] const char* device_name() const noexcept { return device_name_; }
+    void attach_imgui(ImGuiLayer* layer) noexcept { imgui_layer_ = layer; }
+
+    // Minimal accessors for integration points
+    [[nodiscard]] VkInstance instance() const noexcept { return instance_; }
+    [[nodiscard]] VkDevice device() const noexcept { return device_; }
+    [[nodiscard]] VkPhysicalDevice physical_device() const noexcept { return physical_device_; }
+    [[nodiscard]] VkQueue graphics_queue() const noexcept { return graphics_queue_; }
+    [[nodiscard]] std::uint32_t graphics_queue_family() const noexcept { return graphics_family_; }
+    [[nodiscard]] VkRenderPass render_pass() const noexcept { return render_pass_; }
 
 private:
     void init_instance();
@@ -112,6 +122,9 @@ private:
     VkBuffer camera_buffer_{}; VkDeviceMemory camera_memory_{};
     VkBuffer material_buffer_{}; VkDeviceMemory material_memory_{};
     VkBuffer light_buffer_{}; VkDeviceMemory light_memory_{};
+
+    // ImGui integration (optional)
+    ImGuiLayer* imgui_layer_{};
 };
 
 } // namespace vulkan_app
