@@ -26,8 +26,13 @@ Status: Initial scaffolding (CMake + GLFW window) – DONE
 ## Next Iteration
 - [x] Icosphere mesh generation with tangents/bitangents
 - [x] Unit tests for icosphere counts and normals
-- [ ] Vulkan instance/device/swapchain, debug utils (basic clear)
-- [ ] ImGui integration (imgui_impl_glfw + imgui_impl_vulkan)
+- [x] Vulkan instance/device/swapchain, debug utils (basic clear)
+- [x] ImGui integration (imgui_impl_glfw + imgui_impl_vulkan)
+- [ ] Mesh GPU upload + basic pipeline (draw icosphere)
+- [ ] Runtime subdivisions trigger CPU rebuild + GPU reupload
+- [ ] G-buffer pass (albedo, normal, depth)
+- [ ] SSAO kernel + noise texture + blur + composite
+- [ ] ImGui controls: light/material/SSAO settings
 
 ## Notes
 - All includes must use angle brackets.
