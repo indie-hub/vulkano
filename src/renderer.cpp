@@ -203,6 +203,9 @@ Renderer::Renderer(GLFWwindow* window) {
     pick_physical_device();
     create_device();
     create_swapchain();
+    // Create command pool early, as subsequent setup (e.g., AO noise upload,
+    // procedural textures) uses single-time command buffers.
+    create_command_pool_and_buffers();
     create_gbuffer_pass();
     create_gbuffer_targets();
     create_ao_targets();
@@ -210,7 +213,6 @@ Renderer::Renderer(GLFWwindow* window) {
     create_depth_resources();
     create_framebuffers();
     create_descriptor_layouts();
-    create_command_pool_and_buffers();
     create_sampler();
     create_textures_if_needed();
     create_descriptor_pool_and_sets();
