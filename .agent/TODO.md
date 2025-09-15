@@ -9,6 +9,7 @@ Short-term fixes and next steps. Keep updated as work progresses.
   - Use concurrent image sharing when graphics/present queues differ.
  - Add public header Doxygen documentation across modules.
  - Add CHANGELOG.md (Keep a Changelog) and architecture doc.
+ - Add `docs/SHADERS.md` and expand README with platform/run notes.
 
 ## Next
 - SSAO pipeline: G-buffer, SSAO, blur, and compose passes.
