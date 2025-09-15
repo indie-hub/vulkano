@@ -1,7 +1,7 @@
 # Vulkano Codex – TODO
 
 Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
-Update: SSAO controls added and AO hook in forward shader. G-buffer prepass (normals+depth to RGBA16F) and SSAO fullscreen pass (AO to R8) are scaffolded and integrated. Blur pass and robust swapchain‑recreation paths remain.
+Update: SSAO controls added and AO hook in forward shader. G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and a simple isotropic blur pass are integrated. Robust swapchain‑recreation paths remain.
 
 ## High-level Plan
 - Scaffold CMake project and folders
@@ -45,7 +45,7 @@ Update: SSAO controls added and AO hook in forward shader. G-buffer prepass (nor
 - Built Debug successfully on macOS; headless run OK (`HEADLESS_RUN_MS=500`).
 - All unit tests pass (`ctest` Debug).
 - Implemented AO blur pass (single-pass isotropic) and forward wiring; shaders compiled and included.
-- Could not push to remote: `GITHUB_TOKEN` is unset; local commits are present on branch `personal/codex/second_try`.
+- Attempted push; skipped due to missing `GITHUB_TOKEN` in environment. Local commits are on `personal/codex/second_try`.
 
 ## Immediate TODOs
 - Add CI workflow to configure, build, run unit tests, and attempt headless app run on Linux and macOS (MoltenVK notes).

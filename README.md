@@ -66,7 +66,7 @@ ctest --test-dir build -C Debug --output-on-failure
 - Icosphere subdivisions [0..6] (rebuilds mesh + GPU buffers)
 - Light: position, color, intensity, shininess
 - Material: normal map strength
-- SSAO: enable, kernel size, radius, bias, power, blur on/off, blur radius (blur not yet implemented)
+- SSAO: enable, kernel size, radius, bias, power, blur on/off, blur radius
 
 ## Platform notes
 - Windows/Linux: Vulkan 1.2+; ensure Vulkan SDK runtime (loader) installed to pick up your GPU driver’s ICD
