@@ -9,7 +9,7 @@ Current stage
   - On platforms without Vulkan/MoltenVK, the app still builds and runs the window loop.
 - ImGui integration (GLFW + Vulkan). UI shows subdivision slider and lighting/material controls.
 - Forward Phong shading with tangent-space normal mapping (procedural checkerboard albedo + flat normal map). MVP via push constants; per-frame UBO for camera/light/material.
-- SSAO scaffolding: G-buffer prepass (view-space normals + linear depth packed into RGBA16F), SSAO fullscreen pass writing AO (R8), forward shading multiplies AO. Basic kernel-based AO implemented; blur/TAA pending.
+- SSAO: G-buffer prepass (view-space normals + linear depth packed into RGBA16F), SSAO fullscreen pass writing AO (R8), forward shading multiplies AO. Basic kernel-based AO implemented; blur/TAA pending.
 
 Shaders:
 - Forward shaders: `shaders/forward.vert`, `shaders/forward.frag` (+ compiled `.spv` included). These implement Phong + normal mapping.
@@ -61,7 +61,17 @@ Run tests:
 ctest --test-dir build -C Debug --output-on-failure
 ```
 
+## Runtime controls (ImGui)
+- Icosphere subdivisions [0..6] (rebuilds mesh + GPU buffers)
+- Light: position, color, intensity, shininess
+- Material: normal map strength
+- SSAO: enable, kernel size, radius, bias, power, blur on/off, blur radius (blur not yet implemented)
+
+## Platform notes
+- Windows/Linux: Vulkan 1.2+; ensure Vulkan SDK runtime (loader) installed to pick up your GPU driver’s ICD
+- macOS: requires MoltenVK (via Vulkan SDK). You may need to export `VK_ICD_FILENAMES` to point to MoltenVK’s JSON if the loader cannot find it automatically.
+
 ## Next Steps
-- Add G-buffer (albedo, normal, depth) and SSAO pass + blur + composite
-- Wire ImGui SSAO controls (enable, radius, bias, kernel size, strength, blur)
-- Swapchain recreation for multi-pass resources
+- Add separable blur pass for AO and wire composite strength
+- Robust swapchain recreation for all offscreen resources
+- Optional wireframe overlay pipeline

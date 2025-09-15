@@ -35,10 +35,10 @@ Update: SSAO controls added and AO hook in forward shader. Adding scaffolding fo
 - [x] Camera + MVP matrices and per-pixel Phong shading
 - [x] Tangent-space normal mapping with procedural textures
 - [x] ImGui controls: light/material (normal strength, color, intensity, shininess)
-- [ ] Prepass: view-space normal + depth offscreen (sampleable)
-- [ ] SSAO: kernel + 4x4 noise texture, write AO (R8)
+- [x] Prepass: view-space normal + depth offscreen (sampleable)
+- [x] SSAO: kernel + 4x4 noise texture, write AO (R8)
 - [ ] Blur: separable pass into AO_blur
-- [ ] Integrate: forward shading samples AO_blur (already wired)
+- [x] Integrate: forward shading samples AO_blur (already wired)
 - [ ] Resize-safe swapchain recreation for multi-pass images
 
 ## Session Plan (short)
