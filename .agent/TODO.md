@@ -1,6 +1,6 @@
 # Vulkano Codex – TODO
 
-Status: Initial scaffolding
+Status: Initial scaffolding (CMake + GLFW window) – DONE
 
 ## High-level Plan
 - Scaffold CMake project and folders
@@ -15,13 +15,13 @@ Status: Initial scaffolding
 - Add textures/assets and runtime packaging
 
 ## Short-term Tasks
-- [ ] Configure CMake with options: ENABLE_VALIDATION, ENABLE_GLFW_WAYLAND, ENABLE_IMGUI_DOCKING
-- [ ] FetchContent: GLFW, GLM, Catch2 (tests); defer ImGui for next step
-- [ ] Create `app/` with executable entry point
-- [ ] Implement `vulkano::Window` wrapper around GLFW
-- [ ] Add runtime output directories to `app/bin/<config>`
-- [ ] Add `.clang-format` from AGENTS.md
-- [ ] Basic unit test scaffold builds
+- [x] Configure CMake with options: ENABLE_VALIDATION, ENABLE_GLFW_WAYLAND, ENABLE_IMGUI_DOCKING
+- [x] FetchContent: GLFW, GLM, Catch2 (tests); defer ImGui for next step
+- [x] Create `app/` with executable entry point
+- [x] Implement `vulkano::Window` wrapper around GLFW
+- [x] Add runtime output directories to `app/bin/<config>`
+- [x] Add `.clang-format` from AGENTS.md
+- [x] Basic unit test scaffold builds
 
 ## Next Iteration
 - [ ] Vulkan instance/device/swapchain, debug utils
