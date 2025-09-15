@@ -1,9 +1,7 @@
-#include <iostream>
-
-#include <vulkan_app/icosphere.hpp>
+#include <vulkan_app/application.hpp>
 
 int main() {
-    const auto mesh {vulkan_app::make_icosphere(0)};
-    std::cout << "vertices: " << mesh.vertices.size() << '\n';
+    vulkan_app::Application app{};
+    app.run();
     return 0;
 }
