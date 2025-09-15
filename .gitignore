@@ -43,6 +43,7 @@
 # CMake build directories
 build/
 cmake-build-*/
+ci_build/
 
 # CMake files
 CMakeCache.txt
@@ -56,6 +57,19 @@ compile_commands.json
 .idea/
 .vscode/
 .DS_Store
+
+# Runtime configs
+imgui.ini
+
+# Local app staging (binary + assets)
+app/
+
+# Temporary logs and scratch
+mac_run_*.txt
+run_log.txt
+code_task.txt
+output.md
+gt_token.txt
 
 # Generated binaries and libs (if built outside build/)
 bin/
