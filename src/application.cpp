@@ -14,6 +14,15 @@ namespace {
 Application::Application() {
     init_window();
     renderer = std::make_unique<Renderer>(window);
+    // Create ImGui layer and attach to renderer for overlay rendering
+    imgui = std::make_unique<ImGuiLayer>(window,
+                                         renderer->instance(),
+                                         renderer->device(),
+                                         renderer->physical_device(),
+                                         renderer->graphics_queue(),
+                                         renderer->graphics_queue_family(),
+                                         renderer->render_pass());
+    renderer->attach_imgui(imgui.get());
 }
 
 Application::~Application() noexcept {
@@ -44,7 +53,8 @@ void Application::main_loop() {
         glfwPollEvents();
         rebuild_mesh_if_needed();
 
-        //
+        imgui->new_frame();
+        imgui->draw_ui(pending_subdivisions, light, material, ssao);
 
         // Prepare camera UBO
         int w{0}, h{0};
