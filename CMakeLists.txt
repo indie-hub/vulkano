@@ -85,6 +85,39 @@ endif()
 add_executable(vulkan_app_example src/main.cpp)
 target_link_libraries(vulkan_app_example PRIVATE vulkan_app)
 
+# Shader compilation (if glslc is available)
+find_program(GLSLC glslc HINTS ENV VULKAN_SDK PATH_SUFFIXES bin)
+set(SHADER_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/shaders/gbuffer.vert
+    ${CMAKE_CURRENT_SOURCE_DIR}/shaders/gbuffer.frag
+    ${CMAKE_CURRENT_SOURCE_DIR}/shaders/ssao.frag
+    ${CMAKE_CURRENT_SOURCE_DIR}/shaders/blur.frag
+    ${CMAKE_CURRENT_SOURCE_DIR}/shaders/compose.frag)
+set(SPIRV_OUTPUTS)
+foreach(SHADER ${SHADER_SOURCES})
+    get_filename_component(FILE_NAME ${SHADER} NAME)
+    set(SPIRV ${CMAKE_BINARY_DIR}/shaders/${FILE_NAME}.spv)
+    list(APPEND SPIRV_OUTPUTS ${SPIRV})
+    if (GLSLC)
+        add_custom_command(
+            OUTPUT ${SPIRV}
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/shaders
+            COMMAND ${GLSLC} -O -o ${SPIRV} ${SHADER}
+            DEPENDS ${SHADER}
+            COMMENT "Compiling ${FILE_NAME} to SPIR-V"
+            VERBATIM)
+    else()
+        add_custom_command(
+            OUTPUT ${SPIRV}
+            COMMAND ${CMAKE_COMMAND} -E copy ${SHADER} ${SPIRV}
+            DEPENDS ${SHADER}
+            COMMENT "glslc not found; copying ${FILE_NAME} as placeholder"
+            VERBATIM)
+    endif()
+endforeach()
+add_custom_target(shaders ALL DEPENDS ${SPIRV_OUTPUTS})
+add_dependencies(vulkan_app_example shaders)
+
 include(CTest)
 if (BUILD_TESTING)
   enable_testing()
