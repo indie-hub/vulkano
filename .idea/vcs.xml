@@ -2,5 +2,9 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/build_cli/_deps/catch2-src" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/build_cli/_deps/glfw-src" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/build_cli/_deps/glm-src" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/build_cli/_deps/imgui-src" vcs="Git" />
   </component>
 </project>
