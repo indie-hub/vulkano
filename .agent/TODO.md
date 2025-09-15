@@ -49,6 +49,11 @@ Verification: Built Debug locally, tests pass, headless run OK.
 - Attempted push; skipped due to missing `GITHUB_TOKEN` in environment. Local commits are on `personal/codex/second_try`.
  - Current: Verified build + tests in this session; ready to push if token present.
 
+### 2025-09-15 Additional Notes
+- Verified full local rebuild from clean `build/` directory.
+- Validated non-Vulkan path still works in headless mode.
+- Prepared to push upstream; using `GITHUB_TOKEN` if present and remote `origin` at `indie-hub/vulkano`.
+
 ## Immediate TODOs
 - Add CI workflow to configure, build, run unit tests, and attempt headless app run on Linux and macOS (MoltenVK notes).
 - Optionally change blur to separable Gaussian (2 passes) for performance.
