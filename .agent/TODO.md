@@ -22,4 +22,4 @@ Next Steps
 - Remove all inline code from the header files.
 - Add wireframe overlay toggle and optional pipeline state.
 - Add optional HDR tonemapping in compose.
-- Add more unit tests (camera matrices invariants).
+- Done: additional unit tests (camera projection/view invariants).
