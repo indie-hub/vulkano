@@ -1,5 +1,6 @@
 #include <vulkano/app.hpp>
 #include <vulkano/window.hpp>
+#include <vulkano/vulkan_context.hpp>
 
 #include <chrono>
 #include <thread>
@@ -25,9 +26,19 @@ void Application::run() {
 }
 
 void Application::main_loop() {
+    // Optional Vulkan context; created lazily if available and enabled
+    std::unique_ptr<VulkanContext> vk { };
+    (void)vk;
     while (!window->should_close()) {
         window->poll_events();
-        // Placeholder: rendering will be added in subsequent steps.
+#if VULKANO_HAS_VULKAN
+        if (!vk && true) {
+            vk = std::make_unique<VulkanContext>(*window);
+        }
+        if (vk) {
+            vk->draw_frame();
+        }
+#endif
         std::this_thread::sleep_for(std::chrono::milliseconds {16});
     }
 }
