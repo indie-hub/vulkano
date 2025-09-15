@@ -730,7 +730,52 @@ void Renderer::create_descriptor_layouts() {
 }
 
 void Renderer::create_descriptor_pool_and_sets() {
-    // not used yet in minimal forward path
+    // Create UBOs
+    VkDeviceSize cam_size = sizeof(CameraUBO);
+    VkDeviceSize mat_size = sizeof(Material);
+    VkDeviceSize light_size = sizeof(Light);
+    create_buffer(physical_device_, device_, cam_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                  camera_buffer_, camera_memory_);
+    create_buffer(physical_device_, device_, mat_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                  material_buffer_, material_memory_);
+    create_buffer(physical_device_, device_, light_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                  light_buffer_, light_memory_);
+
+    // Descriptor pool and sets
+    VkDescriptorPoolSize sizes[3]{};
+    sizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; sizes[0].descriptorCount = static_cast<std::uint32_t>(swapchain_images_.size());
+    sizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; sizes[1].descriptorCount = static_cast<std::uint32_t>(swapchain_images_.size());
+    sizes[2].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; sizes[2].descriptorCount = static_cast<std::uint32_t>(swapchain_images_.size());
+    VkDescriptorPoolCreateInfo dpci{};
+    dpci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    dpci.poolSizeCount = 3; dpci.pPoolSizes = sizes;
+    dpci.maxSets = static_cast<std::uint32_t>(swapchain_images_.size());
+    if (vkCreateDescriptorPool(device_, &dpci, nullptr, &desc_pool_) != VK_SUCCESS) {
+        throw std::runtime_error{"Failed to create descriptor pool"};
+    }
+    std::vector<VkDescriptorSetLayout> layouts(swapchain_images_.size(), desc_set_layout_);
+    VkDescriptorSetAllocateInfo dsai{};
+    dsai.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    dsai.descriptorPool = desc_pool_;
+    dsai.descriptorSetCount = static_cast<std::uint32_t>(layouts.size());
+    dsai.pSetLayouts = layouts.data();
+    desc_sets_.resize(layouts.size());
+    if (vkAllocateDescriptorSets(device_, &dsai, desc_sets_.data()) != VK_SUCCESS) {
+        throw std::runtime_error{"Failed to allocate descriptor sets"};
+    }
+    for (std::size_t i{0}; i < desc_sets_.size(); ++i) {
+        VkDescriptorBufferInfo cam{}; cam.buffer = camera_buffer_; cam.offset = 0; cam.range = cam_size;
+        VkDescriptorBufferInfo mat{}; mat.buffer = material_buffer_; mat.offset = 0; mat.range = mat_size;
+        VkDescriptorBufferInfo lig{}; lig.buffer = light_buffer_; lig.offset = 0; lig.range = light_size;
+        VkWriteDescriptorSet writes[3]{};
+        writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[0].dstSet = desc_sets_[i]; writes[0].dstBinding = 0; writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes[0].descriptorCount = 1; writes[0].pBufferInfo = &cam;
+        writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[1].dstSet = desc_sets_[i]; writes[1].dstBinding = 3; writes[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes[1].descriptorCount = 1; writes[1].pBufferInfo = &mat;
+        writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = desc_sets_[i]; writes[2].dstBinding = 4; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes[2].descriptorCount = 1; writes[2].pBufferInfo = &lig;
+        vkUpdateDescriptorSets(device_, 3, writes, 0, nullptr);
+    }
 }
 
 void Renderer::create_depth_resources() {
