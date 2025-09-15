@@ -1,14 +1,26 @@
 # Plan
 
-1. Set up CMake project structure with library and tests. [done]
-2. Implement CPU icosphere generator in C++20 (header + source). [done]
-3. Provide main program placeholder that uses generator. [done]
-4. Add unit tests verifying vertex counts. [done]
-5. Document build instructions in README. [done]
-6. Integrate GLFW and Vulkan to open a window. [done]
-7. Implement `Application` class managing instance and window lifetime. [done]
-8. Replace placeholder `main` with `Application` usage. [done]
-9. Integrate ImGui (GLFW+Vulkan backends), add UI for subdivisions/light/material/SSAO. [in-progress]
-10. Extend renderer to multi-pass: G-buffer, SSAO, blur, compose. [todo]
-11. Add normal map sampling, TBN, textures loader (stb). [todo]
-12. Add stats in ImGui: FPS, frame, device name, extent. [todo]
+1) Core scaffolding and geometry [completed]
+- CMake project with library, example, tests.
+- CPU icosphere generator (header + source) with TBN and UVs.
+
+2) Rendering and UI [completed]
+- GLFW + Vulkan renderer with swapchain management.
+- ImGui integration (GLFW + Vulkan backends) and runtime controls.
+
+3) Deferred pipeline + effects [completed]
+- G-buffer pass (albedo, normal, viewZ) + depth.
+- SSAO pass with kernel UBO and 4x4 noise texture.
+- Separable blur pass (horizontal/vertical).
+- Compose pass with Phong lighting and AO modulation.
+
+4) Tooling and docs [completed]
+- Shader compile step via glslc; packaging script to app/<Config>.
+- README build/run docs; unit tests (icosphere, camera).
+
+5) Follow-ups [backlog]
+- Optional wireframe overlay pipeline toggle.
+- Optional HDR tonemapping tweak in compose.
+- SSAO compute variant and AO debug visualize.
+
+Status: Build and tests green on local; packaged Release binary and SPIR-V into app/Release.
