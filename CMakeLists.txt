@@ -80,6 +80,11 @@ target_sources(vulkan_app
 target_include_directories(vulkan_app PUBLIC include)
 target_link_libraries(vulkan_app PUBLIC glm glfw Vulkan::Vulkan)
 target_link_libraries(vulkan_app PUBLIC imgui_backend)
+# Provide absolute shader directories to the code for robust runtime lookup
+target_compile_definitions(vulkan_app PUBLIC
+    VULKAN_APP_BINARY_SHADER_DIR="${CMAKE_BINARY_DIR}/shaders"
+    VULKAN_APP_SOURCE_SHADER_DIR="${CMAKE_CURRENT_SOURCE_DIR}/shaders"
+)
 if (ENABLE_VALIDATION)
     target_compile_definitions(vulkan_app PUBLIC VULKAN_APP_ENABLE_VALIDATION=1)
 endif()
