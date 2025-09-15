@@ -30,6 +30,26 @@ FetchContent_MakeAvailable(glfw)
 
 find_package(Vulkan REQUIRED)
 
+# Dear ImGui (fetch and build with GLFW + Vulkan backends)
+FetchContent_Declare(
+  imgui
+  GIT_REPOSITORY https://github.com/ocornut/imgui.git
+  GIT_TAG v1.90.5
+)
+FetchContent_MakeAvailable(imgui)
+
+add_library(imgui_backend STATIC
+    ${imgui_SOURCE_DIR}/imgui.cpp
+    ${imgui_SOURCE_DIR}/imgui_demo.cpp
+    ${imgui_SOURCE_DIR}/imgui_draw.cpp
+    ${imgui_SOURCE_DIR}/imgui_tables.cpp
+    ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
+)
+target_include_directories(imgui_backend PUBLIC ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends)
+target_link_libraries(imgui_backend PUBLIC glfw Vulkan::Vulkan)
+
 if (MSVC)
   add_compile_options(/W4 /permissive-)
 else()
@@ -57,6 +77,7 @@ target_sources(vulkan_app
 
 target_include_directories(vulkan_app PUBLIC include)
 target_link_libraries(vulkan_app PUBLIC glm glfw Vulkan::Vulkan)
+target_link_libraries(vulkan_app PUBLIC imgui_backend)
 if (ENABLE_VALIDATION)
     target_compile_definitions(vulkan_app PUBLIC VULKAN_APP_ENABLE_VALIDATION=1)
 endif()
