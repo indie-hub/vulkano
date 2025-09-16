@@ -588,6 +588,32 @@ compile_shaders/fast:
 .PHONY : compile_shaders/fast
 
 #=============================================================================
+# Target rules for targets named package_runtime
+
+# Build rule for target.
+package_runtime: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 package_runtime
+.PHONY : package_runtime
+
+# fast build rule for target.
+package_runtime/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package_runtime.dir/build.make CMakeFiles/package_runtime.dir/build
+.PHONY : package_runtime/fast
+
+#=============================================================================
+# Target rules for targets named dist
+
+# Build rule for target.
+dist: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 dist
+.PHONY : dist
+
+# fast build rule for target.
+dist/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/dist.dir/build.make CMakeFiles/dist.dir/build
+.PHONY : dist/fast
+
+#=============================================================================
 # Target rules for targets named uninstall
 
 # Build rule for target.
@@ -984,6 +1010,8 @@ help:
 	@echo "... NightlyTest"
 	@echo "... NightlyUpdate"
 	@echo "... compile_shaders"
+	@echo "... dist"
+	@echo "... package_runtime"
 	@echo "... uninstall"
 	@echo "... update_mappings"
 	@echo "... Catch2"

@@ -210,3 +210,16 @@ endforeach()
 
 add_custom_target(compile_shaders ALL DEPENDS ${SHADER_BINS})
 add_dependencies(vulkano_app compile_shaders)
+
+# --- Packaging: create a relocatable bundle under bin/dist ---
+set(DIST_DIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/dist)
+add_custom_target(package_runtime
+  DEPENDS vulkano_app compile_shaders
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${DIST_DIR}
+  COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:vulkano_app> ${DIST_DIR}/
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${DIST_DIR}/shaders
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders ${DIST_DIR}/shaders
+  COMMENT "Packaging runtime bundle to ${DIST_DIR}"
+)
+
+add_custom_target(dist ALL DEPENDS package_runtime)

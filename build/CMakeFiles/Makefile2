@@ -67,6 +67,7 @@ all: CMakeFiles/imgui.dir/all
 all: CMakeFiles/vulkano.dir/all
 all: CMakeFiles/vulkano_app.dir/all
 all: CMakeFiles/compile_shaders.dir/all
+all: CMakeFiles/dist.dir/all
 all: _deps/glfw-build/all
 all: _deps/glm-build/all
 all: tests/all
@@ -77,6 +78,7 @@ codegen: CMakeFiles/imgui.dir/codegen
 codegen: CMakeFiles/vulkano.dir/codegen
 codegen: CMakeFiles/vulkano_app.dir/codegen
 codegen: CMakeFiles/compile_shaders.dir/codegen
+codegen: CMakeFiles/dist.dir/codegen
 codegen: _deps/glfw-build/codegen
 codegen: _deps/glm-build/codegen
 codegen: tests/codegen
@@ -121,6 +123,8 @@ clean: CMakeFiles/ContinuousCoverage.dir/clean
 clean: CMakeFiles/ContinuousMemCheck.dir/clean
 clean: CMakeFiles/ContinuousSubmit.dir/clean
 clean: CMakeFiles/compile_shaders.dir/clean
+clean: CMakeFiles/package_runtime.dir/clean
+clean: CMakeFiles/dist.dir/clean
 clean: _deps/glfw-build/clean
 clean: _deps/glm-build/clean
 clean: tests/clean
@@ -274,12 +278,12 @@ tests/clean: _deps/catch2-build/clean
 CMakeFiles/imgui.dir/all: _deps/glfw-build/src/CMakeFiles/glfw.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/imgui.dir/build.make CMakeFiles/imgui.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/imgui.dir/build.make CMakeFiles/imgui.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=89,90,91,92 "Built target imgui"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=88,89,90,91,92 "Built target imgui"
 .PHONY : CMakeFiles/imgui.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/imgui.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles 18
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles 19
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/imgui.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles 0
 .PHONY : CMakeFiles/imgui.dir/rule
@@ -291,7 +295,7 @@ imgui: CMakeFiles/imgui.dir/rule
 # codegen rule for target.
 CMakeFiles/imgui.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/imgui.dir/build.make CMakeFiles/imgui.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=89,90,91,92 "Finished codegen for target imgui"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=88,89,90,91,92 "Finished codegen for target imgui"
 .PHONY : CMakeFiles/imgui.dir/codegen
 
 # clean rule for target.
@@ -349,7 +353,7 @@ CMakeFiles/vulkano_app.dir/all: _deps/glm-build/glm/CMakeFiles/glm.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/vulkano_app.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles 26
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles 27
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/vulkano_app.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles 0
 .PHONY : CMakeFiles/vulkano_app.dir/rule
@@ -1272,12 +1276,12 @@ CMakeFiles/ContinuousSubmit.dir/clean:
 CMakeFiles/compile_shaders.dir/all:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/compile_shaders.dir/build.make CMakeFiles/compile_shaders.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/compile_shaders.dir/build.make CMakeFiles/compile_shaders.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=72 "Built target compile_shaders"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=71,72 "Built target compile_shaders"
 .PHONY : CMakeFiles/compile_shaders.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/compile_shaders.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles 1
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles 2
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/compile_shaders.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles 0
 .PHONY : CMakeFiles/compile_shaders.dir/rule
@@ -1289,13 +1293,79 @@ compile_shaders: CMakeFiles/compile_shaders.dir/rule
 # codegen rule for target.
 CMakeFiles/compile_shaders.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/compile_shaders.dir/build.make CMakeFiles/compile_shaders.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=72 "Finished codegen for target compile_shaders"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=71,72 "Finished codegen for target compile_shaders"
 .PHONY : CMakeFiles/compile_shaders.dir/codegen
 
 # clean rule for target.
 CMakeFiles/compile_shaders.dir/clean:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/compile_shaders.dir/build.make CMakeFiles/compile_shaders.dir/clean
 .PHONY : CMakeFiles/compile_shaders.dir/clean
+
+#=============================================================================
+# Target rules for target CMakeFiles/package_runtime.dir
+
+# All Build rule for target.
+CMakeFiles/package_runtime.dir/all: CMakeFiles/vulkano_app.dir/all
+CMakeFiles/package_runtime.dir/all: CMakeFiles/compile_shaders.dir/all
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package_runtime.dir/build.make CMakeFiles/package_runtime.dir/depend
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package_runtime.dir/build.make CMakeFiles/package_runtime.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num= "Built target package_runtime"
+.PHONY : CMakeFiles/package_runtime.dir/all
+
+# Build rule for subdir invocation for target.
+CMakeFiles/package_runtime.dir/rule: cmake_check_build_system
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles 27
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/package_runtime.dir/all
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles 0
+.PHONY : CMakeFiles/package_runtime.dir/rule
+
+# Convenience name for target.
+package_runtime: CMakeFiles/package_runtime.dir/rule
+.PHONY : package_runtime
+
+# codegen rule for target.
+CMakeFiles/package_runtime.dir/codegen: CMakeFiles/vulkano_app.dir/all
+CMakeFiles/package_runtime.dir/codegen: CMakeFiles/compile_shaders.dir/all
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package_runtime.dir/build.make CMakeFiles/package_runtime.dir/codegen
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num= "Finished codegen for target package_runtime"
+.PHONY : CMakeFiles/package_runtime.dir/codegen
+
+# clean rule for target.
+CMakeFiles/package_runtime.dir/clean:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/package_runtime.dir/build.make CMakeFiles/package_runtime.dir/clean
+.PHONY : CMakeFiles/package_runtime.dir/clean
+
+#=============================================================================
+# Target rules for target CMakeFiles/dist.dir
+
+# All Build rule for target.
+CMakeFiles/dist.dir/all: CMakeFiles/package_runtime.dir/all
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/dist.dir/build.make CMakeFiles/dist.dir/depend
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/dist.dir/build.make CMakeFiles/dist.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num= "Built target dist"
+.PHONY : CMakeFiles/dist.dir/all
+
+# Build rule for subdir invocation for target.
+CMakeFiles/dist.dir/rule: cmake_check_build_system
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles 27
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/dist.dir/all
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles 0
+.PHONY : CMakeFiles/dist.dir/rule
+
+# Convenience name for target.
+dist: CMakeFiles/dist.dir/rule
+.PHONY : dist
+
+# codegen rule for target.
+CMakeFiles/dist.dir/codegen: CMakeFiles/package_runtime.dir/all
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/dist.dir/build.make CMakeFiles/dist.dir/codegen
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num= "Finished codegen for target dist"
+.PHONY : CMakeFiles/dist.dir/codegen
+
+# clean rule for target.
+CMakeFiles/dist.dir/clean:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/dist.dir/build.make CMakeFiles/dist.dir/clean
+.PHONY : CMakeFiles/dist.dir/clean
 
 #=============================================================================
 # Target rules for target _deps/glfw-build/CMakeFiles/uninstall.dir
@@ -1400,12 +1470,12 @@ _deps/glfw-build/src/CMakeFiles/update_mappings.dir/clean:
 _deps/glm-build/glm/CMakeFiles/glm.dir/all:
 	$(MAKE) $(MAKESILENT) -f _deps/glm-build/glm/CMakeFiles/glm.dir/build.make _deps/glm-build/glm/CMakeFiles/glm.dir/depend
 	$(MAKE) $(MAKESILENT) -f _deps/glm-build/glm/CMakeFiles/glm.dir/build.make _deps/glm-build/glm/CMakeFiles/glm.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=87,88 "Built target glm"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=87 "Built target glm"
 .PHONY : _deps/glm-build/glm/CMakeFiles/glm.dir/all
 
 # Build rule for subdir invocation for target.
 _deps/glm-build/glm/CMakeFiles/glm.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles 2
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles 1
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 _deps/glm-build/glm/CMakeFiles/glm.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles 0
 .PHONY : _deps/glm-build/glm/CMakeFiles/glm.dir/rule
@@ -1417,7 +1487,7 @@ glm: _deps/glm-build/glm/CMakeFiles/glm.dir/rule
 # codegen rule for target.
 _deps/glm-build/glm/CMakeFiles/glm.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f _deps/glm-build/glm/CMakeFiles/glm.dir/build.make _deps/glm-build/glm/CMakeFiles/glm.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=87,88 "Finished codegen for target glm"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=87 "Finished codegen for target glm"
 .PHONY : _deps/glm-build/glm/CMakeFiles/glm.dir/codegen
 
 # clean rule for target.
@@ -1442,7 +1512,7 @@ tests/CMakeFiles/vulkano_tests.dir/all: _deps/catch2-build/src/CMakeFiles/Catch2
 
 # Build rule for subdir invocation for target.
 tests/CMakeFiles/vulkano_tests.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles 96
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles 95
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tests/CMakeFiles/vulkano_tests.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles 0
 .PHONY : tests/CMakeFiles/vulkano_tests.dir/rule
@@ -1501,12 +1571,12 @@ _deps/catch2-build/src/CMakeFiles/Catch2.dir/clean:
 _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/all: _deps/catch2-build/src/CMakeFiles/Catch2.dir/all
 	$(MAKE) $(MAKESILENT) -f _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/build.make _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/depend
 	$(MAKE) $(MAKESILENT) -f _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/build.make _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=70,71 "Built target Catch2WithMain"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=70 "Built target Catch2WithMain"
 .PHONY : _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/all
 
 # Build rule for subdir invocation for target.
 _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles 71
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles 70
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles 0
 .PHONY : _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/rule
@@ -1518,7 +1588,7 @@ Catch2WithMain: _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/rule
 # codegen rule for target.
 _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/build.make _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=70,71 "Finished codegen for target Catch2WithMain"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=70 "Finished codegen for target Catch2WithMain"
 .PHONY : _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/codegen
 
 # clean rule for target.

@@ -1,2 +1,2 @@
-/usr/bin/ar qc /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libCatch2Maind.a CMakeFiles/Catch2WithMain.dir/catch2/internal/catch_main.cpp.o
-/usr/bin/ranlib /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libCatch2Maind.a
+/usr/bin/ar qc /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libCatch2Main.a CMakeFiles/Catch2WithMain.dir/catch2/internal/catch_main.cpp.o
+/usr/bin/ranlib /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libCatch2Main.a

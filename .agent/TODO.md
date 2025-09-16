@@ -8,4 +8,5 @@
 - [x] Docs: update README with macOS (MoltenVK) setup, build/run instructions, and shader tool notes.
 - [x] Remove magic numbers: replace inline clear color and push‑constant color with named constants.
 - [x] CI: add GitHub Actions for format, build, and tests on macOS/Linux/Windows.
-- [ ] Packaging: copy runtime assets to a relocatable bundle and verify running outside the build tree.
+- [x] Packaging: copy runtime assets to a relocatable bundle and verify running outside the build tree.
+- [ ] Verify dist bundle runs cleanly when executed from bin/dist with VK_APP_AUTOCLOSE_MS.

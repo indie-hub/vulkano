@@ -1,78 +1,78 @@
-Start testing: Sep 16 16:19 BST
+Start testing: Sep 16 16:25 BST
 ----------------------------------------------------------
 1/4 Testing: catch2_sanity
 1/4 Test: catch2_sanity
 Command: "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests" "catch2_sanity"
 Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build/tests
-"catch2_sanity" start time: Sep 16 16:19 BST
+"catch2_sanity" start time: Sep 16 16:25 BST
 Output:
 ----------------------------------------------------------
 Filters: "catch2_sanity"
-Randomness seeded to: 3864173678
+Randomness seeded to: 969488834
 ===============================================================================
 All tests passed (1 assertion in 1 test case)
 
 <end of output>
-Test time =   0.01 sec
+Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"catch2_sanity" end time: Sep 16 16:19 BST
+"catch2_sanity" end time: Sep 16 16:25 BST
 "catch2_sanity" time elapsed: 00:00:00
-----------------------------------------------------------
-
-2/4 Testing: stats_initial_values
-2/4 Test: stats_initial_values
-Command: "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests" "stats_initial_values"
-Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build/tests
-"stats_initial_values" start time: Sep 16 16:19 BST
-Output:
-----------------------------------------------------------
-Filters: "stats_initial_values"
-Randomness seeded to: 2203766764
-===============================================================================
-All tests passed (2 assertions in 1 test case)
-
-<end of output>
-Test time =   0.01 sec
-----------------------------------------------------------
-Test Passed.
-"stats_initial_values" end time: Sep 16 16:19 BST
-"stats_initial_values" time elapsed: 00:00:00
 ----------------------------------------------------------
 
 3/4 Testing: stats_smoothing_behaviour
 3/4 Test: stats_smoothing_behaviour
 Command: "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests" "stats_smoothing_behaviour"
 Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build/tests
-"stats_smoothing_behaviour" start time: Sep 16 16:19 BST
+"stats_smoothing_behaviour" start time: Sep 16 16:25 BST
 Output:
 ----------------------------------------------------------
 Filters: "stats_smoothing_behaviour"
-Randomness seeded to: 3138647561
+Randomness seeded to: 2940674599
 ===============================================================================
 All tests passed (2 assertions in 1 test case)
 
 <end of output>
-Test time =   0.01 sec
+Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"stats_smoothing_behaviour" end time: Sep 16 16:19 BST
+"stats_smoothing_behaviour" end time: Sep 16 16:25 BST
 "stats_smoothing_behaviour" time elapsed: 00:00:00
+----------------------------------------------------------
+
+2/4 Testing: stats_initial_values
+2/4 Test: stats_initial_values
+Command: "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests" "stats_initial_values"
+Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build/tests
+"stats_initial_values" start time: Sep 16 16:25 BST
+Output:
+----------------------------------------------------------
+Filters: "stats_initial_values"
+Randomness seeded to: 3705565192
+===============================================================================
+All tests passed (2 assertions in 1 test case)
+
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"stats_initial_values" end time: Sep 16 16:25 BST
+"stats_initial_values" time elapsed: 00:00:00
 ----------------------------------------------------------
 
 4/4 Testing: app_smoke
 4/4 Test: app_smoke
 Command: "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_app"
 Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build/tests
-"app_smoke" start time: Sep 16 16:19 BST
+"app_smoke" start time: Sep 16 16:25 BST
 Output:
 ----------------------------------------------------------
 <end of output>
-Test time =   1.06 sec
+Test time =   1.54 sec
 ----------------------------------------------------------
 Test Passed.
-"app_smoke" end time: Sep 16 16:19 BST
+"app_smoke" end time: Sep 16 16:25 BST
 "app_smoke" time elapsed: 00:00:01
 ----------------------------------------------------------
 
-End testing: Sep 16 16:19 BST
+End testing: Sep 16 16:25 BST
