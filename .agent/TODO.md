@@ -60,6 +60,7 @@ Verification: Built Debug locally, tests pass, headless run OK.
 - Add CI workflow to configure, build, run unit tests, and attempt headless app run on Linux and macOS (MoltenVK notes).
 - Optionally change blur to separable Gaussian (2 passes) for performance.
 - Harden swapchain/image recreation paths (destroy/recreate offscreen images, pipelines, and descriptor sets on resize).
+- Add helper scripts in tools/ (build_debug.sh, format_all.sh) — DONE
 
 ## Session Plan (short)
 - Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
