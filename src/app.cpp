@@ -134,7 +134,6 @@ struct App::Impl {
 #ifdef __APPLE__
         // Request portability enumeration extension for MoltenVK on macOS
         builder.enable_extension(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-        builder.set_instance_create_flags(VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR);
 #endif
 
         const bool enableValidation = config.enableValidation;
