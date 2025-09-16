@@ -1,6 +1,7 @@
 /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles/Shaders.dir
 /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles/vulkano_app.dir
 /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles/vulkano_codex_tests.dir
+/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles/fps_smoothing_test.dir
 /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles/test.dir
 /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles/edit_cache.dir
 /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles/rebuild_cache.dir

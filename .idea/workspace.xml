@@ -19,10 +19,10 @@
     <generated>
       <config projectName="vulkano_codex" targetName="vulkano_codex_tests" />
       <config projectName="vulkano_codex" targetName="vulkano_app" />
-      <config projectName="vulkano_codex" targetName="update_mappings" />
-      <config projectName="vulkano_codex" targetName="Shaders" />
       <config projectName="vulkano_codex" targetName="glm" />
+      <config projectName="vulkano_codex" targetName="update_mappings" />
       <config projectName="vulkano_codex" targetName="glfw" />
+      <config projectName="vulkano_codex" targetName="Shaders" />
     </generated>
   </component>
   <component name="CMakeSettings">
@@ -31,7 +31,11 @@
     </configurations>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="ea5f2232-e0d5-4be9-833c-c06073c2468d" name="Changes" comment="" />
+    <list default="true" id="ea5f2232-e0d5-4be9-833c-c06073c2468d" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/bin/vulkano_app" beforeDir="false" afterPath="$PROJECT_DIR$/bin/vulkano_app" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/Testing/Temporary/CTestCostData.txt" beforeDir="false" afterPath="$PROJECT_DIR$/build/Testing/Temporary/CTestCostData.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/Testing/Temporary/LastTest.log" beforeDir="false" afterPath="$PROJECT_DIR$/build/Testing/Temporary/LastTest.log" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -185,7 +189,7 @@
       <option name="presentableId" value="Default" />
       <updated>1757930371230</updated>
       <workItem from="1757930372426" duration="26134000" />
-      <workItem from="1758017569975" duration="2713000" />
+      <workItem from="1758017569975" duration="2833000" />
     </task>
     <servers />
   </component>

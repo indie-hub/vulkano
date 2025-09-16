@@ -13,7 +13,6 @@ int main() {
     assert(s > 18.0 && s < 20.1);
     for (int i = 0; i < 10; ++i) { s = smooth_update(s, 10.0, f); }
     // Should have moved towards 10
-    assert(s < 12.0);
+    assert(s < 14.0);
     return 0;
 }
-

@@ -166,6 +166,19 @@ vulkano_codex_tests/fast:
 .PHONY : vulkano_codex_tests/fast
 
 #=============================================================================
+# Target rules for targets named fps_smoothing_test
+
+# Build rule for target.
+fps_smoothing_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 fps_smoothing_test
+.PHONY : fps_smoothing_test
+
+# fast build rule for target.
+fps_smoothing_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/fps_smoothing_test.dir/build.make CMakeFiles/fps_smoothing_test.dir/build
+.PHONY : fps_smoothing_test/fast
+
+#=============================================================================
 # Target rules for targets named glfw
 
 # Build rule for target.
@@ -420,6 +433,30 @@ src/vulkan_app.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/vulkano_app.dir/build.make CMakeFiles/vulkano_app.dir/src/vulkan_app.cpp.s
 .PHONY : src/vulkan_app.cpp.s
 
+tests/fps_smoothing.o: tests/fps_smoothing.cpp.o
+.PHONY : tests/fps_smoothing.o
+
+# target to build an object file
+tests/fps_smoothing.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/fps_smoothing_test.dir/build.make CMakeFiles/fps_smoothing_test.dir/tests/fps_smoothing.cpp.o
+.PHONY : tests/fps_smoothing.cpp.o
+
+tests/fps_smoothing.i: tests/fps_smoothing.cpp.i
+.PHONY : tests/fps_smoothing.i
+
+# target to preprocess a source file
+tests/fps_smoothing.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/fps_smoothing_test.dir/build.make CMakeFiles/fps_smoothing_test.dir/tests/fps_smoothing.cpp.i
+.PHONY : tests/fps_smoothing.cpp.i
+
+tests/fps_smoothing.s: tests/fps_smoothing.cpp.s
+.PHONY : tests/fps_smoothing.s
+
+# target to generate assembly for a file
+tests/fps_smoothing.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/fps_smoothing_test.dir/build.make CMakeFiles/fps_smoothing_test.dir/tests/fps_smoothing.cpp.s
+.PHONY : tests/fps_smoothing.cpp.s
+
 tests/sanity.o: tests/sanity.cpp.o
 .PHONY : tests/sanity.o
 
@@ -455,6 +492,7 @@ help:
 	@echo "... test"
 	@echo "... Shaders"
 	@echo "... update_mappings"
+	@echo "... fps_smoothing_test"
 	@echo "... glfw"
 	@echo "... glm"
 	@echo "... vulkano_app"
@@ -486,6 +524,9 @@ help:
 	@echo "... src/vulkan_app.o"
 	@echo "... src/vulkan_app.i"
 	@echo "... src/vulkan_app.s"
+	@echo "... tests/fps_smoothing.o"
+	@echo "... tests/fps_smoothing.i"
+	@echo "... tests/fps_smoothing.s"
 	@echo "... tests/sanity.o"
 	@echo "... tests/sanity.i"
 	@echo "... tests/sanity.s"
