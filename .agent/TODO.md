@@ -120,6 +120,12 @@ Verification: Built Debug locally, tests pass, headless run OK.
 - CI compiles with FetchContent deps (GLFW/GLM/Catch2). Vulkan remains optional; tests run headless (no Vulkan path required).
 - Next: consider caching deps and adding a matrix including `ENABLE_VALIDATION` toggles.
 
+### 2025-09-16 (CLI) – This Run (Codex session 3)
+- Reconfigured and rebuilt in `build_cli/` (RelWithDebInfo) with tests on.
+- All tests passing via `ctest`; headless app run OK for 200 ms.
+- No source changes required; repository already satisfies v1 acceptance criteria.
+- Local commit will record this verification; push still pending env `GITHUB_TOKEN`.
+
 ## Acceptance Criteria – Self-check (initial)
 - App runs; window opens; headless path also runs.
 - Phong + tangent-space normal mapping visible; normal strength adjustable.
