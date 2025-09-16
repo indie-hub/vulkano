@@ -16,6 +16,8 @@
 #include <glm/vec3.hpp>
 #include <glm/mat4x4.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/ext/matrix_transform.hpp>
+// No experimental headers; build rotation from axis angles
 #include <imgui.h>
 
 #include <vulkano/imgui_overlay.hpp>
@@ -124,7 +126,12 @@ VulkanContext::VulkanContext(GLFWwindow* window) noexcept {
     create_pipeline_layout();
     create_graphics_pipeline();
     create_depth_resources();
-    create_vertex_buffer();
+    // Build scene and upload geometry; fallback to single-triangle if failed
+    create_scene();
+    create_scene_buffers();
+    if (vertex_buffer_ == VK_NULL_HANDLE) {
+        create_vertex_buffer();
+    }
     create_uniform_buffers_and_sets();
     create_framebuffers();
     create_command_pool_and_buffers();
@@ -507,6 +514,7 @@ void VulkanContext::destroy() noexcept {
     destroy_pipeline();
     destroy_uniform_buffers_and_sets();
     destroy_descriptor_set_layout();
+    destroy_index_buffer();
     destroy_vertex_buffer();
     destroy_swapchain_and_views();
     if (device_ != VK_NULL_HANDLE) {
@@ -1220,6 +1228,182 @@ void VulkanContext::create_vertex_buffer() noexcept {
     set_object_name(VK_OBJECT_TYPE_BUFFER, reinterpret_cast<std::uint64_t>(vertex_buffer_), "MeshVertexBuffer");
 }
 
+void VulkanContext::destroy_index_buffer() noexcept {
+    if (device_ == VK_NULL_HANDLE) {
+        return;
+    }
+    if (index_buffer_ != VK_NULL_HANDLE) {
+        vkDestroyBuffer(device_, index_buffer_, nullptr);
+        index_buffer_ = VK_NULL_HANDLE;
+    }
+    if (index_buffer_memory_ != VK_NULL_HANDLE) {
+        vkFreeMemory(device_, index_buffer_memory_, nullptr);
+        index_buffer_memory_ = VK_NULL_HANDLE;
+    }
+}
+
+void VulkanContext::create_scene() noexcept {
+    // Construct default scene primitives with transforms/materials
+    primitives_.clear();
+    draw_ranges_.clear();
+    // Plane: 10x10 at y=0, grey
+    Plane::Params pp {};
+    pp.width = 10.0F;
+    pp.depth = 10.0F;
+    pp.uvTiling = glm::vec2 {10.0F, 10.0F};
+    auto plane = std::make_unique<Plane>(pp);
+    Transform tPlane {};
+    tPlane.position = glm::vec3 {0.0F, 0.0F, 0.0F};
+    tPlane.scale = glm::vec3 {1.0F, 1.0F, 1.0F};
+    plane->set_transform(tPlane);
+    Material mPlane {};
+    mPlane.baseColor = glm::vec3 {0.5F, 0.5F, 0.5F};
+    mPlane.shininess = 16.0F;
+    plane->set_material(mPlane);
+    primitives_.push_back(std::move(plane));
+
+    // Cube: scale 0.5, position (-1, 0.5, 0), warm orange
+    auto cube = std::make_unique<Cube>();
+    Transform tCube {};
+    tCube.position = glm::vec3 {-1.0F, 0.5F, 0.0F};
+    tCube.scale = glm::vec3 {0.5F, 0.5F, 0.5F};
+    cube->set_transform(tCube);
+    Material mCube {};
+    mCube.baseColor = glm::vec3 {1.0F, 0.6F, 0.2F};
+    mCube.shininess = 64.0F;
+    cube->set_material(mCube);
+    primitives_.push_back(std::move(cube));
+
+    // Icosphere: scale 0.5, position (1, 0.5, 0), subdivisions=2, light blue
+    Icosphere::Params sp {};
+    sp.subdivisions = 2U;
+    auto sphere = std::make_unique<Icosphere>(sp);
+    Transform tSphere {};
+    tSphere.position = glm::vec3 {1.0F, 0.5F, 0.0F};
+    tSphere.scale = glm::vec3 {0.5F, 0.5F, 0.5F};
+    sphere->set_transform(tSphere);
+    Material mSphere {};
+    mSphere.baseColor = glm::vec3 {0.6F, 0.8F, 1.0F};
+    mSphere.shininess = 32.0F;
+    sphere->set_material(mSphere);
+    primitives_.push_back(std::move(sphere));
+}
+
+void VulkanContext::create_scene_buffers() noexcept {
+    if (device_ == VK_NULL_HANDLE || physical_device_ == VK_NULL_HANDLE) {
+        return;
+    }
+    if (primitives_.empty()) {
+        return;
+    }
+    // Build combined vertex/index arrays
+    std::vector<Vertex> allVerts {};
+    std::vector<std::uint32_t> allIdx {};
+    allVerts.reserve(4096U);
+    allIdx.reserve(6144U);
+    draw_ranges_.clear();
+    std::uint32_t runningVertex {0U};
+    std::uint32_t runningIndex {0U};
+    for (const auto& p : primitives_) {
+        if (!p) { continue; }
+        const auto& verts = p->vertices();
+        const auto& idx = p->indices();
+        DrawRange dr {};
+        dr.firstIndex = runningIndex;
+        dr.firstVertex = runningVertex;
+        dr.indexCount = static_cast<std::uint32_t>(idx.size());
+        dr.prim = p.get();
+        // Append vertices
+        allVerts.insert(allVerts.end(), verts.begin(), verts.end());
+        // Append indices with vertex offset applied
+        for (std::uint32_t i : idx) {
+            allIdx.push_back(i + runningVertex);
+        }
+        runningVertex += static_cast<std::uint32_t>(verts.size());
+        runningIndex += static_cast<std::uint32_t>(idx.size());
+        draw_ranges_.push_back(dr);
+    }
+    if (allVerts.empty() || allIdx.empty()) {
+        return;
+    }
+
+    // Destroy previous buffers if any
+    destroy_vertex_buffer();
+    destroy_index_buffer();
+
+    // Create vertex buffer (host visible for simplicity; staging upgrade in later step)
+    VkBufferCreateInfo vboInfo {};
+    vboInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    vboInfo.size = static_cast<VkDeviceSize>(allVerts.size() * sizeof(Vertex));
+    vboInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    vboInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    VkBuffer vbo {VK_NULL_HANDLE};
+    if (vkCreateBuffer(device_, &vboInfo, nullptr, &vbo) != VK_SUCCESS) {
+        return;
+    }
+    VkMemoryRequirements vMemReq {};
+    vkGetBufferMemoryRequirements(device_, vbo, &vMemReq);
+    const std::uint32_t vTypeIndex {find_memory_type(physical_device_, vMemReq.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)};
+    if (vTypeIndex == UINT32_MAX) {
+        vkDestroyBuffer(device_, vbo, nullptr);
+        return;
+    }
+    VkMemoryAllocateInfo vAlloc {};
+    vAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    vAlloc.allocationSize = vMemReq.size;
+    vAlloc.memoryTypeIndex = vTypeIndex;
+    VkDeviceMemory vMem {VK_NULL_HANDLE};
+    if (vkAllocateMemory(device_, &vAlloc, nullptr, &vMem) != VK_SUCCESS) {
+        vkDestroyBuffer(device_, vbo, nullptr);
+        return;
+    }
+    vkBindBufferMemory(device_, vbo, vMem, 0U);
+    void* vData {nullptr};
+    if (vkMapMemory(device_, vMem, 0U, vboInfo.size, 0U, &vData) == VK_SUCCESS) {
+        std::memcpy(vData, allVerts.data(), static_cast<std::size_t>(vboInfo.size));
+        vkUnmapMemory(device_, vMem);
+    }
+    vertex_buffer_ = vbo;
+    vertex_buffer_memory_ = vMem;
+    set_object_name(VK_OBJECT_TYPE_BUFFER, reinterpret_cast<std::uint64_t>(vertex_buffer_), "SceneVertexBuffer");
+
+    // Create index buffer (host visible)
+    VkBufferCreateInfo iboInfo {};
+    iboInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    iboInfo.size = static_cast<VkDeviceSize>(allIdx.size() * sizeof(std::uint32_t));
+    iboInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+    iboInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    VkBuffer ibo {VK_NULL_HANDLE};
+    if (vkCreateBuffer(device_, &iboInfo, nullptr, &ibo) != VK_SUCCESS) {
+        return;
+    }
+    VkMemoryRequirements iMemReq {};
+    vkGetBufferMemoryRequirements(device_, ibo, &iMemReq);
+    const std::uint32_t iTypeIndex {find_memory_type(physical_device_, iMemReq.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)};
+    if (iTypeIndex == UINT32_MAX) {
+        vkDestroyBuffer(device_, ibo, nullptr);
+        return;
+    }
+    VkMemoryAllocateInfo iAlloc {};
+    iAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    iAlloc.allocationSize = iMemReq.size;
+    iAlloc.memoryTypeIndex = iTypeIndex;
+    VkDeviceMemory iMem {VK_NULL_HANDLE};
+    if (vkAllocateMemory(device_, &iAlloc, nullptr, &iMem) != VK_SUCCESS) {
+        vkDestroyBuffer(device_, ibo, nullptr);
+        return;
+    }
+    vkBindBufferMemory(device_, ibo, iMem, 0U);
+    void* iData {nullptr};
+    if (vkMapMemory(device_, iMem, 0U, iboInfo.size, 0U, &iData) == VK_SUCCESS) {
+        std::memcpy(iData, allIdx.data(), static_cast<std::size_t>(iboInfo.size));
+        vkUnmapMemory(device_, iMem);
+    }
+    index_buffer_ = ibo;
+    index_buffer_memory_ = iMem;
+    set_object_name(VK_OBJECT_TYPE_BUFFER, reinterpret_cast<std::uint64_t>(index_buffer_), "SceneIndexBuffer");
+}
+
 void VulkanContext::create_descriptor_set_layout() noexcept {
     if (device_ == VK_NULL_HANDLE) {
         return;
@@ -1613,19 +1797,49 @@ bool VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
         (void)camera_->view_projection();
     }
 
-    const VkBuffer buffers[1] {vertex_buffer_};
-    const VkDeviceSize offsets[1] {0U};
-    vkCmdBindVertexBuffers(cmd, 0U, 1U, buffers, offsets);
+    if (vertex_buffer_ != VK_NULL_HANDLE && !draw_ranges_.empty()) {
+        const VkBuffer buffers[1] {vertex_buffer_};
+        const VkDeviceSize offsets[1] {0U};
+        vkCmdBindVertexBuffers(cmd, 0U, 1U, buffers, offsets);
+        if (index_buffer_ != VK_NULL_HANDLE) {
+            vkCmdBindIndexBuffer(cmd, index_buffer_, 0U, VK_INDEX_TYPE_UINT32);
+        }
 
-    begin_label(cmd, "Triangle");
-    struct PushConstants { glm::mat4 model; glm::vec3 baseColor; float shininess; } pc;
-    pc.model = glm::mat4(1.0F);
-    pc.baseColor = glm::vec3(kTriangleColorWhite[0], kTriangleColorWhite[1], kTriangleColorWhite[2]);
-    pc.shininess = 32.0F;
-    vkCmdPushConstants(cmd, pipeline_layout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0U, sizeof(PushConstants), &pc);
-
-    vkCmdDraw(cmd, static_cast<std::uint32_t>(kMeshVertices.size()), 1U, 0U, 0U);
-    end_label(cmd);
+        struct PushConstants { glm::mat4 model; glm::vec3 baseColor; float shininess; } pc;
+        for (const auto& dr : draw_ranges_) {
+            if (dr.prim == nullptr) { continue; }
+            const Transform& tr = dr.prim->transform();
+            const Material& mat = dr.prim->material();
+            glm::mat4 model {1.0F};
+            model = glm::translate(model, tr.position);
+            // Apply yaw (Y), pitch (X), roll (Z) rotations
+            model = glm::rotate(model, tr.rotationEuler.y, glm::vec3 {0.0F, 1.0F, 0.0F});
+            model = glm::rotate(model, tr.rotationEuler.x, glm::vec3 {1.0F, 0.0F, 0.0F});
+            model = glm::rotate(model, tr.rotationEuler.z, glm::vec3 {0.0F, 0.0F, 1.0F});
+            model = glm::scale(model, tr.scale);
+            pc.model = model;
+            pc.baseColor = mat.baseColor;
+            pc.shininess = mat.shininess;
+            vkCmdPushConstants(cmd, pipeline_layout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0U, sizeof(PushConstants), &pc);
+            if (index_buffer_ != VK_NULL_HANDLE) {
+                vkCmdDrawIndexed(cmd, dr.indexCount, 1U, dr.firstIndex, 0, 0);
+            } else {
+                // Fallback to non-indexed draw if indices unavailable
+                vkCmdDraw(cmd, dr.indexCount, 1U, dr.firstVertex, 0U);
+            }
+        }
+    } else if (vertex_buffer_ != VK_NULL_HANDLE) {
+        // Fallback single triangle vertex buffer
+        const VkBuffer buffers[1] {vertex_buffer_};
+        const VkDeviceSize offsets[1] {0U};
+        vkCmdBindVertexBuffers(cmd, 0U, 1U, buffers, offsets);
+        struct PushConstants { glm::mat4 model; glm::vec3 baseColor; float shininess; } pc;
+        pc.model = glm::mat4(1.0F);
+        pc.baseColor = glm::vec3(kTriangleColorWhite[0], kTriangleColorWhite[1], kTriangleColorWhite[2]);
+        pc.shininess = 32.0F;
+        vkCmdPushConstants(cmd, pipeline_layout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0U, sizeof(PushConstants), &pc);
+        vkCmdDraw(cmd, static_cast<std::uint32_t>(kMeshVertices.size()), 1U, 0U, 0U);
+    }
 
     // Ensure ImGui draw data is ready and render overlay
     if (imgui_ready_) {

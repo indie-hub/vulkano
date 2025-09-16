@@ -1,9 +1,5 @@
-- [x] Add geometry OO layer (Primitive, Plane, Cube, Icosphere) with CPU mesh generation and unit tests
-- [x] Add 3D vertex format (pos3, normal3, uv2) to pipeline; introduce depth buffer and render pass with depth
-- [x] Implement camera (orbit) with GLM; compute per-frame view/projection
-- [x] Introduce per-primitive transform + material UBO/push constants; basic Blinn-Phong shaders; compile to bin/shaders
-- [ ] Create GPU buffers (vertex/index) with staging upload; store per-primitive buffers; draw each primitive
-- [ ] Add scene setup (plane 10x10; cube; icosphere 2 subdivisions) and render with depth
-- [ ] ImGui controls for light (pos/intensity) and per-primitive transform/color/shininess; show existing stats
-- [ ] Handle window resize correctly with depth resources; ensure no validation errors
-- [ ] Add end-to-end smoke that verifies window opens and draws (already present); add minimal unit tests for camera/math if needed
+- [x] Step 1: Render plane, cube, and icosphere via combined VBO/IBO and per-primitive push constants (static transforms/materials)
+- [ ] Step 2: Add ImGui controls for light and per-primitive transforms/material/shininess and optional icosphere subdivisions (rebuild + reupload)
+- [ ] Step 3: Switch geometry upload to device-local buffers using a staging buffer and immediate copy, with proper synchronization
+- [ ] Step 4: Add simple orbit camera input handling and UI toggles (sensitivity, speed)
+- [ ] Step 5: Polish: validation labels/names for new buffers, document module in README, smoke test updates

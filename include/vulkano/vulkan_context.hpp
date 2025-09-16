@@ -4,6 +4,7 @@
 #include <vector>
 #include <array>
 #include <string>
+#include <memory>
 
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
@@ -16,6 +17,7 @@ namespace vulkano {
 
 class ImGuiOverlay;
 class Camera;
+class Primitive;
 
 class VulkanContext final {
 public:
@@ -76,7 +78,9 @@ private:
     void destroy_depth_resources() noexcept;
     void create_pipeline_layout() noexcept;
     void create_graphics_pipeline() noexcept;
-    void create_vertex_buffer() noexcept;
+    void create_vertex_buffer() noexcept; // legacy triangle fallback
+    void create_scene() noexcept;
+    void create_scene_buffers() noexcept;
     void create_descriptor_set_layout() noexcept;
     void create_uniform_buffers_and_sets() noexcept;
     void create_command_pool_and_buffers() noexcept;
@@ -88,6 +92,7 @@ private:
     void destroy_framebuffers() noexcept;
     void destroy_pipeline() noexcept;
     void destroy_vertex_buffer() noexcept;
+    void destroy_index_buffer() noexcept;
     void destroy_descriptor_set_layout() noexcept;
     void destroy_uniform_buffers_and_sets() noexcept;
     void destroy_sync_objects() noexcept;
@@ -141,11 +146,13 @@ private:
     VkCommandPool command_pool_ {VK_NULL_HANDLE};
     std::vector<VkCommandBuffer> command_buffers_ {};
 
-    // Pipeline and vertex buffer
+    // Pipeline and mesh buffers
     VkPipelineLayout pipeline_layout_ {VK_NULL_HANDLE};
     VkPipeline graphics_pipeline_ {VK_NULL_HANDLE};
     VkBuffer vertex_buffer_ {VK_NULL_HANDLE};
     VkDeviceMemory vertex_buffer_memory_ {VK_NULL_HANDLE};
+    VkBuffer index_buffer_ {VK_NULL_HANDLE};
+    VkDeviceMemory index_buffer_memory_ {VK_NULL_HANDLE};
     // Descriptor set layout/pool for global UBO
     VkDescriptorSetLayout descriptor_set_layout_ {VK_NULL_HANDLE};
     VkDescriptorPool descriptor_pool_ {VK_NULL_HANDLE};
@@ -169,6 +176,16 @@ private:
     // Camera
     std::unique_ptr<Camera> camera_ {};
     Light light_ {};
+
+    // Scene: CPU primitives and GPU draw ranges
+    std::vector<std::unique_ptr<Primitive>> primitives_ {};
+    struct DrawRange final {
+        std::uint32_t firstIndex {0U};
+        std::uint32_t indexCount {0U};
+        std::uint32_t firstVertex {0U};
+        Primitive* prim {nullptr}; // non-owning
+    };
+    std::vector<DrawRange> draw_ranges_ {};
 
     // Debug utils function pointers (device level)
     PFN_vkSetDebugUtilsObjectNameEXT pfn_set_name_ {nullptr};
