@@ -40,7 +40,15 @@ private:
     void pick_physical_device() noexcept;
     void create_logical_device() noexcept;
     void create_swapchain_and_views(GLFWwindow* window) noexcept;
+    void create_render_pass() noexcept;
+    void create_framebuffers() noexcept;
+    void create_command_pool_and_buffers() noexcept;
+    void create_sync_objects() noexcept;
     void destroy_swapchain_and_views() noexcept;
+    void destroy_framebuffers() noexcept;
+    void destroy_sync_objects() noexcept;
+    void destroy_command_pool_and_buffers() noexcept;
+    void destroy_render_pass() noexcept;
     void destroy() noexcept;
 
     static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(
@@ -69,6 +77,21 @@ private:
     VkExtent2D swapchain_extent_ {0U, 0U};
     std::vector<VkImage> swapchain_images_ {};
     std::vector<VkImageView> swapchain_image_views_ {};
+
+    // Render pass and framebuffers
+    VkRenderPass render_pass_ {VK_NULL_HANDLE};
+    std::vector<VkFramebuffer> framebuffers_ {};
+
+    // Command pool and buffers
+    VkCommandPool command_pool_ {VK_NULL_HANDLE};
+    std::vector<VkCommandBuffer> command_buffers_ {};
+
+    // Synchronisation
+    static constexpr std::uint32_t kMaxFramesInFlight {2U};
+    std::array<VkSemaphore, kMaxFramesInFlight> image_available_semaphores_ {VK_NULL_HANDLE, VK_NULL_HANDLE};
+    std::array<VkSemaphore, kMaxFramesInFlight> render_finished_semaphores_ {VK_NULL_HANDLE, VK_NULL_HANDLE};
+    std::array<VkFence, kMaxFramesInFlight> in_flight_fences_ {VK_NULL_HANDLE, VK_NULL_HANDLE};
+    std::uint32_t current_frame_ {0U};
 };
 
 } // namespace vulkano

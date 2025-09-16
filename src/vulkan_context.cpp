@@ -71,6 +71,10 @@ VulkanContext::VulkanContext(GLFWwindow* window) noexcept {
     pick_physical_device();
     create_logical_device();
     create_swapchain_and_views(window);
+    create_render_pass();
+    create_framebuffers();
+    create_command_pool_and_buffers();
+    create_sync_objects();
 }
 
 VulkanContext::~VulkanContext() noexcept {
@@ -406,12 +410,15 @@ void VulkanContext::create_logical_device() noexcept {
 }
 
 void VulkanContext::destroy() noexcept {
-    if (instance_ == VK_NULL_HANDLE) {
-        return;
-    }
     if (device_ != VK_NULL_HANDLE) {
-        destroy_swapchain_and_views();
         vkDeviceWaitIdle(device_);
+    }
+    destroy_sync_objects();
+    destroy_command_pool_and_buffers();
+    destroy_framebuffers();
+    destroy_render_pass();
+    destroy_swapchain_and_views();
+    if (device_ != VK_NULL_HANDLE) {
         vkDestroyDevice(device_, nullptr);
         device_ = VK_NULL_HANDLE;
         graphics_queue_ = VK_NULL_HANDLE;
@@ -431,8 +438,10 @@ void VulkanContext::destroy() noexcept {
         }
         debug_messenger_ = VK_NULL_HANDLE;
     }
-    vkDestroyInstance(instance_, nullptr);
-    instance_ = VK_NULL_HANDLE;
+    if (instance_ != VK_NULL_HANDLE) {
+        vkDestroyInstance(instance_, nullptr);
+        instance_ = VK_NULL_HANDLE;
+    }
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL VulkanContext::debug_callback(
@@ -621,6 +630,7 @@ void VulkanContext::destroy_swapchain_and_views() noexcept {
     if (device_ == VK_NULL_HANDLE) {
         return;
     }
+    destroy_framebuffers();
     for (auto& view : swapchain_image_views_) {
         if (view != VK_NULL_HANDLE) {
             vkDestroyImageView(device_, view, nullptr);
@@ -635,5 +645,187 @@ void VulkanContext::destroy_swapchain_and_views() noexcept {
         swapchain_ = VK_NULL_HANDLE;
     }
 }
+
+void VulkanContext::create_render_pass() noexcept {
+    if (device_ == VK_NULL_HANDLE || swapchain_image_format_ == VK_FORMAT_UNDEFINED) {
+        return;
+    }
+
+    VkAttachmentDescription colorAttachment {};
+    colorAttachment.format = swapchain_image_format_;
+    colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+    VkAttachmentReference colorAttachmentRef {};
+    colorAttachmentRef.attachment = 0U;
+    colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkSubpassDescription subpass {};
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount = 1U;
+    subpass.pColorAttachments = &colorAttachmentRef;
+
+    VkSubpassDependency dependency {};
+    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass = 0U;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.srcAccessMask = 0U;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+    VkRenderPassCreateInfo renderPassInfo {};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    renderPassInfo.attachmentCount = 1U;
+    renderPassInfo.pAttachments = &colorAttachment;
+    renderPassInfo.subpassCount = 1U;
+    renderPassInfo.pSubpasses = &subpass;
+    renderPassInfo.dependencyCount = 1U;
+    renderPassInfo.pDependencies = &dependency;
+
+    VkRenderPass rp {VK_NULL_HANDLE};
+    if (vkCreateRenderPass(device_, &renderPassInfo, nullptr, &rp) == VK_SUCCESS) {
+        render_pass_ = rp;
+    }
+}
+
+void VulkanContext::create_framebuffers() noexcept {
+    if (device_ == VK_NULL_HANDLE || render_pass_ == VK_NULL_HANDLE || swapchain_extent_.width == 0U || swapchain_image_views_.empty()) {
+        return;
+    }
+    framebuffers_.resize(swapchain_image_views_.size());
+    for (std::size_t i {0U}; i < swapchain_image_views_.size(); ++i) {
+        VkImageView attachments[1] {swapchain_image_views_[i]};
+
+        VkFramebufferCreateInfo fbInfo {};
+        fbInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        fbInfo.renderPass = render_pass_;
+        fbInfo.attachmentCount = 1U;
+        fbInfo.pAttachments = attachments;
+        fbInfo.width = swapchain_extent_.width;
+        fbInfo.height = swapchain_extent_.height;
+        fbInfo.layers = 1U;
+        VkFramebuffer fb {VK_NULL_HANDLE};
+        if (vkCreateFramebuffer(device_, &fbInfo, nullptr, &fb) == VK_SUCCESS) {
+            framebuffers_[i] = fb;
+        } else {
+            framebuffers_[i] = VK_NULL_HANDLE;
+        }
+    }
+}
+
+void VulkanContext::create_command_pool_and_buffers() noexcept {
+    if (device_ == VK_NULL_HANDLE || graphics_family_index_ == UINT32_MAX || framebuffers_.empty()) {
+        return;
+    }
+
+    if (command_pool_ == VK_NULL_HANDLE) {
+        VkCommandPoolCreateInfo poolInfo {};
+        poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+        poolInfo.queueFamilyIndex = graphics_family_index_;
+        VkCommandPool pool {VK_NULL_HANDLE};
+        if (vkCreateCommandPool(device_, &poolInfo, nullptr, &pool) == VK_SUCCESS) {
+            command_pool_ = pool;
+        }
+    }
+
+    if (command_pool_ == VK_NULL_HANDLE) {
+        return;
+    }
+
+    command_buffers_.resize(framebuffers_.size());
+    VkCommandBufferAllocateInfo allocInfo {};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.commandPool = command_pool_;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandBufferCount = static_cast<std::uint32_t>(command_buffers_.size());
+
+    if (!command_buffers_.empty()) {
+        if (vkAllocateCommandBuffers(device_, &allocInfo, command_buffers_.data()) != VK_SUCCESS) {
+            command_buffers_.clear();
+        }
+    }
+}
+
+void VulkanContext::create_sync_objects() noexcept {
+    if (device_ == VK_NULL_HANDLE) {
+        return;
+    }
+    VkSemaphoreCreateInfo semInfo {};
+    semInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    VkFenceCreateInfo fenceInfo {};
+    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT; // Start signaled so first frame does not block
+
+    for (std::uint32_t i {0U}; i < kMaxFramesInFlight; ++i) {
+        vkCreateSemaphore(device_, &semInfo, nullptr, &image_available_semaphores_[i]);
+        vkCreateSemaphore(device_, &semInfo, nullptr, &render_finished_semaphores_[i]);
+        vkCreateFence(device_, &fenceInfo, nullptr, &in_flight_fences_[i]);
+    }
+}
+
+void VulkanContext::destroy_framebuffers() noexcept {
+    if (device_ == VK_NULL_HANDLE) {
+        return;
+    }
+    for (auto& fb : framebuffers_) {
+        if (fb != VK_NULL_HANDLE) {
+            vkDestroyFramebuffer(device_, fb, nullptr);
+            fb = VK_NULL_HANDLE;
+        }
+    }
+    framebuffers_.clear();
+}
+
+void VulkanContext::destroy_sync_objects() noexcept {
+    if (device_ == VK_NULL_HANDLE) {
+        return;
+    }
+    for (std::uint32_t i {0U}; i < kMaxFramesInFlight; ++i) {
+        if (image_available_semaphores_[i] != VK_NULL_HANDLE) {
+            vkDestroySemaphore(device_, image_available_semaphores_[i], nullptr);
+            image_available_semaphores_[i] = VK_NULL_HANDLE;
+        }
+        if (render_finished_semaphores_[i] != VK_NULL_HANDLE) {
+            vkDestroySemaphore(device_, render_finished_semaphores_[i], nullptr);
+            render_finished_semaphores_[i] = VK_NULL_HANDLE;
+        }
+        if (in_flight_fences_[i] != VK_NULL_HANDLE) {
+            vkDestroyFence(device_, in_flight_fences_[i], nullptr);
+            in_flight_fences_[i] = VK_NULL_HANDLE;
+        }
+    }
+}
+
+void VulkanContext::destroy_command_pool_and_buffers() noexcept {
+    if (device_ == VK_NULL_HANDLE) {
+        return;
+    }
+    if (!command_buffers_.empty()) {
+        vkFreeCommandBuffers(device_, command_pool_, static_cast<std::uint32_t>(command_buffers_.size()), command_buffers_.data());
+        command_buffers_.clear();
+    }
+    if (command_pool_ != VK_NULL_HANDLE) {
+        vkDestroyCommandPool(device_, command_pool_, nullptr);
+        command_pool_ = VK_NULL_HANDLE;
+    }
+}
+
+void VulkanContext::destroy_render_pass() noexcept {
+    if (device_ == VK_NULL_HANDLE) {
+        return;
+    }
+    if (render_pass_ != VK_NULL_HANDLE) {
+        vkDestroyRenderPass(device_, render_pass_, nullptr);
+        render_pass_ = VK_NULL_HANDLE;
+    }
+}
+
+ 
 
 } // namespace vulkano
