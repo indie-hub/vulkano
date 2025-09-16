@@ -4,6 +4,12 @@
 #include <VkBootstrap.h>
 #include <volk.h>
 #include <vk_mem_alloc.h>
+#include <imgui.h>
+#include <backends/imgui_impl_glfw.h>
+#include <backends/imgui_impl_vulkan.h>
+#ifdef VULKANO_CODEX_USE_SHADERC
+#include <shaderc/shaderc.hpp>
+#endif
 
 #include <array>
 #include <chrono>
@@ -11,6 +17,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <cstring>
 
 namespace vulkano {
 
@@ -70,6 +77,16 @@ struct App::Impl {
     VkSemaphore imageAvailableSemaphore {VK_NULL_HANDLE};
     VkSemaphore renderFinishedSemaphore {VK_NULL_HANDLE};
     VkFence inFlightFence {VK_NULL_HANDLE};
+
+    // Pipeline and buffers
+    VkPipelineLayout pipelineLayout {VK_NULL_HANDLE};
+    VkPipeline pipeline {VK_NULL_HANDLE};
+    VkBuffer vertexBuffer {VK_NULL_HANDLE};
+    VmaAllocation vertexAllocation {VK_NULL_HANDLE};
+
+    // ImGui
+    VkDescriptorPool imguiDescriptorPool {VK_NULL_HANDLE};
+    bool imguiInitialized {false};
 
     explicit Impl(const AppConfig& cfg)
         : config {cfg} {
@@ -159,6 +176,8 @@ struct App::Impl {
         createFramebuffers();
         createCommandPoolAndBuffers();
         createSyncObjects();
+        createTriangleResources();
+        initImGui();
         running = true;
     }
 
@@ -260,6 +279,9 @@ struct App::Impl {
         createRenderPass();
         createFramebuffers();
         allocateCommandBuffers();
+        // Recreate dependent resources
+        destroyPipeline();
+        createTriangleResources();
     }
 
     void createRenderPass() {
@@ -391,7 +413,16 @@ struct App::Impl {
         rpBegin.pClearValues = &clear;
         vkCmdBeginRenderPass(cb, &rpBegin, VK_SUBPASS_CONTENTS_INLINE);
 
-        // Placeholder: no draw yet (will add pipeline/triangle)
+        if (pipeline != VK_NULL_HANDLE && vertexBuffer != VK_NULL_HANDLE) {
+            vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+            VkDeviceSize offsets[] {0U};
+            vkCmdBindVertexBuffers(cb, 0U, 1U, &vertexBuffer, offsets);
+            const float white[4] {1.0F, 1.0F, 1.0F, 1.0F};
+            vkCmdPushConstants(cb, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0U, sizeof(white), white);
+            vkCmdDraw(cb, 3U, 1U, 0U, 0U);
+        }
+
+        // ImGui rendering will be inserted later (after triangle)
 
         vkCmdEndRenderPass(cb);
 
@@ -445,6 +476,302 @@ struct App::Impl {
         } else if (pres != VK_SUCCESS) {
             throw std::runtime_error {"Failed to present"};
         }
+    }
+
+    static std::vector<uint32_t> compileGlslToSpv(const std::string& src, const VkShaderStageFlagBits stage) {
+#ifdef VULKANO_CODEX_USE_SHADERC
+        shaderc_shader_kind kind = shaderc_glsl_vertex_shader;
+        if (stage == VK_SHADER_STAGE_FRAGMENT_BIT) {
+            kind = shaderc_glsl_fragment_shader;
+        }
+        shaderc::Compiler compiler {};
+        shaderc::CompileOptions options {};
+        options.SetTargetEnvironment(shaderc_target_env_vulkan, shaderc_env_version_vulkan_1_2);
+        const shaderc::SpvCompilationResult result = compiler.CompileGlslToSpv(src, kind, "shader.glsl", options);
+        if (result.GetCompilationStatus() != shaderc_compilation_status_success) {
+            throw std::runtime_error {std::string {"Shader compilation failed: "} + result.GetErrorMessage()};
+        }
+        return {result.cbegin(), result.cend()};
+#else
+        (void)src;
+        (void)stage;
+        throw std::runtime_error {"Shader compilation disabled. Enable VULKANO_CODEX_USE_SHADERC to compile GLSL."};
+#endif
+    }
+
+    static VkShaderModule createShaderModule(const VkDevice device, const std::vector<uint32_t>& code) {
+        VkShaderModuleCreateInfo info {};
+        info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+        info.codeSize = code.size() * sizeof(uint32_t);
+        info.pCode = code.data();
+        VkShaderModule module {VK_NULL_HANDLE};
+        if (vkCreateShaderModule(device, &info, nullptr, &module) != VK_SUCCESS) {
+            throw std::runtime_error {"Failed to create shader module"};
+        }
+        return module;
+    }
+
+    void createTriangleResources() {
+        // Shaders (vertex + fragment with push constant color)
+        const std::string vertSrc {
+            "#version 450\n"
+            "layout(location=0) in vec2 inPos;\n"
+            "void main(){ gl_Position = vec4(inPos, 0.0, 1.0); }\n"};
+        const std::string fragSrc {
+            "#version 450\n"
+            "layout(push_constant) uniform Push { vec4 color; } pc;\n"
+            "layout(location=0) out vec4 outColor;\n"
+            "void main(){ outColor = pc.color; }\n"};
+
+        VkShaderModule vertModule {VK_NULL_HANDLE};
+        VkShaderModule fragModule {VK_NULL_HANDLE};
+        try {
+            const auto vertSpv = compileGlslToSpv(vertSrc, VK_SHADER_STAGE_VERTEX_BIT);
+            const auto fragSpv = compileGlslToSpv(fragSrc, VK_SHADER_STAGE_FRAGMENT_BIT);
+            vertModule = createShaderModule(device, vertSpv);
+            fragModule = createShaderModule(device, fragSpv);
+        } catch (const std::exception&) {
+            // Defer to runtime error if shaderc not enabled
+            if (vertModule != VK_NULL_HANDLE) {
+                vkDestroyShaderModule(device, vertModule, nullptr);
+            }
+            if (fragModule != VK_NULL_HANDLE) {
+                vkDestroyShaderModule(device, fragModule, nullptr);
+            }
+            return;
+        }
+
+        VkPipelineShaderStageCreateInfo vertStage {};
+        vertStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        vertStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
+        vertStage.module = vertModule;
+        vertStage.pName = "main";
+
+        VkPipelineShaderStageCreateInfo fragStage {};
+        fragStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        fragStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+        fragStage.module = fragModule;
+        fragStage.pName = "main";
+
+        const VkPipelineShaderStageCreateInfo stages[] {vertStage, fragStage};
+
+        // Vertex input: vec2 positions
+        VkVertexInputBindingDescription binding {};
+        binding.binding = 0U;
+        binding.stride = sizeof(float) * 2U;
+        binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+        VkVertexInputAttributeDescription attrib {};
+        attrib.location = 0U;
+        attrib.binding = 0U;
+        attrib.format = VK_FORMAT_R32G32_SFLOAT;
+        attrib.offset = 0U;
+
+        VkPipelineVertexInputStateCreateInfo vertexInput {};
+        vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+        vertexInput.vertexBindingDescriptionCount = 1U;
+        vertexInput.pVertexBindingDescriptions = &binding;
+        vertexInput.vertexAttributeDescriptionCount = 1U;
+        vertexInput.pVertexAttributeDescriptions = &attrib;
+
+        VkPipelineInputAssemblyStateCreateInfo inputAssembly {};
+        inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+        inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        inputAssembly.primitiveRestartEnable = VK_FALSE;
+
+        VkViewport viewport {};
+        viewport.x = 0.0F;
+        viewport.y = 0.0F;
+        viewport.width = static_cast<float>(swapchainExtent.width);
+        viewport.height = static_cast<float>(swapchainExtent.height);
+        viewport.minDepth = 0.0F;
+        viewport.maxDepth = 1.0F;
+
+        VkRect2D scissor {};
+        scissor.offset = {0, 0};
+        scissor.extent = swapchainExtent;
+
+        VkPipelineViewportStateCreateInfo viewportState {};
+        viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+        viewportState.viewportCount = 1U;
+        viewportState.pViewports = &viewport;
+        viewportState.scissorCount = 1U;
+        viewportState.pScissors = &scissor;
+
+        VkPipelineRasterizationStateCreateInfo raster {};
+        raster.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+        raster.depthClampEnable = VK_FALSE;
+        raster.rasterizerDiscardEnable = VK_FALSE;
+        raster.polygonMode = VK_POLYGON_MODE_FILL;
+        raster.cullMode = VK_CULL_MODE_BACK_BIT;
+        raster.frontFace = VK_FRONT_FACE_CLOCKWISE;
+        raster.depthBiasEnable = VK_FALSE;
+        raster.lineWidth = 1.0F;
+
+        VkPipelineMultisampleStateCreateInfo msaa {};
+        msaa.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+        msaa.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+        VkPipelineColorBlendAttachmentState blendAttachment {};
+        blendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+        blendAttachment.blendEnable = VK_FALSE;
+
+        VkPipelineColorBlendStateCreateInfo blend {};
+        blend.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        blend.attachmentCount = 1U;
+        blend.pAttachments = &blendAttachment;
+
+        VkPushConstantRange pushRange {};
+        pushRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        pushRange.offset = 0U;
+        pushRange.size = sizeof(float) * 4U;
+
+        VkPipelineLayoutCreateInfo layoutInfo {};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        layoutInfo.pushConstantRangeCount = 1U;
+        layoutInfo.pPushConstantRanges = &pushRange;
+        if (vkCreatePipelineLayout(device, &layoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
+            vkDestroyShaderModule(device, vertModule, nullptr);
+            vkDestroyShaderModule(device, fragModule, nullptr);
+            throw std::runtime_error {"Failed to create pipeline layout"};
+        }
+
+        VkGraphicsPipelineCreateInfo pipeInfo {};
+        pipeInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+        pipeInfo.stageCount = 2U;
+        pipeInfo.pStages = stages;
+        pipeInfo.pVertexInputState = &vertexInput;
+        pipeInfo.pInputAssemblyState = &inputAssembly;
+        pipeInfo.pViewportState = &viewportState;
+        pipeInfo.pRasterizationState = &raster;
+        pipeInfo.pMultisampleState = &msaa;
+        pipeInfo.pColorBlendState = &blend;
+        pipeInfo.layout = pipelineLayout;
+        pipeInfo.renderPass = renderPass;
+        pipeInfo.subpass = 0U;
+        if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1U, &pipeInfo, nullptr, &pipeline) != VK_SUCCESS) {
+            vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+            pipelineLayout = VK_NULL_HANDLE;
+            vkDestroyShaderModule(device, vertModule, nullptr);
+            vkDestroyShaderModule(device, fragModule, nullptr);
+            throw std::runtime_error {"Failed to create graphics pipeline"};
+        }
+
+        vkDestroyShaderModule(device, vertModule, nullptr);
+        vkDestroyShaderModule(device, fragModule, nullptr);
+
+        createVertexBuffer();
+    }
+
+    void destroyPipeline() noexcept {
+        if (vertexBuffer != VK_NULL_HANDLE) {
+            vmaDestroyBuffer(allocator, vertexBuffer, vertexAllocation);
+            vertexBuffer = VK_NULL_HANDLE;
+            vertexAllocation = VK_NULL_HANDLE;
+        }
+        if (pipeline != VK_NULL_HANDLE) {
+            vkDestroyPipeline(device, pipeline, nullptr);
+            pipeline = VK_NULL_HANDLE;
+        }
+        if (pipelineLayout != VK_NULL_HANDLE) {
+            vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+            pipelineLayout = VK_NULL_HANDLE;
+        }
+    }
+
+    void createVertexBuffer() {
+        const std::array<float, 6> vertices { // 3x vec2 in NDC
+            // CCW triangle
+            0.0F, -0.5F,
+            0.5F, 0.5F,
+            -0.5F, 0.5F,
+        };
+
+        VkBufferCreateInfo bufInfo {};
+        bufInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bufInfo.size = sizeof(vertices);
+        bufInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+        bufInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        VmaAllocationCreateInfo allocInfo {};
+        allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+        allocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
+        VmaAllocationInfo vinfo {};
+        if (vmaCreateBuffer(allocator, &bufInfo, &allocInfo, &vertexBuffer, &vertexAllocation, &vinfo) != VK_SUCCESS) {
+            throw std::runtime_error {"Failed to allocate vertex buffer"};
+        }
+        std::memcpy(vinfo.pMappedData, vertices.data(), sizeof(vertices));
+    }
+
+    void initImGui() {
+        // Descriptor pool for ImGui
+        VkDescriptorPoolSize poolSizes[] = {
+            {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
+            {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
+            {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
+            {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
+            {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
+            {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
+            {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
+            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
+            {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
+            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
+            {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
+        VkDescriptorPoolCreateInfo poolInfo {};
+        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+        poolInfo.maxSets = 1000 * static_cast<uint32_t>(std::size(poolSizes));
+        poolInfo.poolSizeCount = static_cast<uint32_t>(std::size(poolSizes));
+        poolInfo.pPoolSizes = poolSizes;
+        if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &imguiDescriptorPool) != VK_SUCCESS) {
+            throw std::runtime_error {"Failed to create ImGui descriptor pool"};
+        }
+
+        IMGUI_CHECKVERSION();
+        ImGui::CreateContext();
+        ImGuiIO& io = ImGui::GetIO();
+        (void)io;
+        ImGui::StyleColorsDark();
+        ImGui_ImplGlfw_InitForVulkan(window, true);
+
+        ImGui_ImplVulkan_InitInfo initInfo {};
+        initInfo.Instance = instance;
+        initInfo.PhysicalDevice = physicalDevice;
+        initInfo.Device = device;
+        initInfo.QueueFamily = queueFamilyGraphics;
+        initInfo.Queue = graphicsQueue;
+        initInfo.PipelineCache = VK_NULL_HANDLE;
+        initInfo.DescriptorPool = imguiDescriptorPool;
+        initInfo.Allocator = nullptr;
+        initInfo.MinImageCount = static_cast<uint32_t>(swapchainImages.size());
+        initInfo.ImageCount = static_cast<uint32_t>(swapchainImages.size());
+        initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+        initInfo.CheckVkResultFn = nullptr;
+        ImGui_ImplVulkan_Init(&initInfo, renderPass);
+
+        VkCommandBufferAllocateInfo allocInfo {};
+        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        allocInfo.commandPool = commandPool;
+        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        allocInfo.commandBufferCount = 1U;
+        VkCommandBuffer fontCmd {};
+        vkAllocateCommandBuffers(device, &allocInfo, &fontCmd);
+
+        VkCommandBufferBeginInfo beginInfo {};
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        vkBeginCommandBuffer(fontCmd, &beginInfo);
+        ImGui_ImplVulkan_CreateFontsTexture(fontCmd);
+        vkEndCommandBuffer(fontCmd);
+
+        VkSubmitInfo submitInfo {};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submitInfo.commandBufferCount = 1U;
+        submitInfo.pCommandBuffers = &fontCmd;
+        vkQueueSubmit(graphicsQueue, 1U, &submitInfo, VK_NULL_HANDLE);
+        vkQueueWaitIdle(graphicsQueue);
+        ImGui_ImplVulkan_DestroyFontUploadObjects();
+
+        imguiInitialized = true;
     }
 };
 
