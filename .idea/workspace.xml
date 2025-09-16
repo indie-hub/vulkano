@@ -80,6 +80,11 @@
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
     <option name="RESET_MODE" value="HARD" />
   </component>
+  <component name="ProjectColorInfo"><![CDATA[{
+  "customColor": "",
+  "associatedIndex": 5
+}]]></component>
+  <component name="ProjectId" id="32mj8DjN490hOBFLEWeYQl8B3BB" />
   <component name="ProjectViewState">
     <option name="autoscrollFromSource" value="true" />
     <option name="hideEmptyMiddlePackages" value="true" />
@@ -128,6 +133,7 @@
       <updated>1757930371230</updated>
       <workItem from="1757930372426" duration="26134000" />
       <workItem from="1758017569975" duration="12202000" />
+      <workItem from="1758032482488" duration="401000" />
     </task>
     <task id="LOCAL-00001" summary="New TODO">
       <option name="closed" value="true" />
@@ -147,6 +153,9 @@
     </task>
     <option name="localTasksCounter" value="3" />
     <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
   </component>
   <component name="VCPKGProject">
     <isAutomaticCheckingOnLaunch value="false" />

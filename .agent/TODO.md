@@ -3,7 +3,7 @@
 - [x] Scaffold project: CMake, folders, .clang-format, minimal GLFW window app building to `bin/`.
 - [x] Add Vulkan instance + surface creation with validation layers (Debug) and debug utils.
 - [x] Pick physical device, queue families; create logical device and queues.
-- [ ] Create swapchain + image views; choose formats/present mode without magic numbers.
+- [x] Create swapchain + image views; choose formats/present mode without magic numbers.
 - [ ] Create render pass, framebuffers, command pool/buffers, and sync primitives.
 - [ ] Add shader pipeline (GLSL in `shaders/`, CMake glslc compile); vertex buffer for triangle.
 - [ ] Draw triangle and present; clear to black; use push constant for colour.
