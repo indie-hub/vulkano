@@ -15,6 +15,7 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
+#include <cstdio>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -635,6 +636,28 @@ struct App::Impl {
 #endif
     }
 
+    static std::vector<uint32_t> loadSpirvFromFile(const std::string& path) {
+        std::vector<uint32_t> code {};
+        FILE* f = std::fopen(path.c_str(), "rb");
+        if (f == nullptr) {
+            throw std::runtime_error {"Failed to open SPIR-V file: " + path};
+        }
+        std::fseek(f, 0, SEEK_END);
+        const long size = std::ftell(f);
+        std::fseek(f, 0, SEEK_SET);
+        if (size <= 0 || (size % 4) != 0) {
+            std::fclose(f);
+            throw std::runtime_error {"Invalid SPIR-V file size: " + path};
+        }
+        code.resize(static_cast<std::size_t>(size) / 4U);
+        const std::size_t read = std::fread(code.data(), 1, static_cast<std::size_t>(size), f);
+        std::fclose(f);
+        if (read != static_cast<std::size_t>(size)) {
+            throw std::runtime_error {"Failed to read SPIR-V file: " + path};
+        }
+        return code;
+    }
+
     static VkShaderModule createShaderModule(const VkDevice device, const std::vector<uint32_t>& code) {
         VkShaderModuleCreateInfo info {};
         info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -667,14 +690,14 @@ struct App::Impl {
             vertModule = createShaderModule(device, vertSpv);
             fragModule = createShaderModule(device, fragSpv);
         } catch (const std::exception&) {
-            // Defer to runtime error if shaderc not enabled
-            if (vertModule != VK_NULL_HANDLE) {
-                vkDestroyShaderModule(device, vertModule, nullptr);
-            }
-            if (fragModule != VK_NULL_HANDLE) {
-                vkDestroyShaderModule(device, fragModule, nullptr);
-            }
-            return;
+            // Fallback: load precompiled SPIR-V from disk (bin/shaders)
+            const std::string baseDir = std::string {VULKANO_SHADER_DIR};
+            const std::string vpath = baseDir + "/triangle.vert.spv";
+            const std::string fpath = baseDir + "/triangle.frag.spv";
+            const auto vertSpv = loadSpirvFromFile(vpath);
+            const auto fragSpv = loadSpirvFromFile(fpath);
+            vertModule = createShaderModule(device, vertSpv);
+            fragModule = createShaderModule(device, fragSpv);
         }
 
         VkPipelineShaderStageCreateInfo vertStage {};

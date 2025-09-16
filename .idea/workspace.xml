@@ -61,10 +61,9 @@
     </configurations>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="ea5f2232-e0d5-4be9-833c-c06073c2468d" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/build/_deps/shaderc-src" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/shaderc-src" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/app.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/timing_tests.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/tests/timing_tests.cpp" afterDir="false" />
+    <list default="true" id="ea5f2232-e0d5-4be9-833c-c06073c2468d" name="Changes" comment="New TODO">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/CMakeLists.txt" beforeDir="false" afterPath="$PROJECT_DIR$/CMakeLists.txt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -83,6 +82,18 @@
     </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
     <option name="RESET_MODE" value="HARD" />
+  </component>
+  <component name="HighlightingSettingsPerFile">
+    <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/app.hpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/app.hpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/tests/timing_tests.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/tests/timing_tests.cpp" root0="SKIP_HIGHLIGHTING" />
   </component>
   <component name="ProjectViewState">
     <option name="autoscrollFromSource" value="true" />
@@ -344,8 +355,17 @@
       <option name="presentableId" value="Default" />
       <updated>1757930371230</updated>
       <workItem from="1757930372426" duration="26134000" />
-      <workItem from="1758017569975" duration="7832000" />
+      <workItem from="1758017569975" duration="8653000" />
     </task>
+    <task id="LOCAL-00001" summary="New TODO">
+      <option name="closed" value="true" />
+      <created>1758028562120</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1758028562120</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -378,5 +398,9 @@
         </entry>
       </map>
     </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="New TODO" />
+    <option name="LAST_COMMIT_MESSAGE" value="New TODO" />
   </component>
 </project>

@@ -126,6 +126,32 @@ target_link_libraries(vulkano_app PRIVATE vulkano)
 set_target_properties(vulkano_app PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
 
+# Shader compilation via glslc (fallback path when shaderc is unavailable)
+find_program(GLSLC_EXECUTABLE NAMES glslc)
+set(SHADER_DIR ${CMAKE_SOURCE_DIR}/shaders)
+set(SHADER_BIN_DIR ${CMAKE_SOURCE_DIR}/bin/shaders)
+file(MAKE_DIRECTORY ${SHADER_BIN_DIR})
+set(VERT_SHADER ${SHADER_DIR}/triangle.vert)
+set(FRAG_SHADER ${SHADER_DIR}/triangle.frag)
+set(VERT_SPV ${SHADER_BIN_DIR}/triangle.vert.spv)
+set(FRAG_SPV ${SHADER_BIN_DIR}/triangle.frag.spv)
+if (GLSLC_EXECUTABLE)
+  add_custom_command(OUTPUT ${VERT_SPV}
+    COMMAND ${GLSLC_EXECUTABLE} -fshader-stage=vert -O ${VERT_SHADER} -o ${VERT_SPV}
+    DEPENDS ${VERT_SHADER}
+    COMMENT "Compiling vertex shader to SPIR-V")
+  add_custom_command(OUTPUT ${FRAG_SPV}
+    COMMAND ${GLSLC_EXECUTABLE} -fshader-stage=frag -O ${FRAG_SHADER} -o ${FRAG_SPV}
+    DEPENDS ${FRAG_SHADER}
+    COMMENT "Compiling fragment shader to SPIR-V")
+  add_custom_target(shaders_spv ALL DEPENDS ${VERT_SPV} ${FRAG_SPV})
+  add_dependencies(vulkano_app shaders_spv)
+else()
+  message(WARNING "glslc not found. Expecting precompiled SPIR-V in ${SHADER_BIN_DIR}")
+endif()
+
+target_compile_definitions(vulkano PUBLIC VULKANO_SHADER_DIR="${SHADER_BIN_DIR}")
+
 include(CTest)
 if (BUILD_TESTING AND VULKANO_CODEX_BUILD_TESTS)
     add_subdirectory(tests)
@@ -138,10 +164,18 @@ if (VULKANO_CODEX_USE_SHADERC)
       shaderc
       GIT_REPOSITORY https://github.com/google/shaderc.git
       GIT_TAG main
+      GIT_SHALLOW OFF
+      GIT_SUBMODULES_RECURSE ON
   )
   set(SHADERC_SKIP_TESTS ON CACHE BOOL "" FORCE)
   set(SHADERC_SKIP_EXAMPLES ON CACHE BOOL "" FORCE)
   set(SHADERC_SKIP_INSTALL ON CACHE BOOL "" FORCE)
+  # Avoid building shaderc tools; only need the library
+  set(SHADERC_SKIP_EXECUTABLES ON CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(shaderc)
-  target_link_libraries(vulkano PUBLIC shaderc_combined)
+  if (TARGET shaderc_combined)
+    target_link_libraries(vulkano PUBLIC shaderc_combined)
+  else()
+    message(FATAL_ERROR "shaderc_combined target not available — disable VULKANO_CODEX_USE_SHADERC or ensure submodules fetched.")
+  endif()
 endif()
