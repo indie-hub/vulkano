@@ -8,6 +8,7 @@
 #include <vector>
 #include <optional>
 #include <functional>
+#include <array>
 
 struct QueueFamilies {
     std::optional<uint32_t> graphics;
@@ -118,11 +119,15 @@ private:
 
     VkDescriptorPool imgui_descriptor_pool_{};
 
-    VkSemaphore image_available_semaphore_{};
-    VkSemaphore render_finished_semaphore_{};
-    VkFence in_flight_fence_{};
+    // Synchronization (per-frame-in-flight + per-image)
+    static constexpr uint32_t kMaxFramesInFlight{2};
+    std::vector<VkSemaphore> image_available_semaphores_{}; // size = kMaxFramesInFlight
+    std::vector<VkSemaphore> render_finished_semaphores_{}; // size = kMaxFramesInFlight (image-available)
+    std::vector<VkSemaphore> render_finished_image_semaphores_{}; // size = swapchain_images_
+    std::vector<VkFence> in_flight_fences_{};               // size = kMaxFramesInFlight
+    std::vector<VkFence> images_in_flight_{};               // size = swapchain_images_
+    uint32_t current_frame_{0};
 
     bool framebuffer_resized_{false};
     uint32_t current_image_index_{0};
 };
-

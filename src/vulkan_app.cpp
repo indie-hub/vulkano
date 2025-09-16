@@ -5,6 +5,7 @@
 #include <cstring>
 #include <array>
 #include <fstream>
+#include <algorithm>
 #include <imgui.h>
 #include <backends/imgui_impl_vulkan.h>
 
@@ -119,9 +120,10 @@ VulkanApp::~VulkanApp() {
     vkDestroyBuffer(device_, vertex_buffer_, nullptr);
     vkFreeMemory(device_, vertex_buffer_memory_, nullptr);
 
-    vkDestroySemaphore(device_, render_finished_semaphore_, nullptr);
-    vkDestroySemaphore(device_, image_available_semaphore_, nullptr);
-    vkDestroyFence(device_, in_flight_fence_, nullptr);
+    for (auto s : render_finished_semaphores_) { vkDestroySemaphore(device_, s, nullptr); }
+    for (auto s : render_finished_image_semaphores_) { vkDestroySemaphore(device_, s, nullptr); }
+    for (auto s : image_available_semaphores_) { vkDestroySemaphore(device_, s, nullptr); }
+    for (auto f : in_flight_fences_) { vkDestroyFence(device_, f, nullptr); }
 
     vkDestroyDescriptorPool(device_, imgui_descriptor_pool_, nullptr);
 
@@ -645,13 +647,25 @@ void VulkanApp::createCommandBuffers() {
 }
 
 void VulkanApp::createSyncObjects() {
+    image_available_semaphores_.resize(kMaxFramesInFlight);
+    render_finished_semaphores_.resize(kMaxFramesInFlight);
+    in_flight_fences_.resize(kMaxFramesInFlight);
+    images_in_flight_.assign(swapchain_images_.size(), VK_NULL_HANDLE);
+    render_finished_image_semaphores_.resize(swapchain_images_.size());
+
     VkSemaphoreCreateInfo sem{ VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
     VkFenceCreateInfo fence{ VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
     fence.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-    if (vkCreateSemaphore(device_, &sem, nullptr, &image_available_semaphore_) != VK_SUCCESS ||
-        vkCreateSemaphore(device_, &sem, nullptr, &render_finished_semaphore_) != VK_SUCCESS ||
-        vkCreateFence(device_, &fence, nullptr, &in_flight_fence_) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create sync objects");
+    for (uint32_t i = 0; i < kMaxFramesInFlight; ++i) {
+        if (vkCreateSemaphore(device_, &sem, nullptr, &image_available_semaphores_[i]) != VK_SUCCESS ||
+            vkCreateFence(device_, &fence, nullptr, &in_flight_fences_[i]) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create sync objects");
+        }
+    }
+    for (size_t i = 0; i < render_finished_image_semaphores_.size(); ++i) {
+        if (vkCreateSemaphore(device_, &sem, nullptr, &render_finished_image_semaphores_[i]) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create per-image render-finished semaphores");
+        }
     }
 }
 
@@ -681,6 +695,16 @@ void VulkanApp::recreateSwapchain() {
     createPipeline();
     createFramebuffers();
     createCommandBuffers();
+    images_in_flight_.assign(swapchain_images_.size(), VK_NULL_HANDLE);
+    // Recreate per-image semaphores
+    for (auto s : render_finished_image_semaphores_) { vkDestroySemaphore(device_, s, nullptr); }
+    render_finished_image_semaphores_.resize(swapchain_images_.size());
+    VkSemaphoreCreateInfo sem{ VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
+    for (size_t i = 0; i < render_finished_image_semaphores_.size(); ++i) {
+        if (vkCreateSemaphore(device_, &sem, nullptr, &render_finished_image_semaphores_[i]) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to recreate per-image semaphores");
+        }
+    }
 }
 
 void VulkanApp::cleanupSwapchain() {
@@ -697,14 +721,18 @@ void VulkanApp::cleanupSwapchain() {
 }
 
 void VulkanApp::drawFrame(const glm::vec4& color) {
-    vkWaitForFences(device_, 1, &in_flight_fence_, VK_TRUE, UINT64_MAX);
-    vkResetFences(device_, 1, &in_flight_fence_);
+    vkWaitForFences(device_, 1, &in_flight_fences_[current_frame_], VK_TRUE, UINT64_MAX);
+    vkResetFences(device_, 1, &in_flight_fences_[current_frame_]);
 
-    VkResult acq = vkAcquireNextImageKHR(device_, swapchain_, UINT64_MAX, image_available_semaphore_, VK_NULL_HANDLE, &current_image_index_);
+    VkResult acq = vkAcquireNextImageKHR(device_, swapchain_, UINT64_MAX, image_available_semaphores_[current_frame_], VK_NULL_HANDLE, &current_image_index_);
     if (acq == VK_ERROR_OUT_OF_DATE_KHR) {
         recreateSwapchain();
         return;
     }
+    if (images_in_flight_[current_image_index_] != VK_NULL_HANDLE) {
+        vkWaitForFences(device_, 1, &images_in_flight_[current_image_index_], VK_TRUE, UINT64_MAX);
+    }
+    images_in_flight_[current_image_index_] = in_flight_fences_[current_frame_];
 
     VkCommandBuffer cmd = command_buffers_[current_image_index_];
     vkResetCommandBuffer(cmd, 0);
@@ -741,20 +769,20 @@ void VulkanApp::drawFrame(const glm::vec4& color) {
     VkPipelineStageFlags wait_stages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
     VkSubmitInfo submit{ VK_STRUCTURE_TYPE_SUBMIT_INFO };
     submit.waitSemaphoreCount = 1;
-    submit.pWaitSemaphores = &image_available_semaphore_;
+    submit.pWaitSemaphores = &image_available_semaphores_[current_frame_];
     submit.pWaitDstStageMask = wait_stages;
     submit.commandBufferCount = 1;
     submit.pCommandBuffers = &cmd;
     submit.signalSemaphoreCount = 1;
-    submit.pSignalSemaphores = &render_finished_semaphore_;
+    submit.pSignalSemaphores = &render_finished_image_semaphores_[current_image_index_];
 
-    if (vkQueueSubmit(graphics_queue_, 1, &submit, in_flight_fence_) != VK_SUCCESS) {
+    if (vkQueueSubmit(graphics_queue_, 1, &submit, in_flight_fences_[current_frame_]) != VK_SUCCESS) {
         throw std::runtime_error("Queue submit failed");
     }
 
     VkPresentInfoKHR present{ VK_STRUCTURE_TYPE_PRESENT_INFO_KHR };
     present.waitSemaphoreCount = 1;
-    present.pWaitSemaphores = &render_finished_semaphore_;
+    present.pWaitSemaphores = &render_finished_image_semaphores_[current_image_index_];
     present.swapchainCount = 1;
     present.pSwapchains = &swapchain_;
     present.pImageIndices = &current_image_index_;
@@ -765,4 +793,6 @@ void VulkanApp::drawFrame(const glm::vec4& color) {
     } else if (pres != VK_SUCCESS) {
         throw std::runtime_error("Present failed");
     }
+
+    current_frame_ = (current_frame_ + 1) % kMaxFramesInFlight;
 }

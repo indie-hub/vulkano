@@ -1,19 +1,19 @@
-Start testing: Sep 16 11:54 BST
+Start testing: Sep 16 11:56 BST
 ----------------------------------------------------------
 1/1 Testing: build_sanity
 1/1 Test: build_sanity
 Command: "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_codex_tests"
 Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build
-"build_sanity" start time: Sep 16 11:54 BST
+"build_sanity" start time: Sep 16 11:56 BST
 Output:
 ----------------------------------------------------------
 sanity ok
 <end of output>
-Test time =   0.30 sec
+Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"build_sanity" end time: Sep 16 11:54 BST
+"build_sanity" end time: Sep 16 11:56 BST
 "build_sanity" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-End testing: Sep 16 11:54 BST
+End testing: Sep 16 11:56 BST
