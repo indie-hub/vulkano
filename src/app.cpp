@@ -33,6 +33,10 @@ void App::init_glfw() noexcept {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, glfw_context_version_minor);
 
     window_ = glfwCreateWindow(static_cast<int>(config_.width), static_cast<int>(config_.height), config_.title, nullptr, nullptr);
+    if (window_ != nullptr) {
+        glfwSetWindowUserPointer(window_, this);
+        glfwSetFramebufferSizeCallback(window_, &App::framebuffer_size_callback);
+    }
 }
 
 void App::shutdown_glfw() noexcept {
@@ -69,7 +73,20 @@ void App::run() noexcept {
     while (glfwWindowShouldClose(window_) == GLFW_FALSE) {
         glfwPollEvents();
         if (vk_ != nullptr) {
-            (void)vk_->draw_frame();
+            const bool ok {(vk_->draw_frame())};
+            if (!ok || framebuffer_resized_) {
+                int width {0};
+                int height {0};
+                do {
+                    glfwGetFramebufferSize(window_, &width, &height);
+                    if (width == 0 || height == 0) {
+                        glfwWaitEvents();
+                    }
+                } while (width == 0 || height == 0);
+
+                vk_->recreate_swapchain(window_);
+                framebuffer_resized_ = false;
+            }
         } else {
             std::this_thread::sleep_for(std::chrono::milliseconds {16});
         }
@@ -79,6 +96,18 @@ void App::run() noexcept {
                 glfwSetWindowShouldClose(window_, GLFW_TRUE);
             }
         }
+    }
+}
+
+void App::framebuffer_size_callback(GLFWwindow* window, int width, int height) noexcept {
+    (void)width;
+    (void)height;
+    if (window == nullptr) {
+        return;
+    }
+    auto* appPtr {static_cast<App*>(glfwGetWindowUserPointer(window))};
+    if (appPtr != nullptr) {
+        appPtr->framebuffer_resized_ = true;
     }
 }
 

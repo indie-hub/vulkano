@@ -1263,4 +1263,26 @@ bool VulkanContext::draw_frame() noexcept {
     return true;
 }
 
+void VulkanContext::recreate_swapchain(GLFWwindow* window) noexcept {
+    if (device_ == VK_NULL_HANDLE || surface_ == VK_NULL_HANDLE) {
+        return;
+    }
+    vkDeviceWaitIdle(device_);
+
+    // Tear down resources that depend on swapchain extent/format
+    destroy_command_pool_and_buffers();
+    destroy_framebuffers();
+    destroy_pipeline();
+    destroy_render_pass();
+    destroy_swapchain_and_views();
+
+    // Recreate
+    create_swapchain_and_views(window);
+    create_render_pass();
+    // Pipeline layout (push constants) unchanged; reuse
+    create_graphics_pipeline();
+    create_framebuffers();
+    create_command_pool_and_buffers();
+}
+
 } // namespace vulkano

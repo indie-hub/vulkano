@@ -1,6 +1,6 @@
 - [x] Baseline: add TODO plan, configure and build project, and run app briefly with autoclose to validate setup.
 - [x] Implement render loop: acquire/present, record per-frame commands to clear + draw white triangle, handle VK_ERROR_OUT_OF_DATE.
-- [ ] Add resize handling: recreate swapchain and dependent resources on framebuffer resize; re-record command buffers.
+- [x] Add resize handling: recreate swapchain and dependent resources on framebuffer resize; re-record command buffers.
 - [ ] Integrate ImGui (FetchContent): create descriptor pool, init imgui_impl_glfw + imgui_impl_vulkan, render overlay after scene.
 - [ ] Stats overlay: FPS/frame time smoothing, device name, and swapchain extent; wire into ImGui draw.
 - [ ] Tests: unit test for FPS smoothing; smoke test that starts app with autoclose env and exits cleanly.

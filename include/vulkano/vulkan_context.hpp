@@ -40,6 +40,9 @@ public:
     // Returns true if a frame was rendered and queued for present; false if skipped (e.g., out-of-date swapchain).
     bool draw_frame() noexcept;
 
+    // Recreate swapchain and all dependent resources after a resize or format change.
+    void recreate_swapchain(GLFWwindow* window) noexcept;
+
 private:
     void create_instance(GLFWwindow* window) noexcept;
     void setup_debug_utils() noexcept;

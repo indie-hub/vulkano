@@ -37,6 +37,9 @@ private:
     AppConfig config_ {};
     GLFWwindow* window_ {nullptr};
     std::unique_ptr<VulkanContext> vk_ {};
+    bool framebuffer_resized_ {false};
+
+    static void framebuffer_size_callback(GLFWwindow* window, int width, int height) noexcept;
 };
 
 } // namespace vulkano
