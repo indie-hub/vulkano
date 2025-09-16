@@ -48,6 +48,13 @@ Controls (ImGui):
 - Per primitive (Plane, Cube, Icosphere): position, rotation (radians), scale, base color, shininess
 - Icosphere: optional subdivisions slider (rebuilds CPU mesh + re‑uploads GPU buffers)
 
+Acceptance criteria (what you should see):
+- Window opens on a black clear background
+- Ground plane at y=0 with a cube (left) and icosphere (right) above it
+- Depth testing correct (no visual popping or ordering issues)
+- ImGui overlay shows FPS, frame time, device name, swapchain extent
+- Resizing works without validation errors; scene and UI redraw correctly
+
 Scene setup (defaults):
 - Plane: 10×10 at y=0, grey base color
 - Cube: scale 0.5, position (-1, 0.5, 0), warm orange
