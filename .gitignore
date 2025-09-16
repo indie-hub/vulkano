@@ -43,6 +43,7 @@
 # CMake build folders
 build/
 build_cli/
+build_codex/
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
