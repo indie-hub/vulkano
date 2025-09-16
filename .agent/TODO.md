@@ -35,3 +35,4 @@
 - [x] Validate run on this host: GLFW reports Vulkan not supported (MoltenVK not installed)
  - [x] Validate the project against AGENTS.md
 - [x] Investigate Vulkan support error on macOS (enable portability extensions)
+- [x] Finalize: build OK, tests pass, binaries in bin/
