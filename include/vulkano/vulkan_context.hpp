@@ -11,6 +11,8 @@
 
 namespace vulkano {
 
+class ImGuiOverlay;
+
 class VulkanContext final {
 public:
     explicit VulkanContext(GLFWwindow* window) noexcept;
@@ -40,6 +42,9 @@ public:
     // Returns true if a frame was rendered and queued for present; false if skipped (e.g., out-of-date swapchain).
     bool draw_frame() noexcept;
 
+    // ImGui per-frame hooks
+    void imgui_new_frame() noexcept;
+
     // Recreate swapchain and all dependent resources after a resize or format change.
     void recreate_swapchain(GLFWwindow* window) noexcept;
 
@@ -58,6 +63,7 @@ private:
     void create_command_pool_and_buffers() noexcept;
     void create_sync_objects() noexcept;
     void record_commands(std::uint32_t imageIndex) noexcept;
+    void init_imgui(GLFWwindow* window) noexcept;
     void destroy_swapchain_and_views() noexcept;
     void destroy_framebuffers() noexcept;
     void destroy_pipeline() noexcept;
@@ -115,6 +121,12 @@ private:
     std::vector<VkSemaphore> render_finished_semaphores_ {};
     std::array<VkFence, kMaxFramesInFlight> in_flight_fences_ {VK_NULL_HANDLE, VK_NULL_HANDLE};
     std::uint32_t current_frame_ {0U};
+
+    // ImGui
+    std::unique_ptr<ImGuiOverlay> imgui_ {};
+    bool imgui_ready_ {false};
+    bool imgui_frame_started_ {false};
+    // Reserved for future per-frame UI callback
 };
 
 } // namespace vulkano

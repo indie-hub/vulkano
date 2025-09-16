@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <functional>
 
 // External headers (angle brackets per policy)
 #include <GLFW/glfw3.h>
@@ -40,6 +41,9 @@ private:
     bool framebuffer_resized_ {false};
 
     static void framebuffer_size_callback(GLFWwindow* window, int width, int height) noexcept;
+
+    // UI callback per frame
+    void build_ui() noexcept;
 };
 
 } // namespace vulkano

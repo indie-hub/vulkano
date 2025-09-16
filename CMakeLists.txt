@@ -58,9 +58,46 @@ if (NOT glm_FOUND)
   FetchContent_MakeAvailable(glm)
 endif()
 
+# Dear ImGui (core + backends for GLFW/Vulkan)
+set(IMGUI_FETCHED OFF)
+find_path(IMGUI_INCLUDE_DIR imgui.h PATH_SUFFIXES imgui)
+if (NOT IMGUI_INCLUDE_DIR)
+  message(STATUS "imgui not found; fetching via FetchContent")
+  FetchContent_Declare(
+    imgui
+    GIT_REPOSITORY https://github.com/ocornut/imgui.git
+    GIT_TAG v1.91.0
+  )
+  FetchContent_MakeAvailable(imgui)
+  set(IMGUI_FETCHED ON)
+endif()
+
+if (IMGUI_FETCHED)
+  # Build a minimal imgui static library including required backends
+  add_library(imgui STATIC
+    ${imgui_SOURCE_DIR}/imgui.cpp
+    ${imgui_SOURCE_DIR}/imgui_draw.cpp
+    ${imgui_SOURCE_DIR}/imgui_tables.cpp
+    ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
+  )
+  target_include_directories(imgui PUBLIC
+    ${imgui_SOURCE_DIR}
+    ${imgui_SOURCE_DIR}/backends
+  )
+  if (Vulkan_FOUND)
+    target_link_libraries(imgui PUBLIC Vulkan::Vulkan)
+  elseif (APPLE AND MOLTENVK_LIBRARY)
+    target_link_libraries(imgui PUBLIC ${MOLTENVK_LIBRARY})
+  endif()
+  target_link_libraries(imgui PUBLIC glfw)
+endif()
+
 add_library(vulkano STATIC
   src/app.cpp
   src/vulkan_context.cpp
+  src/imgui_overlay.cpp
 )
 
 target_sources(vulkano
@@ -109,6 +146,10 @@ if (TARGET glm)
 else()
   find_package(glm REQUIRED)
   target_link_libraries(vulkano PUBLIC glm::glm)
+endif()
+
+if (TARGET imgui)
+  target_link_libraries(vulkano PUBLIC imgui)
 endif()
 
 add_executable(vulkano_app src/main.cpp)

@@ -10,6 +10,9 @@
 #include <vector>
 
 #include <glm/vec2.hpp>
+#include <imgui.h>
+
+#include <vulkano/imgui_overlay.hpp>
 
 namespace vulkano {
 
@@ -102,6 +105,7 @@ VulkanContext::VulkanContext(GLFWwindow* window) noexcept {
     create_logical_device();
     create_swapchain_and_views(window);
     create_render_pass();
+    init_imgui(window);
     create_pipeline_layout();
     create_graphics_pipeline();
     create_vertex_buffer();
@@ -1193,6 +1197,15 @@ void VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
 
     vkCmdDraw(cmd, static_cast<std::uint32_t>(kTriangleVertices.size()), 1U, 0U, 0U);
 
+    // Ensure ImGui draw data is ready and render overlay
+    if (imgui_ready_) {
+        ImGui::Render();
+        if (ImGui::GetDrawData() != nullptr) {
+            imgui_->render(cmd);
+        }
+        imgui_frame_started_ = false;
+    }
+
     vkCmdEndRenderPass(cmd);
     (void)vkEndCommandBuffer(cmd);
 }
@@ -1279,10 +1292,35 @@ void VulkanContext::recreate_swapchain(GLFWwindow* window) noexcept {
     // Recreate
     create_swapchain_and_views(window);
     create_render_pass();
+    if (imgui_ready_) {
+        // ImGui needs to be re-initialized with the new render pass
+        const std::uint32_t minImages {static_cast<std::uint32_t>(swapchain_images_.size() > 1U ? swapchain_images_.size() : 2U)};
+        imgui_->on_render_pass_changed(render_pass_, minImages);
+    }
     // Pipeline layout (push constants) unchanged; reuse
     create_graphics_pipeline();
     create_framebuffers();
     create_command_pool_and_buffers();
 }
+
+void VulkanContext::init_imgui(GLFWwindow* window) noexcept {
+    if (device_ == VK_NULL_HANDLE || physical_device_ == VK_NULL_HANDLE || render_pass_ == VK_NULL_HANDLE) {
+        return;
+    }
+    imgui_ = std::make_unique<ImGuiOverlay>();
+    const std::uint32_t minImages {static_cast<std::uint32_t>(swapchain_images_.size() > 1U ? swapchain_images_.size() : 2U)};
+    imgui_->init(window, instance_, physical_device_, device_, graphics_family_index_, graphics_queue_, render_pass_, minImages);
+    imgui_ready_ = true;
+}
+
+void VulkanContext::imgui_new_frame() noexcept {
+    if (!imgui_ready_) {
+        return;
+    }
+    imgui_->new_frame();
+    imgui_frame_started_ = true;
+}
+
+// Reserved for future UI builder hook
 
 } // namespace vulkano

@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <thread>
+#include <imgui.h>
 
 namespace vulkano {
 
@@ -73,6 +74,9 @@ void App::run() noexcept {
     while (glfwWindowShouldClose(window_) == GLFW_FALSE) {
         glfwPollEvents();
         if (vk_ != nullptr) {
+            // Begin ImGui frame and build minimal overlay
+            vk_->imgui_new_frame();
+            build_ui();
             const bool ok {(vk_->draw_frame())};
             if (!ok || framebuffer_resized_) {
                 int width {0};
@@ -109,6 +113,13 @@ void App::framebuffer_size_callback(GLFWwindow* window, int width, int height) n
     if (appPtr != nullptr) {
         appPtr->framebuffer_resized_ = true;
     }
+}
+
+void App::build_ui() noexcept {
+    ImGui::SetNextWindowBgAlpha(0.4F);
+    ImGui::Begin("Overlay", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove);
+    ImGui::Text("ImGui initialized");
+    ImGui::End();
 }
 
 } // namespace vulkano
