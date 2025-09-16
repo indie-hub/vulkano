@@ -18,9 +18,9 @@
  - [x] Integrate ImGui (GLFW+Vulkan backends)
  - [x] Show FPS, frame time, device name, extent
  - [x] Implement smoothed delta time
- - [ ] Use GLM types for vertices
- - [ ] Add debug utils markers on commands
- - [ ] Enable shaderc by default in CMake
- - [ ] Fix tests to respect Debug/Release validation setting
- - [ ] Build app + tests; ensure bin/ output
- - [ ] Final cleanup (naming, small constants)
+ - [x] Use GLM types for vertices
+ - [x] Add debug utils markers on commands
+ - [x] Enable shaderc by default in CMake
+ - [x] Fix tests to respect Debug/Release validation setting
+ - [x] Build app + tests; ensure bin/ output
+ - [x] Final cleanup (naming, small constants)
