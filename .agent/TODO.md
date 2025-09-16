@@ -58,10 +58,11 @@ Verification: Built Debug locally, tests pass, headless run OK.
 - Prepared to push upstream; using `GITHUB_TOKEN` if present and remote `origin` at `indie-hub/vulkano`.
 
 ## Immediate TODOs
-- Add CI workflow to configure, build, run unit tests, and attempt headless app run on Linux and macOS (MoltenVK notes).
-- Optionally change blur to separable Gaussian (2 passes) for performance.
+- Add CI workflow to configure, build, run unit tests, and attempt headless app run on Linux and macOS (MoltenVK notes). Note: GLFW headless on Linux may require xvfb-run.
+- Optionally switch AO blur to separable Gaussian (2-pass) for better performance.
 - Harden swapchain/image recreation paths (destroy/recreate offscreen images, pipelines, and descriptor sets on resize).
 - Add helper scripts in tools/ (build_debug.sh, format_all.sh) — DONE
+- Split `vulkan_context.cpp` into smaller translation units (instance, device, swapchain, renderpasses, pipelines, resources) while preserving interfaces.
 
 ## Session Plan (short)
 - Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
@@ -69,6 +70,14 @@ Verification: Built Debug locally, tests pass, headless run OK.
 - Record command buffers: G-buffer -> SSAO -> forward — DONE
 - Keep non-Vulkan build working; run headless app to verify
 - Commit often; push at end
+
+## Acceptance Criteria – Self-check (initial)
+- App runs; window opens; headless path also runs.
+- Phong + tangent-space normal mapping visible; normal strength adjustable.
+- ImGui slider updates subdivisions and geometry re-uploads correctly.
+- SSAO toggles and parameters affect output; blur reduces noise.
+- Resizing triggers swapchain recreation without errors in normal usage.
+- Validation layers clean in Debug on supported platforms.
 
 ### 2025-09-16 Notes
 - Implemented swapchain recreation on `VK_ERROR_OUT_OF_DATE_KHR` and `VK_SUBOPTIMAL_KHR` during acquire/present.
