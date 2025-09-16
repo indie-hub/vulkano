@@ -1,5 +1,5 @@
-catch2_sanity 6 0.00463218
-stats_initial_values 6 0.00414584
-stats_smoothing_behaviour 6 0.00405608
-app_smoke 6 0.560054
+catch2_sanity 7 0.0018955
+stats_initial_values 7 0.000875661
+stats_smoothing_behaviour 7 0.000909405
+app_smoke 7 0.151671
 ---
