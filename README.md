@@ -52,6 +52,11 @@ Run the app:
 ./app/bin/Debug/vulkano_app
 ```
 
+Or use the helper script to execute a short headless run (useful for sanity checks/CI):
+```
+tools/run_headless.sh Debug
+```
+
 Tip: to run headless for CI sanity without a visible window, set the environment variable `HEADLESS_RUN_MS` (milliseconds):
 ```
 HEADLESS_RUN_MS=500 ./app/bin/Debug/vulkano_app
