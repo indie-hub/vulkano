@@ -58,11 +58,12 @@ Verification: Built Debug locally, tests pass, headless run OK.
 - Ran headless app for 200ms to validate event loop.
 - Minor housekeeping only; preparing to push pending changes if token is available.
 
-### 2025-09-16 Build+Test (This Session)
-- Fresh configure with `-DBUILD_TESTING=ON`.
+### 2025-09-16 Build+Test (This Session – CLI run)
+- Fresh configure in `build_cli/` with `-DBUILD_TESTING=ON` and `RelWithDebInfo`.
 - Built targets: `vulkano`, `vulkano_app`, and tests.
-- Ran unit tests via `ctest` — all passed.
-- Verified `HEADLESS_RUN_MS=200` headless app loop locally.
+- Ran unit tests via `ctest` — all passed (1/1).
+- Verified headless app loop with `HEADLESS_RUN_MS=200`.
+- Binaries located under `app/bin/RelWithDebInfo/` and shaders copied alongside.
 
 ### 2025-09-15 Additional Notes
 - Verified full local rebuild from clean `build/` directory.
@@ -75,6 +76,11 @@ Verification: Built Debug locally, tests pass, headless run OK.
 - [ ] Harden swapchain/image recreation paths (destroy/recreate offscreen images, pipelines, and descriptor sets on resize).
 - [x] Add helper scripts in tools/ (build_debug.sh, format_all.sh)
 - [ ] Split `vulkan_context.cpp` into smaller translation units (instance, device, swapchain, renderpasses, pipelines, resources) while preserving interfaces.
+
+## Push Status
+- Remote `origin` is `https://github.com/indie-hub/vulkano.git` on branch `feature/swapchain-recreation`.
+- Environment variable `GITHUB_TOKEN` not set in this session; skipping authenticated push.
+- To push: export `GITHUB_TOKEN` and run `git push origin feature/swapchain-recreation`.
 
 ## Session Plan (short)
 - Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
