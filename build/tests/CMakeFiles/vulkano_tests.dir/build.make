@@ -128,12 +128,12 @@ vulkano_tests_EXTERNAL_OBJECTS =
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests: tests/CMakeFiles/vulkano_tests.dir/geometry_tests.cpp.o
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests: tests/CMakeFiles/vulkano_tests.dir/build.make
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libvulkano.a
-/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libCatch2Main.a
+/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libCatch2Maind.a
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libglm.a
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libimgui.a
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libglfw3.a
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests: /usr/local/lib/libvulkan.dylib
-/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libCatch2.a
+/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libCatch2d.a
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests: tests/CMakeFiles/vulkano_tests.dir/link.txt
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Linking CXX executable /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests"
 	cd /Users/bruno/Documents/Development/bruno/vulkano_codex/build/tests && $(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/vulkano_tests.dir/link.txt --verbose=$(VERBOSE)

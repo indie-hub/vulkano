@@ -1,3 +1,3 @@
 file(REMOVE_RECURSE
-  "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libCatch2Main.a"
+  "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libCatch2Maind.a"
 )

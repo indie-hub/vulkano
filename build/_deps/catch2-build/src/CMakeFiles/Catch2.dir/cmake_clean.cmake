@@ -1,6 +1,6 @@
 file(REMOVE_RECURSE
-  "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libCatch2.a"
-  "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libCatch2.pdb"
+  "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libCatch2d.a"
+  "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libCatch2d.pdb"
   "CMakeFiles/Catch2.dir/catch2/benchmark/catch_chronometer.cpp.o"
   "CMakeFiles/Catch2.dir/catch2/benchmark/catch_chronometer.cpp.o.d"
   "CMakeFiles/Catch2.dir/catch2/benchmark/detail/catch_analyse.cpp.o"
