@@ -745,6 +745,12 @@ void App::recreate_swapchain() {
     create_pipeline();
     create_framebuffers();
     create_command_buffers();
+    if (imgui_ != nullptr) {
+        imgui_->shutdown(device_);
+        delete imgui_;
+        imgui_ = nullptr;
+    }
+    init_imgui();
 }
 
 void App::cleanup_swapchain() {
