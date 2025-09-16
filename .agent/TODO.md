@@ -41,4 +41,5 @@ Nice-to-have:
 
 Verification (automated run):
 - Built Debug and ran tests successfully on this machine.
-- Build time: 2025-09-16T11:50:30Z.
+- Build time: 2025-09-16T12:50:30Z.
+  - Re-verified build + CTest on this pass; binaries in bin/ and SPIR-V in bin/shaders.
