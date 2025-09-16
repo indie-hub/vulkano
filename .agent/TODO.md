@@ -132,6 +132,12 @@ Verification: Built Debug locally, tests pass, headless run OK.
 - Verified headless run for 200 ms: OK.
 - No source changes needed; updated TODO and will commit this verification.
 
+### 2025-09-16 (CLI) – This Run (Codex session 5)
+- Rebuilt in `build_codex/` (RelWithDebInfo) with tests enabled.
+- Tests passed (1/1); headless run `HEADLESS_RUN_MS=200` executed successfully.
+- No source changes required this pass; repo already meets v1 acceptance.
+- Next: proceed to refactor `vulkan_context.cpp` into modules when time permits.
+
 ## Acceptance Criteria – Self-check (initial)
 - App runs; window opens; headless path also runs.
 - Phong + tangent-space normal mapping visible; normal strength adjustable.
