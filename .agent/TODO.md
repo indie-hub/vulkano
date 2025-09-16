@@ -42,6 +42,7 @@ Verification: Built Debug locally, tests pass, headless run OK.
 - [x] Integrate: forward shading samples AO_blur (already wired)
 - [x] Resize-safe swapchain recreation for multi-pass images
 - [x] Fix: terminating due to uncaught exception of type std::runtime_error: Failed to create Vulkan instance (conditional validation, graceful fallback)
+- [ ] Split vulkan_context.cpp into smaller files (instance, device, swapchain, sync, utils)
 
 ## Session Summary (current)
 - Built Debug successfully on macOS; headless run OK (`HEADLESS_RUN_MS=500`).
