@@ -27,13 +27,14 @@
 - [x] Final cleanup (naming, small constants)
  - [x] Attempt push to origin (if token present)
  - [x] Build (Release) and run tests
- - [x] Build (Debug) with shaderc disabled and run tests
- - [x] Commit final changes
- - [x] Push to origin with GITHUB_TOKEN (env not set)
- - [x] Run a Debug build to validate layers at runtime and address any validation messages encountered during interactive testing
+- [x] Build (Debug) with shaderc disabled and run tests
+- [x] Commit final changes
+- [x] Push to origin with GITHUB_TOKEN (env not set)
+- [x] Run a Debug build to validate layers at runtime and address any validation messages encountered during interactive testing
 - [x] Attempt to run application (requires Vulkan runtime)
 - [x] Validate run on this host: GLFW reports Vulkan not supported (MoltenVK not installed)
- - [x] Validate the project against AGENTS.md
+- [x] Attempted app run in sandbox; UI execution not permitted
+- [x] Validate the project against AGENTS.md
 - [x] Investigate Vulkan support error on macOS (enable portability extensions)
 - [x] Finalize: build OK, tests pass, binaries in bin/
 - [x] Fix CMake issue: SPIRV-Tools was not found - required for compilation

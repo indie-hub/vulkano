@@ -1,0 +1,2 @@
+/usr/bin/ar qc libvulkano.a CMakeFiles/vulkano.dir/src/app.cpp.o CMakeFiles/vulkano.dir/src/vma.cpp.o
+/usr/bin/ranlib libvulkano.a

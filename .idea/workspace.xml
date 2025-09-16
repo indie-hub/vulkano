@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="BackendCodeEditorMiscSettings">
-    <option name="/Default/Environment/Hierarchy/GeneratedFilesCacheKey/Timestamp/@EntryValue" value="508" type="long" />
+    <option name="/Default/Environment/Hierarchy/GeneratedFilesCacheKey/Timestamp/@EntryValue" value="512" type="long" />
   </component>
   <component name="CMakePresetLoader">{
   &quot;useNewFormat&quot;: true
@@ -63,7 +63,6 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="ea5f2232-e0d5-4be9-833c-c06073c2468d" name="Changes" comment="New TODO">
-      <change beforePath="$PROJECT_DIR$/.agent/TODO.md" beforeDir="false" afterPath="$PROJECT_DIR$/.agent/TODO.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -368,7 +367,7 @@
       <option name="presentableId" value="Default" />
       <updated>1757930371230</updated>
       <workItem from="1757930372426" duration="26134000" />
-      <workItem from="1758017569975" duration="10591000" />
+      <workItem from="1758017569975" duration="10820000" />
     </task>
     <task id="LOCAL-00001" summary="New TODO">
       <option name="closed" value="true" />
@@ -408,7 +407,7 @@
                   <entry key="branch">
                     <value>
                       <list>
-                        <option value="personal/codex/sixth-attempt" />
+                        <option value="HEAD" />
                       </list>
                     </value>
                   </entry>

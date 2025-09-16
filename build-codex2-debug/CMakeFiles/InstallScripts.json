@@ -1,0 +1,17 @@
+{
+	"InstallScripts" : 
+	[
+		"/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex2-debug/cmake_install.cmake",
+		"/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex2-debug/_deps/glfw-build/cmake_install.cmake",
+		"/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex2-debug/_deps/glfw-build/src/cmake_install.cmake",
+		"/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex2-debug/_deps/glm-build/cmake_install.cmake",
+		"/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex2-debug/_deps/glm-build/glm/cmake_install.cmake",
+		"/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex2-debug/_deps/volk-build/cmake_install.cmake",
+		"/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex2-debug/_deps/vkbootstrap-build/cmake_install.cmake",
+		"/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex2-debug/_deps/vma-build/cmake_install.cmake",
+		"/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex2-debug/tests/cmake_install.cmake",
+		"/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex2-debug/_deps/catch2-build/cmake_install.cmake",
+		"/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex2-debug/_deps/catch2-build/src/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

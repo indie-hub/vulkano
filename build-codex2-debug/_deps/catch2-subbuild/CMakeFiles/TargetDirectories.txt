@@ -1,0 +1,3 @@
+/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex2-debug/_deps/catch2-subbuild/CMakeFiles/catch2-populate.dir
+/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex2-debug/_deps/catch2-subbuild/CMakeFiles/edit_cache.dir
+/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex2-debug/_deps/catch2-subbuild/CMakeFiles/rebuild_cache.dir
