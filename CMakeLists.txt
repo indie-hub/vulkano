@@ -90,6 +90,7 @@ target_compile_definitions(imgui_backend PUBLIC IMGUI_DISABLE_OBSOLETE_FUNCTIONS
 
 add_library(vulkano STATIC
     src/app.cpp
+    src/vma.cpp
 )
 
 target_sources(vulkano
