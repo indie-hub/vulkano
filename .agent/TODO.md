@@ -12,7 +12,7 @@
 - [x] Create sync primitives (fences/semaphores)
 - [x] Integrate VMA allocator
  - [ ] Create vertex buffer for triangle
-- [ ] Compile/load shaders (push constant color)
+ - [x] Compile/load shaders (push constant color)
 - [x] Create graphics pipeline and layout
 - [x] Record draw commands for triangle
 - [x] Handle resize and swapchain recreation
@@ -28,4 +28,4 @@
  - [x] Configure tests in CMake
  - [x] Set RUNTIME_OUTPUT_DIRECTORY to bin/
  - [x] Build and run locally
- - [ ] Final cleanup and documentation
+ - [x] Final cleanup and documentation
