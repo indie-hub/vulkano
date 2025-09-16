@@ -102,6 +102,12 @@ Verification: Built Debug locally, tests pass, headless run OK.
 - No code changes required; updating TODO to reflect verification.
 - Push skipped due to missing `GITHUB_TOKEN`/insufficient GitHub permissions (403).
 
+### 2025-09-16 (CLI) – This Run (Codex session 2)
+- Fresh configure + build in `build_cli/` with tests enabled.
+- Tests passed (1/1) and headless run executed for 200 ms.
+- Housekeeping: added small helper script for headless runs; updated README notes.
+- Committed changes locally on `feature/swapchain-recreation`. Will push when `GITHUB_TOKEN` is available.
+
 ## Session Plan (short)
 - Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
 - Add offscreen images + render passes + pipelines (guarded by VULKAN) — DONE
