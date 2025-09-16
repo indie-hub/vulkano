@@ -1,2 +1,0 @@
-/usr/bin/ar qc /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libglm.a CMakeFiles/glm.dir/detail/glm.cpp.o
-/usr/bin/ranlib /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libglm.a
