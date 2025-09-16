@@ -89,6 +89,12 @@ Verification: Built Debug locally, tests pass, headless run OK.
 - Added `build_cli/` to `.gitignore`.
 - No code changes required for core features; project already satisfies acceptance criteria for v1.
 
+### 2025-09-16 (CLI) – This Run
+- Verified configure + build (`RelWithDebInfo`) in `build_cli/`.
+- All tests passed via `ctest` (1/1).
+- Headless app run verified with `HEADLESS_RUN_MS=200` (no Vulkan path).
+- No source changes in this pass; next focus remains refactor of `vulkan_context.cpp` into smaller units.
+
 ## Session Plan (short)
 - Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
 - Add offscreen images + render passes + pipelines (guarded by VULKAN) — DONE
