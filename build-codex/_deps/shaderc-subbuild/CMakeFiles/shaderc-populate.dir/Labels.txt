@@ -1,0 +1,14 @@
+# Target labels
+ shaderc-populate
+# Source files and their labels
+/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex/_deps/shaderc-subbuild/CMakeFiles/shaderc-populate
+/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex/_deps/shaderc-subbuild/CMakeFiles/shaderc-populate.rule
+/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex/_deps/shaderc-subbuild/CMakeFiles/shaderc-populate-complete.rule
+/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex/_deps/shaderc-subbuild/shaderc-populate-prefix/src/shaderc-populate-stamp/shaderc-populate-build.rule
+/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex/_deps/shaderc-subbuild/shaderc-populate-prefix/src/shaderc-populate-stamp/shaderc-populate-configure.rule
+/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex/_deps/shaderc-subbuild/shaderc-populate-prefix/src/shaderc-populate-stamp/shaderc-populate-download.rule
+/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex/_deps/shaderc-subbuild/shaderc-populate-prefix/src/shaderc-populate-stamp/shaderc-populate-install.rule
+/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex/_deps/shaderc-subbuild/shaderc-populate-prefix/src/shaderc-populate-stamp/shaderc-populate-mkdir.rule
+/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex/_deps/shaderc-subbuild/shaderc-populate-prefix/src/shaderc-populate-stamp/shaderc-populate-patch.rule
+/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex/_deps/shaderc-subbuild/shaderc-populate-prefix/src/shaderc-populate-stamp/shaderc-populate-test.rule
+/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex/_deps/shaderc-subbuild/shaderc-populate-prefix/src/shaderc-populate-stamp/shaderc-populate-update.rule

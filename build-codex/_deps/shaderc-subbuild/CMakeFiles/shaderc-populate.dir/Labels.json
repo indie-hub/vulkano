@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex/_deps/shaderc-subbuild/CMakeFiles/shaderc-populate"
+		},
+		{
+			"file" : "/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex/_deps/shaderc-subbuild/CMakeFiles/shaderc-populate.rule"
+		},
+		{
+			"file" : "/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex/_deps/shaderc-subbuild/CMakeFiles/shaderc-populate-complete.rule"
+		},
+		{
+			"file" : "/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex/_deps/shaderc-subbuild/shaderc-populate-prefix/src/shaderc-populate-stamp/shaderc-populate-build.rule"
+		},
+		{
+			"file" : "/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex/_deps/shaderc-subbuild/shaderc-populate-prefix/src/shaderc-populate-stamp/shaderc-populate-configure.rule"
+		},
+		{
+			"file" : "/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex/_deps/shaderc-subbuild/shaderc-populate-prefix/src/shaderc-populate-stamp/shaderc-populate-download.rule"
+		},
+		{
+			"file" : "/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex/_deps/shaderc-subbuild/shaderc-populate-prefix/src/shaderc-populate-stamp/shaderc-populate-install.rule"
+		},
+		{
+			"file" : "/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex/_deps/shaderc-subbuild/shaderc-populate-prefix/src/shaderc-populate-stamp/shaderc-populate-mkdir.rule"
+		},
+		{
+			"file" : "/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex/_deps/shaderc-subbuild/shaderc-populate-prefix/src/shaderc-populate-stamp/shaderc-populate-patch.rule"
+		},
+		{
+			"file" : "/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex/_deps/shaderc-subbuild/shaderc-populate-prefix/src/shaderc-populate-stamp/shaderc-populate-test.rule"
+		},
+		{
+			"file" : "/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex/_deps/shaderc-subbuild/shaderc-populate-prefix/src/shaderc-populate-stamp/shaderc-populate-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"shaderc-populate"
+		],
+		"name" : "shaderc-populate"
+	}
+}
