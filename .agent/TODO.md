@@ -1,31 +1,26 @@
-- [x] Initialize CMake project skeleton
-- [x] Add formatting and tidy configs
+ - [x] Initialize CMake project skeleton
+ - [x] Add formatting and tidy configs
  - [x] Add third-party dependencies via FetchContent
-- [x] Implement core Vulkan app scaffolding
-- [x] Create window with GLFW
-- [x] Create Vulkan instance with validation (Debug)
-- [x] Pick physical device and queues using vk-bootstrap
-- [x] Create logical device and queues
-- [x] Create surface and swapchain
-- [x] Create image views and render pass
-- [x] Create framebuffers and command pool/buffers
-- [x] Create sync primitives (fences/semaphores)
-- [x] Integrate VMA allocator
- - [ ] Create vertex buffer for triangle
+ - [x] Implement core Vulkan app scaffolding
+ - [x] Create window with GLFW
+ - [x] Create Vulkan instance with validation (Debug)
+ - [x] Pick physical device and queues using vk-bootstrap
+ - [x] Create logical device and queues
+ - [x] Create surface and swapchain
+ - [x] Create image views and render pass
+ - [x] Create framebuffers and command pool/buffers
+ - [x] Create sync primitives (fences/semaphores)
+ - [x] Integrate VMA allocator
  - [x] Compile/load shaders (push constant color)
-- [x] Create graphics pipeline and layout
-- [x] Record draw commands for triangle
-- [x] Handle resize and swapchain recreation
-- [x] Integrate ImGui (GLFW+Vulkan backends)
-- [x] Show FPS, frame time, device name, extent
-- [x] Implement smoothed delta time
- - [ ] Add debug utils names and markers
-- [ ] Add unit tests (timing/math)
-- [ ] Configure tests in CMake
-- [ ] Set RUNTIME_OUTPUT_DIRECTORY to bin/
-- [ ] Build and run locally
- - [x] Add unit tests (timing/math)
- - [x] Configure tests in CMake
- - [x] Set RUNTIME_OUTPUT_DIRECTORY to bin/
- - [x] Build and run locally
- - [x] Final cleanup and documentation
+ - [x] Create graphics pipeline and layout
+ - [x] Record draw commands for triangle
+ - [x] Handle resize and swapchain recreation
+ - [x] Integrate ImGui (GLFW+Vulkan backends)
+ - [x] Show FPS, frame time, device name, extent
+ - [x] Implement smoothed delta time
+ - [ ] Use GLM types for vertices
+ - [ ] Add debug utils markers on commands
+ - [ ] Enable shaderc by default in CMake
+ - [ ] Fix tests to respect Debug/Release validation setting
+ - [ ] Build app + tests; ensure bin/ output
+ - [ ] Final cleanup (naming, small constants)
