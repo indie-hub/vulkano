@@ -1,13 +1,4 @@
-- [x] Create TODO with steps
-- [x] Implement Primitive/Plane/Cube/Icosphere and GPU upload
-- [x] Single graphics pipeline with depth testing
-- [x] Blinn-Phong shading via UBO + push constants
-- [x] Camera (orbit) + per-draw MVP
-- [x] Scene setup: plane/cube/icosphere + materials
-- [x] ImGui overlay: stats + per-primitive + light controls
-- [x] Configure + build (bin/ + shaders)
-- [x] Run unit + E2E tests (smoke)
-- [x] Review and tidy (clang-format/tidy)
-- [x] Verify VK_EXT_debug_utils names/markers coverage; add missing labels if needed
-- [x] Audit includes to ensure angle brackets everywhere; fix if needed
-- [x] Update docs: module README and build/run notes
+- [x] Build + compile shaders + run unit and E2E tests; package to `bin/dist`
+- [ ] Manual visual QA on macOS: verify plane/cube/icosphere depth, Blinn-Phong shading, UI controls, resizing, and no validation errors
+- [ ] CI: add macOS workflow to build, compile shaders, run tests; archive `bin/dist`
+- [ ] Polish: re-audit debug utils names/markers and include hygiene; address any minor tidy/format issues
