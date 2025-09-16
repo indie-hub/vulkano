@@ -47,7 +47,7 @@ FetchContent_MakeAvailable(imgui)
 
 # Shaders
 set(SHADER_DIR ${CMAKE_SOURCE_DIR}/shaders)
-set(SPIRV_DIR ${CMAKE_BINARY_DIR}/shaders)
+set(SPIRV_DIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders)
 file(MAKE_DIRECTORY ${SPIRV_DIR})
 
 find_program(GLSLC glslc HINTS ENV VULKAN_SDK PATH_SUFFIXES Bin bin)
