@@ -1,0 +1,27 @@
+ - [ ] Initialize CMake project skeleton
+ - [ ] Add formatting and tidy configs
+ - [ ] Add third-party dependencies via FetchContent
+ - [ ] Implement core Vulkan app scaffolding
+ - [ ] Create window with GLFW
+ - [ ] Create Vulkan instance with validation (Debug)
+ - [ ] Pick physical device and queues using vk-bootstrap
+ - [ ] Create logical device and queues
+ - [ ] Create surface and swapchain
+ - [ ] Create image views and render pass
+ - [ ] Create framebuffers and command pool/buffers
+ - [ ] Create sync primitives (fences/semaphores)
+ - [ ] Integrate VMA allocator
+ - [ ] Create vertex buffer for triangle
+ - [ ] Compile/load shaders (push constant color)
+ - [ ] Create graphics pipeline and layout
+ - [ ] Record draw commands for triangle
+ - [ ] Handle resize and swapchain recreation
+ - [ ] Integrate ImGui (GLFW+Vulkan backends)
+ - [ ] Show FPS, frame time, device name, extent
+ - [ ] Implement smoothed delta time
+ - [ ] Add debug utils names and markers
+ - [ ] Add unit tests (timing/math)
+ - [ ] Configure tests in CMake
+ - [ ] Set RUNTIME_OUTPUT_DIRECTORY to bin/
+ - [ ] Build and run locally
+ - [ ] Final cleanup and documentation
