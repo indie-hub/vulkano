@@ -50,12 +50,11 @@ cmake --build build --config Debug -j
 Run the app:
 ```
 ./app/bin/Debug/vulkano_app
+```
 
 Tip: to run headless for CI sanity without a visible window, set the environment variable `HEADLESS_RUN_MS` (milliseconds):
-
 ```
 HEADLESS_RUN_MS=500 ./app/bin/Debug/vulkano_app
-```
 ```
 
 Run tests:
