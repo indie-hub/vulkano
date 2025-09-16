@@ -88,6 +88,11 @@ struct App::Impl {
     VkDescriptorPool imguiDescriptorPool {VK_NULL_HANDLE};
     bool imguiInitialized {false};
 
+    // Timing for FPS/frame time
+    std::chrono::steady_clock::time_point lastFrameTime {std::chrono::steady_clock::now()};
+    std::vector<double> dtSamples {};
+    int dtWindow {100};
+
     explicit Impl(const AppConfig& cfg)
         : config {cfg} {
     }
@@ -393,12 +398,21 @@ struct App::Impl {
         }
     }
 
-    void recordCommandBuffer(const VkCommandBuffer cb, const uint32_t imageIndex) const {
+    void recordCommandBuffer(const VkCommandBuffer cb, const uint32_t imageIndex) {
         (void)imageIndex;
         VkCommandBufferBeginInfo beginInfo {};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         if (vkBeginCommandBuffer(cb, &beginInfo) != VK_SUCCESS) {
             throw std::runtime_error {"Failed to begin command buffer"};
+        }
+
+        // Build ImGui frame
+        if (imguiInitialized) {
+            ImGui_ImplVulkan_NewFrame();
+            ImGui_ImplGlfw_NewFrame();
+            ImGui::NewFrame();
+            drawStatsUi();
+            ImGui::Render();
         }
 
         VkClearValue clear {}; // black with full alpha
@@ -422,7 +436,9 @@ struct App::Impl {
             vkCmdDraw(cb, 3U, 1U, 0U, 0U);
         }
 
-        // ImGui rendering will be inserted later (after triangle)
+        if (imguiInitialized) {
+            ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cb);
+        }
 
         vkCmdEndRenderPass(cb);
 
@@ -476,6 +492,35 @@ struct App::Impl {
         } else if (pres != VK_SUCCESS) {
             throw std::runtime_error {"Failed to present"};
         }
+    }
+
+    void drawStatsUi() {
+        // Update timing
+        const auto now = std::chrono::steady_clock::now();
+        const std::chrono::duration<double> dt = now - lastFrameTime;
+        lastFrameTime = now;
+        const double seconds = dt.count();
+        if (static_cast<int>(dtSamples.size()) == dtWindow) {
+            dtSamples.erase(dtSamples.begin());
+        }
+        dtSamples.push_back(seconds);
+        double sum {0.0};
+        for (double v : dtSamples) {
+            sum += v;
+        }
+        const double avg = (dtSamples.empty() ? 0.0 : sum / static_cast<double>(dtSamples.size()));
+        const double ms = avg * 1000.0;
+        const double fps = (ms > 0.0 ? 1000.0 / ms : 0.0);
+
+        VkPhysicalDeviceProperties props {};
+        vkGetPhysicalDeviceProperties(physicalDevice, &props);
+
+        ImGui::Begin("Stats");
+        ImGui::Text("FPS: %.1f", fps);
+        ImGui::Text("Frame time: %.3f ms", ms);
+        ImGui::Text("Device: %s", props.deviceName);
+        ImGui::Text("Extent: %u x %u", swapchainExtent.width, swapchainExtent.height);
+        ImGui::End();
     }
 
     static std::vector<uint32_t> compileGlslToSpv(const std::string& src, const VkShaderStageFlagBits stage) {
