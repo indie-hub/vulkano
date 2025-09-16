@@ -1,0 +1,1 @@
+/usr/bin/c++ -g -arch arm64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/vulkano_app.dir/src/main.cpp.o -o bin/vulkano_app  -Wl,-rpath,/usr/local/lib lib/libvulkano.a lib/libimgui_backend.a /usr/local/lib/libvulkan.dylib lib/libglfw3.a -framework Cocoa -framework IOKit -framework CoreFoundation lib/libglm.a

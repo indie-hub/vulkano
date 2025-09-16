@@ -28,7 +28,7 @@ App::App() : m_window {nullptr}, m_vk {nullptr}, m_imgui {nullptr}, m_color {1.0
     const WindowConfig cfg {std::string{"VulkanoCodex"}, 1280U, 720U, true};
     m_window = new Window{cfg};
     m_vk = new VulkanContext{m_window->handle(), cfg.width, cfg.height};
-    m_imgui = new ImGuiLayer{m_window->handle(), m_vk->instance(), m_vk->device(), static_cast<VkQueue>(m_vk->graphics_queue()), m_vk->render_pass()};
+    m_imgui = new ImGuiLayer{m_window->handle(), m_vk->instance(), static_cast<VkPhysicalDevice>(m_vk->physical_device()), m_vk->device(), m_vk->graphics_family_index(), static_cast<VkQueue>(m_vk->graphics_queue()), static_cast<VkCommandPool>(m_vk->command_pool()), m_vk->render_pass()};
 }
 
 App::App(App&& other) noexcept {

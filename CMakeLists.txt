@@ -68,7 +68,6 @@ add_library(vulkano STATIC
     src/imgui_layer.cpp
     src/app.cpp
     src/utils/fps.cpp
-    src/shaders.cpp
 )
 target_sources(vulkano
     PUBLIC
@@ -82,19 +81,31 @@ target_sources(vulkano
             include/vulkano/utils/fps.hpp
 )
 target_include_directories(vulkano PUBLIC include)
-FetchContent_Declare(
-    shaderc
-    GIT_REPOSITORY https://github.com/google/shaderc.git
-    GIT_TAG v2024.2
-)
-set(SHADERC_SKIP_TESTS ON CACHE BOOL "" FORCE)
-set(SHADERC_ENABLE_SHARED_CRT OFF CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(shaderc)
-
-target_link_libraries(vulkano PUBLIC Vulkan::Vulkan glfw imgui_backend glm::glm shaderc)
+target_link_libraries(vulkano PUBLIC Vulkan::Vulkan glfw imgui_backend glm::glm)
 
 add_executable(vulkano_app src/main.cpp)
 target_link_libraries(vulkano_app PRIVATE vulkano)
+
+# Shaders
+set(SHADER_SRC_DIR ${CMAKE_SOURCE_DIR}/shaders)
+set(SHADER_BIN_DIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders)
+file(MAKE_DIRECTORY ${SHADER_BIN_DIR})
+set(VERT_SRC ${SHADER_SRC_DIR}/triangle.vert)
+set(FRAG_SRC ${SHADER_SRC_DIR}/triangle.frag)
+set(VERT_SPV ${SHADER_BIN_DIR}/triangle.vert.spv)
+set(FRAG_SPV ${SHADER_BIN_DIR}/triangle.frag.spv)
+add_custom_command(OUTPUT ${VERT_SPV}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${SHADER_BIN_DIR}
+    COMMAND ${Vulkan_GLSLC_EXECUTABLE} -fshader-stage=vert ${VERT_SRC} -o ${VERT_SPV}
+    DEPENDS ${VERT_SRC}
+    COMMENT "Compiling vertex shader")
+add_custom_command(OUTPUT ${FRAG_SPV}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${SHADER_BIN_DIR}
+    COMMAND ${Vulkan_GLSLC_EXECUTABLE} -fshader-stage=frag ${FRAG_SRC} -o ${FRAG_SPV}
+    DEPENDS ${FRAG_SRC}
+    COMMENT "Compiling fragment shader")
+add_custom_target(compile_shaders DEPENDS ${VERT_SPV} ${FRAG_SPV})
+add_dependencies(vulkano_app compile_shaders)
 
 include(CTest)
 if (BUILD_TESTING)

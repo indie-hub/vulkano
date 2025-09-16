@@ -4,6 +4,7 @@
 #include <span>
 #include <string>
 #include <vector>
+#include <vulkan/vulkan.h>
 
 #include <glm/glm.hpp>
 
@@ -61,6 +62,9 @@ public:
     [[nodiscard]] VkRenderPass render_pass() const noexcept;
     [[nodiscard]] VkInstance instance() const noexcept;
     [[nodiscard]] void* graphics_queue() const noexcept; // VkQueue as void*
+    [[nodiscard]] void* command_pool() const noexcept;   // VkCommandPool as void*
+    [[nodiscard]] void* physical_device() const noexcept; // VkPhysicalDevice as void*
+    [[nodiscard]] std::uint32_t graphics_family_index() const noexcept;
 
 private:
     void create_instance();
@@ -87,6 +91,7 @@ private:
     VkDevice m_device {nullptr};
     VkQueue m_graphics_queue {nullptr};
     VkQueue m_present_queue {nullptr};
+    std::uint32_t m_graphics_family_index {0U};
     VkSwapchainKHR m_swapchain {nullptr};
     std::vector<VkImageView> m_swapchain_image_views {};
     VkRenderPass m_render_pass {nullptr};
@@ -103,6 +108,7 @@ private:
     std::size_t m_current_frame {0U};
     SwapchainExtent m_extent {};
     std::string m_device_name {};
+    VkFormat m_swapchain_format {VK_FORMAT_B8G8R8A8_SRGB};
 };
 
 } // namespace vulkano

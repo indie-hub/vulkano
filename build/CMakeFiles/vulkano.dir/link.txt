@@ -1,0 +1,2 @@
+/usr/bin/ar qc lib/libvulkano.a CMakeFiles/vulkano.dir/src/window.cpp.o CMakeFiles/vulkano.dir/src/vulkan_context.cpp.o CMakeFiles/vulkano.dir/src/imgui_layer.cpp.o CMakeFiles/vulkano.dir/src/app.cpp.o CMakeFiles/vulkano.dir/src/utils/fps.cpp.o
+/usr/bin/ranlib lib/libvulkano.a

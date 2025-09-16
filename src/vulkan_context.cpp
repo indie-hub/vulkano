@@ -8,13 +8,8 @@
 #include <string_view>
 #include <vector>
 
+#define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
-#include <vulkan/vulkan.h>
-
-namespace shaders {
-std::vector<std::uint32_t> vertex_spirv();
-std::vector<std::uint32_t> fragment_spirv();
-}
 
 namespace vulkano {
 
@@ -93,9 +88,9 @@ namespace {
         s.formats.resize(count);
         vkGetPhysicalDeviceSurfaceFormatsKHR(pd, surface, &count, s.formats.data());
         count = 0U;
-        vkGetPhysicalDevicePresentModesKHR(pd, surface, &count, nullptr);
+        vkGetPhysicalDeviceSurfacePresentModesKHR(pd, surface, &count, nullptr);
         s.modes.resize(count);
-        vkGetPhysicalDevicePresentModesKHR(pd, surface, &count, s.modes.data());
+        vkGetPhysicalDeviceSurfacePresentModesKHR(pd, surface, &count, s.modes.data());
         return s;
     }
 
@@ -151,6 +146,33 @@ namespace {
         vkQueueSubmit(queue, 1, &submit, VK_NULL_HANDLE);
         vkQueueWaitIdle(queue);
         vkFreeCommandBuffers(device, pool, 1, &cmd);
+    }
+
+    std::vector<std::uint32_t> read_spirv_file(const char* path) {
+        FILE* f = fopen(path, "rb");
+        if (f == nullptr) {
+            throw std::runtime_error(std::string{"Failed to open SPIR-V file: "} + path);
+        }
+        if (fseek(f, 0, SEEK_END) != 0) {
+            fclose(f);
+            throw std::runtime_error("Failed to seek SPIR-V file");
+        }
+        const long sz = ftell(f);
+        if (sz <= 0) {
+            fclose(f);
+            throw std::runtime_error("Empty SPIR-V file");
+        }
+        if (fseek(f, 0, SEEK_SET) != 0) {
+            fclose(f);
+            throw std::runtime_error("Failed to rewind SPIR-V file");
+        }
+        std::vector<std::uint32_t> data(static_cast<std::size_t>(sz / 4));
+        if (fread(data.data(), 1, static_cast<std::size_t>(sz), f) != static_cast<std::size_t>(sz)) {
+            fclose(f);
+            throw std::runtime_error(std::string{"Failed to read SPIR-V file: "} + path);
+        }
+        fclose(f);
+        return data;
     }
 
 } // namespace
@@ -250,16 +272,41 @@ void VulkanContext::create_instance() {
         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
 
+    // Portability on platforms like macOS/MoltenVK
+    std::uint32_t instExtCount {0U};
+    vkEnumerateInstanceExtensionProperties(nullptr, &instExtCount, nullptr);
+    std::vector<VkExtensionProperties> instExts(instExtCount);
+    vkEnumerateInstanceExtensionProperties(nullptr, &instExtCount, instExts.data());
+    const char* kPortabilityExt = VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME;
+    const bool have_portability = std::any_of(instExts.begin(), instExts.end(), [&](const VkExtensionProperties& e) {
+        return std::strcmp(e.extensionName, kPortabilityExt) == 0;
+    });
+    if (have_portability) {
+        extensions.push_back(kPortabilityExt);
+    }
+
     VkInstanceCreateInfo info {};
     info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     info.pApplicationInfo = &app;
     info.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
     info.ppEnabledExtensionNames = extensions.data();
+    if (have_portability) {
+        info.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+    }
 
     const std::array<const char*, 1> layers {"VK_LAYER_KHRONOS_validation"};
     if (kEnableValidation) {
-        info.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
-        info.ppEnabledLayerNames = layers.data();
+        std::uint32_t layerCount {0U};
+        vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+        std::vector<VkLayerProperties> available(layerCount);
+        vkEnumerateInstanceLayerProperties(&layerCount, available.data());
+        const bool have_validation = std::any_of(available.begin(), available.end(), [&](const VkLayerProperties& p) {
+            return std::strcmp(p.layerName, layers[0]) == 0;
+        });
+        if (have_validation) {
+            info.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
+            info.ppEnabledLayerNames = layers.data();
+        }
     }
     if (vkCreateInstance(&info, nullptr, &m_instance) != VK_SUCCESS) {
         throw std::runtime_error{"Failed to create Vulkan instance"};
@@ -341,8 +388,20 @@ void VulkanContext::create_logical_device() {
     info.queueCreateInfoCount = static_cast<std::uint32_t>(queues.size());
     info.pQueueCreateInfos = queues.data();
     info.pEnabledFeatures = &features;
-    info.enabledExtensionCount = static_cast<std::uint32_t>(kDeviceExtensions.size());
-    info.ppEnabledExtensionNames = kDeviceExtensions.data();
+    std::vector<const char*> devExts(kDeviceExtensions.begin(), kDeviceExtensions.end());
+    std::uint32_t devExtCount {0U};
+    vkEnumerateDeviceExtensionProperties(m_physical_device, nullptr, &devExtCount, nullptr);
+    std::vector<VkExtensionProperties> devExtProps(devExtCount);
+    vkEnumerateDeviceExtensionProperties(m_physical_device, nullptr, &devExtCount, devExtProps.data());
+    const char* portability_subset = "VK_KHR_portability_subset";
+    const bool have_portability_subset = std::any_of(devExtProps.begin(), devExtProps.end(), [&](const VkExtensionProperties& e) {
+        return std::strcmp(e.extensionName, portability_subset) == 0;
+    });
+    if (have_portability_subset) {
+        devExts.push_back(portability_subset);
+    }
+    info.enabledExtensionCount = static_cast<std::uint32_t>(devExts.size());
+    info.ppEnabledExtensionNames = devExts.data();
     const std::array<const char*, 1> layers {"VK_LAYER_KHRONOS_validation"};
     if (kEnableValidation) {
         info.enabledLayerCount = static_cast<std::uint32_t>(layers.size());
@@ -353,6 +412,7 @@ void VulkanContext::create_logical_device() {
     }
     vkGetDeviceQueue(m_device, q.graphics, 0, &m_graphics_queue);
     vkGetDeviceQueue(m_device, q.present, 0, &m_present_queue);
+    m_graphics_family_index = q.graphics;
 }
 
 void VulkanContext::create_swapchain(std::uint32_t width, std::uint32_t height) {
@@ -391,6 +451,7 @@ void VulkanContext::create_swapchain(std::uint32_t width, std::uint32_t height) 
         throw std::runtime_error{"Failed to create swapchain"};
     }
     m_extent = SwapchainExtent{extent.width, extent.height};
+    m_swapchain_format = surface_format.format;
 }
 
 void VulkanContext::create_image_views() {
@@ -404,7 +465,7 @@ void VulkanContext::create_image_views() {
         info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         info.image = images[i];
         info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        info.format = VK_FORMAT_B8G8R8A8_SRGB;
+        info.format = m_swapchain_format;
         info.components = {VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY};
         info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         info.subresourceRange.baseMipLevel = 0;
@@ -419,7 +480,7 @@ void VulkanContext::create_image_views() {
 
 void VulkanContext::create_render_pass() {
     VkAttachmentDescription color {};
-    color.format = VK_FORMAT_B8G8R8A8_SRGB;
+    color.format = m_swapchain_format;
     color.samples = VK_SAMPLE_COUNT_1_BIT;
     color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -459,8 +520,8 @@ void VulkanContext::create_render_pass() {
 }
 
 void VulkanContext::create_graphics_pipeline() {
-    const auto vert = shaders::vertex_spirv();
-    const auto frag = shaders::fragment_spirv();
+    const auto vert = read_spirv_file("shaders/triangle.vert.spv");
+    const auto frag = read_spirv_file("shaders/triangle.frag.spv");
     VkShaderModule vert_mod = create_shader_module(m_device, vert);
     VkShaderModule frag_mod = create_shader_module(m_device, frag);
 
@@ -520,7 +581,7 @@ void VulkanContext::create_graphics_pipeline() {
     raster.polygonMode = VK_POLYGON_MODE_FILL;
     raster.lineWidth = 1.0F;
     raster.cullMode = VK_CULL_MODE_BACK_BIT;
-    raster.frontFace = VK_FRONT_FACE_CLOCKWISE;
+    raster.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     raster.depthBiasEnable = VK_FALSE;
 
     VkPipelineMultisampleStateCreateInfo msaa {};
@@ -771,5 +832,24 @@ VkDevice VulkanContext::device() const noexcept { return m_device; }
 VkRenderPass VulkanContext::render_pass() const noexcept { return m_render_pass; }
 VkInstance VulkanContext::instance() const noexcept { return m_instance; }
 void* VulkanContext::graphics_queue() const noexcept { return m_graphics_queue; }
+void* VulkanContext::command_pool() const noexcept { return m_command_pool; }
+void* VulkanContext::physical_device() const noexcept { return m_physical_device; }
+std::uint32_t VulkanContext::graphics_family_index() const noexcept { return m_graphics_family_index; }
 
 } // namespace vulkano
+    std::vector<std::uint32_t> read_spirv_file(const char* path) {
+        FILE* f = fopen(path, "rb");
+        if (f == nullptr) {
+            throw std::runtime_error(std::string{"Failed to open SPIR-V file: "} + path);
+        }
+        fseek(f, 0, SEEK_END);
+        const long size = ftell(f);
+        fseek(f, 0, SEEK_SET);
+        std::vector<std::uint32_t> data(static_cast<std::size_t>(size / 4));
+        if (fread(data.data(), 1, static_cast<std::size_t>(size), f) != static_cast<std::size_t>(size)) {
+            fclose(f);
+            throw std::runtime_error(std::string{"Failed to read SPIR-V file: "} + path);
+        }
+        fclose(f);
+        return data;
+    }
