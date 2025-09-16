@@ -10,8 +10,7 @@
 - [x] CI: add GitHub Actions for format, build, and tests on macOS/Linux/Windows.
 - [x] Packaging: copy runtime assets to a relocatable bundle and verify running outside the build tree.
 - [x] Verify dist bundle runs cleanly when executed from bin/dist with VK_APP_AUTOCLOSE_MS.
-
-Remaining next steps (nice-to-haves):
-- [ ] Add pipeline cache persistence to speed subsequent runs.
-- [ ] Add dynamic viewport/scissor states to minimize pipeline rebuilds on resize.
-- [ ] Add MSAA configuration and a toggle in the UI.
+- [x] Local build/test verified on macOS environment.
+- [ ] Nice-to-have: add pipeline cache persistence to speed subsequent runs.
+- [ ] Nice-to-have: add dynamic viewport/scissor states to minimize pipeline rebuilds on resize.
+- [ ] Nice-to-have: add MSAA configuration and a toggle in the UI.
