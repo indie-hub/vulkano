@@ -94,6 +94,13 @@ Verification: Built Debug locally, tests pass, headless run OK.
 - All tests passed via `ctest` (1/1).
 - Headless app run verified with `HEADLESS_RUN_MS=200` (no Vulkan path).
 - No source changes in this pass; next focus remains refactor of `vulkan_context.cpp` into smaller units.
+ 
+### 2025-09-16 (CLI) – This Run (Codex session)
+- Re-verified clean configure + build in `build_cli/` (RelWithDebInfo).
+- Executed unit tests: all green.
+- Ran headless loop for 200 ms to sanity-check the app.
+- No code changes required; updating TODO to reflect verification.
+- Push skipped due to missing `GITHUB_TOKEN`/insufficient GitHub permissions (403).
 
 ## Session Plan (short)
 - Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
