@@ -39,7 +39,8 @@ Requirements:
 - CMake 3.25+
 - A C++20 compiler (Clang, GCC, or MSVC)
 - Internet access for FetchContent dependencies
-- Vulkan SDK or MoltenVK (optional at this stage; enables Vulkan rendering path)
+ - Vulkan SDK or MoltenVK (optional at this stage; enables Vulkan rendering path)
+   - macOS: install the Vulkan SDK from LunarG (includes MoltenVK). Ensure `vulkan-1.dylib` is discoverable by the loader. If needed, export `VK_ICD_FILENAMES` to MoltenVK’s JSON (see SDK docs).
 
 ```
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
