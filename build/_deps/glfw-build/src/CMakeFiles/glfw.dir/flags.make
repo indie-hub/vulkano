@@ -6,7 +6,7 @@ C_DEFINES = -D_GLFW_COCOA
 
 C_INCLUDES = -I/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glfw-src/include -I/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glfw-src/src -I/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glfw-build/src
 
-C_FLAGSarm64 = -g -std=c99 -arch arm64 -fPIC -Wall -Wextra -Wpedantic -Wconversion
+C_FLAGSarm64 = -O2 -g -DNDEBUG -std=c99 -arch arm64 -fPIC -Wall -Wextra -Wpedantic -Wconversion
 
-C_FLAGS = -g -std=c99 -arch arm64 -fPIC -Wall -Wextra -Wpedantic -Wconversion
+C_FLAGS = -O2 -g -DNDEBUG -std=c99 -arch arm64 -fPIC -Wall -Wextra -Wpedantic -Wconversion
 

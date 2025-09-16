@@ -6,7 +6,7 @@ CXX_DEFINES =
 
 CXX_INCLUDES = -I/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src
 
-CXX_FLAGSarm64 = -g -std=c++20 -arch arm64 -Wall -Wextra -Wpedantic -Wconversion -Wno-c++98-compat -Wno-c++98-compat-pedantic
+CXX_FLAGSarm64 = -O2 -g -DNDEBUG -std=c++20 -arch arm64 -Wall -Wextra -Wpedantic -Wconversion -Wno-c++98-compat -Wno-c++98-compat-pedantic
 
-CXX_FLAGS = -g -std=c++20 -arch arm64 -Wall -Wextra -Wpedantic -Wconversion -Wno-c++98-compat -Wno-c++98-compat-pedantic
+CXX_FLAGS = -O2 -g -DNDEBUG -std=c++20 -arch arm64 -Wall -Wextra -Wpedantic -Wconversion -Wno-c++98-compat -Wno-c++98-compat-pedantic
 

@@ -1,5 +1,9 @@
 - [x] Create TODO with steps
 - [x] Configure + build (bin/ + shaders)
 - [x] Run unit + E2E tests
-- [ ] Manual run validation (auto-close)
+- [x] Manual run validation (auto-close)
 - [ ] Review and tidy (clang-format/tidy)
+- [ ] Enforce header/impl separation for inline methods (geometry.hpp)
+- [ ] Verify VK_EXT_debug_utils names/markers coverage; add missing labels
+- [ ] Audit includes to ensure angle brackets everywhere; fix if needed
+- [ ] Update docs: module README and build/run notes

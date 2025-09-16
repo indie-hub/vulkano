@@ -6,7 +6,7 @@ CXX_DEFINES =
 
 CXX_INCLUDES = -I/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/catch2-src/src/catch2/.. -I/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/catch2-build/generated-includes
 
-CXX_FLAGSarm64 = -g -std=c++20 -arch arm64 -Wall -Wextra -Wpedantic -Wconversion -ffile-prefix-map=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/catch2-src/=
+CXX_FLAGSarm64 = -O2 -g -DNDEBUG -std=c++20 -arch arm64 -Wall -Wextra -Wpedantic -Wconversion -ffile-prefix-map=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/catch2-src/=
 
-CXX_FLAGS = -g -std=c++20 -arch arm64 -Wall -Wextra -Wpedantic -Wconversion -ffile-prefix-map=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/catch2-src/=
+CXX_FLAGS = -O2 -g -DNDEBUG -std=c++20 -arch arm64 -Wall -Wextra -Wpedantic -Wconversion -ffile-prefix-map=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/catch2-src/=
 
