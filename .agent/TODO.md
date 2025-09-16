@@ -144,6 +144,12 @@ Verification: Built Debug locally, tests pass, headless run OK.
 - Added `build_codex2/` to `.gitignore` and updated TODO.
 - No core source changes required; repo meets v1 acceptance.
 
+### 2025-09-16 (CLI) – This Run (Codex session 7)
+- Configured and built in `build_codex3/` (RelWithDebInfo, tests ON) using Ninja.
+- All Catch2 tests passed via `ctest` (1/1 group).
+- Ran headless app for 200 ms successfully.
+- Added `build_codex3/` to `.gitignore`.
+
 ## Acceptance Criteria – Self-check (initial)
 - App runs; window opens; headless path also runs.
 - Phong + tangent-space normal mapping visible; normal strength adjustable.

@@ -45,6 +45,7 @@ build/
 build_cli/
 build_codex/
 build_codex2/
+build_codex3/
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
