@@ -1,0 +1,7 @@
+add_test( catch2_sanity /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests catch2_sanity  )
+set_tests_properties( catch2_sanity PROPERTIES WORKING_DIRECTORY /Users/bruno/Documents/Development/bruno/vulkano_codex/build/tests)
+add_test( stats_initial_values /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests stats_initial_values  )
+set_tests_properties( stats_initial_values PROPERTIES WORKING_DIRECTORY /Users/bruno/Documents/Development/bruno/vulkano_codex/build/tests)
+add_test( stats_smoothing_behaviour /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests stats_smoothing_behaviour  )
+set_tests_properties( stats_smoothing_behaviour PROPERTIES WORKING_DIRECTORY /Users/bruno/Documents/Development/bruno/vulkano_codex/build/tests)
+set( vulkano_tests_TESTS catch2_sanity stats_initial_values stats_smoothing_behaviour)

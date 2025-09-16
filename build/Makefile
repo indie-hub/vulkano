@@ -639,6 +639,45 @@ glm/fast:
 	$(MAKE) $(MAKESILENT) -f _deps/glm-build/glm/CMakeFiles/glm.dir/build.make _deps/glm-build/glm/CMakeFiles/glm.dir/build
 .PHONY : glm/fast
 
+#=============================================================================
+# Target rules for targets named vulkano_tests
+
+# Build rule for target.
+vulkano_tests: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 vulkano_tests
+.PHONY : vulkano_tests
+
+# fast build rule for target.
+vulkano_tests/fast:
+	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/vulkano_tests.dir/build.make tests/CMakeFiles/vulkano_tests.dir/build
+.PHONY : vulkano_tests/fast
+
+#=============================================================================
+# Target rules for targets named Catch2
+
+# Build rule for target.
+Catch2: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 Catch2
+.PHONY : Catch2
+
+# fast build rule for target.
+Catch2/fast:
+	$(MAKE) $(MAKESILENT) -f _deps/catch2-build/src/CMakeFiles/Catch2.dir/build.make _deps/catch2-build/src/CMakeFiles/Catch2.dir/build
+.PHONY : Catch2/fast
+
+#=============================================================================
+# Target rules for targets named Catch2WithMain
+
+# Build rule for target.
+Catch2WithMain: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 Catch2WithMain
+.PHONY : Catch2WithMain
+
+# fast build rule for target.
+Catch2WithMain/fast:
+	$(MAKE) $(MAKESILENT) -f _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/build.make _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/build
+.PHONY : Catch2WithMain/fast
+
 _deps/imgui-src/backends/imgui_impl_glfw.o: _deps/imgui-src/backends/imgui_impl_glfw.cpp.o
 .PHONY : _deps/imgui-src/backends/imgui_impl_glfw.o
 
@@ -947,11 +986,14 @@ help:
 	@echo "... compile_shaders"
 	@echo "... uninstall"
 	@echo "... update_mappings"
+	@echo "... Catch2"
+	@echo "... Catch2WithMain"
 	@echo "... glfw"
 	@echo "... glm"
 	@echo "... imgui"
 	@echo "... vulkano"
 	@echo "... vulkano_app"
+	@echo "... vulkano_tests"
 	@echo "... _deps/imgui-src/backends/imgui_impl_glfw.o"
 	@echo "... _deps/imgui-src/backends/imgui_impl_glfw.i"
 	@echo "... _deps/imgui-src/backends/imgui_impl_glfw.s"

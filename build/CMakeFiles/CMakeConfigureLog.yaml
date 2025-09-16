@@ -553,3 +553,46 @@ events:
         
       exitCode: 0
 ...
+
+---
+events:
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/Internal/CheckSourceCompiles.cmake:104 (try_compile)"
+      - "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/CheckCXXCompilerFlag.cmake:55 (cmake_check_compiler_flag)"
+      - "build/_deps/catch2-src/CMake/CatchMiscFunctions.cmake:12 (check_cxx_compiler_flag)"
+      - "build/_deps/catch2-src/CMake/CatchMiscFunctions.cmake:120 (add_cxx_flag_if_supported_to_targets)"
+      - "build/_deps/catch2-src/src/CMakeLists.txt:352 (add_build_reproducibility_settings)"
+    checks:
+      - "Performing Test HAVE_FLAG__ffile_prefix_map__Users_bruno_Documents_Development_bruno_vulkano_codex_build__deps_catch2_src__"
+    directories:
+      source: "/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles/CMakeScratch/TryCompile-697USu"
+      binary: "/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles/CMakeScratch/TryCompile-697USu"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: "/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/catch2-src/extras;/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/catch2-src/CMake"
+      CMAKE_OSX_ARCHITECTURES: ""
+      CMAKE_OSX_DEPLOYMENT_TARGET: ""
+      CMAKE_OSX_SYSROOT: ""
+    buildResult:
+      variable: "HAVE_FLAG__ffile_prefix_map__Users_bruno_Documents_Development_bruno_vulkano_codex_build__deps_catch2_src__"
+      cached: true
+      stdout: |
+        Change Dir: '/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles/CMakeScratch/TryCompile-697USu'
+        
+        Run Build Command(s): /Applications/CMake.app/Contents/bin/cmake -E env VERBOSE=1 /opt/homebrew/bin/gmake -f Makefile cmTC_e222f/fast
+        /opt/homebrew/bin/gmake  -f CMakeFiles/cmTC_e222f.dir/build.make CMakeFiles/cmTC_e222f.dir/build
+        gmake[1]: Entering directory '/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles/CMakeScratch/TryCompile-697USu'
+        Building CXX object CMakeFiles/cmTC_e222f.dir/src.cxx.o
+        /usr/bin/c++ -DHAVE_FLAG__ffile_prefix_map__Users_bruno_Documents_Development_bruno_vulkano_codex_build__deps_catch2_src__  -std=c++20 -arch arm64   -ffile-prefix-map=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/catch2-src/= -MD -MT CMakeFiles/cmTC_e222f.dir/src.cxx.o -MF CMakeFiles/cmTC_e222f.dir/src.cxx.o.d -o CMakeFiles/cmTC_e222f.dir/src.cxx.o -c /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles/CMakeScratch/TryCompile-697USu/src.cxx
+        Linking CXX executable cmTC_e222f
+        /Applications/CMake.app/Contents/bin/cmake -E cmake_link_script CMakeFiles/cmTC_e222f.dir/link.txt --verbose=1
+        /usr/bin/c++  -arch arm64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/cmTC_e222f.dir/src.cxx.o -o cmTC_e222f
+        gmake[1]: Leaving directory '/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles/CMakeScratch/TryCompile-697USu'
+        
+      exitCode: 0
+...

@@ -10,6 +10,7 @@ set(CMAKE_MAKEFILE_DEPENDS
   "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/BasicConfigVersion-SameMajorVersion.cmake.in"
   "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/CMakeCInformation.cmake"
   "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/CMakeCXXInformation.cmake"
+  "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/CMakeCheckCompilerFlagCommonPatterns.cmake"
   "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/CMakeCommonLanguageInclude.cmake"
   "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/CMakeDependentOption.cmake"
   "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/CMakeGenericSystem.cmake"
@@ -22,6 +23,8 @@ set(CMAKE_MAKEFILE_DEPENDS
   "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/CTestTargets.cmake"
   "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/CTestUseLaunchers.cmake"
   "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/CheckCSourceCompiles.cmake"
+  "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/CheckCXXCompilerFlag.cmake"
+  "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/CheckCXXSourceCompiles.cmake"
   "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/CheckIncludeFile.cmake"
   "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/CheckLibraryExists.cmake"
   "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/Compiler/AppleClang-C.cmake"
@@ -42,6 +45,8 @@ set(CMAKE_MAKEFILE_DEPENDS
   "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/Internal/CMakeCLinkerInformation.cmake"
   "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/Internal/CMakeCXXLinkerInformation.cmake"
   "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/Internal/CMakeCommonLinkerInformation.cmake"
+  "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/Internal/CheckCompilerFlag.cmake"
+  "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/Internal/CheckFlagCommonConfig.cmake"
   "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/Internal/CheckSourceCompiles.cmake"
   "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/Linker/AppleClang-C.cmake"
   "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/Linker/AppleClang-CXX.cmake"
@@ -62,6 +67,12 @@ set(CMAKE_MAKEFILE_DEPENDS
   "CMakeFiles/4.0.3/CMakeCCompiler.cmake"
   "CMakeFiles/4.0.3/CMakeCXXCompiler.cmake"
   "CMakeFiles/4.0.3/CMakeSystem.cmake"
+  "_deps/catch2-src/CMake/CatchConfigOptions.cmake"
+  "_deps/catch2-src/CMake/CatchMiscFunctions.cmake"
+  "_deps/catch2-src/CMakeLists.txt"
+  "_deps/catch2-src/extras/Catch.cmake"
+  "_deps/catch2-src/src/CMakeLists.txt"
+  "_deps/catch2-src/src/catch2/catch_user_config.hpp.in"
   "_deps/glfw-src/CMake/cmake_uninstall.cmake.in"
   "_deps/glfw-src/CMake/glfw3.pc.in"
   "_deps/glfw-src/CMake/glfw3Config.cmake.in"
@@ -69,6 +80,7 @@ set(CMAKE_MAKEFILE_DEPENDS
   "_deps/glfw-src/src/CMakeLists.txt"
   "_deps/glm-src/CMakeLists.txt"
   "_deps/glm-src/glm/CMakeLists.txt"
+  "/Users/bruno/Documents/Development/bruno/vulkano_codex/tests/CMakeLists.txt"
   )
 
 # The corresponding makefile is:
@@ -92,6 +104,11 @@ set(CMAKE_MAKEFILE_PRODUCTS
   "_deps/glfw-build/src/CMakeFiles/CMakeDirectoryInformation.cmake"
   "_deps/glm-build/CMakeFiles/CMakeDirectoryInformation.cmake"
   "_deps/glm-build/glm/CMakeFiles/CMakeDirectoryInformation.cmake"
+  "_deps/catch2-subbuild/CMakeLists.txt"
+  "tests/CMakeFiles/CMakeDirectoryInformation.cmake"
+  "_deps/catch2-build/CMakeFiles/CMakeDirectoryInformation.cmake"
+  "_deps/catch2-build/generated-includes/catch2/catch_user_config.hpp"
+  "_deps/catch2-build/src/CMakeFiles/CMakeDirectoryInformation.cmake"
   )
 
 # Dependency information for all targets:
@@ -132,4 +149,7 @@ set(CMAKE_DEPEND_INFO_FILES
   "_deps/glfw-build/src/CMakeFiles/glfw.dir/DependInfo.cmake"
   "_deps/glfw-build/src/CMakeFiles/update_mappings.dir/DependInfo.cmake"
   "_deps/glm-build/glm/CMakeFiles/glm.dir/DependInfo.cmake"
+  "tests/CMakeFiles/vulkano_tests.dir/DependInfo.cmake"
+  "_deps/catch2-build/src/CMakeFiles/Catch2.dir/DependInfo.cmake"
+  "_deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/DependInfo.cmake"
   )
