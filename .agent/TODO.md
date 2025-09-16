@@ -14,6 +14,13 @@ Next:
 - Improve resize callback handling [DONE]
   - Window framebuffer callback now flags app to recreate swapchain before next frame
 
+Notes (2025-09-16):
+- Verified clean Debug build on local machine; binaries land in bin/.
+- CTest passes: sanity + FPS smoothing.
+- ImGui overlay renders FPS/frame time, device name, and swapchain extent.
+- Validation layers enabled via ENABLE_VALIDATION on Debug; debug utils names and labels in place.
+- Resize path tested via framebuffer resize flag; swapchain is recreated safely.
+
 Nice-to-have:
 - Separate transfer/upload path for ImGui font creation with explicit command buffer
 - Add CI workflow for Linux/macOS/Windows to build and run tests
