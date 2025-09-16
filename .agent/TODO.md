@@ -1,4 +1,5 @@
 - [x] Baseline: add TODO plan, configure and build project, and run app briefly with autoclose to validate setup.
+- [x] Rebuild locally and run smoke tests to verify runtime on this machine.
 - [x] Implement render loop: acquire/present, record per-frame commands to clear + draw white triangle, handle VK_ERROR_OUT_OF_DATE.
 - [x] Add resize handling: recreate swapchain and dependent resources on framebuffer resize; re-record command buffers.
 - [x] Integrate ImGui (FetchContent): create descriptor pool, init imgui_impl_glfw + imgui_impl_vulkan, render overlay after scene.
