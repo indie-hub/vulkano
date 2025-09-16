@@ -39,3 +39,8 @@
 
 # debug information files
 *.dwo
+
+# Local build and IDE artifacts
+/build/
+/bin/
+/.idea/
