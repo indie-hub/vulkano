@@ -7,7 +7,7 @@
 - [x] ImGui overlay: stats + per-primitive + light controls
 - [x] Configure + build (bin/ + shaders)
 - [x] Run unit + E2E tests (smoke)
-- [ ] Review and tidy (clang-format/tidy)
+- [x] Review and tidy (clang-format/tidy)
 - [ ] Verify VK_EXT_debug_utils names/markers coverage; add missing labels if needed
 - [ ] Audit includes to ensure angle brackets everywhere; fix if needed
 - [ ] Update docs: module README and build/run notes
