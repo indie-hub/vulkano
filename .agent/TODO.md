@@ -52,11 +52,17 @@ Verification: Built Debug locally, tests pass, headless run OK.
 - Attempted push; skipped due to missing `GITHUB_TOKEN` in environment. Local commits are on `feature/swapchain-recreation`.
  - Current: Verified build + tests in this session; ready to push if token present.
 
-### 2025-09-16 Quick Verification
-- Reconfigured and rebuilt `RelWithDebInfo` successfully.
+### 2025-09-16 Quick Verification (Session B)
+- Reconfigured and rebuilt `RelWithDebInfo` successfully (local).
 - Tests passed locally via `ctest`.
 - Ran headless app for 200ms to validate event loop.
-- No code changes required this pass; preparing to push pending changes if token is available.
+- Minor housekeeping only; preparing to push pending changes if token is available.
+
+### 2025-09-16 Build+Test (This Session)
+- Fresh configure with `-DBUILD_TESTING=ON`.
+- Built targets: `vulkano`, `vulkano_app`, and tests.
+- Ran unit tests via `ctest` — all passed.
+- Verified `HEADLESS_RUN_MS=200` headless app loop locally.
 
 ### 2025-09-15 Additional Notes
 - Verified full local rebuild from clean `build/` directory.
