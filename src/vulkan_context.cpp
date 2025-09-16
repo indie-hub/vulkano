@@ -13,6 +13,9 @@
 #include <vector>
 
 #include <glm/vec2.hpp>
+#include <glm/vec3.hpp>
+#include <glm/mat4x4.hpp>
+#include <glm/gtc/type_ptr.hpp>
 #include <imgui.h>
 
 #include <vulkano/imgui_overlay.hpp>
@@ -117,10 +120,12 @@ VulkanContext::VulkanContext(GLFWwindow* window) noexcept {
         const float aspect {static_cast<float>(swapchain_extent_.width) / static_cast<float>(swapchain_extent_.height)};
         camera_->set_aspect(aspect);
     }
+    create_descriptor_set_layout();
     create_pipeline_layout();
     create_graphics_pipeline();
     create_depth_resources();
     create_vertex_buffer();
+    create_uniform_buffers_and_sets();
     create_framebuffers();
     create_command_pool_and_buffers();
     create_sync_objects();
@@ -176,6 +181,14 @@ VkExtent2D VulkanContext::swapchain_extent() const noexcept {
 
 const std::string& VulkanContext::device_name() const noexcept {
     return device_name_cached_;
+}
+
+const VulkanContext::Light& VulkanContext::light() const noexcept {
+    return light_;
+}
+
+void VulkanContext::set_light(const Light& l) noexcept {
+    light_ = l;
 }
 
 void VulkanContext::create_instance(GLFWwindow* window) noexcept {
@@ -492,6 +505,8 @@ void VulkanContext::destroy() noexcept {
     destroy_depth_resources();
     destroy_render_pass();
     destroy_pipeline();
+    destroy_uniform_buffers_and_sets();
+    destroy_descriptor_set_layout();
     destroy_vertex_buffer();
     destroy_swapchain_and_views();
     if (device_ != VK_NULL_HANDLE) {
@@ -518,6 +533,8 @@ void VulkanContext::destroy() noexcept {
         vkDestroyInstance(instance_, nullptr);
         instance_ = VK_NULL_HANDLE;
     }
+    // Layouts after device teardown are invalid; ensure destroyed earlier
+    descriptor_sets_.clear();
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL VulkanContext::debug_callback(
@@ -709,6 +726,9 @@ void VulkanContext::create_swapchain_and_views(GLFWwindow* window) noexcept {
             swapchain_image_views_[i] = VK_NULL_HANDLE;
         }
     }
+    // Recreate uniform buffers/descriptors to match swapchain image count
+    destroy_uniform_buffers_and_sets();
+    create_uniform_buffers_and_sets();
 }
 
 void VulkanContext::destroy_swapchain_and_views() noexcept {
@@ -985,14 +1005,15 @@ void VulkanContext::create_pipeline_layout() noexcept {
         return;
     }
     VkPushConstantRange range {};
-    range.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     range.offset = 0U;
-    range.size = sizeof(float) * 4U;
+    // model(64) + baseColor(12) + shininess(4) = 80 bytes
+    range.size = 80U;
 
     VkPipelineLayoutCreateInfo info {};
     info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    info.setLayoutCount = 0U;
-    info.pSetLayouts = nullptr;
+    info.setLayoutCount = (descriptor_set_layout_ != VK_NULL_HANDLE) ? 1U : 0U;
+    info.pSetLayouts = (descriptor_set_layout_ != VK_NULL_HANDLE) ? &descriptor_set_layout_ : nullptr;
     info.pushConstantRangeCount = 1U;
     info.pPushConstantRanges = &range;
 
@@ -1199,6 +1220,140 @@ void VulkanContext::create_vertex_buffer() noexcept {
     set_object_name(VK_OBJECT_TYPE_BUFFER, reinterpret_cast<std::uint64_t>(vertex_buffer_), "MeshVertexBuffer");
 }
 
+void VulkanContext::create_descriptor_set_layout() noexcept {
+    if (device_ == VK_NULL_HANDLE) {
+        return;
+    }
+    if (descriptor_set_layout_ != VK_NULL_HANDLE) {
+        return;
+    }
+    VkDescriptorSetLayoutBinding uboBinding {};
+    uboBinding.binding = 0U;
+    uboBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    uboBinding.descriptorCount = 1U;
+    uboBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    uboBinding.pImmutableSamplers = nullptr;
+
+    VkDescriptorSetLayoutCreateInfo info {};
+    info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    info.bindingCount = 1U;
+    info.pBindings = &uboBinding;
+
+    VkDescriptorSetLayout layout {VK_NULL_HANDLE};
+    if (vkCreateDescriptorSetLayout(device_, &info, nullptr, &layout) == VK_SUCCESS) {
+        descriptor_set_layout_ = layout;
+        set_object_name(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, reinterpret_cast<std::uint64_t>(descriptor_set_layout_), "GlobalUBOLayout");
+    }
+}
+
+namespace {
+    struct GlobalUBO final {
+        glm::mat4 view;
+        glm::mat4 proj;
+        glm::vec3 cameraPos;
+        float ambientStrength;
+        glm::vec3 lightPos;
+        float lightIntensity;
+        glm::vec3 lightColor;
+        float _pad0;
+    };
+}
+
+void VulkanContext::create_uniform_buffers_and_sets() noexcept {
+    if (device_ == VK_NULL_HANDLE || physical_device_ == VK_NULL_HANDLE || swapchain_images_.empty()) {
+        return;
+    }
+    // Descriptor pool
+    if (descriptor_pool_ == VK_NULL_HANDLE) {
+        VkDescriptorPoolSize poolSize {};
+        poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        poolSize.descriptorCount = static_cast<std::uint32_t>(swapchain_images_.size());
+
+        VkDescriptorPoolCreateInfo poolInfo {};
+        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        poolInfo.poolSizeCount = 1U;
+        poolInfo.pPoolSizes = &poolSize;
+        poolInfo.maxSets = static_cast<std::uint32_t>(swapchain_images_.size());
+        VkDescriptorPool pool {VK_NULL_HANDLE};
+        if (vkCreateDescriptorPool(device_, &poolInfo, nullptr, &pool) == VK_SUCCESS) {
+            descriptor_pool_ = pool;
+            set_object_name(VK_OBJECT_TYPE_DESCRIPTOR_POOL, reinterpret_cast<std::uint64_t>(descriptor_pool_), "GlobalUBOPool");
+        }
+    }
+    if (descriptor_pool_ == VK_NULL_HANDLE || descriptor_set_layout_ == VK_NULL_HANDLE) {
+        return;
+    }
+
+    // Create uniform buffers
+    const VkDeviceSize uboSize {static_cast<VkDeviceSize>(sizeof(GlobalUBO))};
+    uniform_buffers_.resize(swapchain_images_.size());
+    uniform_buffers_memory_.resize(swapchain_images_.size());
+
+    for (std::size_t i {0U}; i < swapchain_images_.size(); ++i) {
+        VkBufferCreateInfo bufInfo {};
+        bufInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bufInfo.size = uboSize;
+        bufInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+        bufInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        VkBuffer buffer {VK_NULL_HANDLE};
+        if (vkCreateBuffer(device_, &bufInfo, nullptr, &buffer) != VK_SUCCESS) {
+            continue;
+        }
+        VkMemoryRequirements memReq {};
+        vkGetBufferMemoryRequirements(device_, buffer, &memReq);
+        const std::uint32_t typeIndex {find_memory_type(physical_device_, memReq.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)};
+        if (typeIndex == UINT32_MAX) {
+            vkDestroyBuffer(device_, buffer, nullptr);
+            continue;
+        }
+        VkMemoryAllocateInfo allocInfo {};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memReq.size;
+        allocInfo.memoryTypeIndex = typeIndex;
+        VkDeviceMemory memory {VK_NULL_HANDLE};
+        if (vkAllocateMemory(device_, &allocInfo, nullptr, &memory) != VK_SUCCESS) {
+            vkDestroyBuffer(device_, buffer, nullptr);
+            continue;
+        }
+        vkBindBufferMemory(device_, buffer, memory, 0U);
+        uniform_buffers_[i] = buffer;
+        uniform_buffers_memory_[i] = memory;
+        set_object_name(VK_OBJECT_TYPE_BUFFER, reinterpret_cast<std::uint64_t>(buffer), "GlobalUBOBuffer");
+    }
+
+    // Allocate descriptor sets
+    descriptor_sets_.resize(swapchain_images_.size());
+    std::vector<VkDescriptorSetLayout> layouts(swapchain_images_.size(), descriptor_set_layout_);
+    VkDescriptorSetAllocateInfo allocInfo {};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = descriptor_pool_;
+    allocInfo.descriptorSetCount = static_cast<std::uint32_t>(layouts.size());
+    allocInfo.pSetLayouts = layouts.data();
+    if (vkAllocateDescriptorSets(device_, &allocInfo, descriptor_sets_.data()) != VK_SUCCESS) {
+        descriptor_sets_.clear();
+        return;
+    }
+
+    for (std::size_t i {0U}; i < descriptor_sets_.size(); ++i) {
+        VkDescriptorBufferInfo bufInfo {};
+        bufInfo.buffer = uniform_buffers_[i];
+        bufInfo.offset = 0U;
+        bufInfo.range = sizeof(GlobalUBO);
+
+        VkWriteDescriptorSet write {};
+        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write.dstSet = descriptor_sets_[i];
+        write.dstBinding = 0U;
+        write.dstArrayElement = 0U;
+        write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        write.descriptorCount = 1U;
+        write.pBufferInfo = &bufInfo;
+        write.pImageInfo = nullptr;
+        write.pTexelBufferView = nullptr;
+        vkUpdateDescriptorSets(device_, 1U, &write, 0U, nullptr);
+    }
+}
+
 void VulkanContext::create_command_pool_and_buffers() noexcept {
     if (device_ == VK_NULL_HANDLE || graphics_family_index_ == UINT32_MAX || framebuffers_.empty()) {
         return;
@@ -1348,6 +1503,45 @@ void VulkanContext::destroy_vertex_buffer() noexcept {
     }
 }
 
+void VulkanContext::destroy_descriptor_set_layout() noexcept {
+    if (device_ == VK_NULL_HANDLE) {
+        return;
+    }
+    if (descriptor_pool_ != VK_NULL_HANDLE) {
+        vkDestroyDescriptorPool(device_, descriptor_pool_, nullptr);
+        descriptor_pool_ = VK_NULL_HANDLE;
+    }
+    if (descriptor_set_layout_ != VK_NULL_HANDLE) {
+        vkDestroyDescriptorSetLayout(device_, descriptor_set_layout_, nullptr);
+        descriptor_set_layout_ = VK_NULL_HANDLE;
+    }
+}
+
+void VulkanContext::destroy_uniform_buffers_and_sets() noexcept {
+    if (device_ == VK_NULL_HANDLE) {
+        return;
+    }
+    for (auto& buf : uniform_buffers_) {
+        if (buf != VK_NULL_HANDLE) {
+            vkDestroyBuffer(device_, buf, nullptr);
+            buf = VK_NULL_HANDLE;
+        }
+    }
+    for (auto& mem : uniform_buffers_memory_) {
+        if (mem != VK_NULL_HANDLE) {
+            vkFreeMemory(device_, mem, nullptr);
+            mem = VK_NULL_HANDLE;
+        }
+    }
+    uniform_buffers_.clear();
+    uniform_buffers_memory_.clear();
+    if (descriptor_pool_ != VK_NULL_HANDLE) {
+        vkDestroyDescriptorPool(device_, descriptor_pool_, nullptr);
+        descriptor_pool_ = VK_NULL_HANDLE;
+    }
+    descriptor_sets_.clear();
+}
+
 
 bool VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
     if (device_ == VK_NULL_HANDLE || render_pass_ == VK_NULL_HANDLE || graphics_pipeline_ == VK_NULL_HANDLE || pipeline_layout_ == VK_NULL_HANDLE) {
@@ -1392,6 +1586,28 @@ bool VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_);
 
+    // Update and bind global UBO for this image
+    if (imageIndex < uniform_buffers_memory_.size() && camera_) {
+        GlobalUBO u {};
+        u.view = camera_->view();
+        u.proj = camera_->projection();
+        u.cameraPos = camera_->position();
+        u.ambientStrength = light_.ambient;
+        u.lightPos = light_.position;
+        u.lightIntensity = light_.intensity;
+        u.lightColor = light_.color;
+        u._pad0 = 0.0F;
+        void* data {nullptr};
+        if (vkMapMemory(device_, uniform_buffers_memory_[imageIndex], 0U, sizeof(GlobalUBO), 0U, &data) == VK_SUCCESS) {
+            std::memcpy(data, &u, sizeof(GlobalUBO));
+            vkUnmapMemory(device_, uniform_buffers_memory_[imageIndex]);
+        }
+    }
+    if (imageIndex < descriptor_sets_.size()) {
+        const VkDescriptorSet set {descriptor_sets_[imageIndex]};
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 0U, 1U, &set, 0U, nullptr);
+    }
+
     // Compute camera matrices per-frame (not yet bound to shaders in this step)
     if (camera_) {
         (void)camera_->view_projection();
@@ -1402,7 +1618,11 @@ bool VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
     vkCmdBindVertexBuffers(cmd, 0U, 1U, buffers, offsets);
 
     begin_label(cmd, "Triangle");
-    vkCmdPushConstants(cmd, pipeline_layout_, VK_SHADER_STAGE_FRAGMENT_BIT, 0U, sizeof(float) * 4U, kTriangleColorWhite.data());
+    struct PushConstants { glm::mat4 model; glm::vec3 baseColor; float shininess; } pc;
+    pc.model = glm::mat4(1.0F);
+    pc.baseColor = glm::vec3(kTriangleColorWhite[0], kTriangleColorWhite[1], kTriangleColorWhite[2]);
+    pc.shininess = 32.0F;
+    vkCmdPushConstants(cmd, pipeline_layout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0U, sizeof(PushConstants), &pc);
 
     vkCmdDraw(cmd, static_cast<std::uint32_t>(kMeshVertices.size()), 1U, 0U, 0U);
     end_label(cmd);

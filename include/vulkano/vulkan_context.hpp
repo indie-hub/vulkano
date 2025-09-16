@@ -6,6 +6,8 @@
 #include <string>
 
 #include <glm/vec2.hpp>
+#include <glm/vec3.hpp>
+
 
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.h>
@@ -51,6 +53,16 @@ public:
     // Recreate swapchain and all dependent resources after a resize or format change.
     void recreate_swapchain(GLFWwindow* window) noexcept;
 
+    // Scene parameters (light). UI will tweak these later.
+    struct Light final {
+        glm::vec3 position {2.0F, 4.0F, 2.0F};
+        float intensity {1.0F};
+        glm::vec3 color {1.0F, 1.0F, 1.0F};
+        float ambient {0.1F};
+    };
+    [[nodiscard]] const Light& light() const noexcept;
+    void set_light(const Light& l) noexcept;
+
 private:
     void create_instance(GLFWwindow* window) noexcept;
     void setup_debug_utils() noexcept;
@@ -65,6 +77,8 @@ private:
     void create_pipeline_layout() noexcept;
     void create_graphics_pipeline() noexcept;
     void create_vertex_buffer() noexcept;
+    void create_descriptor_set_layout() noexcept;
+    void create_uniform_buffers_and_sets() noexcept;
     void create_command_pool_and_buffers() noexcept;
     void create_sync_objects() noexcept;
     // Returns true if commands were recorded successfully for the image.
@@ -74,6 +88,8 @@ private:
     void destroy_framebuffers() noexcept;
     void destroy_pipeline() noexcept;
     void destroy_vertex_buffer() noexcept;
+    void destroy_descriptor_set_layout() noexcept;
+    void destroy_uniform_buffers_and_sets() noexcept;
     void destroy_sync_objects() noexcept;
     void destroy_command_pool_and_buffers() noexcept;
     void destroy_render_pass() noexcept;
@@ -130,6 +146,12 @@ private:
     VkPipeline graphics_pipeline_ {VK_NULL_HANDLE};
     VkBuffer vertex_buffer_ {VK_NULL_HANDLE};
     VkDeviceMemory vertex_buffer_memory_ {VK_NULL_HANDLE};
+    // Descriptor set layout/pool for global UBO
+    VkDescriptorSetLayout descriptor_set_layout_ {VK_NULL_HANDLE};
+    VkDescriptorPool descriptor_pool_ {VK_NULL_HANDLE};
+    std::vector<VkDescriptorSet> descriptor_sets_ {};
+    std::vector<VkBuffer> uniform_buffers_ {};
+    std::vector<VkDeviceMemory> uniform_buffers_memory_ {};
 
     // Synchronisation
     static constexpr std::uint32_t kMaxFramesInFlight {2U};
@@ -146,6 +168,7 @@ private:
 
     // Camera
     std::unique_ptr<Camera> camera_ {};
+    Light light_ {};
 
     // Debug utils function pointers (device level)
     PFN_vkSetDebugUtilsObjectNameEXT pfn_set_name_ {nullptr};

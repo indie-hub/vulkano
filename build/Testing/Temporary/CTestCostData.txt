@@ -1,8 +1,8 @@
-catch2_sanity 22 0.000415794
-stats_initial_values 22 0.00033103
-stats_smoothing_behaviour 22 0.000324504
-app_smoke 22 0.0606101
-Plane generates 4 verts and 6 indices 5 0.00200812
-Cube generates 24 verts and 36 indices 5 0.0011802
-Icosphere vertex/index counts grow with subdivisions 5 0.00129673
+catch2_sanity 23 0.000664515
+stats_initial_values 23 0.000578469
+stats_smoothing_behaviour 23 0.000580366
+app_smoke 23 0.129998
+Plane generates 4 verts and 6 indices 6 0.0027732
+Cube generates 24 verts and 36 indices 6 0.00201396
+Icosphere vertex/index counts grow with subdivisions 6 0.00214334
 ---
