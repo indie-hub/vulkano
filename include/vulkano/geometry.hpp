@@ -99,6 +99,7 @@ public:
     [[nodiscard]] const char* type_name() const noexcept override { return "Icosphere"; }
 
     void set_subdivisions(std::uint32_t subdivisions) noexcept;
+    [[nodiscard]] std::uint32_t subdivisions() const noexcept;
 
 private:
     void build_icosahedron() noexcept;

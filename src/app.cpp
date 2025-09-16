@@ -179,31 +179,19 @@ void App::build_ui() noexcept {
                 prim->set_transform(t);
                 prim->set_material(m);
 
-                // Optional control: Icosphere subdivisions
-                // Rebuild mesh if changed
-                bool needsRebuild {false};
-                // Simple RTTI via name check to avoid dynamic_cast dependency cost
+                // Optional control: Icosphere subdivisions (live rebuild + reupload)
                 if (std::strcmp(name, "Icosphere") == 0) {
-                    std::uint32_t sub {2U};
-                    // Fetch current value by sampling vertex count heuristically is unreliable; skip.
-                    // Provide an interactive slider using a local static per-index state.
-                    static std::uint32_t s_subdivisions[16] {};
-                    if (i < 16U) {
-                        ImGui::SliderScalar("Subdivisions", ImGuiDataType_U32, &s_subdivisions[i], &((const std::uint32_t&)0U), &((const std::uint32_t&)5U));
-                        if (ImGui::IsItemDeactivatedAfterEdit()) {
-                            sub = s_subdivisions[i];
-                            // Try to downcast safely
-                            // NOLINTNEXTLINE(cppcoreguidelines-pro-type-static-cast-downcast)
-                            auto* iso = static_cast<Icosphere*>(prim);
-                            if (iso != nullptr) {
-                                iso->set_subdivisions(sub);
-                                needsRebuild = true;
-                            }
+                    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-static-cast-downcast)
+                    auto* iso = static_cast<Icosphere*>(prim);
+                    if (iso != nullptr) {
+                        std::uint32_t sub {iso->subdivisions()};
+                        const std::uint32_t minSub {0U};
+                        const std::uint32_t maxSub {5U};
+                        if (ImGui::SliderScalar("Subdivisions", ImGuiDataType_U32, &sub, &minSub, &maxSub)) {
+                            iso->set_subdivisions(sub);
+                            vk_->rebuild_scene_gpu_buffers();
                         }
                     }
-                }
-                if (needsRebuild) {
-                    vk_->rebuild_scene_gpu_buffers();
                 }
             }
         }

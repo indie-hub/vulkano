@@ -144,6 +144,10 @@ void Icosphere::set_subdivisions(std::uint32_t subdivisions) noexcept {
     }
 }
 
+std::uint32_t Icosphere::subdivisions() const noexcept {
+    return params_.subdivisions;
+}
+
 void Icosphere::build_icosahedron() noexcept {
     vertices_.clear();
     indices_.clear();
