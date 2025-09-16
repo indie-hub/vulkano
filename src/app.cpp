@@ -785,11 +785,12 @@ void App::cleanup_swapchain() {
 }
 
 void App::draw_frame() {
-    vkWaitForFences(device_, 1, &in_flight_fences_[current_frame_], VK_TRUE, UINT64_C(1000000000));
+    static constexpr uint64_t fence_timeout_ns {1000000000ull};
+    vkWaitForFences(device_, 1, &in_flight_fences_[current_frame_], VK_TRUE, fence_timeout_ns);
     vkResetFences(device_, 1, &in_flight_fences_[current_frame_]);
 
     uint32_t image_index = 0;
-    const VkResult acq = vkAcquireNextImageKHR(device_, swapchain_, UINT64_C(1000000000), image_available_[current_frame_], VK_NULL_HANDLE, &image_index);
+    const VkResult acq = vkAcquireNextImageKHR(device_, swapchain_, fence_timeout_ns, image_available_[current_frame_], VK_NULL_HANDLE, &image_index);
     if (acq == VK_ERROR_OUT_OF_DATE_KHR) {
         recreate_swapchain();
         return;
