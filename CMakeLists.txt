@@ -115,7 +115,8 @@ target_include_directories(vulkano PUBLIC ${vma_SOURCE_DIR}/include)
 target_compile_definitions(vulkano PUBLIC
     $<$<CONFIG:Debug>:VULKANO_CODEX_DEBUG=1>
     VK_NO_PROTOTYPES
-    GLFW_INCLUDE_VULKAN)
+    GLFW_INCLUDE_VULKAN
+    $<$<BOOL:${VULKANO_CODEX_USE_SHADERC}>:VULKANO_CODEX_USE_SHADERC=1>)
 target_compile_definitions(imgui_backend PUBLIC VK_NO_PROTOTYPES IMGUI_IMPL_VULKAN_NO_PROTOTYPES)
 
 add_executable(vulkano_app src/main.cpp)
