@@ -1,17 +1,5 @@
-- [x] Baseline: add TODO plan, configure and build project, and run app briefly with autoclose to validate setup.
-- [x] Rebuild locally and run smoke tests to verify runtime on this machine.
-- [x] Implement render loop: acquire/present, record per-frame commands to clear + draw white triangle, handle VK_ERROR_OUT_OF_DATE.
-- [x] Add resize handling: recreate swapchain and dependent resources on framebuffer resize; re-record command buffers.
-- [x] Integrate ImGui (FetchContent): create descriptor pool, init imgui_impl_glfw + imgui_impl_vulkan, render overlay after scene.
-- [x] Stats overlay: FPS/frame time smoothing, device name, and swapchain extent; wire into ImGui draw.
-- [x] Debug utils: set object names and insert command buffer labels around passes.
-- [x] Tests: unit test for FPS smoothing; smoke test that starts app with autoclose env and exits cleanly.
-- [x] Docs: update README with macOS (MoltenVK) setup, build/run instructions, and shader tool notes.
-- [x] Remove magic numbers: replace inline clear color and push‑constant color with named constants.
-- [x] CI: add GitHub Actions for format, build, and tests on macOS/Linux/Windows.
-- [x] Packaging: copy runtime assets to a relocatable bundle and verify running outside the build tree.
-- [x] Verify dist bundle runs cleanly when executed from bin/dist with VK_APP_AUTOCLOSE_MS.
-- [x] Local build/test verified on macOS environment.
-- [ ] Nice-to-have: add pipeline cache persistence to speed subsequent runs.
-- [ ] Nice-to-have: add dynamic viewport/scissor states to minimize pipeline rebuilds on resize.
-- [ ] Nice-to-have: add MSAA configuration and a toggle in the UI.
+- [x] Configure, build, and run smoke test (compile shaders, build app, run ctest).
+- [ ] Manual run to visually verify black background, white triangle, and ImGui overlay stats.
+- [ ] Exercise window resize to confirm swapchain recreation without validation errors.
+- [ ] Package runtime to bin/dist and validate shaders present alongside binary.
+- [ ] Optional: add a lightweight unit test for shader path discovery fallback.
