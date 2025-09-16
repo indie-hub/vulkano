@@ -57,6 +57,11 @@ Or use the helper script to execute a short headless run (useful for sanity chec
 tools/run_headless.sh Debug
 ```
 
+Faster RelWithDebInfo build using Ninja and tests:
+```
+tools/build_rel.sh
+```
+
 Tip: to run headless for CI sanity without a visible window, set the environment variable `HEADLESS_RUN_MS` (milliseconds):
 ```
 HEADLESS_RUN_MS=500 ./app/bin/Debug/vulkano_app
