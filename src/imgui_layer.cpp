@@ -20,7 +20,6 @@ void ImGuiLayer::init(GLFWwindow* window,
                       VkDevice device,
                       uint32_t graphics_queue_family,
                       VkQueue graphics_queue,
-                      VkCommandPool command_pool,
                       VkDescriptorPool descriptor_pool,
                       VkRenderPass render_pass,
                       uint32_t image_count) {
@@ -43,7 +42,6 @@ void ImGuiLayer::init(GLFWwindow* window,
     init_info.PipelineCache = VK_NULL_HANDLE;
     init_info.DescriptorPool = descriptor_pool;
     init_info.Allocator = nullptr;
-    init_info.CommandPool = command_pool;
     init_info.MinImageCount = image_count;
     init_info.ImageCount = image_count;
     init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;

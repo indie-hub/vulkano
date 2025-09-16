@@ -18,7 +18,6 @@ public:
               VkDevice device,
               uint32_t graphics_queue_family,
               VkQueue graphics_queue,
-              VkCommandPool command_pool,
               VkDescriptorPool descriptor_pool,
               VkRenderPass render_pass,
               uint32_t image_count);
