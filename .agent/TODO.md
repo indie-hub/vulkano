@@ -52,6 +52,12 @@ Verification: Built Debug locally, tests pass, headless run OK.
 - Attempted push; skipped due to missing `GITHUB_TOKEN` in environment. Local commits are on `feature/swapchain-recreation`.
  - Current: Verified build + tests in this session; ready to push if token present.
 
+### 2025-09-16 Quick Verification
+- Reconfigured and rebuilt `RelWithDebInfo` successfully.
+- Tests passed locally via `ctest`.
+- Ran headless app for 200ms to validate event loop.
+- No code changes required this pass; preparing to push pending changes if token is available.
+
 ### 2025-09-15 Additional Notes
 - Verified full local rebuild from clean `build/` directory.
 - Validated non-Vulkan path still works in headless mode.
