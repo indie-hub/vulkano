@@ -1,6 +1,8 @@
 #include <vulkano/app.hpp>
+#include <vulkano/vulkan_context.hpp>
 
 #include <chrono>
+#include <cstdlib>
 #include <thread>
 
 namespace vulkano {
@@ -12,9 +14,11 @@ namespace {
 
 App::App(const AppConfig& config) noexcept : config_ {config} {
     init_glfw();
+    init_vulkan();
 }
 
 App::~App() noexcept {
+    shutdown_vulkan();
     shutdown_glfw();
 }
 
@@ -39,16 +43,39 @@ void App::shutdown_glfw() noexcept {
     glfwTerminate();
 }
 
+void App::init_vulkan() noexcept {
+    if (window_ == nullptr) {
+        return;
+    }
+    vk_ = std::make_unique<VulkanContext>(window_);
+}
+
+void App::shutdown_vulkan() noexcept {
+    vk_.reset();
+}
+
 void App::run() noexcept {
     if (window_ == nullptr) {
         return;
     }
 
+    const char* envAutoClose {std::getenv("VK_APP_AUTOCLOSE_MS")};
+    const bool useAutoClose {envAutoClose != nullptr};
+    const std::chrono::milliseconds autoCloseMs {
+        useAutoClose ? std::chrono::milliseconds {std::strtol(envAutoClose, nullptr, 10)} : std::chrono::milliseconds {0}
+    };
+    const auto startTime {std::chrono::steady_clock::now()};
+
     while (glfwWindowShouldClose(window_) == GLFW_FALSE) {
         glfwPollEvents();
         std::this_thread::sleep_for(std::chrono::milliseconds {16});
+        if (useAutoClose) {
+            const auto now {std::chrono::steady_clock::now()};
+            if (now - startTime >= autoCloseMs) {
+                glfwSetWindowShouldClose(window_, GLFW_TRUE);
+            }
+        }
     }
 }
 
 } // namespace vulkano
-

@@ -14,6 +14,8 @@ struct AppConfig final {
     std::uint32_t height {720U};
 };
 
+class VulkanContext; // fwd decl
+
 class App final {
 public:
     explicit App(const AppConfig& config) noexcept;
@@ -23,16 +25,18 @@ public:
     App& operator=(App&&) = delete;
     ~App() noexcept;
 
-    void run() noexcept; // Minimal GLFW loop for scaffolding
+    void run() noexcept; // Minimal loop for scaffolding
 
 private:
     void init_glfw() noexcept;
     void shutdown_glfw() noexcept;
+    void init_vulkan() noexcept;
+    void shutdown_vulkan() noexcept;
 
 private:
     AppConfig config_ {};
     GLFWwindow* window_ {nullptr};
+    std::unique_ptr<VulkanContext> vk_ {};
 };
 
 } // namespace vulkano
-

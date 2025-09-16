@@ -37,6 +37,7 @@ set(CMAKE_MAKEFILE_DEPENDS
   "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/FindPackageHandleStandardArgs.cmake"
   "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/FindPackageMessage.cmake"
   "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/FindThreads.cmake"
+  "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/FindVulkan.cmake"
   "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/GNUInstallDirs.cmake"
   "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/Internal/CMakeCLinkerInformation.cmake"
   "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/Internal/CMakeCXXLinkerInformation.cmake"

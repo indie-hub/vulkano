@@ -1,2 +1,2 @@
-/usr/bin/ar qc /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libvulkano.a CMakeFiles/vulkano.dir/src/app.cpp.o
+/usr/bin/ar qc /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libvulkano.a CMakeFiles/vulkano.dir/src/app.cpp.o CMakeFiles/vulkano.dir/src/vulkan_context.cpp.o
 /usr/bin/ranlib /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libvulkano.a

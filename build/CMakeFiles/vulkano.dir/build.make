@@ -86,17 +86,33 @@ CMakeFiles/vulkano.dir/src/app.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/vulkano.dir/src/app.cpp.s"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp -o CMakeFiles/vulkano.dir/src/app.cpp.s
 
+CMakeFiles/vulkano.dir/src/vulkan_context.cpp.o: CMakeFiles/vulkano.dir/flags.make
+CMakeFiles/vulkano.dir/src/vulkan_context.cpp.o: /Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp
+CMakeFiles/vulkano.dir/src/vulkan_context.cpp.o: CMakeFiles/vulkano.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/vulkano.dir/src/vulkan_context.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/vulkano.dir/src/vulkan_context.cpp.o -MF CMakeFiles/vulkano.dir/src/vulkan_context.cpp.o.d -o CMakeFiles/vulkano.dir/src/vulkan_context.cpp.o -c /Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp
+
+CMakeFiles/vulkano.dir/src/vulkan_context.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/vulkano.dir/src/vulkan_context.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp > CMakeFiles/vulkano.dir/src/vulkan_context.cpp.i
+
+CMakeFiles/vulkano.dir/src/vulkan_context.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/vulkano.dir/src/vulkan_context.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp -o CMakeFiles/vulkano.dir/src/vulkan_context.cpp.s
+
 # Object files for target vulkano
 vulkano_OBJECTS = \
-"CMakeFiles/vulkano.dir/src/app.cpp.o"
+"CMakeFiles/vulkano.dir/src/app.cpp.o" \
+"CMakeFiles/vulkano.dir/src/vulkan_context.cpp.o"
 
 # External object files for target vulkano
 vulkano_EXTERNAL_OBJECTS =
 
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libvulkano.a: CMakeFiles/vulkano.dir/src/app.cpp.o
+/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libvulkano.a: CMakeFiles/vulkano.dir/src/vulkan_context.cpp.o
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libvulkano.a: CMakeFiles/vulkano.dir/build.make
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libvulkano.a: CMakeFiles/vulkano.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Linking CXX static library /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libvulkano.a"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Linking CXX static library /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libvulkano.a"
 	$(CMAKE_COMMAND) -P CMakeFiles/vulkano.dir/cmake_clean_target.cmake
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/vulkano.dir/link.txt --verbose=$(VERBOSE)
 

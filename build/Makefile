@@ -661,6 +661,30 @@ src/main.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/vulkano_app.dir/build.make CMakeFiles/vulkano_app.dir/src/main.cpp.s
 .PHONY : src/main.cpp.s
 
+src/vulkan_context.o: src/vulkan_context.cpp.o
+.PHONY : src/vulkan_context.o
+
+# target to build an object file
+src/vulkan_context.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/vulkano.dir/build.make CMakeFiles/vulkano.dir/src/vulkan_context.cpp.o
+.PHONY : src/vulkan_context.cpp.o
+
+src/vulkan_context.i: src/vulkan_context.cpp.i
+.PHONY : src/vulkan_context.i
+
+# target to preprocess a source file
+src/vulkan_context.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/vulkano.dir/build.make CMakeFiles/vulkano.dir/src/vulkan_context.cpp.i
+.PHONY : src/vulkan_context.cpp.i
+
+src/vulkan_context.s: src/vulkan_context.cpp.s
+.PHONY : src/vulkan_context.s
+
+# target to generate assembly for a file
+src/vulkan_context.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/vulkano.dir/build.make CMakeFiles/vulkano.dir/src/vulkan_context.cpp.s
+.PHONY : src/vulkan_context.cpp.s
+
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -714,6 +738,9 @@ help:
 	@echo "... src/main.o"
 	@echo "... src/main.i"
 	@echo "... src/main.s"
+	@echo "... src/vulkan_context.o"
+	@echo "... src/vulkan_context.i"
+	@echo "... src/vulkan_context.s"
 .PHONY : help
 
 

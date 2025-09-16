@@ -33,6 +33,18 @@ if (NOT glfw3_FOUND)
   FetchContent_MakeAvailable(glfw)
 endif()
 
+# Vulkan headers (FetchContent) and library (find if available)
+find_package(Vulkan QUIET)
+if (NOT Vulkan_FOUND)
+  message(STATUS "Vulkan not found; fetching Vulkan-Headers for compilation")
+  FetchContent_Declare(
+    VulkanHeaders
+    GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Headers.git
+    GIT_TAG v1.3.296
+  )
+  FetchContent_MakeAvailable(VulkanHeaders)
+endif()
+
 # Header-only GLM
 find_package(glm QUIET)
 if (NOT glm_FOUND)
@@ -48,6 +60,7 @@ endif()
 
 add_library(vulkano STATIC
   src/app.cpp
+  src/vulkan_context.cpp
 )
 
 target_sources(vulkano
@@ -56,15 +69,39 @@ target_sources(vulkano
     BASE_DIRS include
     FILES
       include/vulkano/app.hpp
+      include/vulkano/vulkan_context.hpp
 )
 
 target_include_directories(vulkano PUBLIC include)
+target_compile_definitions(vulkano PRIVATE GLFW_INCLUDE_VULKAN)
 
 if (TARGET glfw)
   target_link_libraries(vulkano PUBLIC glfw)
 else()
   find_package(glfw3 REQUIRED)
   target_link_libraries(vulkano PUBLIC glfw)
+endif()
+
+# Vulkan headers and libs
+if (Vulkan_FOUND)
+  target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
+  target_compile_definitions(vulkano PUBLIC VULKAN_LOADER_AVAILABLE=1)
+else()
+  # Try to locate a loader on Apple (MoltenVK or Vulkan loader) for linking if present
+  if (APPLE)
+    find_library(MOLTENVK_LIBRARY MoltenVK)
+    if (MOLTENVK_LIBRARY)
+      target_link_libraries(vulkano PUBLIC ${MOLTENVK_LIBRARY})
+      target_compile_definitions(vulkano PUBLIC VULKAN_LOADER_AVAILABLE=1)
+    else()
+      target_compile_definitions(vulkano PUBLIC VULKAN_LOADER_AVAILABLE=0)
+    endif()
+  else()
+    target_compile_definitions(vulkano PUBLIC VULKAN_LOADER_AVAILABLE=0)
+  endif()
+  if (TARGET VulkanHeaders)
+    target_include_directories(vulkano PUBLIC ${VulkanHeaders_SOURCE_DIR}/include)
+  endif()
 endif()
 
 if (TARGET glm)
