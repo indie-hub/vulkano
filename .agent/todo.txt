@@ -1,4 +1,6 @@
 TODO
 - Build project [done]
-- Run app and verify triangle + ImGui [done]
-- Polish and push [push pending: no GITHUB_TOKEN]
+- Run unit tests [done]
+- Run app and verify triangle + ImGui [pending]
+- Commit changes [in progress]
+- Final push [pending]

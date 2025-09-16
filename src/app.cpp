@@ -4,6 +4,8 @@
 #include <cassert>
 #include <cstring>
 #include <stdexcept>
+#include <algorithm>
+#include <limits>
 
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
@@ -828,7 +830,11 @@ void App::draw_frame() {
     VkCommandBufferBeginInfo begin {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
     vkBeginCommandBuffer(cmd, &begin);
 
-    VkClearValue clear {clear_color_rgba};
+    VkClearValue clear {};
+    clear.color.float32[0] = clear_color_rgba[0];
+    clear.color.float32[1] = clear_color_rgba[1];
+    clear.color.float32[2] = clear_color_rgba[2];
+    clear.color.float32[3] = clear_color_rgba[3];
     VkRenderPassBeginInfo rp {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
     rp.renderPass = render_pass_;
     rp.framebuffer = framebuffers_[image_index];

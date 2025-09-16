@@ -1,0 +1,164 @@
+Change Dir: '/Users/bruno/Documents/Development/bruno/vulkano_codex/build'
+
+Run Build Command(s): /Applications/CMake.app/Contents/bin/cmake -E env VERBOSE=1 /opt/homebrew/bin/gmake -f Makefile -j1
+/Applications/CMake.app/Contents/bin/cmake -S/Users/bruno/Documents/Development/bruno/vulkano_codex -B/Users/bruno/Documents/Development/bruno/vulkano_codex/build --check-build-system CMakeFiles/Makefile.cmake 0
+/Applications/CMake.app/Contents/bin/cmake -E cmake_progress_start /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles /Users/bruno/Documents/Development/bruno/vulkano_codex/build//CMakeFiles/progress.marks
+/opt/homebrew/bin/gmake  -f CMakeFiles/Makefile2 all
+gmake[1]: Entering directory '/Users/bruno/Documents/Development/bruno/vulkano_codex/build'
+/opt/homebrew/bin/gmake  -f _deps/glfw-build/src/CMakeFiles/glfw.dir/build.make _deps/glfw-build/src/CMakeFiles/glfw.dir/depend
+gmake[2]: Entering directory '/Users/bruno/Documents/Development/bruno/vulkano_codex/build'
+cd /Users/bruno/Documents/Development/bruno/vulkano_codex/build && /Applications/CMake.app/Contents/bin/cmake -E cmake_depends "Unix Makefiles" /Users/bruno/Documents/Development/bruno/vulkano_codex /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glfw-src/src /Users/bruno/Documents/Development/bruno/vulkano_codex/build /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glfw-build/src /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glfw-build/src/CMakeFiles/glfw.dir/DependInfo.cmake "--color="
+gmake[2]: Leaving directory '/Users/bruno/Documents/Development/bruno/vulkano_codex/build'
+/opt/homebrew/bin/gmake  -f _deps/glfw-build/src/CMakeFiles/glfw.dir/build.make _deps/glfw-build/src/CMakeFiles/glfw.dir/build
+gmake[2]: Entering directory '/Users/bruno/Documents/Development/bruno/vulkano_codex/build'
+gmake[2]: Nothing to be done for '_deps/glfw-build/src/CMakeFiles/glfw.dir/build'.
+gmake[2]: Leaving directory '/Users/bruno/Documents/Development/bruno/vulkano_codex/build'
+[ 14%] Built target glfw
+/opt/homebrew/bin/gmake  -f CMakeFiles/imgui_backend.dir/build.make CMakeFiles/imgui_backend.dir/depend
+gmake[2]: Entering directory '/Users/bruno/Documents/Development/bruno/vulkano_codex/build'
+cd /Users/bruno/Documents/Development/bruno/vulkano_codex/build && /Applications/CMake.app/Contents/bin/cmake -E cmake_depends "Unix Makefiles" /Users/bruno/Documents/Development/bruno/vulkano_codex /Users/bruno/Documents/Development/bruno/vulkano_codex /Users/bruno/Documents/Development/bruno/vulkano_codex/build /Users/bruno/Documents/Development/bruno/vulkano_codex/build /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles/imgui_backend.dir/DependInfo.cmake "--color="
+gmake[2]: Leaving directory '/Users/bruno/Documents/Development/bruno/vulkano_codex/build'
+/opt/homebrew/bin/gmake  -f CMakeFiles/imgui_backend.dir/build.make CMakeFiles/imgui_backend.dir/build
+gmake[2]: Entering directory '/Users/bruno/Documents/Development/bruno/vulkano_codex/build'
+gmake[2]: Nothing to be done for 'CMakeFiles/imgui_backend.dir/build'.
+gmake[2]: Leaving directory '/Users/bruno/Documents/Development/bruno/vulkano_codex/build'
+[ 19%] Built target imgui_backend
+/opt/homebrew/bin/gmake  -f _deps/glm-build/glm/CMakeFiles/glm.dir/build.make _deps/glm-build/glm/CMakeFiles/glm.dir/depend
+gmake[2]: Entering directory '/Users/bruno/Documents/Development/bruno/vulkano_codex/build'
+cd /Users/bruno/Documents/Development/bruno/vulkano_codex/build && /Applications/CMake.app/Contents/bin/cmake -E cmake_depends "Unix Makefiles" /Users/bruno/Documents/Development/bruno/vulkano_codex /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm /Users/bruno/Documents/Development/bruno/vulkano_codex/build /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-build/glm /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-build/glm/CMakeFiles/glm.dir/DependInfo.cmake "--color="
+gmake[2]: Leaving directory '/Users/bruno/Documents/Development/bruno/vulkano_codex/build'
+/opt/homebrew/bin/gmake  -f _deps/glm-build/glm/CMakeFiles/glm.dir/build.make _deps/glm-build/glm/CMakeFiles/glm.dir/build
+gmake[2]: Entering directory '/Users/bruno/Documents/Development/bruno/vulkano_codex/build'
+gmake[2]: Nothing to be done for '_deps/glm-build/glm/CMakeFiles/glm.dir/build'.
+gmake[2]: Leaving directory '/Users/bruno/Documents/Development/bruno/vulkano_codex/build'
+[ 20%] Built target glm
+/opt/homebrew/bin/gmake  -f CMakeFiles/vulkano_codex.dir/build.make CMakeFiles/vulkano_codex.dir/depend
+gmake[2]: Entering directory '/Users/bruno/Documents/Development/bruno/vulkano_codex/build'
+cd /Users/bruno/Documents/Development/bruno/vulkano_codex/build && /Applications/CMake.app/Contents/bin/cmake -E cmake_depends "Unix Makefiles" /Users/bruno/Documents/Development/bruno/vulkano_codex /Users/bruno/Documents/Development/bruno/vulkano_codex /Users/bruno/Documents/Development/bruno/vulkano_codex/build /Users/bruno/Documents/Development/bruno/vulkano_codex/build /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles/vulkano_codex.dir/DependInfo.cmake "--color="
+Dependencies file "CMakeFiles/vulkano_codex.dir/src/app.cpp.o.d" is newer than depends file "/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles/vulkano_codex.dir/compiler_depend.internal".
+Consolidate compiler generated dependencies of target vulkano_codex
+gmake[2]: Leaving directory '/Users/bruno/Documents/Development/bruno/vulkano_codex/build'
+/opt/homebrew/bin/gmake  -f CMakeFiles/vulkano_codex.dir/build.make CMakeFiles/vulkano_codex.dir/build
+gmake[2]: Entering directory '/Users/bruno/Documents/Development/bruno/vulkano_codex/build'
+[ 21%] Building CXX object CMakeFiles/vulkano_codex.dir/src/app.cpp.o
+/usr/bin/c++ -DSHADER_DIR=\"/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders\" -I/Users/bruno/Documents/Development/bruno/vulkano_codex/include -I/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glfw-src/include -I/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/imgui-src -I/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/imgui-src/backends -I/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src -g -std=c++20 -arch arm64 -Wall -Wextra -Wpedantic -Wconversion -MD -MT CMakeFiles/vulkano_codex.dir/src/app.cpp.o -MF CMakeFiles/vulkano_codex.dir/src/app.cpp.o.d -o CMakeFiles/vulkano_codex.dir/src/app.cpp.o -c /Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:77:95: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+   77 |         VkDebugUtilsObjectNameInfoEXT info {VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT};
+      |                                                                                               ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:89:75: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+   89 |         VkDebugUtilsLabelEXT info {VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT};
+      |                                                                           ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:241:67: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  241 |     VkApplicationInfo app_info {VK_STRUCTURE_TYPE_APPLICATION_INFO};
+      |                                                                   ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:258:77: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  258 |     VkInstanceCreateInfo create_info {VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
+      |                                                                             ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:268:105: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  268 |     VkDebugUtilsMessengerCreateInfoEXT dbg_info {VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT};
+      |                                                                                                         ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:285:101: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  285 |     VkDebugUtilsMessengerCreateInfoEXT info {VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT};
+      |                                                                                                     ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:371:80: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  371 |     VkDeviceQueueCreateInfo qinfo_g {VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO};
+      |                                                                                ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:377:84: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  377 |         VkDeviceQueueCreateInfo qinfo_p {VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO};
+      |                                                                                    ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:392:66: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  392 |     VkDeviceCreateInfo info {VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
+      |                                                                  ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:445:79: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  445 |     VkSwapchainCreateInfoKHR info {VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR};
+      |                                                                               ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:483:77: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  483 |         VkImageViewCreateInfo info {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+      |                                                                             ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:528:75: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  528 |     VkRenderPassCreateInfo info {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};
+      |                                                                           ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:561:82: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  561 |     VkShaderModuleCreateInfo sm_info {VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
+      |                                                                                  ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:576:92: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  576 |     VkPipelineShaderStageCreateInfo vs {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+      |                                                                                            ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:580:92: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  580 |     VkPipelineShaderStageCreateInfo fs {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+      |                                                                                            ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:588:103: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  588 |     VkPipelineVertexInputStateCreateInfo vi {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
+      |                                                                                                       ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:594:107: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  594 |     VkPipelineInputAssemblyStateCreateInfo ia {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};
+      |                                                                                                           ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:606:96: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  606 |     VkPipelineViewportStateCreateInfo vp {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO};
+      |                                                                                                ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:612:106: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  612 |     VkPipelineRasterizationStateCreateInfo rs {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO};
+      |                                                                                                          ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:621:102: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  621 |     VkPipelineMultisampleStateCreateInfo ms {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
+      |                                                                                                      ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:627:101: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  627 |     VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
+      |                                                                                                     ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:636:81: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  636 |     VkPipelineLayoutCreateInfo pl {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+      |                                                                                 ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:645:85: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  645 |     VkGraphicsPipelineCreateInfo pi {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO};
+      |                                                                                     ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:673:80: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  673 |         VkFramebufferCreateInfo info {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
+      |                                                                                ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:687:77: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  687 |     VkCommandPoolCreateInfo info {VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
+      |                                                                             ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:709:66: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  709 |     VkBufferCreateInfo info {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+      |                                                                  ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:719:71: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  719 |     VkMemoryAllocateInfo alloc {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+      |                                                                       ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:734:86: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  734 |     VkCommandBufferAllocateInfo alloc {VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
+      |                                                                                      ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:744:71: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  744 |     VkSemaphoreCreateInfo sem {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+      |                                                                       ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:745:65: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  745 |     VkFenceCreateInfo fence {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+      |                                                                 ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:830:80: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  830 |     VkCommandBufferBeginInfo begin {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+      |                                                                                ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:833:25: error: cannot initialize an array element of type 'float' with an lvalue of type 'const float[4]'
+  833 |     VkClearValue clear {clear_color_rgba};
+      |                         ^~~~~~~~~~~~~~~~
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:833:25: warning: suggest braces around initialization of subobject [-Wmissing-braces]
+  833 |     VkClearValue clear {clear_color_rgba};
+      |                         ^~~~~~~~~~~~~~~~
+      |                         {               }
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:833:25: warning: suggest braces around initialization of subobject [-Wmissing-braces]
+  833 |     VkClearValue clear {clear_color_rgba};
+      |                         ^~~~~~~~~~~~~~~~
+      |                         {               }
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:834:71: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  834 |     VkRenderPassBeginInfo rp {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+      |                                                                       ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:860:55: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  860 |     VkSubmitInfo submit {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+      |                                                       ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:872:65: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  872 |     VkPresentInfoKHR present {VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};
+      |                                                                 ^
+36 warnings and 1 error generated.
+gmake[2]: *** [CMakeFiles/vulkano_codex.dir/build.make:79: CMakeFiles/vulkano_codex.dir/src/app.cpp.o] Error 1
+gmake[2]: Leaving directory '/Users/bruno/Documents/Development/bruno/vulkano_codex/build'
+gmake[1]: *** [CMakeFiles/Makefile2:309: CMakeFiles/vulkano_codex.dir/all] Error 2
+gmake[1]: Leaving directory '/Users/bruno/Documents/Development/bruno/vulkano_codex/build'
+gmake: *** [Makefile:101: all] Error 2
+
