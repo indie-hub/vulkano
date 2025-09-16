@@ -36,3 +36,6 @@
  - [x] Validate the project against AGENTS.md
 - [x] Investigate Vulkan support error on macOS (enable portability extensions)
 - [x] Finalize: build OK, tests pass, binaries in bin/
+- [x] Fix CMake issue: SPIRV-Tools was not found - required for compilation
+- [x] Disable shaderc by default; rely on precompiled SPIR-V
+- [ ] [MUST] Run the binary file and check for errors

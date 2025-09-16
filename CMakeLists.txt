@@ -157,7 +157,7 @@ if (BUILD_TESTING AND VULKANO_CODEX_BUILD_TESTS)
     add_subdirectory(tests)
 endif()
 
-option(VULKANO_CODEX_USE_SHADERC "Enable runtime GLSL compilation via shaderc" ON)
+option(VULKANO_CODEX_USE_SHADERC "Enable runtime GLSL compilation via shaderc" OFF)
 if (VULKANO_CODEX_USE_SHADERC)
   # shaderc (for runtime GLSL -> SPIR-V)
   FetchContent_Declare(
