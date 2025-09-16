@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="BackendCodeEditorMiscSettings">
+    <option name="/Default/Environment/Hierarchy/GeneratedFilesCacheKey/Timestamp/@EntryValue" value="555" type="long" />
+  </component>
+  <component name="CMakePresetLoader"><![CDATA[{
+  "useNewFormat": true
+}]]></component>
+  <component name="CMakeRunConfigurationManager">
+    <generated>
+      <config projectName="Project" targetName="uninstall" />
+      <config projectName="Project" targetName="NightlyStart" />
+      <config projectName="Project" targetName="Shaders" />
+      <config projectName="Project" targetName="ContinuousTest" />
+      <config projectName="Project" targetName="NightlyMemoryCheck" />
+      <config projectName="Project" targetName="NightlyBuild" />
+      <config projectName="Project" targetName="ContinuousMemCheck" />
+      <config projectName="Project" targetName="ContinuousSubmit" />
+      <config projectName="Project" targetName="ContinuousCoverage" />
+      <config projectName="Project" targetName="NightlyTest" />
+      <config projectName="Project" targetName="NightlyMemCheck" />
+      <config projectName="Project" targetName="NightlyCoverage" />
+      <config projectName="Project" targetName="volk" />
+      <config projectName="Project" targetName="vulkano_codex_tests" />
+      <config projectName="Project" targetName="ContinuousUpdate" />
+      <config projectName="Project" targetName="ExperimentalMemCheck" />
+      <config projectName="Project" targetName="glm" />
+      <config projectName="Project" targetName="glfw" />
+      <config projectName="Project" targetName="fps_smoothing_test" />
+      <config projectName="Project" targetName="NightlyConfigure" />
+      <config projectName="Project" targetName="ContinuousStart" />
+      <config projectName="Project" targetName="vulkano_tests" />
+      <config projectName="Project" targetName="vk-bootstrap" />
+      <config projectName="Project" targetName="ContinuousConfigure" />
+      <config projectName="Project" targetName="shaders_spv" />
+      <config projectName="Project" targetName="vulkano_app" />
+      <config projectName="Project" targetName="Continuous" />
+      <config projectName="Project" targetName="ExperimentalStart" />
+      <config projectName="Project" targetName="imgui_backend" />
+      <config projectName="Project" targetName="Catch2" />
+      <config projectName="Project" targetName="ContinuousBuild" />
+      <config projectName="Project" targetName="ExperimentalSubmit" />
+      <config projectName="Project" targetName="Experimental" />
+      <config projectName="Project" targetName="Nightly" />
+      <config projectName="Project" targetName="NightlySubmit" />
+      <config projectName="Project" targetName="Catch2WithMain" />
+      <config projectName="Project" targetName="ExperimentalCoverage" />
+      <config projectName="Project" targetName="ExperimentalConfigure" />
+      <config projectName="Project" targetName="ExperimentalBuild" />
+      <config projectName="Project" targetName="vulkano" />
+      <config projectName="Project" targetName="ExperimentalUpdate" />
+      <config projectName="Project" targetName="ExperimentalTest" />
+      <config projectName="Project" targetName="update_mappings" />
+      <config projectName="Project" targetName="NightlyUpdate" />
+    </generated>
+  </component>
+  <component name="CMakeSettings">
+    <configurations />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="ea5f2232-e0d5-4be9-833c-c06073c2468d" name="Changes" comment="New TODO" />
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ClangdSettings">
+    <option name="formatViaClangd" value="false" />
+  </component>
+  <component name="ExecutionTargetManager" SELECTED_TARGET="CMakeBuildProfile:Debug" />
+  <component name="Git.Settings">
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$" value="personal/codex/sixth-attempt" />
+      </map>
+    </option>
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+    <option name="RESET_MODE" value="HARD" />
+  </component>
+  <component name="ProjectViewState">
+    <option name="autoscrollFromSource" value="true" />
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+    <option name="showVisibilityIcons" value="true" />
+    <option name="sortByType" value="true" />
+    <option name="sortKey" value="BY_TYPE" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "CMake Application.vulkan_app_example.executor": "Run",
+    "CMake Application.vulkano_app.executor": "Run",
+    "CMake Application.vulkano_codex_app.executor": "Run",
+    "CMake Application.vulkano_tests.executor": "Run",
+    "RunOnceActivity.RadMigrateCodeStyle": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.cidr.known.project.marker": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.readMode.enableVisualFormatting": "true",
+    "RunOnceActivity.west.config.association.type.startup.service": "true",
+    "cf.first.check.clang-format": "false",
+    "cidr.known.project.marker": "true",
+    "ctest.advertisement.all.test.configuration.is.created": "true",
+    "git-widget-placeholder": "personal/codex/seventh-attempt",
+    "last_opened_file_path": "/Users/bruno/Documents/Development/bruno/vulkano_codex/.agent",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/.agent" />
+    </key>
+  </component>
+  <component name="RunManager">
+    <configuration default="true" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true">
+      <method v="2">
+        <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
+      </method>
+    </configuration>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="ea5f2232-e0d5-4be9-833c-c06073c2468d" name="Changes" comment="" />
+      <created>1757930371230</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1757930371230</updated>
+      <workItem from="1757930372426" duration="26134000" />
+      <workItem from="1758017569975" duration="12180000" />
+    </task>
+    <task id="LOCAL-00001" summary="New TODO">
+      <option name="closed" value="true" />
+      <created>1758028562120</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1758028562120</updated>
+    </task>
+    <task id="LOCAL-00002" summary="New TODO">
+      <option name="closed" value="true" />
+      <created>1758029942344</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1758029942344</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
+    <servers />
+  </component>
+  <component name="VCPKGProject">
+    <isAutomaticCheckingOnLaunch value="false" />
+    <isAutomaticFoundErrors value="true" />
+    <isAutomaticReloadCMake value="true" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State>
+              <option name="FILTERS">
+                <map>
+                  <entry key="branch">
+                    <value>
+                      <list>
+                        <option value="HEAD" />
+                      </list>
+                    </value>
+                  </entry>
+                </map>
+              </option>
+            </State>
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="New TODO" />
+    <option name="LAST_COMMIT_MESSAGE" value="New TODO" />
+  </component>
+</project>
