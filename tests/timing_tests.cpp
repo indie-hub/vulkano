@@ -50,8 +50,7 @@ TEST_CASE("FpsAverager computes average ms and fps") {
     avg.addSample(0.020); // 50 FPS
 
     const double ms = avg.avgMs();
-    REQUIRE(ms == Approx(22.5));
+    REQUIRE(ms == Catch::Approx(22.5));
     const double fps = avg.fps();
-    REQUIRE(fps == Approx(44.444).margin(0.01));
+    REQUIRE(fps == Catch::Approx(44.444).margin(0.01));
 }
-

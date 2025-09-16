@@ -4,20 +4,54 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="BackendCodeEditorMiscSettings">
-    <option name="/Default/Environment/Hierarchy/GeneratedFilesCacheKey/Timestamp/@EntryValue" value="476" type="long" />
+    <option name="/Default/Environment/Hierarchy/GeneratedFilesCacheKey/Timestamp/@EntryValue" value="487" type="long" />
   </component>
   <component name="CMakePresetLoader">{
   &quot;useNewFormat&quot;: true
 }</component>
   <component name="CMakeRunConfigurationManager">
     <generated>
-      <config projectName="Project" targetName="Shaders" />
-      <config projectName="Project" targetName="vulkano_codex_tests" />
-      <config projectName="Project" targetName="glm" />
-      <config projectName="Project" targetName="glfw" />
-      <config projectName="Project" targetName="fps_smoothing_test" />
-      <config projectName="Project" targetName="vulkano_app" />
-      <config projectName="Project" targetName="update_mappings" />
+      <config projectName="VulkanoCodex" targetName="ContinuousTest" />
+      <config projectName="VulkanoCodex" targetName="NightlyMemoryCheck" />
+      <config projectName="VulkanoCodex" targetName="glm" />
+      <config projectName="VulkanoCodex" targetName="ContinuousMemCheck" />
+      <config projectName="VulkanoCodex" targetName="NightlyBuild" />
+      <config projectName="VulkanoCodex" targetName="NightlyStart" />
+      <config projectName="VulkanoCodex" targetName="Shaders" />
+      <config projectName="VulkanoCodex" targetName="Catch2WithMain" />
+      <config projectName="VulkanoCodex" targetName="ExperimentalCoverage" />
+      <config projectName="VulkanoCodex" targetName="NightlyMemCheck" />
+      <config projectName="VulkanoCodex" targetName="Experimental" />
+      <config projectName="VulkanoCodex" targetName="ExperimentalBuild" />
+      <config projectName="VulkanoCodex" targetName="vulkano" />
+      <config projectName="VulkanoCodex" targetName="ContinuousCoverage" />
+      <config projectName="VulkanoCodex" targetName="NightlyTest" />
+      <config projectName="VulkanoCodex" targetName="ExperimentalTest" />
+      <config projectName="VulkanoCodex" targetName="update_mappings" />
+      <config projectName="VulkanoCodex" targetName="ExperimentalConfigure" />
+      <config projectName="VulkanoCodex" targetName="ContinuousBuild" />
+      <config projectName="VulkanoCodex" targetName="ExperimentalSubmit" />
+      <config projectName="VulkanoCodex" targetName="vulkano_tests" />
+      <config projectName="VulkanoCodex" targetName="NightlyConfigure" />
+      <config projectName="VulkanoCodex" targetName="ContinuousStart" />
+      <config projectName="VulkanoCodex" targetName="NightlyUpdate" />
+      <config projectName="VulkanoCodex" targetName="vulkano_app" />
+      <config projectName="VulkanoCodex" targetName="Nightly" />
+      <config projectName="VulkanoCodex" targetName="NightlySubmit" />
+      <config projectName="VulkanoCodex" targetName="ContinuousUpdate" />
+      <config projectName="VulkanoCodex" targetName="ExperimentalUpdate" />
+      <config projectName="VulkanoCodex" targetName="ExperimentalStart" />
+      <config projectName="VulkanoCodex" targetName="imgui_backend" />
+      <config projectName="VulkanoCodex" targetName="ExperimentalMemCheck" />
+      <config projectName="VulkanoCodex" targetName="compile_shaders" />
+      <config projectName="VulkanoCodex" targetName="NightlyCoverage" />
+      <config projectName="VulkanoCodex" targetName="vulkano_codex_tests" />
+      <config projectName="VulkanoCodex" targetName="ContinuousSubmit" />
+      <config projectName="VulkanoCodex" targetName="Catch2" />
+      <config projectName="VulkanoCodex" targetName="Continuous" />
+      <config projectName="VulkanoCodex" targetName="glfw" />
+      <config projectName="VulkanoCodex" targetName="fps_smoothing_test" />
+      <config projectName="VulkanoCodex" targetName="ContinuousConfigure" />
     </generated>
   </component>
   <component name="CMakeSettings">
@@ -26,7 +60,9 @@
     </configurations>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="ea5f2232-e0d5-4be9-833c-c06073c2468d" name="Changes" comment="" />
+    <list default="true" id="ea5f2232-e0d5-4be9-833c-c06073c2468d" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/build/_deps/glfw-src" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/glfw-src" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -298,7 +334,7 @@
       <option name="presentableId" value="Default" />
       <updated>1757930371230</updated>
       <workItem from="1757930372426" duration="26134000" />
-      <workItem from="1758017569975" duration="6850000" />
+      <workItem from="1758017569975" duration="6945000" />
     </task>
     <servers />
   </component>
@@ -321,7 +357,7 @@
                   <entry key="branch">
                     <value>
                       <list>
-                        <option value="HEAD" />
+                        <option value="personal/codex/sixth-attempt" />
                       </list>
                     </value>
                   </entry>
