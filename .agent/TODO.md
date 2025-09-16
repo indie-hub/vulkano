@@ -8,6 +8,6 @@
 - [x] Configure + build (bin/ + shaders)
 - [x] Run unit + E2E tests (smoke)
 - [x] Review and tidy (clang-format/tidy)
-- [ ] Verify VK_EXT_debug_utils names/markers coverage; add missing labels if needed
+- [x] Verify VK_EXT_debug_utils names/markers coverage; add missing labels if needed
 - [ ] Audit includes to ensure angle brackets everywhere; fix if needed
 - [ ] Update docs: module README and build/run notes

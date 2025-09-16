@@ -737,6 +737,14 @@ void VulkanContext::create_swapchain_and_views(GLFWwindow* window) noexcept {
     }
     swapchain_images_.resize(static_cast<std::size_t>(retrievedCount));
     vkGetSwapchainImagesKHR(device_, swapchain_, &retrievedCount, swapchain_images_.data());
+    // Name swapchain images for easier debugging
+    if (validation_enabled_) {
+        for (std::size_t i {0U}; i < swapchain_images_.size(); ++i) {
+            char name[64];
+            std::snprintf(name, sizeof(name), "SwapImage[%zu]", i);
+            set_object_name(VK_OBJECT_TYPE_IMAGE, reinterpret_cast<std::uint64_t>(swapchain_images_[i]), name);
+        }
+    }
 
     swapchain_image_views_.resize(swapchain_images_.size());
     images_in_flight_.assign(swapchain_images_.size(), VK_NULL_HANDLE);
@@ -889,6 +897,12 @@ void VulkanContext::create_framebuffers() noexcept {
         VkFramebuffer fb {VK_NULL_HANDLE};
         if (vkCreateFramebuffer(device_, &fbInfo, nullptr, &fb) == VK_SUCCESS) {
             framebuffers_[i] = fb;
+            // Name framebuffers for easier debugging
+            if (validation_enabled_) {
+                char name[64];
+                std::snprintf(name, sizeof(name), "Framebuffer[%zu]", i);
+                set_object_name(VK_OBJECT_TYPE_FRAMEBUFFER, reinterpret_cast<std::uint64_t>(framebuffers_[i]), name);
+            }
         } else {
             framebuffers_[i] = VK_NULL_HANDLE;
         }
@@ -951,6 +965,9 @@ void VulkanContext::create_depth_resources() noexcept {
     }
 
     vkBindImageMemory(device_, image, memory, 0U);
+    if (validation_enabled_) {
+        set_object_name(VK_OBJECT_TYPE_DEVICE_MEMORY, reinterpret_cast<std::uint64_t>(memory), "DepthImageMemory");
+    }
 
     VkImageViewCreateInfo viewInfo {};
     viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -1030,11 +1047,11 @@ namespace {
         info.codeSize = code.size();
         info.pCode = reinterpret_cast<const std::uint32_t*>(code.data());
         VkShaderModule module {VK_NULL_HANDLE};
-        if (vkCreateShaderModule(device, &info, nullptr, &module) != VK_SUCCESS) {
-            return VK_NULL_HANDLE;
-        }
-        return module;
+    if (vkCreateShaderModule(device, &info, nullptr, &module) != VK_SUCCESS) {
+        return VK_NULL_HANDLE;
     }
+    return module;
+}
 }
 
 void VulkanContext::create_pipeline_layout() noexcept {
@@ -1346,6 +1363,9 @@ void VulkanContext::create_vertex_buffer() noexcept {
     vertex_buffer_ = buffer;
     vertex_buffer_memory_ = memory;
     set_object_name(VK_OBJECT_TYPE_BUFFER, reinterpret_cast<std::uint64_t>(vertex_buffer_), "MeshVertexBuffer");
+    if (validation_enabled_) {
+        set_object_name(VK_OBJECT_TYPE_DEVICE_MEMORY, reinterpret_cast<std::uint64_t>(vertex_buffer_memory_), "MeshVertexBufferMemory");
+    }
 }
 
 void VulkanContext::destroy_index_buffer() noexcept {
@@ -1639,6 +1659,9 @@ void VulkanContext::create_uniform_buffers_and_sets() noexcept {
         uniform_buffers_[i] = buffer;
         uniform_buffers_memory_[i] = memory;
         set_object_name(VK_OBJECT_TYPE_BUFFER, reinterpret_cast<std::uint64_t>(buffer), "GlobalUBOBuffer");
+        if (validation_enabled_) {
+            set_object_name(VK_OBJECT_TYPE_DEVICE_MEMORY, reinterpret_cast<std::uint64_t>(memory), "GlobalUBOBufferMemory");
+        }
     }
 
     // Allocate descriptor sets
@@ -1652,6 +1675,13 @@ void VulkanContext::create_uniform_buffers_and_sets() noexcept {
     if (vkAllocateDescriptorSets(device_, &allocInfo, descriptor_sets_.data()) != VK_SUCCESS) {
         descriptor_sets_.clear();
         return;
+    }
+    if (validation_enabled_) {
+        for (std::size_t i {0U}; i < descriptor_sets_.size(); ++i) {
+            char name[64];
+            std::snprintf(name, sizeof(name), "GlobalUBOSet[%zu]", i);
+            set_object_name(VK_OBJECT_TYPE_DESCRIPTOR_SET, reinterpret_cast<std::uint64_t>(descriptor_sets_[i]), name);
+        }
     }
 
     for (std::size_t i {0U}; i < descriptor_sets_.size(); ++i) {
@@ -1687,6 +1717,7 @@ void VulkanContext::create_command_pool_and_buffers() noexcept {
         VkCommandPool pool {VK_NULL_HANDLE};
         if (vkCreateCommandPool(device_, &poolInfo, nullptr, &pool) == VK_SUCCESS) {
             command_pool_ = pool;
+            set_object_name(VK_OBJECT_TYPE_COMMAND_POOL, reinterpret_cast<std::uint64_t>(command_pool_), "PrimaryCommandPool");
         }
     }
 
@@ -1725,13 +1756,28 @@ void VulkanContext::create_sync_objects() noexcept {
 
     for (std::uint32_t i {0U}; i < kMaxFramesInFlight; ++i) {
         vkCreateSemaphore(device_, &semInfo, nullptr, &image_available_semaphores_[i]);
+        if (validation_enabled_ && image_available_semaphores_[i] != VK_NULL_HANDLE) {
+            char name[64];
+            std::snprintf(name, sizeof(name), "ImageAvailable[%u]", i);
+            set_object_name(VK_OBJECT_TYPE_SEMAPHORE, reinterpret_cast<std::uint64_t>(image_available_semaphores_[i]), name);
+        }
         vkCreateFence(device_, &fenceInfo, nullptr, &in_flight_fences_[i]);
+        if (validation_enabled_ && in_flight_fences_[i] != VK_NULL_HANDLE) {
+            char name[64];
+            std::snprintf(name, sizeof(name), "InFlightFence[%u]", i);
+            set_object_name(VK_OBJECT_TYPE_FENCE, reinterpret_cast<std::uint64_t>(in_flight_fences_[i]), name);
+        }
     }
 
     // One render-finished semaphore per swapchain image to avoid reuse hazards across presents
     render_finished_semaphores_.assign(swapchain_images_.size(), VK_NULL_HANDLE);
     for (std::size_t i {0U}; i < swapchain_images_.size(); ++i) {
         vkCreateSemaphore(device_, &semInfo, nullptr, &render_finished_semaphores_[i]);
+        if (validation_enabled_ && render_finished_semaphores_[i] != VK_NULL_HANDLE) {
+            char name[64];
+            std::snprintf(name, sizeof(name), "RenderFinished[%zu]", i);
+            set_object_name(VK_OBJECT_TYPE_SEMAPHORE, reinterpret_cast<std::uint64_t>(render_finished_semaphores_[i]), name);
+        }
     }
 }
 
