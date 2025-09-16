@@ -1,8 +1,10 @@
-Initial plan:
-- Scaffold CMake project
-- Add GLFW/GLM/ImGui via FetchContent
-- Implement Vulkan app with RAII
-- Render triangle + ImGui stats
-- Handle resize + validation
-- Build to bin/ and run
-- Add basic tests
+Done so far:
+- CMake project scaffolded (GLFW, GLM, ImGui)
+- Vulkan triangle renders with ImGui overlay hooks
+- Shaders compile via glslc to bin/shaders
+- Basic test hooked via CTest
+
+Next:
+- Add more debug names/markers
+- Expand unit tests for FPS smoothing
+- Improve resize callback handling if needed
