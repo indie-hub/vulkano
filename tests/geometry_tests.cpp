@@ -1,0 +1,28 @@
+#include <catch2/catch_all.hpp>
+
+#include <vulkano/geometry.hpp>
+
+TEST_CASE("Plane generates 4 verts and 6 indices") {
+    const vulkano::Plane::Params p {1.0F, 2.0F, {1.0F, 1.0F}};
+    const vulkano::Plane plane {p};
+    REQUIRE(plane.vertices().size() == 4);
+    REQUIRE(plane.indices().size() == 6);
+}
+
+TEST_CASE("Cube generates 24 verts and 36 indices") {
+    const vulkano::Cube cube {};
+    REQUIRE(cube.vertices().size() == 24);
+    REQUIRE(cube.indices().size() == 36);
+}
+
+TEST_CASE("Icosphere vertex/index counts grow with subdivisions") {
+    const vulkano::Icosphere s0 {{0U}};
+    const vulkano::Icosphere s1 {{1U}};
+    const vulkano::Icosphere s2 {{2U}};
+    // Basic monotonic checks
+    REQUIRE(s0.vertices().size() < s1.vertices().size());
+    REQUIRE(s1.vertices().size() < s2.vertices().size());
+    REQUIRE(s0.indices().size() < s1.indices().size());
+    REQUIRE(s1.indices().size() < s2.indices().size());
+}
+

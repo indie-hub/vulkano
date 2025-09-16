@@ -1,9 +1,9 @@
-- [x] Verify triangle rendering: adjusted pipeline to disable face culling to ensure visibility across platforms.
-- [x] Configure, build, and run smoke test (compile shaders, build app, run ctest).
-- [x] Manual run to visually verify black background, white triangle, and ImGui overlay stats.
-- [x] Package runtime to bin/dist and validate shaders present alongside binary.
-- [ ] Optional: add a lightweight unit test for shader path discovery fallback.
-- [x] Add a baseline .clang-tidy configuration aligned with Clean Code checks.
-- [ ] Run clang-tidy locally and address any actionable findings.
-- [ ] Run with validation layers enabled and actively resize; ensure no validation errors in logs.
- - [ ] Re-enable back-face culling with correct frontFace after visual verification on macOS and Linux/Windows.
+- [x] Add geometry OO layer (Primitive, Plane, Cube, Icosphere) with CPU mesh generation and unit tests
+- [ ] Add 3D vertex format (pos3, normal3, uv2) to pipeline; introduce depth buffer and render pass with depth
+- [ ] Implement camera (orbit) with GLM; compute per-frame view/projection
+- [ ] Introduce per-primitive transform + material UBO/push constants; basic Blinn-Phong shaders; compile to bin/shaders
+- [ ] Create GPU buffers (vertex/index) with staging upload; store per-primitive buffers; draw each primitive
+- [ ] Add scene setup (plane 10x10; cube; icosphere 2 subdivisions) and render with depth
+- [ ] ImGui controls for light (pos/intensity) and per-primitive transform/color/shininess; show existing stats
+- [ ] Handle window resize correctly with depth resources; ensure no validation errors
+- [ ] Add end-to-end smoke that verifies window opens and draws (already present); add minimal unit tests for camera/math if needed
