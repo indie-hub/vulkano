@@ -1,6 +1,6 @@
 file(REMOVE_RECURSE
-  "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libCatch2Main.a"
-  "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libCatch2Main.pdb"
+  "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libCatch2Maind.a"
+  "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libCatch2Maind.pdb"
   "CMakeFiles/Catch2WithMain.dir/catch2/internal/catch_main.cpp.o"
   "CMakeFiles/Catch2WithMain.dir/catch2/internal/catch_main.cpp.o.d"
 )
