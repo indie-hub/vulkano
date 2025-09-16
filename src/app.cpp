@@ -103,14 +103,14 @@ struct App::Impl {
         debugMessenger = vkbInstance.debug_messenger;
         volkLoadInstance(instance);
 
-        if (!vkb::create_surface_glfw(instance, window, nullptr, &surface)) {
+        if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
             throw std::runtime_error {"Failed to create window surface"};
         }
 
         vkb::PhysicalDeviceSelector selector {vkbInstance};
         auto physRet = selector.set_surface(surface)
                                  .set_minimum_version(1, 2)
-                                 .set_preferred_gpu_device_type(vkb::PreferredDeviceType::discrete)
+                                 .prefer_gpu_device_type(vkb::PreferredDeviceType::discrete)
                                  .select();
         if (!physRet) {
             throw std::runtime_error {"Failed to select physical device"};

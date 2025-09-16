@@ -113,7 +113,7 @@ target_link_libraries(vulkano
 target_compile_definitions(vulkano PUBLIC
     $<$<CONFIG:Debug>:VULKANO_CODEX_DEBUG=1>
     VK_NO_PROTOTYPES
-    GLFW_INCLUDE_NONE)
+    GLFW_INCLUDE_VULKAN)
 target_compile_definitions(imgui_backend PUBLIC VK_NO_PROTOTYPES IMGUI_IMPL_VULKAN_NO_PROTOTYPES)
 
 add_executable(vulkano_app src/main.cpp)

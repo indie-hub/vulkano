@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="BackendCodeEditorMiscSettings">
-    <option name="/Default/Environment/Hierarchy/GeneratedFilesCacheKey/Timestamp/@EntryValue" value="487" type="long" />
+    <option name="/Default/Environment/Hierarchy/GeneratedFilesCacheKey/Timestamp/@EntryValue" value="494" type="long" />
   </component>
   <component name="CMakePresetLoader">{
   &quot;useNewFormat&quot;: true
@@ -29,6 +29,7 @@
       <config projectName="VulkanoCodex" targetName="ExperimentalTest" />
       <config projectName="VulkanoCodex" targetName="update_mappings" />
       <config projectName="VulkanoCodex" targetName="ExperimentalConfigure" />
+      <config projectName="VulkanoCodex" targetName="vk-bootstrap" />
       <config projectName="VulkanoCodex" targetName="ContinuousBuild" />
       <config projectName="VulkanoCodex" targetName="ExperimentalSubmit" />
       <config projectName="VulkanoCodex" targetName="vulkano_tests" />
@@ -40,10 +41,10 @@
       <config projectName="VulkanoCodex" targetName="NightlySubmit" />
       <config projectName="VulkanoCodex" targetName="ContinuousUpdate" />
       <config projectName="VulkanoCodex" targetName="ExperimentalUpdate" />
+      <config projectName="VulkanoCodex" targetName="volk" />
       <config projectName="VulkanoCodex" targetName="ExperimentalStart" />
       <config projectName="VulkanoCodex" targetName="imgui_backend" />
       <config projectName="VulkanoCodex" targetName="ExperimentalMemCheck" />
-      <config projectName="VulkanoCodex" targetName="compile_shaders" />
       <config projectName="VulkanoCodex" targetName="NightlyCoverage" />
       <config projectName="VulkanoCodex" targetName="vulkano_codex_tests" />
       <config projectName="VulkanoCodex" targetName="ContinuousSubmit" />
@@ -61,6 +62,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="ea5f2232-e0d5-4be9-833c-c06073c2468d" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build/_deps/glfw-src" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/glfw-src" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -269,12 +271,17 @@
         <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
       </method>
     </configuration>
-    <configuration name="compile_shaders" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="VulkanoCodex" TARGET_NAME="compile_shaders" CONFIG_NAME="Debug">
+    <configuration name="imgui_backend" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="VulkanoCodex" TARGET_NAME="imgui_backend" CONFIG_NAME="Debug">
       <method v="2">
         <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
       </method>
     </configuration>
-    <configuration name="imgui_backend" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="VulkanoCodex" TARGET_NAME="imgui_backend" CONFIG_NAME="Debug">
+    <configuration name="vk-bootstrap" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="VulkanoCodex" TARGET_NAME="vk-bootstrap" CONFIG_NAME="Debug">
+      <method v="2">
+        <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="volk" type="CMakeRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="VulkanoCodex" TARGET_NAME="volk" CONFIG_NAME="Debug">
       <method v="2">
         <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
       </method>
@@ -290,7 +297,6 @@
       </method>
     </configuration>
     <list>
-      <item itemvalue="CMake Application.compile_shaders" />
       <item itemvalue="CMake Application.Continuous" />
       <item itemvalue="CMake Application.ContinuousBuild" />
       <item itemvalue="CMake Application.ContinuousConfigure" />
@@ -324,6 +330,8 @@
       <item itemvalue="CMake Application.vulkano_tests" />
       <item itemvalue="CMake Application.Catch2" />
       <item itemvalue="CMake Application.Catch2WithMain" />
+      <item itemvalue="CMake Application.vk-bootstrap" />
+      <item itemvalue="CMake Application.volk" />
     </list>
   </component>
   <component name="TaskManager">
@@ -334,7 +342,7 @@
       <option name="presentableId" value="Default" />
       <updated>1757930371230</updated>
       <workItem from="1757930372426" duration="26134000" />
-      <workItem from="1758017569975" duration="6945000" />
+      <workItem from="1758017569975" duration="7016000" />
     </task>
     <servers />
   </component>
