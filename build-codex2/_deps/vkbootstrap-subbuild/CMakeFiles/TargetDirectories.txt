@@ -1,3 +1,0 @@
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex2/_deps/vkbootstrap-subbuild/CMakeFiles/vkbootstrap-populate.dir
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex2/_deps/vkbootstrap-subbuild/CMakeFiles/edit_cache.dir
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build-codex2/_deps/vkbootstrap-subbuild/CMakeFiles/rebuild_cache.dir

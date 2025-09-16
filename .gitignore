@@ -43,6 +43,7 @@
 # Local build directories
 build/
 build-debug/
+build-codex*/
 cmake-build-*/
 bin/
 .idea/
