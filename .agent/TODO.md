@@ -1,4 +1,9 @@
-- [x] Build + compile shaders + run unit and E2E tests; package to bin/dist
-- [ ] Manual visual QA on macOS: verify plane/cube/icosphere depth, Blinn-Phong shading, UI controls, resizing, and no validation errors
-- [x] CI: add macOS workflow to build, compile shaders, run tests; archive bin/dist
-- [ ] Polish: re-audit debug utils names/markers and include hygiene; address any minor tidy/format issues
+- [x] Audit baseline code and build status.
+- [x] Implement/verify Plane, Cube, Icosphere primitives (CPU meshes).
+- [x] Implement graphics pipeline with depth testing and vertex format (pos3, normal3, uv2).
+- [x] Implement Blinn-Phong shading (UBO + push constants); compile shaders.
+- [x] Build and upload combined geometry buffers via staging.
+- [x] Hook ImGui overlay for stats and scene controls (light, per-primitive), incl. icosphere subdivisions rebuild.
+- [x] Add orbit camera with GLM and wire per-frame UBO.
+- [x] Package runtime to bin/dist and run smoke tests.
+- [ ] Manual visual QA: run bin/vulkano_app and verify rendering and UI interactions on macOS.
