@@ -31,6 +31,6 @@
  - [x] Commit final changes
  - [x] Push to origin with GITHUB_TOKEN (env not set)
  - [x] Run a Debug build to validate layers at runtime and address any validation messages encountered during interactive testing
- - [ ] Run the application and validate it works
- - [ ] Validate the project against AGENTS.md
- - [ ] Investigate the error:  std::runtime_error: GLFW reports Vulkan not supported
+- [ ] Run the application and validate it works
+- [ ] Validate the project against AGENTS.md
+- [x] Investigate Vulkan support error on macOS (enable portability extensions)

@@ -131,6 +131,11 @@ struct App::Impl {
         vkb::InstanceBuilder builder {};
         builder.require_api_version(1, 2, 0);
         builder.set_app_name(config.windowTitle.c_str());
+#ifdef __APPLE__
+        // Enable portability enumeration for MoltenVK on macOS
+        builder.set_instance_create_flags(VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR);
+        builder.enable_extension(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+#endif
 
         const bool enableValidation = config.enableValidation;
 #ifdef VULKANO_CODEX_DEBUG
@@ -160,6 +165,7 @@ struct App::Impl {
         vkb::PhysicalDeviceSelector selector {vkbInstance};
         auto physRet = selector.set_surface(surface)
                                  .set_minimum_version(1, 2)
+                                 .allow_any_physical_device_type()
                                  .prefer_gpu_device_type(vkb::PreferredDeviceType::discrete)
                                  .select();
         if (!physRet) {
@@ -169,6 +175,10 @@ struct App::Impl {
         physicalDevice = vkbPhys.physical_device;
 
         vkb::DeviceBuilder devBuilder {vkbPhys};
+#ifdef __APPLE__
+        // MoltenVK requires portability subset device extension
+        devBuilder.add_device_extension(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
+#endif
         auto devRet = devBuilder.build();
         if (!devRet) {
             throw std::runtime_error {"Failed to create logical device"};
