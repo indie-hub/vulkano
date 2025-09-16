@@ -1,9 +1,13 @@
 - [x] Create TODO with steps
+- [x] Implement Primitive/Plane/Cube/Icosphere and GPU upload
+- [x] Single graphics pipeline with depth testing
+- [x] Blinn-Phong shading via UBO + push constants
+- [x] Camera (orbit) + per-draw MVP
+- [x] Scene setup: plane/cube/icosphere + materials
+- [x] ImGui overlay: stats + per-primitive + light controls
 - [x] Configure + build (bin/ + shaders)
-- [x] Run unit + E2E tests
-- [x] Manual run validation (auto-close)
+- [x] Run unit + E2E tests (smoke)
 - [ ] Review and tidy (clang-format/tidy)
-- [x] Enforce header/impl separation for inline methods (geometry.hpp)
-- [ ] Verify VK_EXT_debug_utils names/markers coverage; add missing labels
+- [ ] Verify VK_EXT_debug_utils names/markers coverage; add missing labels if needed
 - [ ] Audit includes to ensure angle brackets everywhere; fix if needed
 - [ ] Update docs: module README and build/run notes
