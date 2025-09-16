@@ -41,5 +41,10 @@ Nice-to-have:
 
 Verification (automated run):
 - Built Debug and ran tests successfully on this machine.
-- Build time: 2025-09-16T12:50:30Z.
+- Build time: 2025-09-16T13:07:00Z.
   - Re-verified build + CTest on this pass; binaries in bin/ and SPIR-V in bin/shaders.
+  - CMake FetchContent fetched GLFW/GLM/ImGui; Vulkan SDK with glslc present.
+
+Next steps (if needed):
+- Optional: add CI workflow to build and run tests across platforms
+- Optional: add runtime toggle for v-sync/present mode via ImGui
