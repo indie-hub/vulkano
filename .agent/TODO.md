@@ -126,6 +126,12 @@ Verification: Built Debug locally, tests pass, headless run OK.
 - No source changes required; repository already satisfies v1 acceptance criteria.
 - Local commit will record this verification; push still pending env `GITHUB_TOKEN`.
 
+### 2025-09-16 (CLI) – This Run (Codex session 4)
+- Fresh configure in `build_codex/` (RelWithDebInfo, tests ON) using Ninja.
+- Build succeeded; unit tests passed (`ctest` 1/1 green).
+- Verified headless run for 200 ms: OK.
+- No source changes needed; updated TODO and will commit this verification.
+
 ## Acceptance Criteria – Self-check (initial)
 - App runs; window opens; headless path also runs.
 - Phong + tangent-space normal mapping visible; normal strength adjustable.
