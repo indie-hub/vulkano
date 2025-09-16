@@ -1,5 +1,6 @@
 #include <catch2/catch_all.hpp>
 #include <chrono>
+#include <vulkano/app.hpp>
 
 namespace {
 
@@ -53,4 +54,12 @@ TEST_CASE("FpsAverager computes average ms and fps") {
     REQUIRE(ms == Catch::Approx(22.5));
     const double fps = avg.fps();
     REQUIRE(fps == Catch::Approx(44.444).margin(0.01));
+}
+
+TEST_CASE("AppConfig has sensible defaults") {
+    const vulkano::AppConfig cfg {};
+    REQUIRE(cfg.initialWidth > 0);
+    REQUIRE(cfg.initialHeight > 0);
+    REQUIRE(cfg.windowTitle.size() > 0);
+    REQUIRE(cfg.enableValidation == false);
 }
