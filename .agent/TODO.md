@@ -1,6 +1,6 @@
 - [x] Initialize CMake project skeleton
 - [x] Add formatting and tidy configs
-- [ ] Add third-party dependencies via FetchContent
+ - [x] Add third-party dependencies via FetchContent
 - [x] Implement core Vulkan app scaffolding
 - [x] Create window with GLFW
 - [x] Create Vulkan instance with validation (Debug)
@@ -20,8 +20,12 @@
 - [x] Show FPS, frame time, device name, extent
 - [x] Implement smoothed delta time
  - [ ] Add debug utils names and markers
- - [ ] Add unit tests (timing/math)
- - [ ] Configure tests in CMake
- - [ ] Set RUNTIME_OUTPUT_DIRECTORY to bin/
- - [ ] Build and run locally
+- [ ] Add unit tests (timing/math)
+- [ ] Configure tests in CMake
+- [ ] Set RUNTIME_OUTPUT_DIRECTORY to bin/
+- [ ] Build and run locally
+ - [x] Add unit tests (timing/math)
+ - [x] Configure tests in CMake
+ - [x] Set RUNTIME_OUTPUT_DIRECTORY to bin/
+ - [x] Build and run locally
  - [ ] Final cleanup and documentation
