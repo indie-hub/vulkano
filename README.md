@@ -25,6 +25,14 @@ Artifacts are placed in `bin/`:
 - `bin/shaders/mesh.vert.spv`, `bin/shaders/mesh.frag.spv` (and legacy triangle shaders)
 - `bin/imgui.ini` (created at first run)
 
+Runtime bundle (relocatable):
+- `cmake --build build --target dist`
+- Outputs to `bin/dist/` containing:
+  - `bin/dist/vulkano_app`
+  - `bin/dist/shaders/` (SPIR-V)
+  - `bin/dist/imgui.ini` (created on first run)
+  - You can zip/copy `bin/dist/` to run elsewhere without the build tree.
+
 ## Run
 
 From repo root:
@@ -39,6 +47,11 @@ Controls (ImGui):
 - Light: position (XYZ), intensity
 - Per primitive (Plane, Cube, Icosphere): position, rotation (radians), scale, base color, shininess
 - Icosphere: optional subdivisions slider (rebuilds CPU mesh + re‑uploads GPU buffers)
+
+Scene setup (defaults):
+- Plane: 10×10 at y=0, grey base color
+- Cube: scale 0.5, position (-1, 0.5, 0), warm orange
+- Icosphere: scale 0.5, position (1, 0.5, 0), subdivisions=2, light blue
 
 ## macOS Notes (MoltenVK)
 

@@ -1,4 +1,4 @@
 - [x] Create initial TODO and verify repo state
 - [x] Build project (Release), compile shaders, run unit tests and app smoke
-- [ ] Document scene controls and runtime bundle in README
+- [x] Document scene controls and runtime bundle in README
 - [ ] Optional: add more validation/robustness around swapchain recreation paths
