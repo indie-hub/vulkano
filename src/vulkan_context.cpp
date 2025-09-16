@@ -8,6 +8,7 @@
 #include <GLFW/glfw3.h>
 
 #include <array>
+#include <cmath>
 #include <functional>
 #include <vector>
 #include <stdexcept>
@@ -1049,11 +1050,22 @@ static void create_pipeline(VulkanContext& ctx) {
         sci.maxAnisotropy = 1.0F; sci.anisotropyEnable = VK_FALSE;
         if (vkCreateSampler(impl.device, &sci, nullptr, &impl.sampler) != VK_SUCCESS) { /* non-fatal */ }
 
-        // Generate procedural textures (checkerboard albedo, flat normal)
+        // Generate procedural textures (checkerboard albedo, perturbed normal map)
         const uint32_t W = 256, H = 256; std::vector<std::uint32_t> albedo(W*H, 0); std::vector<std::uint32_t> normal(W*H, 0);
         for (uint32_t y=0;y<H;++y) { for (uint32_t x=0;x<W;++x) {
             const bool c = (((x/16U) + (y/16U)) % 2U) == 0U; const std::uint8_t v = c ? 220 : 40; albedo[y*W+x] = (0xFFu<<24) | (v<<16) | (v<<8) | (v);
-            const std::uint8_t nx = 128, ny = 128, nz = 255; normal[y*W+x] = (0xFFu<<24) | (nz<<16) | (ny<<8) | (nx);
+            // Procedural tangent-space normal: gentle sinusoidal perturbation
+            const float fx = static_cast<float>(x) / 16.0F;
+            const float fy = static_cast<float>(y) / 16.0F;
+            const float nx_f = 0.4F * std::sinf(6.2831853F * fx);
+            const float ny_f = 0.4F * std::cosf(6.2831853F * fy);
+            const float nz_f_sq = 1.0F - nx_f*nx_f - ny_f*ny_f;
+            const float nz_f = nz_f_sq > 0.0F ? std::sqrt(nz_f_sq) : 0.6F;
+            const auto pack = [](float v) -> std::uint8_t { float t = (v * 0.5F) + 0.5F; if (t < 0.0F) { t = 0.0F; } if (t > 1.0F) { t = 1.0F; } return static_cast<std::uint8_t>(t * 255.0F + 0.5F); };
+            const std::uint8_t nx = pack(nx_f);
+            const std::uint8_t ny = pack(ny_f);
+            const std::uint8_t nz = pack(nz_f);
+            normal[y*W+x] = (0xFFu<<24) | (static_cast<std::uint32_t>(nz)<<16) | (static_cast<std::uint32_t>(ny)<<8) | (static_cast<std::uint32_t>(nx));
         } }
         create_image_and_upload(ctx, W, H, albedo.data(), static_cast<VkDeviceSize>(albedo.size()*sizeof(std::uint32_t)), &impl.albedo_image, &impl.albedo_memory, &impl.albedo_view);
         create_image_and_upload(ctx, W, H, normal.data(), static_cast<VkDeviceSize>(normal.size()*sizeof(std::uint32_t)), &impl.normal_image, &impl.normal_memory, &impl.normal_view);
