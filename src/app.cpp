@@ -85,7 +85,7 @@ struct App::Impl {
         const bool enableValidation = config.enableValidation;
 #ifdef VULKANO_CODEX_DEBUG
         if (enableValidation) {
-            builder.request_validation_layers(true).use_default_debug_messenger(true);
+            builder.request_validation_layers(true).use_default_debug_messenger();
         }
 #endif
 
@@ -103,12 +103,15 @@ struct App::Impl {
         debugMessenger = vkbInstance.debug_messenger;
         volkLoadInstance(instance);
 
-        if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
+        if (!vkb::create_surface_glfw(instance, window, nullptr, &surface)) {
             throw std::runtime_error {"Failed to create window surface"};
         }
 
         vkb::PhysicalDeviceSelector selector {vkbInstance};
-        auto physRet = selector.set_surface(surface).set_minimum_version(1, 2).prefer_discrete_gpu().select();
+        auto physRet = selector.set_surface(surface)
+                                 .set_minimum_version(1, 2)
+                                 .set_preferred_gpu_device_type(vkb::PreferredDeviceType::discrete)
+                                 .select();
         if (!physRet) {
             throw std::runtime_error {"Failed to select physical device"};
         }
