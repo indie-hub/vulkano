@@ -1,0 +1,22 @@
+Start testing: Sep 16 11:44 BST
+----------------------------------------------------------
+1/1 Testing: vulkano_codex_tests
+1/1 Test: vulkano_codex_tests
+Command: "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_codex_tests"
+Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build/tests
+"vulkano_codex_tests" start time: Sep 16 11:44 BST
+Output:
+----------------------------------------------------------
+Randomness seeded to: 3886670461
+===============================================================================
+All tests passed (2 assertions in 1 test case)
+
+<end of output>
+Test time =   0.44 sec
+----------------------------------------------------------
+Test Passed.
+"vulkano_codex_tests" end time: Sep 16 11:44 BST
+"vulkano_codex_tests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Sep 16 11:44 BST

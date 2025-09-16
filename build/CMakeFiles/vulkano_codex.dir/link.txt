@@ -1,0 +1,2 @@
+/usr/bin/ar qc /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libvulkano_codex.a CMakeFiles/vulkano_codex.dir/src/app.cpp.o CMakeFiles/vulkano_codex.dir/src/imgui_layer.cpp.o CMakeFiles/vulkano_codex.dir/src/shaders.cpp.o CMakeFiles/vulkano_codex.dir/src/utils.cpp.o
+/usr/bin/ranlib /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libvulkano_codex.a
