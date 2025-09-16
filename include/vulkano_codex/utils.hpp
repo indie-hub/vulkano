@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <chrono>
 
@@ -8,32 +8,10 @@ class FpsAverager final {
 public:
     FpsAverager() noexcept = default;
 
-    void reset() noexcept {
-        last_ = clock::now();
-        avg_frame_ms_ = 0.0;
-        initialized_ = false;
-    }
-
-    void tick() noexcept {
-        const auto now = clock::now();
-        const auto dt = std::chrono::duration<double, std::milli>(now - last_).count();
-        last_ = now;
-        if (!initialized_) {
-            avg_frame_ms_ = dt;
-            initialized_ = true;
-        } else {
-            // Exponential moving average
-            avg_frame_ms_ = smoothing_ * dt + (1.0 - smoothing_) * avg_frame_ms_;
-        }
-    }
-
-    [[nodiscard]] double frame_ms() const noexcept {
-        return avg_frame_ms_;
-    }
-
-    [[nodiscard]] double fps() const noexcept {
-        return (avg_frame_ms_ > 0.0) ? (1000.0 / avg_frame_ms_) : 0.0;
-    }
+    void reset() noexcept;
+    void tick() noexcept;
+    [[nodiscard]] double frame_ms() const noexcept;
+    [[nodiscard]] double fps() const noexcept;
 
 private:
     using clock = std::chrono::steady_clock;
@@ -44,4 +22,3 @@ private:
 };
 
 } // namespace vulkano_codex
-

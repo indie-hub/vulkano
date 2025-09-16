@@ -383,3 +383,505 @@ I see that there's already code doing what we need. I must check if all the incl
 - Build project
 - Run app and verify triangle + ImGui
 - Polish and push\" > .agent/todo.txt && git add -A && git commit -m \"chore: scaffold Vulkan triangle app with ImGui, CMake, tests\" || true && cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j"'$(sysctl -n hw.ncpu || nproc)' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-16T10:17:11] bash -lc "echo 'Creating .agent/todo and committing initial state if needed...' && mkdir -p .agent && printf '%s
+' \"TODO
+- Build project
+- Run app and verify triangle + ImGui
+- Polish and push\" > .agent/todo.txt && git add -A && git commit -m \"chore: scaffold Vulkan triangle app with ImGui, CMake, tests\" || true && cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j"'$(sysctl -n hw.ncpu || nproc)' succeeded in 13.07s:
+Creating .agent/todo and committing initial state if needed...
+[personal/codex/third-attempt 52c9936] chore: scaffold Vulkan triangle app with ImGui, CMake, tests
+ 3 files changed, 215 insertions(+), 120553 deletions(-)
+ create mode 100644 .agent/todo.txt
+-- Including Cocoa support
+CMake Deprecation Warning at build/_deps/glm-src/CMakeLists.txt:1 (cmake_minimum_required):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+
+
+CMake Deprecation Warning at build/_deps/glm-src/CMakeLists.txt:2 (cmake_policy):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+[2025-09-16T10:17:11] tokens used: 37,960
+
+[2025-09-16T10:17:13] thinking
+
+**Celebrating success and next steps**
+
+I’m feeling a bit of relief since the build succeeded! That’s definitely a good starting point. Now, I need to focus on running the tests to ensure everything is working as expected. It’s a great moment to validate the work so far—but there's always that little bit of anxiety when you move on to testing. Let’s see how that goes! I’m ready to tackle it.
+[2025-09-16T10:17:15] exec bash -lc 'ctest --test-dir build -j1 --output-on-failure' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-16T10:17:15] bash -lc 'ctest --test-dir build -j1 --output-on-failure' succeeded in 449ms:
+Test project /Users/bruno/Documents/Development/bruno/vulkano_codex/build
+    Start 1: vulkano_codex_tests
+1/1 Test #1: vulkano_codex_tests ..............   Passed    0.38 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.38 sec
+[2025-09-16T10:17:15] tokens used: 49,533
+
+[2025-09-16T10:17:30] thinking
+
+**Launching the app**
+
+Now, I need to run the app. On a Mac, I might face crashes without the Vulkan SDK, but the build succeeded, which is a good sign that Vulkan headers were found. I’m considering running the binary. What about the GUI? Since it’s on the user’s machine, it should work. I can try launching `bin/vulkano_codex_app`. It will block the command, but if necessary, I could use `timeout` to kill it after a few seconds, while being cautious not to disrupt anything.
+**Managing app execution**
+
+I’m looking to set an alarm for the app, but it's better to run it with an environment variable to make it exit after a few frames. Unfortunately, the app doesn't have that flag. It feels safer not to run the app in the command line interface (CLI). We need to compile and run the code, plus the tests passed, but I haven't actually run the GUI. I’m weighing running it briefly using `python3` to manage the subprocess and send a SIGINT after 3 seconds. Let’s go for it!
+[2025-09-16T10:17:36] codex
+**Managing app execution**
+
+I’m looking to set an alarm for the app, but it's better to run it with an environment variable to make it exit after a few frames. Unfortunately, the app doesn't have that flag. It feels safer not to run the app in the command line interface (CLI). We need to compile and run the code, plus the tests passed, but I haven't actually run the GUI. I’m weighing running it briefly using `python3` to manage the subprocess and send a SIGINT after 3 seconds. Let’s go for it!
+[2025-09-16T10:17:36] exec bash -lc '(./bin/vulkano_codex_app &) ; APP_PID=$!; sleep 3; kill -TERM $APP_PID || true; sleep 1; kill -KILL $APP_PID || true; echo "App run attempt finished."' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-16T10:18:53] bash -lc '(./bin/vulkano_codex_app &) ; APP_PID=$!; sleep 3; kill -TERM $APP_PID || true; sleep 1; kill -KILL $APP_PID || true; echo "App run attempt finished."' succeeded in 1m16s:
+kill: usage: kill [-s sigspec | -n signum | -sigspec] pid | jobspec ... or kill -l [sigspec]
+kill: usage: kill [-s sigspec | -n signum | -sigspec] pid | jobspec ... or kill -l [sigspec]
+App run attempt finished.
+[2025-09-16T10:18:53] tokens used: 50,108
+
+[2025-09-16T10:18:56] thinking
+
+**Analyzing command behavior**
+
+I see that the command prints kill usage, which suggests that `$APP_PID` isn't set, probably because of a subshell issue. When I executed `(./bin/vulkano_codex_app &)`, the `APP_PID=$!` refers to the last background job in the current shell, but it results in `$!` being empty within parentheses. To fix that, I should use `./bin/vulkano_codex_app & APP_PID=$!; sleep 3; ...` instead.
+[2025-09-16T10:18:59] exec bash -lc './bin/vulkano_codex_app &
+APP_PID=$!
+sleep 3
+kill -TERM $APP_PID || true
+sleep 1
+kill -KILL $APP_PID || true
+echo "App run attempt finished. PID=$APP_PID"' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-16T10:19:03] bash -lc './bin/vulkano_codex_app &
+APP_PID=$!
+sleep 3
+kill -TERM $APP_PID || true
+sleep 1
+kill -KILL $APP_PID || true
+echo "App run attempt finished. PID=$APP_PID"' succeeded in 4.05s:
+bash: line 4:  5650 Terminated: 15          ./bin/vulkano_codex_app
+bash: line 5: kill: (5650) - No such process
+App run attempt finished. PID=5650
+[2025-09-16T10:19:03] tokens used: 50,461
+
+[2025-09-16T10:19:12] thinking
+
+**Reviewing include practices**
+
+I need to make sure that includes are done with angle brackets for backend files. For example, in `src/imgui_layer.cpp`, I see the proper usage: `#include <backends/imgui_impl_glfw.h>`. That's good! 
+
+Maybe we should add some documentation to clarify this? I’ll take a look at the README file to see what’s already present and see if there’s anything else we can add for clarity.
+[2025-09-16T10:19:13] exec bash -lc "sed -n '1,200p' README.md" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-16T10:19:13] bash -lc "sed -n '1,200p' README.md" succeeded in 23ms:
+# Vulkano Codex
+
+Build & Run (macOS/Linux/Windows)
+
+- Prereqs: CMake 3.25+, C++20 compiler, Vulkan SDK 1.2+ (on macOS: install MoltenVK + vulkan-loader).
+- CMake will fetch GLFW, GLM, ImGui, and Catch2 via FetchContent.
+
+Commands
+
+- Configure: `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug`
+- Build: `cmake --build build -j`
+- Run app: `./bin/vulkano_codex_app`
+- Run tests: `ctest --test-dir build`
+
+Notes
+
+- Shaders compile at build time using `glslangValidator` into `bin/shaders/`.
+- Validation layers are enabled in Debug builds. On macOS, portability extensions are enabled for MoltenVK.
+[2025-09-16T10:19:13] tokens used: 51,144
+[2025-09-16T10:19:18] exec bash -lc 'git remote -v || true' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-16T10:19:18] bash -lc 'git remote -v || true' succeeded in 32ms:
+origin	https://github.com/indie-hub/vulkano.git (fetch)
+origin	https://github.com/indie-hub/vulkano.git (push)
+[2025-09-16T10:19:18] tokens used: 51,662
+
+[2025-09-16T10:19:19] thinking
+
+I’m planning to implement a refactor and then run the build again. This will help ensure everything compiles correctly and works as expected. I want to make sure that all the changes made are properly integrated, so the final output is clean and functional. It's a pretty standard process, but I’ve learned that double-checking is always a good practice to catch any potential issues before moving forward!
+[2025-09-16T10:19:28] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano_codex/utils.hpp
+@@ -1,2 +1,2 @@
+-#pragma once
++﻿#pragma once
+ 
+@@ -10,28 +10,6 @@
+ 
+-    void reset() noexcept {
+-        last_ = clock::now();
+-        avg_frame_ms_ = 0.0;
+-        initialized_ = false;
+-    }
+-
+-    void tick() noexcept {
+-        const auto now = clock::now();
+-        const auto dt = std::chrono::duration<double, std::milli>(now - last_).count();
+-        last_ = now;
+-        if (!initialized_) {
+-            avg_frame_ms_ = dt;
+-            initialized_ = true;
+-        } else {
+-            // Exponential moving average
+-            avg_frame_ms_ = smoothing_ * dt + (1.0 - smoothing_) * avg_frame_ms_;
+-        }
+-    }
+-
+-    [[nodiscard]] double frame_ms() const noexcept {
+-        return avg_frame_ms_;
+-    }
+-
+-    [[nodiscard]] double fps() const noexcept {
+-        return (avg_frame_ms_ > 0.0) ? (1000.0 / avg_frame_ms_) : 0.0;
+-    }
++    void reset() noexcept;
++    void tick() noexcept;
++    [[nodiscard]] double frame_ms() const noexcept;
++    [[nodiscard]] double fps() const noexcept;
+ 
+@@ -46,2 +24 @@
+ } // namespace vulkano_codex
+-
+[2025-09-16T10:19:28] apply_patch(auto_approved=true) exited 0 in 52ms:
+Success. Updated the following files:
+M include/vulkano_codex/utils.hpp
+[2025-09-16T10:19:28] turn diff:
+diff --git a/include/vulkano_codex/utils.hpp b/include/vulkano_codex/utils.hpp
+index 9cee29f6fe570a503f87287eb7dd4a59ac5477b6..2418b222fc664afd4220894e56b508fd4071e457
+--- a/include/vulkano_codex/utils.hpp
++++ b/include/vulkano_codex/utils.hpp
+@@ -1,4 +1,4 @@
+-#pragma once
++﻿#pragma once
+ 
+ #include <chrono>
+ 
+@@ -8,32 +8,10 @@
+ public:
+     FpsAverager() noexcept = default;
+ 
+-    void reset() noexcept {
+-        last_ = clock::now();
+-        avg_frame_ms_ = 0.0;
+-        initialized_ = false;
+-    }
+-
+-    void tick() noexcept {
+-        const auto now = clock::now();
+-        const auto dt = std::chrono::duration<double, std::milli>(now - last_).count();
+-        last_ = now;
+-        if (!initialized_) {
+-            avg_frame_ms_ = dt;
+-            initialized_ = true;
+-        } else {
+-            // Exponential moving average
+-            avg_frame_ms_ = smoothing_ * dt + (1.0 - smoothing_) * avg_frame_ms_;
+-        }
+-    }
+-
+-    [[nodiscard]] double frame_ms() const noexcept {
+-        return avg_frame_ms_;
+-    }
+-
+-    [[nodiscard]] double fps() const noexcept {
+-        return (avg_frame_ms_ > 0.0) ? (1000.0 / avg_frame_ms_) : 0.0;
+-    }
++    void reset() noexcept;
++    void tick() noexcept;
++    [[nodiscard]] double frame_ms() const noexcept;
++    [[nodiscard]] double fps() const noexcept;
+ 
+ private:
+     using clock = std::chrono::steady_clock;
+@@ -44,4 +22,3 @@
+ };
+ 
+ } // namespace vulkano_codex
+-
+
+[2025-09-16T10:19:28] tokens used: 52,388
+[2025-09-16T10:19:28] turn diff:
+diff --git a/include/vulkano_codex/utils.hpp b/include/vulkano_codex/utils.hpp
+index 9cee29f6fe570a503f87287eb7dd4a59ac5477b6..2418b222fc664afd4220894e56b508fd4071e457
+--- a/include/vulkano_codex/utils.hpp
++++ b/include/vulkano_codex/utils.hpp
+@@ -1,4 +1,4 @@
+-#pragma once
++﻿#pragma once
+ 
+ #include <chrono>
+ 
+@@ -8,32 +8,10 @@
+ public:
+     FpsAverager() noexcept = default;
+ 
+-    void reset() noexcept {
+-        last_ = clock::now();
+-        avg_frame_ms_ = 0.0;
+-        initialized_ = false;
+-    }
+-
+-    void tick() noexcept {
+-        const auto now = clock::now();
+-        const auto dt = std::chrono::duration<double, std::milli>(now - last_).count();
+-        last_ = now;
+-        if (!initialized_) {
+-            avg_frame_ms_ = dt;
+-            initialized_ = true;
+-        } else {
+-            // Exponential moving average
+-            avg_frame_ms_ = smoothing_ * dt + (1.0 - smoothing_) * avg_frame_ms_;
+-        }
+-    }
+-
+-    [[nodiscard]] double frame_ms() const noexcept {
+-        return avg_frame_ms_;
+-    }
+-
+-    [[nodiscard]] double fps() const noexcept {
+-        return (avg_frame_ms_ > 0.0) ? (1000.0 / avg_frame_ms_) : 0.0;
+-    }
++    void reset() noexcept;
++    void tick() noexcept;
++    [[nodiscard]] double frame_ms() const noexcept;
++    [[nodiscard]] double fps() const noexcept;
+ 
+ private:
+     using clock = std::chrono::steady_clock;
+@@ -44,4 +22,3 @@
+ };
+ 
+ } // namespace vulkano_codex
+-
+
+[2025-09-16T10:19:39] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/utils.cpp
+@@ -1,4 +1,31 @@
+-#include <vulkano_codex/utils.hpp>
++﻿#include <vulkano_codex/utils.hpp>
++
++namespace vulkano_codex {
+ 
+-// Implementation currently header-only for FpsAverager.
++void FpsAverager::reset() noexcept {
++    last_ = clock::now();
++    avg_frame_ms_ = 0.0;
++    initialized_ = false;
++}
+ 
++void FpsAverager::tick() noexcept {
++    const auto now = clock::now();
++    const auto dt = std::chrono::duration<double, std::milli>(now - last_).count();
++    last_ = now;
++    if (!initialized_) {
++        avg_frame_ms_ = dt;
++        initialized_ = true;
++    } else {
++        avg_frame_ms_ = smoothing_ * dt + (1.0 - smoothing_) * avg_frame_ms_;
++    }
++}
++
++double FpsAverager::frame_ms() const noexcept {
++    return avg_frame_ms_;
++}
++
++double FpsAverager::fps() const noexcept {
++    return (avg_frame_ms_ > 0.0) ? (1000.0 / avg_frame_ms_) : 0.0;
++}
++
++} // namespace vulkano_codex
+[2025-09-16T10:19:39] apply_patch(auto_approved=true) exited 0 in 33ms:
+Success. Updated the following files:
+M src/utils.cpp
+[2025-09-16T10:19:39] turn diff:
+diff --git a/include/vulkano_codex/utils.hpp b/include/vulkano_codex/utils.hpp
+index 9cee29f6fe570a503f87287eb7dd4a59ac5477b6..2418b222fc664afd4220894e56b508fd4071e457
+--- a/include/vulkano_codex/utils.hpp
++++ b/include/vulkano_codex/utils.hpp
+@@ -1,4 +1,4 @@
+-#pragma once
++﻿#pragma once
+ 
+ #include <chrono>
+ 
+@@ -8,32 +8,10 @@
+ public:
+     FpsAverager() noexcept = default;
+ 
+-    void reset() noexcept {
+-        last_ = clock::now();
+-        avg_frame_ms_ = 0.0;
+-        initialized_ = false;
+-    }
+-
+-    void tick() noexcept {
+-        const auto now = clock::now();
+-        const auto dt = std::chrono::duration<double, std::milli>(now - last_).count();
+-        last_ = now;
+-        if (!initialized_) {
+-            avg_frame_ms_ = dt;
+-            initialized_ = true;
+-        } else {
+-            // Exponential moving average
+-            avg_frame_ms_ = smoothing_ * dt + (1.0 - smoothing_) * avg_frame_ms_;
+-        }
+-    }
+-
+-    [[nodiscard]] double frame_ms() const noexcept {
+-        return avg_frame_ms_;
+-    }
+-
+-    [[nodiscard]] double fps() const noexcept {
+-        return (avg_frame_ms_ > 0.0) ? (1000.0 / avg_frame_ms_) : 0.0;
+-    }
++    void reset() noexcept;
++    void tick() noexcept;
++    [[nodiscard]] double frame_ms() const noexcept;
++    [[nodiscard]] double fps() const noexcept;
+ 
+ private:
+     using clock = std::chrono::steady_clock;
+@@ -44,4 +22,3 @@
+ };
+ 
+ } // namespace vulkano_codex
+-
+diff --git a/src/utils.cpp b/src/utils.cpp
+index 5dbab3973478ef8db84e54c1c83776ebf0a9e264..89ead446424e69d7b7940e4fbc5f035e0e4d28ca
+--- a/src/utils.cpp
++++ b/src/utils.cpp
+@@ -1,4 +1,31 @@
+-#include <vulkano_codex/utils.hpp>
++﻿#include <vulkano_codex/utils.hpp>
++
++namespace vulkano_codex {
+ 
+-// Implementation currently header-only for FpsAverager.
++void FpsAverager::reset() noexcept {
++    last_ = clock::now();
++    avg_frame_ms_ = 0.0;
++    initialized_ = false;
++}
+ 
++void FpsAverager::tick() noexcept {
++    const auto now = clock::now();
++    const auto dt = std::chrono::duration<double, std::milli>(now - last_).count();
++    last_ = now;
++    if (!initialized_) {
++        avg_frame_ms_ = dt;
++        initialized_ = true;
++    } else {
++        avg_frame_ms_ = smoothing_ * dt + (1.0 - smoothing_) * avg_frame_ms_;
++    }
++}
++
++double FpsAverager::frame_ms() const noexcept {
++    return avg_frame_ms_;
++}
++
++double FpsAverager::fps() const noexcept {
++    return (avg_frame_ms_ > 0.0) ? (1000.0 / avg_frame_ms_) : 0.0;
++}
++
++} // namespace vulkano_codex
+
+[2025-09-16T10:19:39] tokens used: 53,534
+[2025-09-16T10:19:39] turn diff:
+diff --git a/include/vulkano_codex/utils.hpp b/include/vulkano_codex/utils.hpp
+index 9cee29f6fe570a503f87287eb7dd4a59ac5477b6..2418b222fc664afd4220894e56b508fd4071e457
+--- a/include/vulkano_codex/utils.hpp
++++ b/include/vulkano_codex/utils.hpp
+@@ -1,4 +1,4 @@
+-#pragma once
++﻿#pragma once
+ 
+ #include <chrono>
+ 
+@@ -8,32 +8,10 @@
+ public:
+     FpsAverager() noexcept = default;
+ 
+-    void reset() noexcept {
+-        last_ = clock::now();
+-        avg_frame_ms_ = 0.0;
+-        initialized_ = false;
+-    }
+-
+-    void tick() noexcept {
+-        const auto now = clock::now();
+-        const auto dt = std::chrono::duration<double, std::milli>(now - last_).count();
+-        last_ = now;
+-        if (!initialized_) {
+-            avg_frame_ms_ = dt;
+-            initialized_ = true;
+-        } else {
+-            // Exponential moving average
+-            avg_frame_ms_ = smoothing_ * dt + (1.0 - smoothing_) * avg_frame_ms_;
+-        }
+-    }
+-
+-    [[nodiscard]] double frame_ms() const noexcept {
+-        return avg_frame_ms_;
+-    }
+-
+-    [[nodiscard]] double fps() const noexcept {
+-        return (avg_frame_ms_ > 0.0) ? (1000.0 / avg_frame_ms_) : 0.0;
+-    }
++    void reset() noexcept;
++    void tick() noexcept;
++    [[nodiscard]] double frame_ms() const noexcept;
++    [[nodiscard]] double fps() const noexcept;
+ 
+ private:
+     using clock = std::chrono::steady_clock;
+@@ -44,4 +22,3 @@
+ };
+ 
+ } // namespace vulkano_codex
+-
+diff --git a/src/utils.cpp b/src/utils.cpp
+index 5dbab3973478ef8db84e54c1c83776ebf0a9e264..89ead446424e69d7b7940e4fbc5f035e0e4d28ca
+--- a/src/utils.cpp
++++ b/src/utils.cpp
+@@ -1,4 +1,31 @@
+-#include <vulkano_codex/utils.hpp>
++﻿#include <vulkano_codex/utils.hpp>
++
++namespace vulkano_codex {
+ 
+-// Implementation currently header-only for FpsAverager.
++void FpsAverager::reset() noexcept {
++    last_ = clock::now();
++    avg_frame_ms_ = 0.0;
++    initialized_ = false;
++}
+ 
++void FpsAverager::tick() noexcept {
++    const auto now = clock::now();
++    const auto dt = std::chrono::duration<double, std::milli>(now - last_).count();
++    last_ = now;
++    if (!initialized_) {
++        avg_frame_ms_ = dt;
++        initialized_ = true;
++    } else {
++        avg_frame_ms_ = smoothing_ * dt + (1.0 - smoothing_) * avg_frame_ms_;
++    }
++}
++
++double FpsAverager::frame_ms() const noexcept {
++    return avg_frame_ms_;
++}
++
++double FpsAverager::fps() const noexcept {
++    return (avg_frame_ms_ > 0.0) ? (1000.0 / avg_frame_ms_) : 0.0;
++}
++
++} // namespace vulkano_codex
+
+[2025-09-16T10:19:41] exec bash -lc 'git add -A && git commit -m "refactor: move FpsAverager implementation to .cpp per headers-only policy" && cmake --build build -j$(sysctl -n hw.ncpu || nproc) && ctest --test-dir build -j1 --output-on-failure' in /Users/bruno/Documents/Development/bruno/vulkano_codex
