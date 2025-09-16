@@ -38,3 +38,7 @@ Notes (2025-09-16):
 Nice-to-have:
 - Separate transfer/upload path for ImGui font creation with explicit command buffer
 - Add CI workflow for Linux/macOS/Windows to build and run tests
+
+Verification (automated run):
+- Built Debug and ran tests successfully on this machine.
+- Build time: 2025-09-16T11:50:30Z.
