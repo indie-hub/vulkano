@@ -109,6 +109,7 @@ target_link_libraries(vulkano
         vk-bootstrap
         imgui_backend
 )
+target_include_directories(vulkano PUBLIC ${vma_SOURCE_DIR}/include)
 
 target_compile_definitions(vulkano PUBLIC
     $<$<CONFIG:Debug>:VULKANO_CODEX_DEBUG=1>
