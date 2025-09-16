@@ -9,6 +9,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp" "CMakeFiles/vulkano.dir/src/app.cpp.o" "gcc" "CMakeFiles/vulkano.dir/src/app.cpp.o.d"
+  "/Users/bruno/Documents/Development/bruno/vulkano_codex/src/camera.cpp" "CMakeFiles/vulkano.dir/src/camera.cpp.o" "gcc" "CMakeFiles/vulkano.dir/src/camera.cpp.o.d"
   "/Users/bruno/Documents/Development/bruno/vulkano_codex/src/geometry.cpp" "CMakeFiles/vulkano.dir/src/geometry.cpp.o" "gcc" "CMakeFiles/vulkano.dir/src/geometry.cpp.o.d"
   "/Users/bruno/Documents/Development/bruno/vulkano_codex/src/imgui_overlay.cpp" "CMakeFiles/vulkano.dir/src/imgui_overlay.cpp.o" "gcc" "CMakeFiles/vulkano.dir/src/imgui_overlay.cpp.o.d"
   "/Users/bruno/Documents/Development/bruno/vulkano_codex/src/stats.cpp" "CMakeFiles/vulkano.dir/src/stats.cpp.o" "gcc" "CMakeFiles/vulkano.dir/src/stats.cpp.o.d"

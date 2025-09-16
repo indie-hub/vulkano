@@ -4108,28 +4108,45 @@ CMakeFiles/vulkano.dir/src/vulkan_context.cpp.o
  /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/simd/platform.h
  /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/detail/compute_vector_relational.hpp
  /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/detail/setup.hpp
+ /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/detail/compute_vector_relational.hpp
  /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/detail/qualifier.hpp
  /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/detail/setup.hpp
  /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/detail/type_vec2.hpp
  /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/detail/type_vec2.inl
+ /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/detail/type_vec3.hpp
+ /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/detail/type_vec3.inl
  /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/detail/setup.hpp
  /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/ext/scalar_int_sized.hpp
  /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/ext/scalar_uint_sized.hpp
  /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/ext/vector_int2.hpp
+ /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/ext/vector_int3.hpp
  /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/ext/vector_uint2.hpp
+ /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/ext/vector_uint3.hpp
  /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/ext/vector_bool2.hpp
  /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/ext/vector_bool2_precision.hpp
+ /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/ext/vector_bool3.hpp
+ /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/ext/vector_bool3_precision.hpp
  /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/ext/vector_double2.hpp
  /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/ext/vector_double2_precision.hpp
+ /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/ext/vector_double3.hpp
+ /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/ext/vector_double3_precision.hpp
  /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/ext/vector_float2.hpp
  /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/ext/vector_float2_precision.hpp
+ /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/ext/vector_float3.hpp
+ /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/ext/vector_float3_precision.hpp
  /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/ext/vector_int2.hpp
  /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/ext/vector_int2_sized.hpp
+ /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/ext/vector_int3.hpp
+ /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/ext/vector_int3_sized.hpp
  /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/ext/vector_uint2.hpp
  /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/ext/vector_uint2_sized.hpp
+ /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/ext/vector_uint3.hpp
+ /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/ext/vector_uint3_sized.hpp
  /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/vec2.hpp
+ /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src/glm/vec3.hpp
  /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/imgui-src/imconfig.h
  /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/imgui-src/imgui.h
+ /Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/geometry.hpp
  /Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/imgui_overlay.hpp
  /Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/vulkan_context.hpp
  /usr/local/include/vk_video/vulkan_video_codec_av1std.h

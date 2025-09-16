@@ -13,6 +13,7 @@
 namespace vulkano {
 
 class ImGuiOverlay;
+class Camera;
 
 class VulkanContext final {
 public:
@@ -142,6 +143,9 @@ private:
     bool imgui_ready_ {false};
     bool imgui_frame_started_ {false};
     std::string device_name_cached_ {};
+
+    // Camera
+    std::unique_ptr<Camera> camera_ {};
 
     // Debug utils function pointers (device level)
     PFN_vkSetDebugUtilsObjectNameEXT pfn_set_name_ {nullptr};

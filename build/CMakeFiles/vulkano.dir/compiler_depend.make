@@ -4103,28 +4103,45 @@ CMakeFiles/vulkano.dir/src/vulkan_context.cpp.o: /Users/bruno/Documents/Developm
   _deps/glm-src/glm/simd/platform.h \
   _deps/glm-src/glm/detail/compute_vector_relational.hpp \
   _deps/glm-src/glm/detail/setup.hpp \
+  _deps/glm-src/glm/detail/compute_vector_relational.hpp \
   _deps/glm-src/glm/detail/qualifier.hpp \
   _deps/glm-src/glm/detail/setup.hpp \
   _deps/glm-src/glm/detail/type_vec2.hpp \
   _deps/glm-src/glm/detail/type_vec2.inl \
+  _deps/glm-src/glm/detail/type_vec3.hpp \
+  _deps/glm-src/glm/detail/type_vec3.inl \
   _deps/glm-src/glm/detail/setup.hpp \
   _deps/glm-src/glm/ext/scalar_int_sized.hpp \
   _deps/glm-src/glm/ext/scalar_uint_sized.hpp \
   _deps/glm-src/glm/ext/vector_int2.hpp \
+  _deps/glm-src/glm/ext/vector_int3.hpp \
   _deps/glm-src/glm/ext/vector_uint2.hpp \
+  _deps/glm-src/glm/ext/vector_uint3.hpp \
   _deps/glm-src/glm/ext/vector_bool2.hpp \
   _deps/glm-src/glm/ext/vector_bool2_precision.hpp \
+  _deps/glm-src/glm/ext/vector_bool3.hpp \
+  _deps/glm-src/glm/ext/vector_bool3_precision.hpp \
   _deps/glm-src/glm/ext/vector_double2.hpp \
   _deps/glm-src/glm/ext/vector_double2_precision.hpp \
+  _deps/glm-src/glm/ext/vector_double3.hpp \
+  _deps/glm-src/glm/ext/vector_double3_precision.hpp \
   _deps/glm-src/glm/ext/vector_float2.hpp \
   _deps/glm-src/glm/ext/vector_float2_precision.hpp \
+  _deps/glm-src/glm/ext/vector_float3.hpp \
+  _deps/glm-src/glm/ext/vector_float3_precision.hpp \
   _deps/glm-src/glm/ext/vector_int2.hpp \
   _deps/glm-src/glm/ext/vector_int2_sized.hpp \
+  _deps/glm-src/glm/ext/vector_int3.hpp \
+  _deps/glm-src/glm/ext/vector_int3_sized.hpp \
   _deps/glm-src/glm/ext/vector_uint2.hpp \
   _deps/glm-src/glm/ext/vector_uint2_sized.hpp \
+  _deps/glm-src/glm/ext/vector_uint3.hpp \
+  _deps/glm-src/glm/ext/vector_uint3_sized.hpp \
   _deps/glm-src/glm/vec2.hpp \
+  _deps/glm-src/glm/vec3.hpp \
   _deps/imgui-src/imconfig.h \
   _deps/imgui-src/imgui.h \
+  /Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/geometry.hpp \
   /Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/imgui_overlay.hpp \
   /Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/vulkan_context.hpp \
   /usr/local/include/vk_video/vulkan_video_codec_av1std.h \

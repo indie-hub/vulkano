@@ -1,5 +1,6 @@
 #include <vulkano/vulkan_context.hpp>
 #include <vulkano/geometry.hpp>
+#include <vulkano/camera.hpp>
 
 #include <algorithm>
 #include <cstddef>
@@ -35,9 +36,10 @@ namespace {
         Vertex {glm::vec3 { 0.0F,  0.5F, 0.0F}, glm::vec3 {0.0F, 0.0F, 1.0F}, glm::vec2 {0.5F, 1.0F}}
     };
 
-    // Named colors to avoid magic numbers in render logic
+    // Named clear values to avoid magic numbers in render logic
     constexpr std::array<float, 4> kClearColorBlack {0.0F, 0.0F, 0.0F, 1.0F};
     constexpr std::array<float, 4> kTriangleColorWhite {1.0F, 1.0F, 1.0F, 1.0F};
+    constexpr float kClearDepthOne {1.0F};
 
     [[nodiscard]] std::vector<char> read_file_binary(const std::string& path) noexcept {
         std::vector<char> buffer {};
@@ -109,6 +111,12 @@ VulkanContext::VulkanContext(GLFWwindow* window) noexcept {
     create_swapchain_and_views(window);
     create_render_pass();
     init_imgui(window);
+    // Initialize camera with current aspect ratio if possible
+    camera_ = std::make_unique<Camera>();
+    if (swapchain_extent_.height != 0U) {
+        const float aspect {static_cast<float>(swapchain_extent_.width) / static_cast<float>(swapchain_extent_.height)};
+        camera_->set_aspect(aspect);
+    }
     create_pipeline_layout();
     create_graphics_pipeline();
     create_depth_resources();
@@ -661,6 +669,12 @@ void VulkanContext::create_swapchain_and_views(GLFWwindow* window) noexcept {
     set_object_name(VK_OBJECT_TYPE_SWAPCHAIN_KHR, reinterpret_cast<std::uint64_t>(swapchain_), "Swapchain");
     swapchain_image_format_ = surfaceFormat.format;
     swapchain_extent_ = extent;
+    if (camera_) {
+        if (swapchain_extent_.height != 0U) {
+            const float aspect {static_cast<float>(swapchain_extent_.width) / static_cast<float>(swapchain_extent_.height)};
+            camera_->set_aspect(aspect);
+        }
+    }
 
     std::uint32_t retrievedCount {0U};
     vkGetSwapchainImagesKHR(device_, swapchain_, &retrievedCount, nullptr);
@@ -1362,7 +1376,7 @@ bool VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
     clears[0].color.float32[1] = kClearColorBlack[1];
     clears[0].color.float32[2] = kClearColorBlack[2];
     clears[0].color.float32[3] = kClearColorBlack[3];
-    clears[1].depthStencil.depth = 1.0F;
+    clears[1].depthStencil.depth = kClearDepthOne;
     clears[1].depthStencil.stencil = 0U;
 
     VkRenderPassBeginInfo rpInfo {};
@@ -1377,6 +1391,11 @@ bool VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
     begin_label(cmd, "Frame");
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_);
+
+    // Compute camera matrices per-frame (not yet bound to shaders in this step)
+    if (camera_) {
+        (void)camera_->view_projection();
+    }
 
     const VkBuffer buffers[1] {vertex_buffer_};
     const VkDeviceSize offsets[1] {0U};

@@ -142,13 +142,28 @@ CMakeFiles/vulkano.dir/src/geometry.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/vulkano.dir/src/geometry.cpp.s"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/bruno/Documents/Development/bruno/vulkano_codex/src/geometry.cpp -o CMakeFiles/vulkano.dir/src/geometry.cpp.s
 
+CMakeFiles/vulkano.dir/src/camera.cpp.o: CMakeFiles/vulkano.dir/flags.make
+CMakeFiles/vulkano.dir/src/camera.cpp.o: /Users/bruno/Documents/Development/bruno/vulkano_codex/src/camera.cpp
+CMakeFiles/vulkano.dir/src/camera.cpp.o: CMakeFiles/vulkano.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Building CXX object CMakeFiles/vulkano.dir/src/camera.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/vulkano.dir/src/camera.cpp.o -MF CMakeFiles/vulkano.dir/src/camera.cpp.o.d -o CMakeFiles/vulkano.dir/src/camera.cpp.o -c /Users/bruno/Documents/Development/bruno/vulkano_codex/src/camera.cpp
+
+CMakeFiles/vulkano.dir/src/camera.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/vulkano.dir/src/camera.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/bruno/Documents/Development/bruno/vulkano_codex/src/camera.cpp > CMakeFiles/vulkano.dir/src/camera.cpp.i
+
+CMakeFiles/vulkano.dir/src/camera.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/vulkano.dir/src/camera.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/bruno/Documents/Development/bruno/vulkano_codex/src/camera.cpp -o CMakeFiles/vulkano.dir/src/camera.cpp.s
+
 # Object files for target vulkano
 vulkano_OBJECTS = \
 "CMakeFiles/vulkano.dir/src/app.cpp.o" \
 "CMakeFiles/vulkano.dir/src/vulkan_context.cpp.o" \
 "CMakeFiles/vulkano.dir/src/imgui_overlay.cpp.o" \
 "CMakeFiles/vulkano.dir/src/stats.cpp.o" \
-"CMakeFiles/vulkano.dir/src/geometry.cpp.o"
+"CMakeFiles/vulkano.dir/src/geometry.cpp.o" \
+"CMakeFiles/vulkano.dir/src/camera.cpp.o"
 
 # External object files for target vulkano
 vulkano_EXTERNAL_OBJECTS =
@@ -158,9 +173,10 @@ vulkano_EXTERNAL_OBJECTS =
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libvulkano.a: CMakeFiles/vulkano.dir/src/imgui_overlay.cpp.o
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libvulkano.a: CMakeFiles/vulkano.dir/src/stats.cpp.o
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libvulkano.a: CMakeFiles/vulkano.dir/src/geometry.cpp.o
+/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libvulkano.a: CMakeFiles/vulkano.dir/src/camera.cpp.o
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libvulkano.a: CMakeFiles/vulkano.dir/build.make
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libvulkano.a: CMakeFiles/vulkano.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Linking CXX static library /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libvulkano.a"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Linking CXX static library /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libvulkano.a"
 	$(CMAKE_COMMAND) -P CMakeFiles/vulkano.dir/cmake_clean_target.cmake
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/vulkano.dir/link.txt --verbose=$(VERBOSE)
 
