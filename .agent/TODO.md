@@ -1,24 +1,24 @@
- - [x] Initialize CMake project skeleton
- - [x] Add formatting and tidy configs
- - [ ] Add third-party dependencies via FetchContent
- - [ ] Implement core Vulkan app scaffolding
- - [ ] Create window with GLFW
- - [ ] Create Vulkan instance with validation (Debug)
- - [ ] Pick physical device and queues using vk-bootstrap
- - [ ] Create logical device and queues
- - [ ] Create surface and swapchain
- - [ ] Create image views and render pass
- - [ ] Create framebuffers and command pool/buffers
- - [ ] Create sync primitives (fences/semaphores)
- - [ ] Integrate VMA allocator
+- [x] Initialize CMake project skeleton
+- [x] Add formatting and tidy configs
+- [ ] Add third-party dependencies via FetchContent
+- [x] Implement core Vulkan app scaffolding
+- [x] Create window with GLFW
+- [x] Create Vulkan instance with validation (Debug)
+- [x] Pick physical device and queues using vk-bootstrap
+- [x] Create logical device and queues
+- [x] Create surface and swapchain
+- [x] Create image views and render pass
+- [x] Create framebuffers and command pool/buffers
+- [x] Create sync primitives (fences/semaphores)
+- [x] Integrate VMA allocator
  - [ ] Create vertex buffer for triangle
- - [ ] Compile/load shaders (push constant color)
- - [ ] Create graphics pipeline and layout
- - [ ] Record draw commands for triangle
- - [ ] Handle resize and swapchain recreation
- - [ ] Integrate ImGui (GLFW+Vulkan backends)
- - [ ] Show FPS, frame time, device name, extent
- - [ ] Implement smoothed delta time
+- [ ] Compile/load shaders (push constant color)
+- [x] Create graphics pipeline and layout
+- [x] Record draw commands for triangle
+- [x] Handle resize and swapchain recreation
+- [x] Integrate ImGui (GLFW+Vulkan backends)
+- [x] Show FPS, frame time, device name, extent
+- [x] Implement smoothed delta time
  - [ ] Add debug utils names and markers
  - [ ] Add unit tests (timing/math)
  - [ ] Configure tests in CMake
