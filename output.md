@@ -897,3 +897,1895 @@ I'm thinking about how to implement resize handling without dealing with OUT_OF_
         if (vkCreateFramebuffer(impl.device, &fbci, nullptr, &impl.framebuffers[i]) != VK_SUCCESS) {
 [2025-09-16T07:58:52] tokens used: 72,374
 [2025-09-16T07:59:05] exec bash -lc 'git checkout -b feature/swapchain-recreation && git add -A && git commit -m "chore: checkpoint baseline before swapchain work" || true' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-16T07:59:05] bash -lc 'git checkout -b feature/swapchain-recreation && git add -A && git commit -m "chore: checkpoint baseline before swapchain work" || true' succeeded in 91ms:
+Switched to a new branch 'feature/swapchain-recreation'
+[feature/swapchain-recreation 6c28629] chore: checkpoint baseline before swapchain work
+ 1 file changed, 451 insertions(+), 1766 deletions(-)
+[2025-09-16T07:59:05] tokens used: 75,797
+
+[2025-09-16T07:59:07] thinking
+
+**Evaluating unexpected changes**
+
+I find it unexpected that the commit shows such large changes. It might be due to .idea or build files? But we only committed what was staged, so I'm not sure why modifications seemed to add to output.md, along with the 1766 deletions suggesting something unusual. Still, this is okay; I can just focus on applying the patch and adding the functions as planned!
+[2025-09-16T07:59:19] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp
+@@ -1334,2 +1334,78 @@
+ void VulkanContext::draw_frame() {
++    // Helper: recreate swapchain and all dependent resources safely
++    auto recreate_swapchain = [this]() noexcept {
++        auto* impl = this->impl.get();
++        if (impl == nullptr) {
++            return;
++        }
++        if (impl->device == VK_NULL_HANDLE) {
++            return;
++        }
++        vkDeviceWaitIdle(impl->device);
++
++        // Destroy resources that depend on extent/format
++        destroy_pipeline(*this);
++        destroy_ssao_resources(*this);
++        destroy_blur_resources(*this);
++        destroy_gbuffer_resources(*this);
++        destroy_depth_resources(*this);
++
++        for (auto fb : impl->framebuffers) {
++            if (fb != VK_NULL_HANDLE) {
++                vkDestroyFramebuffer(impl->device, fb, nullptr);
++            }
++        }
++        impl->framebuffers.clear();
++        if (impl->render_pass != VK_NULL_HANDLE) {
++            vkDestroyRenderPass(impl->device, impl->render_pass, nullptr);
++            impl->render_pass = VK_NULL_HANDLE;
++        }
++
++        // Command buffers/pool and sync objects depend on framebuffer count
++        if (impl->in_flight != VK_NULL_HANDLE) {
++            vkDestroyFence(impl->device, impl->in_flight, nullptr);
++            impl->in_flight = VK_NULL_HANDLE;
++        }
++        if (impl->image_available != VK_NULL_HANDLE) {
++            vkDestroySemaphore(impl->device, impl->image_available, nullptr);
++            impl->image_available = VK_NULL_HANDLE;
++        }
++        if (impl->render_finished != VK_NULL_HANDLE) {
++            vkDestroySemaphore(impl->device, impl->render_finished, nullptr);
++            impl->render_finished = VK_NULL_HANDLE;
++        }
++        if (impl->command_pool != VK_NULL_HANDLE) {
++            vkDestroyCommandPool(impl->device, impl->command_pool, nullptr);
++            impl->command_pool = VK_NULL_HANDLE;
++        }
++
++        for (auto v : impl->swapchain_image_views) {
++            if (v != VK_NULL_HANDLE) {
++                vkDestroyImageView(impl->device, v, nullptr);
++            }
++        }
++        impl->swapchain_image_views.clear();
++
++        if (impl->swapchain != VK_NULL_HANDLE) {
++            vkDestroySwapchainKHR(impl->device, impl->swapchain, nullptr);
++            impl->swapchain = VK_NULL_HANDLE;
++        }
++
++        // Recreate swapchain using current window framebuffer size
++        GLFWwindow* glfw_win = nullptr;
++        // Retrieve GLFW window from surface by using the fact we created it from Window; store none, so query from Window size instead
++        // Choose extent via surface caps + current framebuffer size in create_swapchain_and_views()
++        (void)glfw_win;
++        create_swapchain_and_views(*this, static_cast<GLFWwindow*>(const_cast<void*>(static_cast<const void*>(static_cast<const GLFWwindow*>(nullptr)))));
++        // Recreate render pass, framebuffers, commands, and sync
++        create_renderpass_and_framebuffers(*this);
++        create_commands_and_sync(*this);
++
++        // Recreate offscreen images/pipelines sized to new extent
++        create_gbuffer_resources(*this);
++        create_ssao_resources(*this);
++        create_blur_resources(*this);
++        create_pipeline(*this);
++    };
++
+     vkWaitForFences(impl->device, 1U, &impl->in_flight, VK_TRUE, UINT64_MAX);
+@@ -1338,3 +1414,10 @@
+     uint32_t image_index = 0U;
+-    vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
++    VkResult acq = vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
++    if (acq == VK_ERROR_OUT_OF_DATE_KHR) {
++        recreate_swapchain();
++        return;
++    }
++    if (acq != VK_SUCCESS && acq != VK_SUBOPTIMAL_KHR) {
++        return; // skip frame on unexpected error
++    }
+ 
+@@ -1545,3 +1628,6 @@
+     pi.pImageIndices = &image_index;
+-    vkQueuePresentKHR(impl->graphics_queue, &pi);
++    VkResult pres = vkQueuePresentKHR(impl->graphics_queue, &pi);
++    if (pres == VK_ERROR_OUT_OF_DATE_KHR || pres == VK_SUBOPTIMAL_KHR) {
++        recreate_swapchain();
++    }
+ }
+[2025-09-16T07:59:19] apply_patch(auto_approved=true) exited 0 in 30ms:
+Success. Updated the following files:
+M src/vulkan_context.cpp
+[2025-09-16T07:59:19] turn diff:
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 5de498eb7b57dccb5a7667dbef6d172b7602327a..2086147fac7253db0d15f787f1d423b87799aba8
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -1332,11 +1332,94 @@
+ }
+ 
+ void VulkanContext::draw_frame() {
++    // Helper: recreate swapchain and all dependent resources safely
++    auto recreate_swapchain = [this]() noexcept {
++        auto* impl = this->impl.get();
++        if (impl == nullptr) {
++            return;
++        }
++        if (impl->device == VK_NULL_HANDLE) {
++            return;
++        }
++        vkDeviceWaitIdle(impl->device);
++
++        // Destroy resources that depend on extent/format
++        destroy_pipeline(*this);
++        destroy_ssao_resources(*this);
++        destroy_blur_resources(*this);
++        destroy_gbuffer_resources(*this);
++        destroy_depth_resources(*this);
++
++        for (auto fb : impl->framebuffers) {
++            if (fb != VK_NULL_HANDLE) {
++                vkDestroyFramebuffer(impl->device, fb, nullptr);
++            }
++        }
++        impl->framebuffers.clear();
++        if (impl->render_pass != VK_NULL_HANDLE) {
++            vkDestroyRenderPass(impl->device, impl->render_pass, nullptr);
++            impl->render_pass = VK_NULL_HANDLE;
++        }
++
++        // Command buffers/pool and sync objects depend on framebuffer count
++        if (impl->in_flight != VK_NULL_HANDLE) {
++            vkDestroyFence(impl->device, impl->in_flight, nullptr);
++            impl->in_flight = VK_NULL_HANDLE;
++        }
++        if (impl->image_available != VK_NULL_HANDLE) {
++            vkDestroySemaphore(impl->device, impl->image_available, nullptr);
++            impl->image_available = VK_NULL_HANDLE;
++        }
++        if (impl->render_finished != VK_NULL_HANDLE) {
++            vkDestroySemaphore(impl->device, impl->render_finished, nullptr);
++            impl->render_finished = VK_NULL_HANDLE;
++        }
++        if (impl->command_pool != VK_NULL_HANDLE) {
++            vkDestroyCommandPool(impl->device, impl->command_pool, nullptr);
++            impl->command_pool = VK_NULL_HANDLE;
++        }
++
++        for (auto v : impl->swapchain_image_views) {
++            if (v != VK_NULL_HANDLE) {
++                vkDestroyImageView(impl->device, v, nullptr);
++            }
++        }
++        impl->swapchain_image_views.clear();
++
++        if (impl->swapchain != VK_NULL_HANDLE) {
++            vkDestroySwapchainKHR(impl->device, impl->swapchain, nullptr);
++            impl->swapchain = VK_NULL_HANDLE;
++        }
++
++        // Recreate swapchain using current window framebuffer size
++        GLFWwindow* glfw_win = nullptr;
++        // Retrieve GLFW window from surface by using the fact we created it from Window; store none, so query from Window size instead
++        // Choose extent via surface caps + current framebuffer size in create_swapchain_and_views()
++        (void)glfw_win;
++        create_swapchain_and_views(*this, static_cast<GLFWwindow*>(const_cast<void*>(static_cast<const void*>(static_cast<const GLFWwindow*>(nullptr)))));
++        // Recreate render pass, framebuffers, commands, and sync
++        create_renderpass_and_framebuffers(*this);
++        create_commands_and_sync(*this);
++
++        // Recreate offscreen images/pipelines sized to new extent
++        create_gbuffer_resources(*this);
++        create_ssao_resources(*this);
++        create_blur_resources(*this);
++        create_pipeline(*this);
++    };
++
+     vkWaitForFences(impl->device, 1U, &impl->in_flight, VK_TRUE, UINT64_MAX);
+     vkResetFences(impl->device, 1U, &impl->in_flight);
+ 
+     uint32_t image_index = 0U;
+-    vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
++    VkResult acq = vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
++    if (acq == VK_ERROR_OUT_OF_DATE_KHR) {
++        recreate_swapchain();
++        return;
++    }
++    if (acq != VK_SUCCESS && acq != VK_SUBOPTIMAL_KHR) {
++        return; // skip frame on unexpected error
++    }
+ 
+     // Re-record command buffer for this image to allow dynamic UI rendering
+     {
+@@ -1543,7 +1626,10 @@
+     pi.swapchainCount = 1U;
+     pi.pSwapchains = &sc;
+     pi.pImageIndices = &image_index;
+-    vkQueuePresentKHR(impl->graphics_queue, &pi);
++    VkResult pres = vkQueuePresentKHR(impl->graphics_queue, &pi);
++    if (pres == VK_ERROR_OUT_OF_DATE_KHR || pres == VK_SUBOPTIMAL_KHR) {
++        recreate_swapchain();
++    }
+ }
+ 
+ void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
+
+[2025-09-16T07:59:19] tokens used: 77,210
+[2025-09-16T07:59:19] turn diff:
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 5de498eb7b57dccb5a7667dbef6d172b7602327a..2086147fac7253db0d15f787f1d423b87799aba8
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -1332,11 +1332,94 @@
+ }
+ 
+ void VulkanContext::draw_frame() {
++    // Helper: recreate swapchain and all dependent resources safely
++    auto recreate_swapchain = [this]() noexcept {
++        auto* impl = this->impl.get();
++        if (impl == nullptr) {
++            return;
++        }
++        if (impl->device == VK_NULL_HANDLE) {
++            return;
++        }
++        vkDeviceWaitIdle(impl->device);
++
++        // Destroy resources that depend on extent/format
++        destroy_pipeline(*this);
++        destroy_ssao_resources(*this);
++        destroy_blur_resources(*this);
++        destroy_gbuffer_resources(*this);
++        destroy_depth_resources(*this);
++
++        for (auto fb : impl->framebuffers) {
++            if (fb != VK_NULL_HANDLE) {
++                vkDestroyFramebuffer(impl->device, fb, nullptr);
++            }
++        }
++        impl->framebuffers.clear();
++        if (impl->render_pass != VK_NULL_HANDLE) {
++            vkDestroyRenderPass(impl->device, impl->render_pass, nullptr);
++            impl->render_pass = VK_NULL_HANDLE;
++        }
++
++        // Command buffers/pool and sync objects depend on framebuffer count
++        if (impl->in_flight != VK_NULL_HANDLE) {
++            vkDestroyFence(impl->device, impl->in_flight, nullptr);
++            impl->in_flight = VK_NULL_HANDLE;
++        }
++        if (impl->image_available != VK_NULL_HANDLE) {
++            vkDestroySemaphore(impl->device, impl->image_available, nullptr);
++            impl->image_available = VK_NULL_HANDLE;
++        }
++        if (impl->render_finished != VK_NULL_HANDLE) {
++            vkDestroySemaphore(impl->device, impl->render_finished, nullptr);
++            impl->render_finished = VK_NULL_HANDLE;
++        }
++        if (impl->command_pool != VK_NULL_HANDLE) {
++            vkDestroyCommandPool(impl->device, impl->command_pool, nullptr);
++            impl->command_pool = VK_NULL_HANDLE;
++        }
++
++        for (auto v : impl->swapchain_image_views) {
++            if (v != VK_NULL_HANDLE) {
++                vkDestroyImageView(impl->device, v, nullptr);
++            }
++        }
++        impl->swapchain_image_views.clear();
++
++        if (impl->swapchain != VK_NULL_HANDLE) {
++            vkDestroySwapchainKHR(impl->device, impl->swapchain, nullptr);
++            impl->swapchain = VK_NULL_HANDLE;
++        }
++
++        // Recreate swapchain using current window framebuffer size
++        GLFWwindow* glfw_win = nullptr;
++        // Retrieve GLFW window from surface by using the fact we created it from Window; store none, so query from Window size instead
++        // Choose extent via surface caps + current framebuffer size in create_swapchain_and_views()
++        (void)glfw_win;
++        create_swapchain_and_views(*this, static_cast<GLFWwindow*>(const_cast<void*>(static_cast<const void*>(static_cast<const GLFWwindow*>(nullptr)))));
++        // Recreate render pass, framebuffers, commands, and sync
++        create_renderpass_and_framebuffers(*this);
++        create_commands_and_sync(*this);
++
++        // Recreate offscreen images/pipelines sized to new extent
++        create_gbuffer_resources(*this);
++        create_ssao_resources(*this);
++        create_blur_resources(*this);
++        create_pipeline(*this);
++    };
++
+     vkWaitForFences(impl->device, 1U, &impl->in_flight, VK_TRUE, UINT64_MAX);
+     vkResetFences(impl->device, 1U, &impl->in_flight);
+ 
+     uint32_t image_index = 0U;
+-    vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
++    VkResult acq = vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
++    if (acq == VK_ERROR_OUT_OF_DATE_KHR) {
++        recreate_swapchain();
++        return;
++    }
++    if (acq != VK_SUCCESS && acq != VK_SUBOPTIMAL_KHR) {
++        return; // skip frame on unexpected error
++    }
+ 
+     // Re-record command buffer for this image to allow dynamic UI rendering
+     {
+@@ -1543,7 +1626,10 @@
+     pi.swapchainCount = 1U;
+     pi.pSwapchains = &sc;
+     pi.pImageIndices = &image_index;
+-    vkQueuePresentKHR(impl->graphics_queue, &pi);
++    VkResult pres = vkQueuePresentKHR(impl->graphics_queue, &pi);
++    if (pres == VK_ERROR_OUT_OF_DATE_KHR || pres == VK_SUBOPTIMAL_KHR) {
++        recreate_swapchain();
++    }
+ }
+ 
+ void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
+
+
+[2025-09-16T07:59:24] thinking
+
+**Identifying implementation flaws**
+
+I see that the recreate_swapchain implementation has issues. It tries to call create_swapchain_and_views with a GLFWwindow pointer, but it's passing invalid information. The function signature specifies it should receive a VulkanContext and a GLFWwindow pointer, but the implementation isn't storing the GLFWwindow pointer anywhere except in ImGuiLayer. It feels like I should store the GLFWwindow pointer in the Impl class during construction. I need to check the constructor, starting with examining how it creates the instance and surface using glfwCreateWindowSurface. I’ll look for the window pointer from Window.native_handle near line 1160.
+[2025-09-16T07:59:26] exec bash -lc "sed -n '1120,1320p' src/vulkan_context.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-16T07:59:26] bash -lc "sed -n '1120,1320p' src/vulkan_context.cpp" succeeded in 25ms:
+        // Create G-buffer pipeline
+        {
+            auto gvs = load_binary_file("shaders/gbuffer.vert.spv");
+            auto gfs = load_binary_file("shaders/gbuffer.frag.spv");
+            if (!gvs.empty() && !gfs.empty()) {
+                VkShaderModule gv = create_shader_module(impl.device, gvs);
+                VkShaderModule gf = create_shader_module(impl.device, gfs);
+                VkPipelineShaderStageCreateInfo stages[2] = {};
+                stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT; stages[0].module = gv; stages[0].pName = "main";
+                stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT; stages[1].module = gf; stages[1].pName = "main";
+                VkVertexInputBindingDescription binding {0, static_cast<uint32_t>(sizeof(vulkano::Vertex)), VK_VERTEX_INPUT_RATE_VERTEX};
+                std::array<VkVertexInputAttributeDescription,5> attrs = {
+                    VkVertexInputAttributeDescription{0,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, position)},
+                    VkVertexInputAttributeDescription{1,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, normal)},
+                    VkVertexInputAttributeDescription{2,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, tangent)},
+                    VkVertexInputAttributeDescription{3,0,VK_FORMAT_R32G32B32_SFLOAT, offsetof(vulkano::Vertex, bitangent)},
+                    VkVertexInputAttributeDescription{4,0,VK_FORMAT_R32G32_SFLOAT, offsetof(vulkano::Vertex, texcoord)} };
+                VkPipelineVertexInputStateCreateInfo vi {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO}; vi.vertexBindingDescriptionCount=1; vi.pVertexBindingDescriptions=&binding; vi.vertexAttributeDescriptionCount=static_cast<uint32_t>(attrs.size()); vi.pVertexAttributeDescriptions=attrs.data();
+                VkPipelineInputAssemblyStateCreateInfo ia {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO}; ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+                VkViewport viewport {}; viewport.x=0; viewport.y=0; viewport.width=static_cast<float>(impl.swapchain_extent.width); viewport.height=static_cast<float>(impl.swapchain_extent.height); viewport.minDepth=0.0F; viewport.maxDepth=1.0F;
+[2025-09-16T07:59:26] tokens used: 78,761
+[2025-09-16T07:59:26] turn diff:
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 5de498eb7b57dccb5a7667dbef6d172b7602327a..2086147fac7253db0d15f787f1d423b87799aba8
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -1332,11 +1332,94 @@
+ }
+ 
+ void VulkanContext::draw_frame() {
++    // Helper: recreate swapchain and all dependent resources safely
++    auto recreate_swapchain = [this]() noexcept {
++        auto* impl = this->impl.get();
++        if (impl == nullptr) {
++            return;
++        }
++        if (impl->device == VK_NULL_HANDLE) {
++            return;
++        }
++        vkDeviceWaitIdle(impl->device);
++
++        // Destroy resources that depend on extent/format
++        destroy_pipeline(*this);
++        destroy_ssao_resources(*this);
++        destroy_blur_resources(*this);
++        destroy_gbuffer_resources(*this);
++        destroy_depth_resources(*this);
++
++        for (auto fb : impl->framebuffers) {
++            if (fb != VK_NULL_HANDLE) {
++                vkDestroyFramebuffer(impl->device, fb, nullptr);
++            }
++        }
++        impl->framebuffers.clear();
++        if (impl->render_pass != VK_NULL_HANDLE) {
++            vkDestroyRenderPass(impl->device, impl->render_pass, nullptr);
++            impl->render_pass = VK_NULL_HANDLE;
++        }
++
++        // Command buffers/pool and sync objects depend on framebuffer count
++        if (impl->in_flight != VK_NULL_HANDLE) {
++            vkDestroyFence(impl->device, impl->in_flight, nullptr);
++            impl->in_flight = VK_NULL_HANDLE;
++        }
++        if (impl->image_available != VK_NULL_HANDLE) {
++            vkDestroySemaphore(impl->device, impl->image_available, nullptr);
++            impl->image_available = VK_NULL_HANDLE;
++        }
++        if (impl->render_finished != VK_NULL_HANDLE) {
++            vkDestroySemaphore(impl->device, impl->render_finished, nullptr);
++            impl->render_finished = VK_NULL_HANDLE;
++        }
++        if (impl->command_pool != VK_NULL_HANDLE) {
++            vkDestroyCommandPool(impl->device, impl->command_pool, nullptr);
++            impl->command_pool = VK_NULL_HANDLE;
++        }
++
++        for (auto v : impl->swapchain_image_views) {
++            if (v != VK_NULL_HANDLE) {
++                vkDestroyImageView(impl->device, v, nullptr);
++            }
++        }
++        impl->swapchain_image_views.clear();
++
++        if (impl->swapchain != VK_NULL_HANDLE) {
++            vkDestroySwapchainKHR(impl->device, impl->swapchain, nullptr);
++            impl->swapchain = VK_NULL_HANDLE;
++        }
++
++        // Recreate swapchain using current window framebuffer size
++        GLFWwindow* glfw_win = nullptr;
++        // Retrieve GLFW window from surface by using the fact we created it from Window; store none, so query from Window size instead
++        // Choose extent via surface caps + current framebuffer size in create_swapchain_and_views()
++        (void)glfw_win;
++        create_swapchain_and_views(*this, static_cast<GLFWwindow*>(const_cast<void*>(static_cast<const void*>(static_cast<const GLFWwindow*>(nullptr)))));
++        // Recreate render pass, framebuffers, commands, and sync
++        create_renderpass_and_framebuffers(*this);
++        create_commands_and_sync(*this);
++
++        // Recreate offscreen images/pipelines sized to new extent
++        create_gbuffer_resources(*this);
++        create_ssao_resources(*this);
++        create_blur_resources(*this);
++        create_pipeline(*this);
++    };
++
+     vkWaitForFences(impl->device, 1U, &impl->in_flight, VK_TRUE, UINT64_MAX);
+     vkResetFences(impl->device, 1U, &impl->in_flight);
+ 
+     uint32_t image_index = 0U;
+-    vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
++    VkResult acq = vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
++    if (acq == VK_ERROR_OUT_OF_DATE_KHR) {
++        recreate_swapchain();
++        return;
++    }
++    if (acq != VK_SUCCESS && acq != VK_SUBOPTIMAL_KHR) {
++        return; // skip frame on unexpected error
++    }
+ 
+     // Re-record command buffer for this image to allow dynamic UI rendering
+     {
+@@ -1543,7 +1626,10 @@
+     pi.swapchainCount = 1U;
+     pi.pSwapchains = &sc;
+     pi.pImageIndices = &image_index;
+-    vkQueuePresentKHR(impl->graphics_queue, &pi);
++    VkResult pres = vkQueuePresentKHR(impl->graphics_queue, &pi);
++    if (pres == VK_ERROR_OUT_OF_DATE_KHR || pres == VK_SUBOPTIMAL_KHR) {
++        recreate_swapchain();
++    }
+ }
+ 
+ void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
+
+
+[2025-09-16T07:59:29] thinking
+
+**Searching for window pointer**
+
+I need to locate the GLFWwindow pointer, specifically the glfw_win variable. I suspect it’s defined in the constructor where they created it from the Window parameter. So, I’ll search for the function VulkanContext::VulkanContext(const Window&) to see what’s happening there. It's a little tricky, but I'm on the right track, trying to figure out how the window pointer is being utilized!
+[2025-09-16T07:59:31] exec bash -lc "rg -n \"VulkanContext::VulkanContext\\(const Window&\" src/vulkan_context.cpp && sed -n '1200,1290p' src/vulkan_context.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-16T07:59:31] bash -lc "rg -n \"VulkanContext::VulkanContext\\(const Window&\" src/vulkan_context.cpp && sed -n '1200,1290p' src/vulkan_context.cpp" succeeded in 34ms:
+1215:VulkanContext::VulkanContext(const Window& window)
+1682:VulkanContext::VulkanContext(const Window&) : impl {nullptr} {
+                VkPipelineRasterizationStateCreateInfo rs {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO}; rs.polygonMode=VK_POLYGON_MODE_FILL; rs.cullMode=VK_CULL_MODE_NONE; rs.frontFace=VK_FRONT_FACE_COUNTER_CLOCKWISE; rs.lineWidth=1.0F;
+                VkPipelineMultisampleStateCreateInfo ms {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO}; ms.rasterizationSamples=VK_SAMPLE_COUNT_1_BIT;
+                VkPipelineColorBlendAttachmentState cba {}; cba.colorWriteMask = VK_COLOR_COMPONENT_R_BIT;
+                VkPipelineColorBlendStateCreateInfo cb {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO}; cb.attachmentCount=1; cb.pAttachments=&cba;
+                VkPipelineLayoutCreateInfo plci4 {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO}; plci4.setLayoutCount=1; plci4.pSetLayouts=&impl.desc_layout;
+                vkCreatePipelineLayout(impl.device, &plci4, nullptr, &impl.blur_pipeline_layout);
+                VkGraphicsPipelineCreateInfo gpci4 {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO}; gpci4.stageCount=2; gpci4.pStages=stages; gpci4.pVertexInputState=&vi; gpci4.pInputAssemblyState=&ia; gpci4.pViewportState=&vp; gpci4.pRasterizationState=&rs; gpci4.pMultisampleState=&ms; gpci4.pColorBlendState=&cb; gpci4.layout=impl.blur_pipeline_layout; gpci4.renderPass=impl.blur_render_pass; gpci4.subpass=0;
+                vkCreateGraphicsPipelines(impl.device, VK_NULL_HANDLE, 1, &gpci4, nullptr, &impl.blur_pipeline);
+                vkDestroyShaderModule(impl.device, v, nullptr);
+                vkDestroyShaderModule(impl.device, f, nullptr);
+            }
+        }
+    }
+}
+
+VulkanContext::VulkanContext(const Window& window)
+    : impl {std::make_unique<Impl>()} {
+    create_instance(&impl->instance);
+[2025-09-16T07:59:31] tokens used: 80,986
+[2025-09-16T07:59:31] turn diff:
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 5de498eb7b57dccb5a7667dbef6d172b7602327a..2086147fac7253db0d15f787f1d423b87799aba8
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -1332,11 +1332,94 @@
+ }
+ 
+ void VulkanContext::draw_frame() {
++    // Helper: recreate swapchain and all dependent resources safely
++    auto recreate_swapchain = [this]() noexcept {
++        auto* impl = this->impl.get();
++        if (impl == nullptr) {
++            return;
++        }
++        if (impl->device == VK_NULL_HANDLE) {
++            return;
++        }
++        vkDeviceWaitIdle(impl->device);
++
++        // Destroy resources that depend on extent/format
++        destroy_pipeline(*this);
++        destroy_ssao_resources(*this);
++        destroy_blur_resources(*this);
++        destroy_gbuffer_resources(*this);
++        destroy_depth_resources(*this);
++
++        for (auto fb : impl->framebuffers) {
++            if (fb != VK_NULL_HANDLE) {
++                vkDestroyFramebuffer(impl->device, fb, nullptr);
++            }
++        }
++        impl->framebuffers.clear();
++        if (impl->render_pass != VK_NULL_HANDLE) {
++            vkDestroyRenderPass(impl->device, impl->render_pass, nullptr);
++            impl->render_pass = VK_NULL_HANDLE;
++        }
++
++        // Command buffers/pool and sync objects depend on framebuffer count
++        if (impl->in_flight != VK_NULL_HANDLE) {
++            vkDestroyFence(impl->device, impl->in_flight, nullptr);
++            impl->in_flight = VK_NULL_HANDLE;
++        }
++        if (impl->image_available != VK_NULL_HANDLE) {
++            vkDestroySemaphore(impl->device, impl->image_available, nullptr);
++            impl->image_available = VK_NULL_HANDLE;
++        }
++        if (impl->render_finished != VK_NULL_HANDLE) {
++            vkDestroySemaphore(impl->device, impl->render_finished, nullptr);
++            impl->render_finished = VK_NULL_HANDLE;
++        }
++        if (impl->command_pool != VK_NULL_HANDLE) {
++            vkDestroyCommandPool(impl->device, impl->command_pool, nullptr);
++            impl->command_pool = VK_NULL_HANDLE;
++        }
++
++        for (auto v : impl->swapchain_image_views) {
++            if (v != VK_NULL_HANDLE) {
++                vkDestroyImageView(impl->device, v, nullptr);
++            }
++        }
++        impl->swapchain_image_views.clear();
++
++        if (impl->swapchain != VK_NULL_HANDLE) {
++            vkDestroySwapchainKHR(impl->device, impl->swapchain, nullptr);
++            impl->swapchain = VK_NULL_HANDLE;
++        }
++
++        // Recreate swapchain using current window framebuffer size
++        GLFWwindow* glfw_win = nullptr;
++        // Retrieve GLFW window from surface by using the fact we created it from Window; store none, so query from Window size instead
++        // Choose extent via surface caps + current framebuffer size in create_swapchain_and_views()
++        (void)glfw_win;
++        create_swapchain_and_views(*this, static_cast<GLFWwindow*>(const_cast<void*>(static_cast<const void*>(static_cast<const GLFWwindow*>(nullptr)))));
++        // Recreate render pass, framebuffers, commands, and sync
++        create_renderpass_and_framebuffers(*this);
++        create_commands_and_sync(*this);
++
++        // Recreate offscreen images/pipelines sized to new extent
++        create_gbuffer_resources(*this);
++        create_ssao_resources(*this);
++        create_blur_resources(*this);
++        create_pipeline(*this);
++    };
++
+     vkWaitForFences(impl->device, 1U, &impl->in_flight, VK_TRUE, UINT64_MAX);
+     vkResetFences(impl->device, 1U, &impl->in_flight);
+ 
+     uint32_t image_index = 0U;
+-    vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
++    VkResult acq = vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
++    if (acq == VK_ERROR_OUT_OF_DATE_KHR) {
++        recreate_swapchain();
++        return;
++    }
++    if (acq != VK_SUCCESS && acq != VK_SUBOPTIMAL_KHR) {
++        return; // skip frame on unexpected error
++    }
+ 
+     // Re-record command buffer for this image to allow dynamic UI rendering
+     {
+@@ -1543,7 +1626,10 @@
+     pi.swapchainCount = 1U;
+     pi.pSwapchains = &sc;
+     pi.pImageIndices = &image_index;
+-    vkQueuePresentKHR(impl->graphics_queue, &pi);
++    VkResult pres = vkQueuePresentKHR(impl->graphics_queue, &pi);
++    if (pres == VK_ERROR_OUT_OF_DATE_KHR || pres == VK_SUBOPTIMAL_KHR) {
++        recreate_swapchain();
++    }
+ }
+ 
+ void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
+
+
+[2025-09-16T07:59:34] thinking
+
+**Modifying window implementation**
+
+I’m thinking that we can store glfw_win within Impl by adding a field for GLFWwindow*. I noticed that in the imgui Impl they included one, but it seems to be missing in VulkanContext::Impl. So, we’ll need to add that field and then modify the constructor to make sure it stores it properly. Next, in the recreate_swapchain call, I'll call create_swapchain_and_views with the parameter impl->window. Time to patch things up!
+[2025-09-16T07:59:40] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp
+@@ -21,2 +21,3 @@
+     VkSurfaceKHR surface {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
+     VkPhysicalDevice physical_device {VK_NULL_HANDLE};
+@@ -1221,2 +1222,3 @@
+     }
++    impl->glfw_window = glfw_win;
+     if (glfwCreateWindowSurface(impl->instance, glfw_win, nullptr, &impl->surface) != VK_SUCCESS) {
+[2025-09-16T07:59:40] apply_patch(auto_approved=true) exited 0 in 42ms:
+Success. Updated the following files:
+M src/vulkan_context.cpp
+[2025-09-16T07:59:40] turn diff:
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 5de498eb7b57dccb5a7667dbef6d172b7602327a..972e4b0e523a380bf0c6cadcda141dbe73686586
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -19,6 +19,7 @@
+ struct VulkanContext::Impl final {
+     VkInstance instance {VK_NULL_HANDLE};
+     VkSurfaceKHR surface {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
+     VkPhysicalDevice physical_device {VK_NULL_HANDLE};
+     VkDevice device {VK_NULL_HANDLE};
+     VkQueue graphics_queue {VK_NULL_HANDLE};
+@@ -1219,6 +1220,7 @@
+     if (glfw_win == nullptr) {
+         throw std::runtime_error {"Invalid GLFW window handle"};
+     }
++    impl->glfw_window = glfw_win;
+     if (glfwCreateWindowSurface(impl->instance, glfw_win, nullptr, &impl->surface) != VK_SUCCESS) {
+         throw std::runtime_error {"Failed to create Vulkan surface"};
+     }
+@@ -1332,11 +1334,94 @@
+ }
+ 
+ void VulkanContext::draw_frame() {
++    // Helper: recreate swapchain and all dependent resources safely
++    auto recreate_swapchain = [this]() noexcept {
++        auto* impl = this->impl.get();
++        if (impl == nullptr) {
++            return;
++        }
++        if (impl->device == VK_NULL_HANDLE) {
++            return;
++        }
++        vkDeviceWaitIdle(impl->device);
++
++        // Destroy resources that depend on extent/format
++        destroy_pipeline(*this);
++        destroy_ssao_resources(*this);
++        destroy_blur_resources(*this);
++        destroy_gbuffer_resources(*this);
++        destroy_depth_resources(*this);
++
++        for (auto fb : impl->framebuffers) {
++            if (fb != VK_NULL_HANDLE) {
++                vkDestroyFramebuffer(impl->device, fb, nullptr);
++            }
++        }
++        impl->framebuffers.clear();
++        if (impl->render_pass != VK_NULL_HANDLE) {
++            vkDestroyRenderPass(impl->device, impl->render_pass, nullptr);
++            impl->render_pass = VK_NULL_HANDLE;
++        }
++
++        // Command buffers/pool and sync objects depend on framebuffer count
++        if (impl->in_flight != VK_NULL_HANDLE) {
++            vkDestroyFence(impl->device, impl->in_flight, nullptr);
++            impl->in_flight = VK_NULL_HANDLE;
++        }
++        if (impl->image_available != VK_NULL_HANDLE) {
++            vkDestroySemaphore(impl->device, impl->image_available, nullptr);
++            impl->image_available = VK_NULL_HANDLE;
++        }
++        if (impl->render_finished != VK_NULL_HANDLE) {
++            vkDestroySemaphore(impl->device, impl->render_finished, nullptr);
++            impl->render_finished = VK_NULL_HANDLE;
++        }
++        if (impl->command_pool != VK_NULL_HANDLE) {
++            vkDestroyCommandPool(impl->device, impl->command_pool, nullptr);
++            impl->command_pool = VK_NULL_HANDLE;
++        }
++
++        for (auto v : impl->swapchain_image_views) {
++            if (v != VK_NULL_HANDLE) {
++                vkDestroyImageView(impl->device, v, nullptr);
++            }
++        }
++        impl->swapchain_image_views.clear();
++
++        if (impl->swapchain != VK_NULL_HANDLE) {
++            vkDestroySwapchainKHR(impl->device, impl->swapchain, nullptr);
++            impl->swapchain = VK_NULL_HANDLE;
++        }
++
++        // Recreate swapchain using current window framebuffer size
++        GLFWwindow* glfw_win = nullptr;
++        // Retrieve GLFW window from surface by using the fact we created it from Window; store none, so query from Window size instead
++        // Choose extent via surface caps + current framebuffer size in create_swapchain_and_views()
++        (void)glfw_win;
++        create_swapchain_and_views(*this, static_cast<GLFWwindow*>(const_cast<void*>(static_cast<const void*>(static_cast<const GLFWwindow*>(nullptr)))));
++        // Recreate render pass, framebuffers, commands, and sync
++        create_renderpass_and_framebuffers(*this);
++        create_commands_and_sync(*this);
++
++        // Recreate offscreen images/pipelines sized to new extent
++        create_gbuffer_resources(*this);
++        create_ssao_resources(*this);
++        create_blur_resources(*this);
++        create_pipeline(*this);
++    };
++
+     vkWaitForFences(impl->device, 1U, &impl->in_flight, VK_TRUE, UINT64_MAX);
+     vkResetFences(impl->device, 1U, &impl->in_flight);
+ 
+     uint32_t image_index = 0U;
+-    vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
++    VkResult acq = vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
++    if (acq == VK_ERROR_OUT_OF_DATE_KHR) {
++        recreate_swapchain();
++        return;
++    }
++    if (acq != VK_SUCCESS && acq != VK_SUBOPTIMAL_KHR) {
++        return; // skip frame on unexpected error
++    }
+ 
+     // Re-record command buffer for this image to allow dynamic UI rendering
+     {
+@@ -1543,7 +1628,10 @@
+     pi.swapchainCount = 1U;
+     pi.pSwapchains = &sc;
+     pi.pImageIndices = &image_index;
+-    vkQueuePresentKHR(impl->graphics_queue, &pi);
++    VkResult pres = vkQueuePresentKHR(impl->graphics_queue, &pi);
++    if (pres == VK_ERROR_OUT_OF_DATE_KHR || pres == VK_SUBOPTIMAL_KHR) {
++        recreate_swapchain();
++    }
+ }
+ 
+ void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
+
+[2025-09-16T07:59:40] tokens used: 82,815
+[2025-09-16T07:59:40] turn diff:
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 5de498eb7b57dccb5a7667dbef6d172b7602327a..972e4b0e523a380bf0c6cadcda141dbe73686586
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -19,6 +19,7 @@
+ struct VulkanContext::Impl final {
+     VkInstance instance {VK_NULL_HANDLE};
+     VkSurfaceKHR surface {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
+     VkPhysicalDevice physical_device {VK_NULL_HANDLE};
+     VkDevice device {VK_NULL_HANDLE};
+     VkQueue graphics_queue {VK_NULL_HANDLE};
+@@ -1219,6 +1220,7 @@
+     if (glfw_win == nullptr) {
+         throw std::runtime_error {"Invalid GLFW window handle"};
+     }
++    impl->glfw_window = glfw_win;
+     if (glfwCreateWindowSurface(impl->instance, glfw_win, nullptr, &impl->surface) != VK_SUCCESS) {
+         throw std::runtime_error {"Failed to create Vulkan surface"};
+     }
+@@ -1332,11 +1334,94 @@
+ }
+ 
+ void VulkanContext::draw_frame() {
++    // Helper: recreate swapchain and all dependent resources safely
++    auto recreate_swapchain = [this]() noexcept {
++        auto* impl = this->impl.get();
++        if (impl == nullptr) {
++            return;
++        }
++        if (impl->device == VK_NULL_HANDLE) {
++            return;
++        }
++        vkDeviceWaitIdle(impl->device);
++
++        // Destroy resources that depend on extent/format
++        destroy_pipeline(*this);
++        destroy_ssao_resources(*this);
++        destroy_blur_resources(*this);
++        destroy_gbuffer_resources(*this);
++        destroy_depth_resources(*this);
++
++        for (auto fb : impl->framebuffers) {
++            if (fb != VK_NULL_HANDLE) {
++                vkDestroyFramebuffer(impl->device, fb, nullptr);
++            }
++        }
++        impl->framebuffers.clear();
++        if (impl->render_pass != VK_NULL_HANDLE) {
++            vkDestroyRenderPass(impl->device, impl->render_pass, nullptr);
++            impl->render_pass = VK_NULL_HANDLE;
++        }
++
++        // Command buffers/pool and sync objects depend on framebuffer count
++        if (impl->in_flight != VK_NULL_HANDLE) {
++            vkDestroyFence(impl->device, impl->in_flight, nullptr);
++            impl->in_flight = VK_NULL_HANDLE;
++        }
++        if (impl->image_available != VK_NULL_HANDLE) {
++            vkDestroySemaphore(impl->device, impl->image_available, nullptr);
++            impl->image_available = VK_NULL_HANDLE;
++        }
++        if (impl->render_finished != VK_NULL_HANDLE) {
++            vkDestroySemaphore(impl->device, impl->render_finished, nullptr);
++            impl->render_finished = VK_NULL_HANDLE;
++        }
++        if (impl->command_pool != VK_NULL_HANDLE) {
++            vkDestroyCommandPool(impl->device, impl->command_pool, nullptr);
++            impl->command_pool = VK_NULL_HANDLE;
++        }
++
++        for (auto v : impl->swapchain_image_views) {
++            if (v != VK_NULL_HANDLE) {
++                vkDestroyImageView(impl->device, v, nullptr);
++            }
++        }
++        impl->swapchain_image_views.clear();
++
++        if (impl->swapchain != VK_NULL_HANDLE) {
++            vkDestroySwapchainKHR(impl->device, impl->swapchain, nullptr);
++            impl->swapchain = VK_NULL_HANDLE;
++        }
++
++        // Recreate swapchain using current window framebuffer size
++        GLFWwindow* glfw_win = nullptr;
++        // Retrieve GLFW window from surface by using the fact we created it from Window; store none, so query from Window size instead
++        // Choose extent via surface caps + current framebuffer size in create_swapchain_and_views()
++        (void)glfw_win;
++        create_swapchain_and_views(*this, static_cast<GLFWwindow*>(const_cast<void*>(static_cast<const void*>(static_cast<const GLFWwindow*>(nullptr)))));
++        // Recreate render pass, framebuffers, commands, and sync
++        create_renderpass_and_framebuffers(*this);
++        create_commands_and_sync(*this);
++
++        // Recreate offscreen images/pipelines sized to new extent
++        create_gbuffer_resources(*this);
++        create_ssao_resources(*this);
++        create_blur_resources(*this);
++        create_pipeline(*this);
++    };
++
+     vkWaitForFences(impl->device, 1U, &impl->in_flight, VK_TRUE, UINT64_MAX);
+     vkResetFences(impl->device, 1U, &impl->in_flight);
+ 
+     uint32_t image_index = 0U;
+-    vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
++    VkResult acq = vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
++    if (acq == VK_ERROR_OUT_OF_DATE_KHR) {
++        recreate_swapchain();
++        return;
++    }
++    if (acq != VK_SUCCESS && acq != VK_SUBOPTIMAL_KHR) {
++        return; // skip frame on unexpected error
++    }
+ 
+     // Re-record command buffer for this image to allow dynamic UI rendering
+     {
+@@ -1543,7 +1628,10 @@
+     pi.swapchainCount = 1U;
+     pi.pSwapchains = &sc;
+     pi.pImageIndices = &image_index;
+-    vkQueuePresentKHR(impl->graphics_queue, &pi);
++    VkResult pres = vkQueuePresentKHR(impl->graphics_queue, &pi);
++    if (pres == VK_ERROR_OUT_OF_DATE_KHR || pres == VK_SUBOPTIMAL_KHR) {
++        recreate_swapchain();
++    }
+ }
+ 
+ void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
+
+[2025-09-16T07:59:42] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp
+@@ -1395,8 +1395,4 @@
+ 
+-        // Recreate swapchain using current window framebuffer size
+-        GLFWwindow* glfw_win = nullptr;
+-        // Retrieve GLFW window from surface by using the fact we created it from Window; store none, so query from Window size instead
+-        // Choose extent via surface caps + current framebuffer size in create_swapchain_and_views()
+-        (void)glfw_win;
+-        create_swapchain_and_views(*this, static_cast<GLFWwindow*>(const_cast<void*>(static_cast<const void*>(static_cast<const GLFWwindow*>(nullptr)))));
++        // Recreate swapchain using stored GLFW window
++        create_swapchain_and_views(*this, impl->glfw_window);
+         // Recreate render pass, framebuffers, commands, and sync
+[2025-09-16T07:59:42] apply_patch(auto_approved=true) exited 0 in 47ms:
+Success. Updated the following files:
+M src/vulkan_context.cpp
+[2025-09-16T07:59:42] turn diff:
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 5de498eb7b57dccb5a7667dbef6d172b7602327a..c6842c2dd71a3ae6b14910f63ed8b9c510ef1526
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -19,6 +19,7 @@
+ struct VulkanContext::Impl final {
+     VkInstance instance {VK_NULL_HANDLE};
+     VkSurfaceKHR surface {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
+     VkPhysicalDevice physical_device {VK_NULL_HANDLE};
+     VkDevice device {VK_NULL_HANDLE};
+     VkQueue graphics_queue {VK_NULL_HANDLE};
+@@ -1219,6 +1220,7 @@
+     if (glfw_win == nullptr) {
+         throw std::runtime_error {"Invalid GLFW window handle"};
+     }
++    impl->glfw_window = glfw_win;
+     if (glfwCreateWindowSurface(impl->instance, glfw_win, nullptr, &impl->surface) != VK_SUCCESS) {
+         throw std::runtime_error {"Failed to create Vulkan surface"};
+     }
+@@ -1332,11 +1334,90 @@
+ }
+ 
+ void VulkanContext::draw_frame() {
++    // Helper: recreate swapchain and all dependent resources safely
++    auto recreate_swapchain = [this]() noexcept {
++        auto* impl = this->impl.get();
++        if (impl == nullptr) {
++            return;
++        }
++        if (impl->device == VK_NULL_HANDLE) {
++            return;
++        }
++        vkDeviceWaitIdle(impl->device);
++
++        // Destroy resources that depend on extent/format
++        destroy_pipeline(*this);
++        destroy_ssao_resources(*this);
++        destroy_blur_resources(*this);
++        destroy_gbuffer_resources(*this);
++        destroy_depth_resources(*this);
++
++        for (auto fb : impl->framebuffers) {
++            if (fb != VK_NULL_HANDLE) {
++                vkDestroyFramebuffer(impl->device, fb, nullptr);
++            }
++        }
++        impl->framebuffers.clear();
++        if (impl->render_pass != VK_NULL_HANDLE) {
++            vkDestroyRenderPass(impl->device, impl->render_pass, nullptr);
++            impl->render_pass = VK_NULL_HANDLE;
++        }
++
++        // Command buffers/pool and sync objects depend on framebuffer count
++        if (impl->in_flight != VK_NULL_HANDLE) {
++            vkDestroyFence(impl->device, impl->in_flight, nullptr);
++            impl->in_flight = VK_NULL_HANDLE;
++        }
++        if (impl->image_available != VK_NULL_HANDLE) {
++            vkDestroySemaphore(impl->device, impl->image_available, nullptr);
++            impl->image_available = VK_NULL_HANDLE;
++        }
++        if (impl->render_finished != VK_NULL_HANDLE) {
++            vkDestroySemaphore(impl->device, impl->render_finished, nullptr);
++            impl->render_finished = VK_NULL_HANDLE;
++        }
++        if (impl->command_pool != VK_NULL_HANDLE) {
++            vkDestroyCommandPool(impl->device, impl->command_pool, nullptr);
++            impl->command_pool = VK_NULL_HANDLE;
++        }
++
++        for (auto v : impl->swapchain_image_views) {
++            if (v != VK_NULL_HANDLE) {
++                vkDestroyImageView(impl->device, v, nullptr);
++            }
++        }
++        impl->swapchain_image_views.clear();
++
++        if (impl->swapchain != VK_NULL_HANDLE) {
++            vkDestroySwapchainKHR(impl->device, impl->swapchain, nullptr);
++            impl->swapchain = VK_NULL_HANDLE;
++        }
++
++        // Recreate swapchain using stored GLFW window
++        create_swapchain_and_views(*this, impl->glfw_window);
++        // Recreate render pass, framebuffers, commands, and sync
++        create_renderpass_and_framebuffers(*this);
++        create_commands_and_sync(*this);
++
++        // Recreate offscreen images/pipelines sized to new extent
++        create_gbuffer_resources(*this);
++        create_ssao_resources(*this);
++        create_blur_resources(*this);
++        create_pipeline(*this);
++    };
++
+     vkWaitForFences(impl->device, 1U, &impl->in_flight, VK_TRUE, UINT64_MAX);
+     vkResetFences(impl->device, 1U, &impl->in_flight);
+ 
+     uint32_t image_index = 0U;
+-    vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
++    VkResult acq = vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
++    if (acq == VK_ERROR_OUT_OF_DATE_KHR) {
++        recreate_swapchain();
++        return;
++    }
++    if (acq != VK_SUCCESS && acq != VK_SUBOPTIMAL_KHR) {
++        return; // skip frame on unexpected error
++    }
+ 
+     // Re-record command buffer for this image to allow dynamic UI rendering
+     {
+@@ -1543,7 +1624,10 @@
+     pi.swapchainCount = 1U;
+     pi.pSwapchains = &sc;
+     pi.pImageIndices = &image_index;
+-    vkQueuePresentKHR(impl->graphics_queue, &pi);
++    VkResult pres = vkQueuePresentKHR(impl->graphics_queue, &pi);
++    if (pres == VK_ERROR_OUT_OF_DATE_KHR || pres == VK_SUBOPTIMAL_KHR) {
++        recreate_swapchain();
++    }
+ }
+ 
+ void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
+
+[2025-09-16T07:59:42] tokens used: 83,467
+[2025-09-16T07:59:42] turn diff:
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 5de498eb7b57dccb5a7667dbef6d172b7602327a..c6842c2dd71a3ae6b14910f63ed8b9c510ef1526
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -19,6 +19,7 @@
+ struct VulkanContext::Impl final {
+     VkInstance instance {VK_NULL_HANDLE};
+     VkSurfaceKHR surface {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
+     VkPhysicalDevice physical_device {VK_NULL_HANDLE};
+     VkDevice device {VK_NULL_HANDLE};
+     VkQueue graphics_queue {VK_NULL_HANDLE};
+@@ -1219,6 +1220,7 @@
+     if (glfw_win == nullptr) {
+         throw std::runtime_error {"Invalid GLFW window handle"};
+     }
++    impl->glfw_window = glfw_win;
+     if (glfwCreateWindowSurface(impl->instance, glfw_win, nullptr, &impl->surface) != VK_SUCCESS) {
+         throw std::runtime_error {"Failed to create Vulkan surface"};
+     }
+@@ -1332,11 +1334,90 @@
+ }
+ 
+ void VulkanContext::draw_frame() {
++    // Helper: recreate swapchain and all dependent resources safely
++    auto recreate_swapchain = [this]() noexcept {
++        auto* impl = this->impl.get();
++        if (impl == nullptr) {
++            return;
++        }
++        if (impl->device == VK_NULL_HANDLE) {
++            return;
++        }
++        vkDeviceWaitIdle(impl->device);
++
++        // Destroy resources that depend on extent/format
++        destroy_pipeline(*this);
++        destroy_ssao_resources(*this);
++        destroy_blur_resources(*this);
++        destroy_gbuffer_resources(*this);
++        destroy_depth_resources(*this);
++
++        for (auto fb : impl->framebuffers) {
++            if (fb != VK_NULL_HANDLE) {
++                vkDestroyFramebuffer(impl->device, fb, nullptr);
++            }
++        }
++        impl->framebuffers.clear();
++        if (impl->render_pass != VK_NULL_HANDLE) {
++            vkDestroyRenderPass(impl->device, impl->render_pass, nullptr);
++            impl->render_pass = VK_NULL_HANDLE;
++        }
++
++        // Command buffers/pool and sync objects depend on framebuffer count
++        if (impl->in_flight != VK_NULL_HANDLE) {
++            vkDestroyFence(impl->device, impl->in_flight, nullptr);
++            impl->in_flight = VK_NULL_HANDLE;
++        }
++        if (impl->image_available != VK_NULL_HANDLE) {
++            vkDestroySemaphore(impl->device, impl->image_available, nullptr);
++            impl->image_available = VK_NULL_HANDLE;
++        }
++        if (impl->render_finished != VK_NULL_HANDLE) {
++            vkDestroySemaphore(impl->device, impl->render_finished, nullptr);
++            impl->render_finished = VK_NULL_HANDLE;
++        }
++        if (impl->command_pool != VK_NULL_HANDLE) {
++            vkDestroyCommandPool(impl->device, impl->command_pool, nullptr);
++            impl->command_pool = VK_NULL_HANDLE;
++        }
++
++        for (auto v : impl->swapchain_image_views) {
++            if (v != VK_NULL_HANDLE) {
++                vkDestroyImageView(impl->device, v, nullptr);
++            }
++        }
++        impl->swapchain_image_views.clear();
++
++        if (impl->swapchain != VK_NULL_HANDLE) {
++            vkDestroySwapchainKHR(impl->device, impl->swapchain, nullptr);
++            impl->swapchain = VK_NULL_HANDLE;
++        }
++
++        // Recreate swapchain using stored GLFW window
++        create_swapchain_and_views(*this, impl->glfw_window);
++        // Recreate render pass, framebuffers, commands, and sync
++        create_renderpass_and_framebuffers(*this);
++        create_commands_and_sync(*this);
++
++        // Recreate offscreen images/pipelines sized to new extent
++        create_gbuffer_resources(*this);
++        create_ssao_resources(*this);
++        create_blur_resources(*this);
++        create_pipeline(*this);
++    };
++
+     vkWaitForFences(impl->device, 1U, &impl->in_flight, VK_TRUE, UINT64_MAX);
+     vkResetFences(impl->device, 1U, &impl->in_flight);
+ 
+     uint32_t image_index = 0U;
+-    vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
++    VkResult acq = vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
++    if (acq == VK_ERROR_OUT_OF_DATE_KHR) {
++        recreate_swapchain();
++        return;
++    }
++    if (acq != VK_SUCCESS && acq != VK_SUBOPTIMAL_KHR) {
++        return; // skip frame on unexpected error
++    }
+ 
+     // Re-record command buffer for this image to allow dynamic UI rendering
+     {
+@@ -1543,7 +1624,10 @@
+     pi.swapchainCount = 1U;
+     pi.pSwapchains = &sc;
+     pi.pImageIndices = &image_index;
+-    vkQueuePresentKHR(impl->graphics_queue, &pi);
++    VkResult pres = vkQueuePresentKHR(impl->graphics_queue, &pi);
++    if (pres == VK_ERROR_OUT_OF_DATE_KHR || pres == VK_SUBOPTIMAL_KHR) {
++        recreate_swapchain();
++    }
+ }
+ 
+ void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
+
+
+[2025-09-16T07:59:48] thinking
+
+**Addressing zero-size handling**
+
+I see that we need to manage scenarios where the size is zero when minimized. The choose_extent function deals with cases where currentExtent isn't UINT32_MAX, but if the width or height is zero, the swapchain creation could fail. In draw_frame, after an OUT_OF_DATE event, we simply recreate. We might want to check for zero extent early on and return if the width or height is nonzero, so I'll add a check before acquiring the image. Let's get this patched!
+[2025-09-16T07:59:50] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp
+@@ -1408,2 +1408,6 @@
+ 
++    // Guard against zero-sized swapchain (minimized window)
++    if (impl->swapchain_extent.width == 0U || impl->swapchain_extent.height == 0U) {
++        return;
++    }
+     vkWaitForFences(impl->device, 1U, &impl->in_flight, VK_TRUE, UINT64_MAX);
+[2025-09-16T07:59:50] apply_patch(auto_approved=true) exited 0 in 45ms:
+Success. Updated the following files:
+M src/vulkan_context.cpp
+[2025-09-16T07:59:50] turn diff:
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 5de498eb7b57dccb5a7667dbef6d172b7602327a..4f116fdcebad5acd25c57246fd4898c17c31aed5
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -19,6 +19,7 @@
+ struct VulkanContext::Impl final {
+     VkInstance instance {VK_NULL_HANDLE};
+     VkSurfaceKHR surface {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
+     VkPhysicalDevice physical_device {VK_NULL_HANDLE};
+     VkDevice device {VK_NULL_HANDLE};
+     VkQueue graphics_queue {VK_NULL_HANDLE};
+@@ -1219,6 +1220,7 @@
+     if (glfw_win == nullptr) {
+         throw std::runtime_error {"Invalid GLFW window handle"};
+     }
++    impl->glfw_window = glfw_win;
+     if (glfwCreateWindowSurface(impl->instance, glfw_win, nullptr, &impl->surface) != VK_SUCCESS) {
+         throw std::runtime_error {"Failed to create Vulkan surface"};
+     }
+@@ -1332,11 +1334,94 @@
+ }
+ 
+ void VulkanContext::draw_frame() {
++    // Helper: recreate swapchain and all dependent resources safely
++    auto recreate_swapchain = [this]() noexcept {
++        auto* impl = this->impl.get();
++        if (impl == nullptr) {
++            return;
++        }
++        if (impl->device == VK_NULL_HANDLE) {
++            return;
++        }
++        vkDeviceWaitIdle(impl->device);
++
++        // Destroy resources that depend on extent/format
++        destroy_pipeline(*this);
++        destroy_ssao_resources(*this);
++        destroy_blur_resources(*this);
++        destroy_gbuffer_resources(*this);
++        destroy_depth_resources(*this);
++
++        for (auto fb : impl->framebuffers) {
++            if (fb != VK_NULL_HANDLE) {
++                vkDestroyFramebuffer(impl->device, fb, nullptr);
++            }
++        }
++        impl->framebuffers.clear();
++        if (impl->render_pass != VK_NULL_HANDLE) {
++            vkDestroyRenderPass(impl->device, impl->render_pass, nullptr);
++            impl->render_pass = VK_NULL_HANDLE;
++        }
++
++        // Command buffers/pool and sync objects depend on framebuffer count
++        if (impl->in_flight != VK_NULL_HANDLE) {
++            vkDestroyFence(impl->device, impl->in_flight, nullptr);
++            impl->in_flight = VK_NULL_HANDLE;
++        }
++        if (impl->image_available != VK_NULL_HANDLE) {
++            vkDestroySemaphore(impl->device, impl->image_available, nullptr);
++            impl->image_available = VK_NULL_HANDLE;
++        }
++        if (impl->render_finished != VK_NULL_HANDLE) {
++            vkDestroySemaphore(impl->device, impl->render_finished, nullptr);
++            impl->render_finished = VK_NULL_HANDLE;
++        }
++        if (impl->command_pool != VK_NULL_HANDLE) {
++            vkDestroyCommandPool(impl->device, impl->command_pool, nullptr);
++            impl->command_pool = VK_NULL_HANDLE;
++        }
++
++        for (auto v : impl->swapchain_image_views) {
++            if (v != VK_NULL_HANDLE) {
++                vkDestroyImageView(impl->device, v, nullptr);
++            }
++        }
++        impl->swapchain_image_views.clear();
++
++        if (impl->swapchain != VK_NULL_HANDLE) {
++            vkDestroySwapchainKHR(impl->device, impl->swapchain, nullptr);
++            impl->swapchain = VK_NULL_HANDLE;
++        }
++
++        // Recreate swapchain using stored GLFW window
++        create_swapchain_and_views(*this, impl->glfw_window);
++        // Recreate render pass, framebuffers, commands, and sync
++        create_renderpass_and_framebuffers(*this);
++        create_commands_and_sync(*this);
++
++        // Recreate offscreen images/pipelines sized to new extent
++        create_gbuffer_resources(*this);
++        create_ssao_resources(*this);
++        create_blur_resources(*this);
++        create_pipeline(*this);
++    };
++
++    // Guard against zero-sized swapchain (minimized window)
++    if (impl->swapchain_extent.width == 0U || impl->swapchain_extent.height == 0U) {
++        return;
++    }
+     vkWaitForFences(impl->device, 1U, &impl->in_flight, VK_TRUE, UINT64_MAX);
+     vkResetFences(impl->device, 1U, &impl->in_flight);
+ 
+     uint32_t image_index = 0U;
+-    vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
++    VkResult acq = vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
++    if (acq == VK_ERROR_OUT_OF_DATE_KHR) {
++        recreate_swapchain();
++        return;
++    }
++    if (acq != VK_SUCCESS && acq != VK_SUBOPTIMAL_KHR) {
++        return; // skip frame on unexpected error
++    }
+ 
+     // Re-record command buffer for this image to allow dynamic UI rendering
+     {
+@@ -1543,7 +1628,10 @@
+     pi.swapchainCount = 1U;
+     pi.pSwapchains = &sc;
+     pi.pImageIndices = &image_index;
+-    vkQueuePresentKHR(impl->graphics_queue, &pi);
++    VkResult pres = vkQueuePresentKHR(impl->graphics_queue, &pi);
++    if (pres == VK_ERROR_OUT_OF_DATE_KHR || pres == VK_SUBOPTIMAL_KHR) {
++        recreate_swapchain();
++    }
+ }
+ 
+ void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
+
+[2025-09-16T07:59:50] tokens used: 113,691
+[2025-09-16T07:59:50] turn diff:
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 5de498eb7b57dccb5a7667dbef6d172b7602327a..4f116fdcebad5acd25c57246fd4898c17c31aed5
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -19,6 +19,7 @@
+ struct VulkanContext::Impl final {
+     VkInstance instance {VK_NULL_HANDLE};
+     VkSurfaceKHR surface {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
+     VkPhysicalDevice physical_device {VK_NULL_HANDLE};
+     VkDevice device {VK_NULL_HANDLE};
+     VkQueue graphics_queue {VK_NULL_HANDLE};
+@@ -1219,6 +1220,7 @@
+     if (glfw_win == nullptr) {
+         throw std::runtime_error {"Invalid GLFW window handle"};
+     }
++    impl->glfw_window = glfw_win;
+     if (glfwCreateWindowSurface(impl->instance, glfw_win, nullptr, &impl->surface) != VK_SUCCESS) {
+         throw std::runtime_error {"Failed to create Vulkan surface"};
+     }
+@@ -1332,11 +1334,94 @@
+ }
+ 
+ void VulkanContext::draw_frame() {
++    // Helper: recreate swapchain and all dependent resources safely
++    auto recreate_swapchain = [this]() noexcept {
++        auto* impl = this->impl.get();
++        if (impl == nullptr) {
++            return;
++        }
++        if (impl->device == VK_NULL_HANDLE) {
++            return;
++        }
++        vkDeviceWaitIdle(impl->device);
++
++        // Destroy resources that depend on extent/format
++        destroy_pipeline(*this);
++        destroy_ssao_resources(*this);
++        destroy_blur_resources(*this);
++        destroy_gbuffer_resources(*this);
++        destroy_depth_resources(*this);
++
++        for (auto fb : impl->framebuffers) {
++            if (fb != VK_NULL_HANDLE) {
++                vkDestroyFramebuffer(impl->device, fb, nullptr);
++            }
++        }
++        impl->framebuffers.clear();
++        if (impl->render_pass != VK_NULL_HANDLE) {
++            vkDestroyRenderPass(impl->device, impl->render_pass, nullptr);
++            impl->render_pass = VK_NULL_HANDLE;
++        }
++
++        // Command buffers/pool and sync objects depend on framebuffer count
++        if (impl->in_flight != VK_NULL_HANDLE) {
++            vkDestroyFence(impl->device, impl->in_flight, nullptr);
++            impl->in_flight = VK_NULL_HANDLE;
++        }
++        if (impl->image_available != VK_NULL_HANDLE) {
++            vkDestroySemaphore(impl->device, impl->image_available, nullptr);
++            impl->image_available = VK_NULL_HANDLE;
++        }
++        if (impl->render_finished != VK_NULL_HANDLE) {
++            vkDestroySemaphore(impl->device, impl->render_finished, nullptr);
++            impl->render_finished = VK_NULL_HANDLE;
++        }
++        if (impl->command_pool != VK_NULL_HANDLE) {
++            vkDestroyCommandPool(impl->device, impl->command_pool, nullptr);
++            impl->command_pool = VK_NULL_HANDLE;
++        }
++
++        for (auto v : impl->swapchain_image_views) {
++            if (v != VK_NULL_HANDLE) {
++                vkDestroyImageView(impl->device, v, nullptr);
++            }
++        }
++        impl->swapchain_image_views.clear();
++
++        if (impl->swapchain != VK_NULL_HANDLE) {
++            vkDestroySwapchainKHR(impl->device, impl->swapchain, nullptr);
++            impl->swapchain = VK_NULL_HANDLE;
++        }
++
++        // Recreate swapchain using stored GLFW window
++        create_swapchain_and_views(*this, impl->glfw_window);
++        // Recreate render pass, framebuffers, commands, and sync
++        create_renderpass_and_framebuffers(*this);
++        create_commands_and_sync(*this);
++
++        // Recreate offscreen images/pipelines sized to new extent
++        create_gbuffer_resources(*this);
++        create_ssao_resources(*this);
++        create_blur_resources(*this);
++        create_pipeline(*this);
++    };
++
++    // Guard against zero-sized swapchain (minimized window)
++    if (impl->swapchain_extent.width == 0U || impl->swapchain_extent.height == 0U) {
++        return;
++    }
+     vkWaitForFences(impl->device, 1U, &impl->in_flight, VK_TRUE, UINT64_MAX);
+     vkResetFences(impl->device, 1U, &impl->in_flight);
+ 
+     uint32_t image_index = 0U;
+-    vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
++    VkResult acq = vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
++    if (acq == VK_ERROR_OUT_OF_DATE_KHR) {
++        recreate_swapchain();
++        return;
++    }
++    if (acq != VK_SUCCESS && acq != VK_SUBOPTIMAL_KHR) {
++        return; // skip frame on unexpected error
++    }
+ 
+     // Re-record command buffer for this image to allow dynamic UI rendering
+     {
+@@ -1543,7 +1628,10 @@
+     pi.swapchainCount = 1U;
+     pi.pSwapchains = &sc;
+     pi.pImageIndices = &image_index;
+-    vkQueuePresentKHR(impl->graphics_queue, &pi);
++    VkResult pres = vkQueuePresentKHR(impl->graphics_queue, &pi);
++    if (pres == VK_ERROR_OUT_OF_DATE_KHR || pres == VK_SUBOPTIMAL_KHR) {
++        recreate_swapchain();
++    }
+ }
+ 
+ void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
+
+[2025-09-16T07:59:52] exec bash -lc 'cmake --build build -j' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-16T07:59:53] bash -lc 'cmake --build build -j' succeeded in 1.30s:
+[  1%] Built target glm
+[ 15%] Built target glfw
+[ 15%] Building CXX object src/CMakeFiles/vulkano.dir/vulkan_context.cpp.o
+[ 84%] Built target Catch2
+[ 86%] Built target Catch2WithMain
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:327:63: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  327 |     VkImageCreateInfo ici {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+      |                                                               ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:343:69: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  343 |     VkMemoryAllocateInfo mai {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+      |                                                                     ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:351:73: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  351 |     VkImageViewCreateInfo ivci {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+      |                                                                         ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:465:71: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  465 |     VkSemaphoreCreateInfo sci {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+      |                                                                       ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:472:63: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  472 |     VkFenceCreateInfo fci {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+      |                                                               ^
+[2025-09-16T07:59:53] tokens used: 113,942
+[2025-09-16T07:59:53] turn diff:
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 5de498eb7b57dccb5a7667dbef6d172b7602327a..4f116fdcebad5acd25c57246fd4898c17c31aed5
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -19,6 +19,7 @@
+ struct VulkanContext::Impl final {
+     VkInstance instance {VK_NULL_HANDLE};
+     VkSurfaceKHR surface {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
+     VkPhysicalDevice physical_device {VK_NULL_HANDLE};
+     VkDevice device {VK_NULL_HANDLE};
+     VkQueue graphics_queue {VK_NULL_HANDLE};
+@@ -1219,6 +1220,7 @@
+     if (glfw_win == nullptr) {
+         throw std::runtime_error {"Invalid GLFW window handle"};
+     }
++    impl->glfw_window = glfw_win;
+     if (glfwCreateWindowSurface(impl->instance, glfw_win, nullptr, &impl->surface) != VK_SUCCESS) {
+         throw std::runtime_error {"Failed to create Vulkan surface"};
+     }
+@@ -1332,11 +1334,94 @@
+ }
+ 
+ void VulkanContext::draw_frame() {
++    // Helper: recreate swapchain and all dependent resources safely
++    auto recreate_swapchain = [this]() noexcept {
++        auto* impl = this->impl.get();
++        if (impl == nullptr) {
++            return;
++        }
++        if (impl->device == VK_NULL_HANDLE) {
++            return;
++        }
++        vkDeviceWaitIdle(impl->device);
++
++        // Destroy resources that depend on extent/format
++        destroy_pipeline(*this);
++        destroy_ssao_resources(*this);
++        destroy_blur_resources(*this);
++        destroy_gbuffer_resources(*this);
++        destroy_depth_resources(*this);
++
++        for (auto fb : impl->framebuffers) {
++            if (fb != VK_NULL_HANDLE) {
++                vkDestroyFramebuffer(impl->device, fb, nullptr);
++            }
++        }
++        impl->framebuffers.clear();
++        if (impl->render_pass != VK_NULL_HANDLE) {
++            vkDestroyRenderPass(impl->device, impl->render_pass, nullptr);
++            impl->render_pass = VK_NULL_HANDLE;
++        }
++
++        // Command buffers/pool and sync objects depend on framebuffer count
++        if (impl->in_flight != VK_NULL_HANDLE) {
++            vkDestroyFence(impl->device, impl->in_flight, nullptr);
++            impl->in_flight = VK_NULL_HANDLE;
++        }
++        if (impl->image_available != VK_NULL_HANDLE) {
++            vkDestroySemaphore(impl->device, impl->image_available, nullptr);
++            impl->image_available = VK_NULL_HANDLE;
++        }
++        if (impl->render_finished != VK_NULL_HANDLE) {
++            vkDestroySemaphore(impl->device, impl->render_finished, nullptr);
++            impl->render_finished = VK_NULL_HANDLE;
++        }
++        if (impl->command_pool != VK_NULL_HANDLE) {
++            vkDestroyCommandPool(impl->device, impl->command_pool, nullptr);
++            impl->command_pool = VK_NULL_HANDLE;
++        }
++
++        for (auto v : impl->swapchain_image_views) {
++            if (v != VK_NULL_HANDLE) {
++                vkDestroyImageView(impl->device, v, nullptr);
++            }
++        }
++        impl->swapchain_image_views.clear();
++
++        if (impl->swapchain != VK_NULL_HANDLE) {
++            vkDestroySwapchainKHR(impl->device, impl->swapchain, nullptr);
++            impl->swapchain = VK_NULL_HANDLE;
++        }
++
++        // Recreate swapchain using stored GLFW window
++        create_swapchain_and_views(*this, impl->glfw_window);
++        // Recreate render pass, framebuffers, commands, and sync
++        create_renderpass_and_framebuffers(*this);
++        create_commands_and_sync(*this);
++
++        // Recreate offscreen images/pipelines sized to new extent
++        create_gbuffer_resources(*this);
++        create_ssao_resources(*this);
++        create_blur_resources(*this);
++        create_pipeline(*this);
++    };
++
++    // Guard against zero-sized swapchain (minimized window)
++    if (impl->swapchain_extent.width == 0U || impl->swapchain_extent.height == 0U) {
++        return;
++    }
+     vkWaitForFences(impl->device, 1U, &impl->in_flight, VK_TRUE, UINT64_MAX);
+     vkResetFences(impl->device, 1U, &impl->in_flight);
+ 
+     uint32_t image_index = 0U;
+-    vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
++    VkResult acq = vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
++    if (acq == VK_ERROR_OUT_OF_DATE_KHR) {
++        recreate_swapchain();
++        return;
++    }
++    if (acq != VK_SUCCESS && acq != VK_SUBOPTIMAL_KHR) {
++        return; // skip frame on unexpected error
++    }
+ 
+     // Re-record command buffer for this image to allow dynamic UI rendering
+     {
+@@ -1543,7 +1628,10 @@
+     pi.swapchainCount = 1U;
+     pi.pSwapchains = &sc;
+     pi.pImageIndices = &image_index;
+-    vkQueuePresentKHR(impl->graphics_queue, &pi);
++    VkResult pres = vkQueuePresentKHR(impl->graphics_queue, &pi);
++    if (pres == VK_ERROR_OUT_OF_DATE_KHR || pres == VK_SUBOPTIMAL_KHR) {
++        recreate_swapchain();
++    }
+ }
+ 
+ void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
+
+
+[2025-09-16T07:59:55] thinking
+
+**Executing tests**
+
+I need to focus on building success by running the tests again. This is a crucial step to ensure everything functions as expected. It's important for me to double-check and verify the outcomes to avoid any unexpected results later on. I want to get this right for the user, as accuracy matters! Let's make sure we catch any issues early on by doing thorough testing. Time to dive back in!
+[2025-09-16T07:59:56] exec bash -lc 'ctest --test-dir build --output-on-failure' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-16T07:59:57] bash -lc 'ctest --test-dir build --output-on-failure' succeeded in 770ms:
+Test project /Users/bruno/Documents/Development/bruno/vulkano_codex/build
+    Start 1: vulkano_tests
+1/1 Test #1: vulkano_tests ....................   Passed    0.71 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.71 sec
+[2025-09-16T07:59:57] tokens used: 117,031
+[2025-09-16T07:59:57] turn diff:
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 5de498eb7b57dccb5a7667dbef6d172b7602327a..4f116fdcebad5acd25c57246fd4898c17c31aed5
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -19,6 +19,7 @@
+ struct VulkanContext::Impl final {
+     VkInstance instance {VK_NULL_HANDLE};
+     VkSurfaceKHR surface {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
+     VkPhysicalDevice physical_device {VK_NULL_HANDLE};
+     VkDevice device {VK_NULL_HANDLE};
+     VkQueue graphics_queue {VK_NULL_HANDLE};
+@@ -1219,6 +1220,7 @@
+     if (glfw_win == nullptr) {
+         throw std::runtime_error {"Invalid GLFW window handle"};
+     }
++    impl->glfw_window = glfw_win;
+     if (glfwCreateWindowSurface(impl->instance, glfw_win, nullptr, &impl->surface) != VK_SUCCESS) {
+         throw std::runtime_error {"Failed to create Vulkan surface"};
+     }
+@@ -1332,11 +1334,94 @@
+ }
+ 
+ void VulkanContext::draw_frame() {
++    // Helper: recreate swapchain and all dependent resources safely
++    auto recreate_swapchain = [this]() noexcept {
++        auto* impl = this->impl.get();
++        if (impl == nullptr) {
++            return;
++        }
++        if (impl->device == VK_NULL_HANDLE) {
++            return;
++        }
++        vkDeviceWaitIdle(impl->device);
++
++        // Destroy resources that depend on extent/format
++        destroy_pipeline(*this);
++        destroy_ssao_resources(*this);
++        destroy_blur_resources(*this);
++        destroy_gbuffer_resources(*this);
++        destroy_depth_resources(*this);
++
++        for (auto fb : impl->framebuffers) {
++            if (fb != VK_NULL_HANDLE) {
++                vkDestroyFramebuffer(impl->device, fb, nullptr);
++            }
++        }
++        impl->framebuffers.clear();
++        if (impl->render_pass != VK_NULL_HANDLE) {
++            vkDestroyRenderPass(impl->device, impl->render_pass, nullptr);
++            impl->render_pass = VK_NULL_HANDLE;
++        }
++
++        // Command buffers/pool and sync objects depend on framebuffer count
++        if (impl->in_flight != VK_NULL_HANDLE) {
++            vkDestroyFence(impl->device, impl->in_flight, nullptr);
++            impl->in_flight = VK_NULL_HANDLE;
++        }
++        if (impl->image_available != VK_NULL_HANDLE) {
++            vkDestroySemaphore(impl->device, impl->image_available, nullptr);
++            impl->image_available = VK_NULL_HANDLE;
++        }
++        if (impl->render_finished != VK_NULL_HANDLE) {
++            vkDestroySemaphore(impl->device, impl->render_finished, nullptr);
++            impl->render_finished = VK_NULL_HANDLE;
++        }
++        if (impl->command_pool != VK_NULL_HANDLE) {
++            vkDestroyCommandPool(impl->device, impl->command_pool, nullptr);
++            impl->command_pool = VK_NULL_HANDLE;
++        }
++
++        for (auto v : impl->swapchain_image_views) {
++            if (v != VK_NULL_HANDLE) {
++                vkDestroyImageView(impl->device, v, nullptr);
++            }
++        }
++        impl->swapchain_image_views.clear();
++
++        if (impl->swapchain != VK_NULL_HANDLE) {
++            vkDestroySwapchainKHR(impl->device, impl->swapchain, nullptr);
++            impl->swapchain = VK_NULL_HANDLE;
++        }
++
++        // Recreate swapchain using stored GLFW window
++        create_swapchain_and_views(*this, impl->glfw_window);
++        // Recreate render pass, framebuffers, commands, and sync
++        create_renderpass_and_framebuffers(*this);
++        create_commands_and_sync(*this);
++
++        // Recreate offscreen images/pipelines sized to new extent
++        create_gbuffer_resources(*this);
++        create_ssao_resources(*this);
++        create_blur_resources(*this);
++        create_pipeline(*this);
++    };
++
++    // Guard against zero-sized swapchain (minimized window)
++    if (impl->swapchain_extent.width == 0U || impl->swapchain_extent.height == 0U) {
++        return;
++    }
+     vkWaitForFences(impl->device, 1U, &impl->in_flight, VK_TRUE, UINT64_MAX);
+     vkResetFences(impl->device, 1U, &impl->in_flight);
+ 
+     uint32_t image_index = 0U;
+-    vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
++    VkResult acq = vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
++    if (acq == VK_ERROR_OUT_OF_DATE_KHR) {
++        recreate_swapchain();
++        return;
++    }
++    if (acq != VK_SUCCESS && acq != VK_SUBOPTIMAL_KHR) {
++        return; // skip frame on unexpected error
++    }
+ 
+     // Re-record command buffer for this image to allow dynamic UI rendering
+     {
+@@ -1543,7 +1628,10 @@
+     pi.swapchainCount = 1U;
+     pi.pSwapchains = &sc;
+     pi.pImageIndices = &image_index;
+-    vkQueuePresentKHR(impl->graphics_queue, &pi);
++    VkResult pres = vkQueuePresentKHR(impl->graphics_queue, &pi);
++    if (pres == VK_ERROR_OUT_OF_DATE_KHR || pres == VK_SUBOPTIMAL_KHR) {
++        recreate_swapchain();
++    }
+ }
+ 
+ void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
+
+[2025-09-16T07:59:58] exec bash -lc 'HEADLESS_RUN_MS=200 ./app/bin/Debug/vulkano_app || true' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-16T07:59:59] bash -lc 'HEADLESS_RUN_MS=200 ./app/bin/Debug/vulkano_app || true' succeeded in 650ms:
+
+[2025-09-16T07:59:59] tokens used: 117,203
+[2025-09-16T07:59:59] turn diff:
+diff --git a/src/vulkan_context.cpp b/src/vulkan_context.cpp
+index 5de498eb7b57dccb5a7667dbef6d172b7602327a..4f116fdcebad5acd25c57246fd4898c17c31aed5
+--- a/src/vulkan_context.cpp
++++ b/src/vulkan_context.cpp
+@@ -19,6 +19,7 @@
+ struct VulkanContext::Impl final {
+     VkInstance instance {VK_NULL_HANDLE};
+     VkSurfaceKHR surface {VK_NULL_HANDLE};
++    GLFWwindow* glfw_window {nullptr};
+     VkPhysicalDevice physical_device {VK_NULL_HANDLE};
+     VkDevice device {VK_NULL_HANDLE};
+     VkQueue graphics_queue {VK_NULL_HANDLE};
+@@ -1219,6 +1220,7 @@
+     if (glfw_win == nullptr) {
+         throw std::runtime_error {"Invalid GLFW window handle"};
+     }
++    impl->glfw_window = glfw_win;
+     if (glfwCreateWindowSurface(impl->instance, glfw_win, nullptr, &impl->surface) != VK_SUCCESS) {
+         throw std::runtime_error {"Failed to create Vulkan surface"};
+     }
+@@ -1332,11 +1334,94 @@
+ }
+ 
+ void VulkanContext::draw_frame() {
++    // Helper: recreate swapchain and all dependent resources safely
++    auto recreate_swapchain = [this]() noexcept {
++        auto* impl = this->impl.get();
++        if (impl == nullptr) {
++            return;
++        }
++        if (impl->device == VK_NULL_HANDLE) {
++            return;
++        }
++        vkDeviceWaitIdle(impl->device);
++
++        // Destroy resources that depend on extent/format
++        destroy_pipeline(*this);
++        destroy_ssao_resources(*this);
++        destroy_blur_resources(*this);
++        destroy_gbuffer_resources(*this);
++        destroy_depth_resources(*this);
++
++        for (auto fb : impl->framebuffers) {
++            if (fb != VK_NULL_HANDLE) {
++                vkDestroyFramebuffer(impl->device, fb, nullptr);
++            }
++        }
++        impl->framebuffers.clear();
++        if (impl->render_pass != VK_NULL_HANDLE) {
++            vkDestroyRenderPass(impl->device, impl->render_pass, nullptr);
++            impl->render_pass = VK_NULL_HANDLE;
++        }
++
++        // Command buffers/pool and sync objects depend on framebuffer count
++        if (impl->in_flight != VK_NULL_HANDLE) {
++            vkDestroyFence(impl->device, impl->in_flight, nullptr);
++            impl->in_flight = VK_NULL_HANDLE;
++        }
++        if (impl->image_available != VK_NULL_HANDLE) {
++            vkDestroySemaphore(impl->device, impl->image_available, nullptr);
++            impl->image_available = VK_NULL_HANDLE;
++        }
++        if (impl->render_finished != VK_NULL_HANDLE) {
++            vkDestroySemaphore(impl->device, impl->render_finished, nullptr);
++            impl->render_finished = VK_NULL_HANDLE;
++        }
++        if (impl->command_pool != VK_NULL_HANDLE) {
++            vkDestroyCommandPool(impl->device, impl->command_pool, nullptr);
++            impl->command_pool = VK_NULL_HANDLE;
++        }
++
++        for (auto v : impl->swapchain_image_views) {
++            if (v != VK_NULL_HANDLE) {
++                vkDestroyImageView(impl->device, v, nullptr);
++            }
++        }
++        impl->swapchain_image_views.clear();
++
++        if (impl->swapchain != VK_NULL_HANDLE) {
++            vkDestroySwapchainKHR(impl->device, impl->swapchain, nullptr);
++            impl->swapchain = VK_NULL_HANDLE;
++        }
++
++        // Recreate swapchain using stored GLFW window
++        create_swapchain_and_views(*this, impl->glfw_window);
++        // Recreate render pass, framebuffers, commands, and sync
++        create_renderpass_and_framebuffers(*this);
++        create_commands_and_sync(*this);
++
++        // Recreate offscreen images/pipelines sized to new extent
++        create_gbuffer_resources(*this);
++        create_ssao_resources(*this);
++        create_blur_resources(*this);
++        create_pipeline(*this);
++    };
++
++    // Guard against zero-sized swapchain (minimized window)
++    if (impl->swapchain_extent.width == 0U || impl->swapchain_extent.height == 0U) {
++        return;
++    }
+     vkWaitForFences(impl->device, 1U, &impl->in_flight, VK_TRUE, UINT64_MAX);
+     vkResetFences(impl->device, 1U, &impl->in_flight);
+ 
+     uint32_t image_index = 0U;
+-    vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
++    VkResult acq = vkAcquireNextImageKHR(impl->device, impl->swapchain, UINT64_MAX, impl->image_available, VK_NULL_HANDLE, &image_index);
++    if (acq == VK_ERROR_OUT_OF_DATE_KHR) {
++        recreate_swapchain();
++        return;
++    }
++    if (acq != VK_SUCCESS && acq != VK_SUBOPTIMAL_KHR) {
++        return; // skip frame on unexpected error
++    }
+ 
+     // Re-record command buffer for this image to allow dynamic UI rendering
+     {
+@@ -1543,7 +1628,10 @@
+     pi.swapchainCount = 1U;
+     pi.pSwapchains = &sc;
+     pi.pImageIndices = &image_index;
+-    vkQueuePresentKHR(impl->graphics_queue, &pi);
++    VkResult pres = vkQueuePresentKHR(impl->graphics_queue, &pi);
++    if (pres == VK_ERROR_OUT_OF_DATE_KHR || pres == VK_SUBOPTIMAL_KHR) {
++        recreate_swapchain();
++    }
+ }
+ 
+ void VulkanContext::set_ui_renderer(const std::function<void(void* cmd_buffer)>& renderer) noexcept {
+
+[2025-09-16T08:00:01] exec bash -lc 'git add -A && git commit -m "feat: handle swapchain recreation on resize and OUT_OF_DATE/SUBOPTIMAL present"' in /Users/bruno/Documents/Development/bruno/vulkano_codex
