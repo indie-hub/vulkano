@@ -128,14 +128,17 @@ if (BUILD_TESTING AND VULKANO_CODEX_BUILD_TESTS)
     add_subdirectory(tests)
 endif()
 
-# shaderc (for runtime GLSL -> SPIR-V)
-FetchContent_Declare(
-    shaderc
-    GIT_REPOSITORY https://github.com/google/shaderc.git
-    GIT_TAG main
-)
-set(SHADERC_SKIP_TESTS ON CACHE BOOL "" FORCE)
-set(SHADERC_SKIP_EXAMPLES ON CACHE BOOL "" FORCE)
-set(SHADERC_SKIP_INSTALL ON CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(shaderc)
-target_link_libraries(vulkano PUBLIC shaderc_combined)
+option(VULKANO_CODEX_USE_SHADERC "Enable runtime GLSL compilation via shaderc" OFF)
+if (VULKANO_CODEX_USE_SHADERC)
+  # shaderc (for runtime GLSL -> SPIR-V)
+  FetchContent_Declare(
+      shaderc
+      GIT_REPOSITORY https://github.com/google/shaderc.git
+      GIT_TAG main
+  )
+  set(SHADERC_SKIP_TESTS ON CACHE BOOL "" FORCE)
+  set(SHADERC_SKIP_EXAMPLES ON CACHE BOOL "" FORCE)
+  set(SHADERC_SKIP_INSTALL ON CACHE BOOL "" FORCE)
+  FetchContent_MakeAvailable(shaderc)
+  target_link_libraries(vulkano PUBLIC shaderc_combined)
+endif()
