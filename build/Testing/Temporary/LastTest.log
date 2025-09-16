@@ -23,11 +23,10 @@ Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build
 "fps_smoothing" start time: Sep 16 12:00 BST
 Output:
 ----------------------------------------------------------
-Assertion failed: (s < 12.0), function main, file fps_smoothing.cpp, line 16.
 <end of output>
-Test time =   0.30 sec
+Test time =   0.22 sec
 ----------------------------------------------------------
-Test Failed.
+Test Passed.
 "fps_smoothing" end time: Sep 16 12:00 BST
 "fps_smoothing" time elapsed: 00:00:00
 ----------------------------------------------------------

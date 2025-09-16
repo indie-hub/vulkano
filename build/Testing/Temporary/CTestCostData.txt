@@ -1,5 +1,4 @@
 vulkano_codex_tests 9 0.0487299
-build_sanity 6 0.000241625
-fps_smoothing 0 0
+build_sanity 7 0.000310131
+fps_smoothing 1 0.221908
 ---
-fps_smoothing

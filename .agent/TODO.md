@@ -7,6 +7,6 @@ Done so far:
 - Added missing includes and minor tidy-ups
 
 Next:
-- Add more debug names/markers
-- Expand unit tests for FPS smoothing
+- Add more debug names/markers [DONE]
+- Expand unit tests for FPS smoothing [DONE]
 - Improve resize callback handling if needed
