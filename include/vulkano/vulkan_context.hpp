@@ -21,10 +21,20 @@ public:
     [[nodiscard]] VkSurfaceKHR surface() const noexcept;
     [[nodiscard]] bool validation_enabled() const noexcept;
 
+    // Device accessors
+    [[nodiscard]] VkPhysicalDevice physical_device() const noexcept;
+    [[nodiscard]] VkDevice device() const noexcept;
+    [[nodiscard]] VkQueue graphics_queue() const noexcept;
+    [[nodiscard]] VkQueue present_queue() const noexcept;
+    [[nodiscard]] std::uint32_t graphics_queue_family() const noexcept;
+    [[nodiscard]] std::uint32_t present_queue_family() const noexcept;
+
 private:
     void create_instance(GLFWwindow* window) noexcept;
     void setup_debug_utils() noexcept;
     void create_surface(GLFWwindow* window) noexcept;
+    void pick_physical_device() noexcept;
+    void create_logical_device() noexcept;
     void destroy() noexcept;
 
     static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(
@@ -38,7 +48,14 @@ private:
     VkSurfaceKHR surface_ {VK_NULL_HANDLE};
     VkDebugUtilsMessengerEXT debug_messenger_ {VK_NULL_HANDLE};
     bool validation_enabled_ {false};
+
+    // Device and queues
+    VkPhysicalDevice physical_device_ {VK_NULL_HANDLE};
+    VkDevice device_ {VK_NULL_HANDLE};
+    VkQueue graphics_queue_ {VK_NULL_HANDLE};
+    VkQueue present_queue_ {VK_NULL_HANDLE};
+    std::uint32_t graphics_family_index_ {UINT32_MAX};
+    std::uint32_t present_family_index_ {UINT32_MAX};
 };
 
 } // namespace vulkano
-
