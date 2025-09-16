@@ -124,3 +124,6 @@ enable_testing()
 add_executable(vulkano_codex_tests tests/sanity.cpp)
 target_link_libraries(vulkano_codex_tests PRIVATE glm)
 add_test(NAME build_sanity COMMAND vulkano_codex_tests)
+
+add_executable(fps_smoothing_test tests/fps_smoothing.cpp)
+add_test(NAME fps_smoothing COMMAND fps_smoothing_test)
