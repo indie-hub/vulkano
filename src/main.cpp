@@ -15,8 +15,10 @@ namespace {
 }
 
 static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
-    (void)width; (void)height; // Unused
-    // Store a flag in user pointer if needed; here we recreate swapchain on next frame
+    (void)width; (void)height;
+    if (auto* app = reinterpret_cast<VulkanApp*>(glfwGetWindowUserPointer(window))) {
+        app->notifyFramebufferResized();
+    }
 }
 
 int main() {
@@ -34,6 +36,7 @@ int main() {
     glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
 
     VulkanApp app{window};
+    glfwSetWindowUserPointer(window, &app);
 
     ImGuiLayer imgui;
     imgui.init(window,

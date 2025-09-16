@@ -11,9 +11,8 @@ Done so far:
 Next:
 - Add more debug names/markers [DONE]
 - Expand unit tests for FPS smoothing [DONE]
-- Improve resize callback handling if needed
-  - Current swapchain recreation handles OUT_OF_DATE/SUBOPTIMAL on acquire/present
-  - Consider setting a window user pointer flag in callback to force early recreate
+- Improve resize callback handling [DONE]
+  - Window framebuffer callback now flags app to recreate swapchain before next frame
 
 Nice-to-have:
 - Separate transfer/upload path for ImGui font creation with explicit command buffer

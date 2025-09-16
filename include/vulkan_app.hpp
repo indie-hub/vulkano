@@ -38,6 +38,7 @@ public:
 
     void drawFrame(const glm::vec4& color);
     void waitIdle() const;
+    void notifyFramebufferResized() { framebuffer_resized_ = true; }
 
     // Stats
     const std::string& deviceName() const { return device_name_; }

@@ -753,6 +753,10 @@ void VulkanApp::cleanupSwapchain() {
 }
 
 void VulkanApp::drawFrame(const glm::vec4& color) {
+    if (framebuffer_resized_) {
+        recreateSwapchain();
+        framebuffer_resized_ = false;
+    }
     vkWaitForFences(device_, 1, &in_flight_fences_[current_frame_], VK_TRUE, UINT64_MAX);
     vkResetFences(device_, 1, &in_flight_fences_[current_frame_]);
 
