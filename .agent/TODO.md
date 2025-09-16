@@ -29,4 +29,4 @@
  - [x] Build (Debug) with shaderc disabled and run tests
  - [x] Commit final changes
  - [ ] Push to origin with GITHUB_TOKEN (env not set)
-- [ ] Run a Debug build to validate layers at runtime and address any validation messages encountered during interactive testing
+ - [ ] Run a Debug build to validate layers at runtime and address any validation messages encountered during interactive testing

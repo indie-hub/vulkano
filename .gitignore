@@ -42,6 +42,7 @@
 
 # Local build directories
 build/
+build-debug/
 cmake-build-*/
 bin/
 .idea/
