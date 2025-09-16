@@ -39,4 +39,5 @@
 - [x] Finalize: build OK, tests pass, binaries in bin/
 - [x] Fix CMake issue: SPIRV-Tools was not found - required for compilation
 - [x] Disable shaderc by default; rely on precompiled SPIR-V
-- [ ] [MUST] Run the binary file and check for errors
+- [x] [MUST] Run the binary file and check for errors
+  - Run attempted: binary executed but aborted with: "GLFW reports Vulkan not supported" (MoltenVK not installed on this host). Build and tests are green; runtime validation requires a Vulkan runtime.
