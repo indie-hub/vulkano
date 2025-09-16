@@ -61,6 +61,18 @@ namespace {
         Vertex {glm::vec2 {0.5f, -0.5f}},
         Vertex {glm::vec2 {0.0f, 0.5f}},
     };
+
+    void set_object_name(VkDevice device, VkObjectType type, uint64_t handle, const char* name) {
+        static auto func = reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(vkGetDeviceProcAddr(device, "vkSetDebugUtilsObjectNameEXT"));
+        if (!enable_validation_layers || func == nullptr) {
+            return;
+        }
+        VkDebugUtilsObjectNameInfoEXT info {VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT};
+        info.objectType = type;
+        info.objectHandle = handle;
+        info.pObjectName = name;
+        func(device, &info);
+    }
 }
 
 App::~App() {
@@ -362,6 +374,7 @@ void App::create_logical_device() {
     }
     vkGetDeviceQueue(device_, g_family, 0, &graphics_queue_);
     vkGetDeviceQueue(device_, p_family, 0, &present_queue_);
+    set_object_name(device_, VK_OBJECT_TYPE_DEVICE, reinterpret_cast<uint64_t>(device_), "LogicalDevice");
 }
 
 void App::create_swapchain() {
@@ -428,6 +441,7 @@ void App::create_swapchain() {
     if (vkCreateSwapchainKHR(device_, &info, nullptr, &swapchain_) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create swapchain");
     }
+    set_object_name(device_, VK_OBJECT_TYPE_SWAPCHAIN_KHR, reinterpret_cast<uint64_t>(swapchain_), "Swapchain");
     uint32_t actual_count = 0;
     vkGetSwapchainImagesKHR(device_, swapchain_, &actual_count, nullptr);
     swapchain_images_.resize(actual_count);
@@ -450,6 +464,7 @@ void App::create_image_views() {
         if (vkCreateImageView(device_, &info, nullptr, &swapchain_image_views_[i]) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create image view");
         }
+        set_object_name(device_, VK_OBJECT_TYPE_IMAGE_VIEW, reinterpret_cast<uint64_t>(swapchain_image_views_[i]), "SwapchainImageView");
     }
 }
 
@@ -491,6 +506,7 @@ void App::create_render_pass() {
     if (vkCreateRenderPass(device_, &info, nullptr, &render_pass_) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create render pass");
     }
+    set_object_name(device_, VK_OBJECT_TYPE_RENDER_PASS, reinterpret_cast<uint64_t>(render_pass_), "RenderPass");
 }
 
 static std::vector<char> read_file(const char* path) {
@@ -615,6 +631,7 @@ void App::create_pipeline() {
         vkDestroyShaderModule(device_, frag_module, nullptr);
         throw std::runtime_error("Failed to create graphics pipeline");
     }
+    set_object_name(device_, VK_OBJECT_TYPE_PIPELINE, reinterpret_cast<uint64_t>(pipeline_), "GraphicsPipeline");
 
     vkDestroyShaderModule(device_, vert_module, nullptr);
     vkDestroyShaderModule(device_, frag_module, nullptr);
@@ -644,6 +661,7 @@ void App::create_command_pool() {
     if (vkCreateCommandPool(device_, &info, nullptr, &command_pool_) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create command pool");
     }
+    set_object_name(device_, VK_OBJECT_TYPE_COMMAND_POOL, reinterpret_cast<uint64_t>(command_pool_), "CmdPool");
 }
 
 uint32_t App::find_memory_type(VkPhysicalDevice physical, uint32_t type_filter, VkMemoryPropertyFlags props) noexcept {
@@ -666,6 +684,7 @@ void App::create_vertex_buffer() {
     if (vkCreateBuffer(device_, &info, nullptr, &vertex_buffer_) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create vertex buffer");
     }
+    set_object_name(device_, VK_OBJECT_TYPE_BUFFER, reinterpret_cast<uint64_t>(vertex_buffer_), "VertexBuffer");
     VkMemoryRequirements req {};
     vkGetBufferMemoryRequirements(device_, vertex_buffer_, &req);
     VkMemoryAllocateInfo alloc {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
