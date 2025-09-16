@@ -40,7 +40,7 @@ Verification: Built Debug locally, tests pass, headless run OK.
 - [x] SSAO: kernel + 4x4 noise texture, write AO (R8)
 - [x] Blur: single-pass isotropic blur into AO_blur (reduces noise)
 - [x] Integrate: forward shading samples AO_blur (already wired)
-- [ ] Resize-safe swapchain recreation for multi-pass images
+- [x] Resize-safe swapchain recreation for multi-pass images
 - [x] Fix: terminating due to uncaught exception of type std::runtime_error: Failed to create Vulkan instance (conditional validation, graceful fallback)
 
 ## Session Summary (current)
@@ -66,6 +66,11 @@ Verification: Built Debug locally, tests pass, headless run OK.
 - Record command buffers: G-buffer -> SSAO -> forward — DONE
 - Keep non-Vulkan build working; run headless app to verify
 - Commit often; push at end
+
+### 2025-09-16 Notes
+- Implemented swapchain recreation on `VK_ERROR_OUT_OF_DATE_KHR` and `VK_SUBOPTIMAL_KHR` during acquire/present.
+- Recreates: swapchain, image views, render pass, framebuffers, command pool/buffers, sync objects, offscreen (G-buffer/SSAO/blur) targets, and pipelines sized to the new extent.
+- Guarded against zero-sized extents (minimized window) by skipping frame.
 
 ## Progress Log
 - Implemented G-buffer (RGBA16F) and SSAO (R8) offscreen resources and pipelines.
