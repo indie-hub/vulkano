@@ -1203,6 +1203,97 @@ namespace {
     }
 }
 
+bool VulkanContext::create_buffer(VkDeviceSize size,
+                       VkBufferUsageFlags usage,
+                       VkMemoryPropertyFlags properties,
+                       VkBuffer& buffer,
+                       VkDeviceMemory& memory,
+                       const char* debugName) noexcept {
+    if (device_ == VK_NULL_HANDLE || physical_device_ == VK_NULL_HANDLE || size == 0U) {
+        return false;
+    }
+    VkBufferCreateInfo info {};
+    info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    info.size = size;
+    info.usage = usage;
+    info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    VkBuffer buf {VK_NULL_HANDLE};
+    if (vkCreateBuffer(device_, &info, nullptr, &buf) != VK_SUCCESS) {
+        return false;
+    }
+    VkMemoryRequirements memReq {};
+    vkGetBufferMemoryRequirements(device_, buf, &memReq);
+    const std::uint32_t typeIndex {find_memory_type(physical_device_, memReq.memoryTypeBits, properties)};
+    if (typeIndex == UINT32_MAX) {
+        vkDestroyBuffer(device_, buf, nullptr);
+        return false;
+    }
+    VkMemoryAllocateInfo alloc {};
+    alloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    alloc.allocationSize = memReq.size;
+    alloc.memoryTypeIndex = typeIndex;
+    VkDeviceMemory mem {VK_NULL_HANDLE};
+    if (vkAllocateMemory(device_, &alloc, nullptr, &mem) != VK_SUCCESS) {
+        vkDestroyBuffer(device_, buf, nullptr);
+        return false;
+    }
+    vkBindBufferMemory(device_, buf, mem, 0U);
+    buffer = buf;
+    memory = mem;
+    if (debugName != nullptr) {
+        set_object_name(VK_OBJECT_TYPE_BUFFER, reinterpret_cast<std::uint64_t>(buffer), debugName);
+    }
+    return true;
+}
+
+bool VulkanContext::copy_buffer(VkBuffer src,
+                     VkBuffer dst,
+                     VkDeviceSize size) noexcept {
+    if (device_ == VK_NULL_HANDLE || src == VK_NULL_HANDLE || dst == VK_NULL_HANDLE || size == 0U) {
+        return false;
+    }
+    // Create a transient command pool/buffer for copy
+    VkCommandPoolCreateInfo poolInfo {};
+    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    poolInfo.queueFamilyIndex = graphics_family_index_;
+    poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+    VkCommandPool pool {VK_NULL_HANDLE};
+    if (vkCreateCommandPool(device_, &poolInfo, nullptr, &pool) != VK_SUCCESS) {
+        return false;
+    }
+    VkCommandBufferAllocateInfo allocInfo {};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.commandPool = pool;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandBufferCount = 1U;
+    VkCommandBuffer cmd {VK_NULL_HANDLE};
+    if (vkAllocateCommandBuffers(device_, &allocInfo, &cmd) != VK_SUCCESS) {
+        vkDestroyCommandPool(device_, pool, nullptr);
+        return false;
+    }
+    VkCommandBufferBeginInfo begin {};
+    begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(cmd, &begin);
+    VkBufferCopy region {};
+    region.srcOffset = 0U;
+    region.dstOffset = 0U;
+    region.size = size;
+    vkCmdCopyBuffer(cmd, src, dst, 1U, &region);
+    vkEndCommandBuffer(cmd);
+    VkSubmitInfo submit {};
+    submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit.commandBufferCount = 1U;
+    submit.pCommandBuffers = &cmd;
+    const VkResult subRes {vkQueueSubmit(graphics_queue_, 1U, &submit, VK_NULL_HANDLE)};
+    if (subRes == VK_SUCCESS) {
+        vkQueueWaitIdle(graphics_queue_);
+    }
+    vkFreeCommandBuffers(device_, pool, 1U, &cmd);
+    vkDestroyCommandPool(device_, pool, nullptr);
+    return subRes == VK_SUCCESS;
+}
+
 void VulkanContext::create_vertex_buffer() noexcept {
     if (device_ == VK_NULL_HANDLE || physical_device_ == VK_NULL_HANDLE) {
         return;
@@ -1353,77 +1444,93 @@ void VulkanContext::create_scene_buffers() noexcept {
     destroy_vertex_buffer();
     destroy_index_buffer();
 
-    // Create vertex buffer (host visible for simplicity; staging upgrade in later step)
-    VkBufferCreateInfo vboInfo {};
-    vboInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    vboInfo.size = static_cast<VkDeviceSize>(allVerts.size() * sizeof(Vertex));
-    vboInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-    vboInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    VkBuffer vbo {VK_NULL_HANDLE};
-    if (vkCreateBuffer(device_, &vboInfo, nullptr, &vbo) != VK_SUCCESS) {
-        return;
-    }
-    VkMemoryRequirements vMemReq {};
-    vkGetBufferMemoryRequirements(device_, vbo, &vMemReq);
-    const std::uint32_t vTypeIndex {find_memory_type(physical_device_, vMemReq.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)};
-    if (vTypeIndex == UINT32_MAX) {
-        vkDestroyBuffer(device_, vbo, nullptr);
-        return;
-    }
-    VkMemoryAllocateInfo vAlloc {};
-    vAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    vAlloc.allocationSize = vMemReq.size;
-    vAlloc.memoryTypeIndex = vTypeIndex;
-    VkDeviceMemory vMem {VK_NULL_HANDLE};
-    if (vkAllocateMemory(device_, &vAlloc, nullptr, &vMem) != VK_SUCCESS) {
-        vkDestroyBuffer(device_, vbo, nullptr);
-        return;
-    }
-    vkBindBufferMemory(device_, vbo, vMem, 0U);
-    void* vData {nullptr};
-    if (vkMapMemory(device_, vMem, 0U, vboInfo.size, 0U, &vData) == VK_SUCCESS) {
-        std::memcpy(vData, allVerts.data(), static_cast<std::size_t>(vboInfo.size));
-        vkUnmapMemory(device_, vMem);
-    }
-    vertex_buffer_ = vbo;
-    vertex_buffer_memory_ = vMem;
-    set_object_name(VK_OBJECT_TYPE_BUFFER, reinterpret_cast<std::uint64_t>(vertex_buffer_), "SceneVertexBuffer");
+    // Create staging buffers (host visible) and device-local buffers, then copy
+    const VkDeviceSize vboSize {static_cast<VkDeviceSize>(allVerts.size() * sizeof(Vertex))};
+    const VkDeviceSize iboSize {static_cast<VkDeviceSize>(allIdx.size() * sizeof(std::uint32_t))};
 
-    // Create index buffer (host visible)
-    VkBufferCreateInfo iboInfo {};
-    iboInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    iboInfo.size = static_cast<VkDeviceSize>(allIdx.size() * sizeof(std::uint32_t));
-    iboInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-    iboInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    VkBuffer ibo {VK_NULL_HANDLE};
-    if (vkCreateBuffer(device_, &iboInfo, nullptr, &ibo) != VK_SUCCESS) {
+    VkBuffer stagingVBO {VK_NULL_HANDLE};
+    VkDeviceMemory stagingVBOMem {VK_NULL_HANDLE};
+    if (!create_buffer(vboSize,
+                       VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                       stagingVBO, stagingVBOMem, "StagingVBO")) {
         return;
     }
-    VkMemoryRequirements iMemReq {};
-    vkGetBufferMemoryRequirements(device_, ibo, &iMemReq);
-    const std::uint32_t iTypeIndex {find_memory_type(physical_device_, iMemReq.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)};
-    if (iTypeIndex == UINT32_MAX) {
-        vkDestroyBuffer(device_, ibo, nullptr);
+    void* vData {nullptr};
+    if (vkMapMemory(device_, stagingVBOMem, 0U, vboSize, 0U, &vData) == VK_SUCCESS) {
+        std::memcpy(vData, allVerts.data(), static_cast<std::size_t>(vboSize));
+        vkUnmapMemory(device_, stagingVBOMem);
+    }
+
+    VkBuffer stagingIBO {VK_NULL_HANDLE};
+    VkDeviceMemory stagingIBOMem {VK_NULL_HANDLE};
+    if (!create_buffer(iboSize,
+                       VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                       stagingIBO, stagingIBOMem, "StagingIBO")) {
+        vkDestroyBuffer(device_, stagingVBO, nullptr);
+        vkFreeMemory(device_, stagingVBOMem, nullptr);
         return;
     }
-    VkMemoryAllocateInfo iAlloc {};
-    iAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    iAlloc.allocationSize = iMemReq.size;
-    iAlloc.memoryTypeIndex = iTypeIndex;
-    VkDeviceMemory iMem {VK_NULL_HANDLE};
-    if (vkAllocateMemory(device_, &iAlloc, nullptr, &iMem) != VK_SUCCESS) {
-        vkDestroyBuffer(device_, ibo, nullptr);
-        return;
-    }
-    vkBindBufferMemory(device_, ibo, iMem, 0U);
     void* iData {nullptr};
-    if (vkMapMemory(device_, iMem, 0U, iboInfo.size, 0U, &iData) == VK_SUCCESS) {
-        std::memcpy(iData, allIdx.data(), static_cast<std::size_t>(iboInfo.size));
-        vkUnmapMemory(device_, iMem);
+    if (vkMapMemory(device_, stagingIBOMem, 0U, iboSize, 0U, &iData) == VK_SUCCESS) {
+        std::memcpy(iData, allIdx.data(), static_cast<std::size_t>(iboSize));
+        vkUnmapMemory(device_, stagingIBOMem);
     }
-    index_buffer_ = ibo;
-    index_buffer_memory_ = iMem;
-    set_object_name(VK_OBJECT_TYPE_BUFFER, reinterpret_cast<std::uint64_t>(index_buffer_), "SceneIndexBuffer");
+
+    VkBuffer deviceVBO {VK_NULL_HANDLE};
+    VkDeviceMemory deviceVBOMem {VK_NULL_HANDLE};
+    if (!create_buffer(vboSize,
+                       VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                       VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                       deviceVBO, deviceVBOMem, "SceneVertexBuffer")) {
+        vkDestroyBuffer(device_, stagingVBO, nullptr);
+        vkFreeMemory(device_, stagingVBOMem, nullptr);
+        vkDestroyBuffer(device_, stagingIBO, nullptr);
+        vkFreeMemory(device_, stagingIBOMem, nullptr);
+        return;
+    }
+
+    VkBuffer deviceIBO {VK_NULL_HANDLE};
+    VkDeviceMemory deviceIBOMem {VK_NULL_HANDLE};
+    if (!create_buffer(iboSize,
+                       VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+                       VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                       deviceIBO, deviceIBOMem, "SceneIndexBuffer")) {
+        vkDestroyBuffer(device_, stagingVBO, nullptr);
+        vkFreeMemory(device_, stagingVBOMem, nullptr);
+        vkDestroyBuffer(device_, stagingIBO, nullptr);
+        vkFreeMemory(device_, stagingIBOMem, nullptr);
+        vkDestroyBuffer(device_, deviceVBO, nullptr);
+        vkFreeMemory(device_, deviceVBOMem, nullptr);
+        return;
+    }
+
+    // Copy from staging to device-local
+    if (!copy_buffer(stagingVBO, deviceVBO, vboSize) || !copy_buffer(stagingIBO, deviceIBO, iboSize)) {
+        // Cleanup on failure
+        vkDestroyBuffer(device_, stagingVBO, nullptr);
+        vkFreeMemory(device_, stagingVBOMem, nullptr);
+        vkDestroyBuffer(device_, stagingIBO, nullptr);
+        vkFreeMemory(device_, stagingIBOMem, nullptr);
+        vkDestroyBuffer(device_, deviceVBO, nullptr);
+        vkFreeMemory(device_, deviceVBOMem, nullptr);
+        vkDestroyBuffer(device_, deviceIBO, nullptr);
+        vkFreeMemory(device_, deviceIBOMem, nullptr);
+        return;
+    }
+
+    // Free staging
+    vkDestroyBuffer(device_, stagingVBO, nullptr);
+    vkFreeMemory(device_, stagingVBOMem, nullptr);
+    vkDestroyBuffer(device_, stagingIBO, nullptr);
+    vkFreeMemory(device_, stagingIBOMem, nullptr);
+
+    // Assign device-local buffers
+    vertex_buffer_ = deviceVBO;
+    vertex_buffer_memory_ = deviceVBOMem;
+    index_buffer_ = deviceIBO;
+    index_buffer_memory_ = deviceIBOMem;
 }
 
 void VulkanContext::create_descriptor_set_layout() noexcept {

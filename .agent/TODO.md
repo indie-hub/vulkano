@@ -1,5 +1,5 @@
-- [x] Add UI controls for light and per-primitive transforms/materials; expose primitives via VulkanContext; add icosphere subdivisions setter; rebuild GPU buffers on change.
-- [ ] Switch geometry upload to use staging buffers (device-local VBO/IBO) while keeping CPU copies for rebuilds.
-- [ ] Extend ImGui with camera controls (orbit, reset) and optional plane/cube params if needed.
-- [ ] Add unit test for Icosphere::set_subdivisions() and minimal UI plumbing sanity (non-UI functions only).
-- [ ] Verify Mac runtime with MoltenVK; update README with notes and controls.
+[x] Switch scene buffers to device-local via staging uploads
+[] Add Icosphere subdivisions UI (live rebuild + reupload)
+[] Ensure constants configured (no magic numbers) and tidy pass
+[] Update docs: build/run on macOS; packaging notes
+[] Verify debug utils names/markers on draw and key objects

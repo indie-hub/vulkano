@@ -88,6 +88,16 @@ private:
     void create_vertex_buffer() noexcept; // legacy triangle fallback
     void create_scene() noexcept;
     void create_scene_buffers() noexcept;
+    // Buffer helpers (staging uploads)
+    bool create_buffer(VkDeviceSize size,
+                       VkBufferUsageFlags usage,
+                       VkMemoryPropertyFlags properties,
+                       VkBuffer& buffer,
+                       VkDeviceMemory& memory,
+                       const char* debugName) noexcept;
+    bool copy_buffer(VkBuffer src,
+                     VkBuffer dst,
+                     VkDeviceSize size) noexcept;
     void create_descriptor_set_layout() noexcept;
     void create_uniform_buffers_and_sets() noexcept;
     void create_command_pool_and_buffers() noexcept;

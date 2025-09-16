@@ -10,4 +10,6 @@ add_test( [==[Cube generates 24 verts and 36 indices]==] /Users/bruno/Documents/
 set_tests_properties( [==[Cube generates 24 verts and 36 indices]==] PROPERTIES WORKING_DIRECTORY /Users/bruno/Documents/Development/bruno/vulkano_codex/build/tests)
 add_test( [==[Icosphere vertex/index counts grow with subdivisions]==] /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests [==[Icosphere vertex/index counts grow with subdivisions]==]  )
 set_tests_properties( [==[Icosphere vertex/index counts grow with subdivisions]==] PROPERTIES WORKING_DIRECTORY /Users/bruno/Documents/Development/bruno/vulkano_codex/build/tests)
-set( vulkano_tests_TESTS catch2_sanity stats_initial_values stats_smoothing_behaviour [==[Plane generates 4 verts and 6 indices]==] [==[Cube generates 24 verts and 36 indices]==] [==[Icosphere vertex/index counts grow with subdivisions]==])
+add_test( [==[Icosphere set_subdivisions rebuilds geometry]==] /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests [==[Icosphere set_subdivisions rebuilds geometry]==]  )
+set_tests_properties( [==[Icosphere set_subdivisions rebuilds geometry]==] PROPERTIES WORKING_DIRECTORY /Users/bruno/Documents/Development/bruno/vulkano_codex/build/tests)
+set( vulkano_tests_TESTS catch2_sanity stats_initial_values stats_smoothing_behaviour [==[Plane generates 4 verts and 6 indices]==] [==[Cube generates 24 verts and 36 indices]==] [==[Icosphere vertex/index counts grow with subdivisions]==] [==[Icosphere set_subdivisions rebuilds geometry]==])

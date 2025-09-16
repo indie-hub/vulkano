@@ -1007,29 +1007,46 @@ CMakeFiles/vulkano.dir/src/app.cpp.o: /Users/bruno/Documents/Development/bruno/v
   _deps/glm-src/glm/simd/platform.h \
   _deps/glm-src/glm/detail/compute_vector_relational.hpp \
   _deps/glm-src/glm/detail/setup.hpp \
+  _deps/glm-src/glm/detail/compute_vector_relational.hpp \
   _deps/glm-src/glm/detail/qualifier.hpp \
   _deps/glm-src/glm/detail/setup.hpp \
   _deps/glm-src/glm/detail/type_vec2.hpp \
   _deps/glm-src/glm/detail/type_vec2.inl \
+  _deps/glm-src/glm/detail/type_vec3.hpp \
+  _deps/glm-src/glm/detail/type_vec3.inl \
   _deps/glm-src/glm/detail/setup.hpp \
   _deps/glm-src/glm/ext/scalar_int_sized.hpp \
   _deps/glm-src/glm/ext/scalar_uint_sized.hpp \
   _deps/glm-src/glm/ext/vector_int2.hpp \
+  _deps/glm-src/glm/ext/vector_int3.hpp \
   _deps/glm-src/glm/ext/vector_uint2.hpp \
+  _deps/glm-src/glm/ext/vector_uint3.hpp \
   _deps/glm-src/glm/ext/vector_bool2.hpp \
   _deps/glm-src/glm/ext/vector_bool2_precision.hpp \
+  _deps/glm-src/glm/ext/vector_bool3.hpp \
+  _deps/glm-src/glm/ext/vector_bool3_precision.hpp \
   _deps/glm-src/glm/ext/vector_double2.hpp \
   _deps/glm-src/glm/ext/vector_double2_precision.hpp \
+  _deps/glm-src/glm/ext/vector_double3.hpp \
+  _deps/glm-src/glm/ext/vector_double3_precision.hpp \
   _deps/glm-src/glm/ext/vector_float2.hpp \
   _deps/glm-src/glm/ext/vector_float2_precision.hpp \
+  _deps/glm-src/glm/ext/vector_float3.hpp \
+  _deps/glm-src/glm/ext/vector_float3_precision.hpp \
   _deps/glm-src/glm/ext/vector_int2.hpp \
   _deps/glm-src/glm/ext/vector_int2_sized.hpp \
+  _deps/glm-src/glm/ext/vector_int3.hpp \
+  _deps/glm-src/glm/ext/vector_int3_sized.hpp \
   _deps/glm-src/glm/ext/vector_uint2.hpp \
   _deps/glm-src/glm/ext/vector_uint2_sized.hpp \
+  _deps/glm-src/glm/ext/vector_uint3.hpp \
+  _deps/glm-src/glm/ext/vector_uint3_sized.hpp \
   _deps/glm-src/glm/vec2.hpp \
+  _deps/glm-src/glm/vec3.hpp \
   _deps/imgui-src/imconfig.h \
   _deps/imgui-src/imgui.h \
   /Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/app.hpp \
+  /Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/geometry.hpp \
   /Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/stats.hpp \
   /Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/vulkan_context.hpp \
   /usr/local/include/vk_video/vulkan_video_codec_av1std.h \
@@ -4671,6 +4688,125 @@ CMakeFiles/vulkano.dir/src/vulkan_context.cpp.o: /Users/bruno/Documents/Developm
   _deps/glm-src/glm/ext/vector_uint2_sized.hpp \
   _deps/glm-src/glm/ext/vector_uint3.hpp \
   _deps/glm-src/glm/ext/vector_uint3_sized.hpp \
+  _deps/glm-src/glm/ext/matrix_transform.hpp \
+  _deps/glm-src/glm/common.hpp \
+  _deps/glm-src/glm/detail/qualifier.hpp \
+  _deps/glm-src/glm/detail/setup.hpp \
+  _deps/glm-src/glm/detail/type_mat3x3.hpp \
+  _deps/glm-src/glm/detail/type_mat4x4.hpp \
+  _deps/glm-src/glm/detail/type_vec3.hpp \
+  _deps/glm-src/glm/detail/type_vec4.hpp \
+  _deps/glm-src/glm/exponential.hpp \
+  _deps/glm-src/glm/common.hpp \
+  _deps/glm-src/glm/detail/type_mat3x3.hpp \
+  _deps/glm-src/glm/detail/type_mat4x4.hpp \
+  _deps/glm-src/glm/detail/type_vec3.hpp \
+  _deps/glm-src/glm/detail/type_vec4.hpp \
+  _deps/glm-src/glm/exponential.hpp \
+  _deps/glm-src/glm/vector_relational.hpp \
+  _deps/glm-src/glm/ext/quaternion_common.hpp \
+  _deps/glm-src/glm/ext/quaternion_geometric.hpp \
+  _deps/glm-src/glm/ext/quaternion_relational.hpp \
+  _deps/glm-src/glm/ext/quaternion_relational.inl \
+  _deps/glm-src/glm/ext/vector_relational.hpp \
+  _deps/glm-src/glm/gtc/constants.hpp \
+  _deps/glm-src/glm/gtc/matrix_transform.hpp \
+  _deps/glm-src/glm/trigonometric.hpp \
+  _deps/glm-src/glm/detail/qualifier.hpp \
+  _deps/glm-src/glm/detail/setup.hpp \
+  _deps/glm-src/glm/detail/type_float.hpp \
+  _deps/glm-src/glm/detail/type_quat.hpp \
+  _deps/glm-src/glm/detail/type_quat.inl \
+  _deps/glm-src/glm/detail/type_vec1.hpp \
+  _deps/glm-src/glm/exponential.hpp \
+  _deps/glm-src/glm/exponential.hpp \
+  _deps/glm-src/glm/ext/vector_relational.hpp \
+  _deps/glm-src/glm/geometric.hpp \
+  _deps/glm-src/glm/ext/quaternion_geometric.hpp \
+  _deps/glm-src/glm/ext/quaternion_geometric.inl \
+  _deps/glm-src/glm/ext/scalar_constants.hpp \
+  _deps/glm-src/glm/ext/scalar_int_sized.hpp \
+  _deps/glm-src/glm/ext/scalar_uint_sized.hpp \
+  _deps/glm-src/glm/ext/vector_int1.hpp \
+  _deps/glm-src/glm/ext/vector_uint1.hpp \
+  _deps/glm-src/glm/geometric.hpp \
+  _deps/glm-src/glm/trigonometric.hpp \
+  _deps/glm-src/glm/vector_relational.hpp \
+  _deps/glm-src/glm/ext/quaternion_common.hpp \
+  _deps/glm-src/glm/ext/quaternion_common.inl \
+  _deps/glm-src/glm/ext/quaternion_double.hpp \
+  _deps/glm-src/glm/ext/quaternion_double_precision.hpp \
+  _deps/glm-src/glm/ext/quaternion_float.hpp \
+  _deps/glm-src/glm/ext/quaternion_float_precision.hpp \
+  _deps/glm-src/glm/ext/quaternion_geometric.hpp \
+  _deps/glm-src/glm/ext/quaternion_relational.hpp \
+  _deps/glm-src/glm/ext/quaternion_transform.hpp \
+  _deps/glm-src/glm/ext/quaternion_transform.inl \
+  _deps/glm-src/glm/ext/quaternion_trigonometric.hpp \
+  _deps/glm-src/glm/ext/quaternion_trigonometric.inl \
+  _deps/glm-src/glm/ext/scalar_constants.hpp \
+  _deps/glm-src/glm/ext/vector_bool1.hpp \
+  _deps/glm-src/glm/ext/vector_bool1_precision.hpp \
+  _deps/glm-src/glm/ext/vector_double1.hpp \
+  _deps/glm-src/glm/ext/vector_double1_precision.hpp \
+  _deps/glm-src/glm/ext/vector_float1.hpp \
+  _deps/glm-src/glm/ext/vector_float1_precision.hpp \
+  _deps/glm-src/glm/ext/vector_int1.hpp \
+  _deps/glm-src/glm/ext/vector_int1_sized.hpp \
+  _deps/glm-src/glm/ext/vector_relational.hpp \
+  _deps/glm-src/glm/ext/vector_relational.inl \
+  _deps/glm-src/glm/ext/vector_uint1.hpp \
+  _deps/glm-src/glm/ext/vector_uint1_sized.hpp \
+  _deps/glm-src/glm/geometric.hpp \
+  _deps/glm-src/glm/detail/_vectorize.hpp \
+  _deps/glm-src/glm/detail/func_trigonometric.inl \
+  _deps/glm-src/glm/detail/qualifier.hpp \
+  _deps/glm-src/glm/detail/setup.hpp \
+  _deps/glm-src/glm/ext/scalar_constants.hpp \
+  _deps/glm-src/glm/geometric.hpp \
+  _deps/glm-src/glm/gtc/constants.hpp \
+  _deps/glm-src/glm/matrix.hpp \
+  _deps/glm-src/glm/trigonometric.hpp \
+  _deps/glm-src/glm/ext/matrix_clip_space.hpp \
+  _deps/glm-src/glm/ext/matrix_clip_space.inl \
+  _deps/glm-src/glm/ext/matrix_projection.hpp \
+  _deps/glm-src/glm/ext/matrix_projection.inl \
+  _deps/glm-src/glm/ext/matrix_transform.hpp \
+  _deps/glm-src/glm/ext/matrix_transform.inl \
+  _deps/glm-src/glm/ext/scalar_constants.hpp \
+  _deps/glm-src/glm/ext/scalar_constants.inl \
+  _deps/glm-src/glm/geometric.hpp \
+  _deps/glm-src/glm/mat4x4.hpp \
+  _deps/glm-src/glm/matrix.hpp \
+  _deps/glm-src/glm/trigonometric.hpp \
+  _deps/glm-src/glm/vec2.hpp \
+  _deps/glm-src/glm/vec3.hpp \
+  _deps/glm-src/glm/vec4.hpp \
+  _deps/glm-src/glm/gtc/constants.hpp \
+  _deps/glm-src/glm/gtc/constants.inl \
+  _deps/glm-src/glm/gtc/matrix_transform.hpp \
+  _deps/glm-src/glm/gtc/matrix_transform.inl \
+  _deps/glm-src/glm/trigonometric.hpp \
+  _deps/glm-src/glm/vector_relational.hpp \
+  _deps/glm-src/glm/gtc/epsilon.hpp \
+  _deps/glm-src/glm/gtc/epsilon.inl \
+  _deps/glm-src/glm/gtc/quaternion.hpp \
+  _deps/glm-src/glm/gtc/quaternion.inl \
+  _deps/glm-src/glm/gtc/vec1.hpp \
+  _deps/glm-src/glm/mat2x2.hpp \
+  _deps/glm-src/glm/mat2x3.hpp \
+  _deps/glm-src/glm/mat2x4.hpp \
+  _deps/glm-src/glm/mat3x2.hpp \
+  _deps/glm-src/glm/mat3x3.hpp \
+  _deps/glm-src/glm/mat3x4.hpp \
+  _deps/glm-src/glm/mat4x2.hpp \
+  _deps/glm-src/glm/mat4x3.hpp \
+  _deps/glm-src/glm/mat4x4.hpp \
+  _deps/glm-src/glm/vec2.hpp \
+  _deps/glm-src/glm/vec3.hpp \
+  _deps/glm-src/glm/vec4.hpp \
+  _deps/glm-src/glm/gtc/type_ptr.hpp \
+  _deps/glm-src/glm/gtc/type_ptr.inl \
   _deps/glm-src/glm/mat4x4.hpp \
   _deps/glm-src/glm/vec2.hpp \
   _deps/glm-src/glm/vec3.hpp \
@@ -4697,6 +4833,48 @@ CMakeFiles/vulkano.dir/src/vulkan_context.cpp.o: /Users/bruno/Documents/Developm
   /usr/local/include/vulkan/vulkan_core.h
 
 
+_deps/glm-src/glm/gtc/type_ptr.inl:
+
+_deps/glm-src/glm/gtc/vec1.hpp:
+
+_deps/glm-src/glm/gtc/quaternion.inl:
+
+_deps/glm-src/glm/gtc/quaternion.hpp:
+
+_deps/glm-src/glm/gtc/epsilon.inl:
+
+_deps/glm-src/glm/gtc/epsilon.hpp:
+
+_deps/glm-src/glm/gtc/matrix_transform.inl:
+
+_deps/glm-src/glm/ext/matrix_projection.inl:
+
+_deps/glm-src/glm/ext/vector_uint1_sized.hpp:
+
+_deps/glm-src/glm/ext/vector_double1_precision.hpp:
+
+_deps/glm-src/glm/ext/vector_bool1.hpp:
+
+_deps/glm-src/glm/ext/quaternion_trigonometric.hpp:
+
+_deps/glm-src/glm/ext/quaternion_transform.hpp:
+
+_deps/glm-src/glm/ext/quaternion_double_precision.hpp:
+
+_deps/glm-src/glm/ext/vector_int1.hpp:
+
+_deps/glm-src/glm/ext/quaternion_geometric.inl:
+
+_deps/glm-src/glm/detail/type_quat.hpp:
+
+_deps/glm-src/glm/ext/vector_relational.hpp:
+
+_deps/glm-src/glm/ext/quaternion_relational.inl:
+
+_deps/glm-src/glm/ext/quaternion_relational.hpp:
+
+_deps/glm-src/glm/ext/quaternion_geometric.hpp:
+
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/filesystem:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/space_info.h:
@@ -4715,8 +4893,6 @@ _deps/imgui-src/backends/imgui_impl_vulkan.h:
 
 _deps/imgui-src/backends/imgui_impl_glfw.h:
 
-/Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/geometry.hpp:
-
 _deps/glm-src/glm/ext/matrix_clip_space.inl:
 
 _deps/glm-src/glm/ext/matrix_clip_space.hpp:
@@ -4725,21 +4901,9 @@ _deps/glm-src/glm/trigonometric.hpp:
 
 _deps/glm-src/glm/ext/scalar_constants.inl:
 
-/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/fstream:
-
-_deps/glm-src/glm/ext/vector_int3_sized.hpp:
-
-_deps/glm-src/glm/ext/vector_double3_precision.hpp:
-
-_deps/glm-src/glm/ext/vector_bool3_precision.hpp:
-
-_deps/glm-src/glm/ext/vector_bool3.hpp:
-
 _deps/glm-src/glm/ext/matrix_double4x4_precision.hpp:
 
 _deps/glm-src/glm/detail/type_vec4.inl:
-
-_deps/glm-src/glm/detail/type_vec3.inl:
 
 _deps/glm-src/glm/vec4.hpp:
 
@@ -4845,6 +5009,8 @@ _deps/glm-src/glm/detail/type_mat4x2.hpp:
 
 /usr/local/include/vk_video/vulkan_video_codec_h264std_encode.h:
 
+_deps/glm-src/glm/ext/quaternion_common.inl:
+
 _deps/glm-src/glm/matrix.hpp:
 
 /usr/local/include/vk_video/vulkan_video_codec_h264std_decode.h:
@@ -4855,17 +5021,29 @@ _deps/glm-src/glm/gtc/constants.hpp:
 
 /usr/local/include/vk_video/vulkan_video_codec_av1std.h:
 
+/Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/geometry.hpp:
+
 _deps/glm-src/glm/detail/type_vec1.hpp:
 
 /Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/app.hpp:
 
 _deps/glm-src/glm/ext/vector_uint2_sized.hpp:
 
+/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/fstream:
+
+_deps/glm-src/glm/ext/vector_int3_sized.hpp:
+
 _deps/glm-src/glm/ext/vector_int2_sized.hpp:
 
 _deps/glm-src/glm/ext/vector_float2_precision.hpp:
 
+_deps/glm-src/glm/ext/vector_double3_precision.hpp:
+
 _deps/glm-src/glm/ext/vector_double2.hpp:
+
+_deps/glm-src/glm/ext/vector_bool3_precision.hpp:
+
+_deps/glm-src/glm/ext/vector_bool3.hpp:
 
 _deps/glm-src/glm/ext/vector_bool2_precision.hpp:
 
@@ -4880,6 +5058,8 @@ _deps/glm-src/glm/ext/vector_int2.hpp:
 _deps/glm-src/glm/ext/scalar_uint_sized.hpp:
 
 _deps/glm-src/glm/ext/scalar_int_sized.hpp:
+
+_deps/glm-src/glm/detail/type_vec3.inl:
 
 _deps/glm-src/glm/detail/type_vec2.inl:
 
@@ -4967,6 +5147,8 @@ _deps/glm-src/glm/ext/vector_double4.hpp:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/_types/_u_int32_t.h:
 
+_deps/glm-src/glm/detail/type_quat.inl:
+
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/_types/_u_int16_t.h:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/_types/_u_int.h:
@@ -4983,9 +5165,9 @@ _deps/glm-src/glm/ext/matrix_float4x4_precision.hpp:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/_types/_ssize_t.h:
 
-_deps/glm-src/glm/detail/type_vec3.hpp:
-
 _deps/imgui-src/imconfig.h:
+
+_deps/glm-src/glm/detail/type_vec3.hpp:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/_types/_size_t.h:
 
@@ -5022,6 +5204,8 @@ _deps/imgui-src/imconfig.h:
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/_types/_fd_isset.h:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/_types/_fd_clr.h:
+
+_deps/glm-src/glm/ext/quaternion_common.hpp:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/_types/_errno_t.h:
 
@@ -5415,9 +5599,13 @@ _deps/glm-src/glm/detail/func_geometric.inl:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__type_traits/is_callable.h:
 
+_deps/glm-src/glm/gtc/matrix_transform.hpp:
+
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__type_traits/is_assignable.h:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__utility/forward_like.h:
+
+_deps/glm-src/glm/ext/quaternion_double.hpp:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/xlocale.h:
 
@@ -5470,6 +5658,8 @@ _deps/glm-src/glm/detail/func_geometric.inl:
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__type_traits/add_pointer.h:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__type_traits/add_lvalue_reference.h:
+
+_deps/glm-src/glm/ext/matrix_projection.hpp:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__type_traits/add_cv.h:
 
@@ -5603,7 +5793,11 @@ _deps/glm-src/glm/ext/matrix_double2x4_precision.hpp:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__memory/concepts.h:
 
+_deps/glm-src/glm/ext/vector_bool1_precision.hpp:
+
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__memory/compressed_pair.h:
+
+_deps/glm-src/glm/ext/quaternion_float_precision.hpp:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__algorithm/ranges_nth_element.h:
 
@@ -5829,6 +6023,8 @@ _deps/imgui-src/imgui.h:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__functional/pointer_to_unary_function.h:
 
+_deps/glm-src/glm/detail/type_float.hpp:
+
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__bit_reference:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__functional/not_fn.h:
@@ -5850,6 +6046,8 @@ _deps/glm-src/glm/ext/matrix_double3x2.hpp:
 _deps/glm-src/glm/ext/vector_uint3.hpp:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__functional/default_searcher.h:
+
+_deps/glm-src/glm/ext/quaternion_transform.inl:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__functional/compose.h:
 
@@ -5997,6 +6195,8 @@ _deps/glm-src/glm/detail/type_mat3x3.inl:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__memory/construct_at.h:
 
+_deps/glm-src/glm/gtc/type_ptr.hpp:
+
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__iterator/back_insert_iterator.h:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__concepts/different_from.h:
@@ -6098,6 +6298,8 @@ _deps/glm-src/glm/detail/type_mat3x3.inl:
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__concepts/common_with.h:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__type_traits/is_nothrow_constructible.h:
+
+_deps/glm-src/glm/ext/vector_relational.inl:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__atomic/contention_t.h:
 
@@ -6231,6 +6433,8 @@ _deps/glm-src/glm/ext/matrix_float4x4.hpp:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__fwd/streambuf.h:
 
+_deps/glm-src/glm/ext/vector_float1_precision.hpp:
+
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__algorithm/unwrap_range.h:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__atomic/is_always_lock_free.h:
@@ -6300,6 +6504,8 @@ _deps/glm-src/glm/gtc/constants.inl:
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__algorithm/pstl_transform.h:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__type_traits/is_execution_policy.h:
+
+_deps/glm-src/glm/ext/vector_int1_sized.hpp:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__algorithm/find.h:
 
@@ -6414,6 +6620,8 @@ _deps/glm-src/glm/ext/vector_double4_precision.hpp:
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/arm/_endian.h:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__algorithm/set_difference.h:
+
+_deps/glm-src/glm/ext/quaternion_float.hpp:
 
 _deps/glm-src/glm/ext/matrix_double4x3.hpp:
 
@@ -6739,6 +6947,8 @@ _deps/glm-src/glm/ext/matrix_float2x2_precision.hpp:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__iterator/distance.h:
 
+_deps/glm-src/glm/ext/vector_double1.hpp:
+
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__algorithm/in_out_out_result.h:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/_types/_sigaltstack.h:
@@ -6784,6 +6994,8 @@ _deps/glm-src/glm/ext/vector_int4.hpp:
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__algorithm/pstl_backends/cpu_backends/transform.h:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__algorithm/make_heap.h:
+
+_deps/glm-src/glm/ext/vector_uint1.hpp:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__algorithm/pstl_any_all_none_of.h:
 
@@ -6866,6 +7078,8 @@ _deps/glm-src/glm/vector_relational.hpp:
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__algorithm/pstl_stable_sort.h:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__type_traits/is_nothrow_copy_constructible.h:
+
+_deps/glm-src/glm/ext/quaternion_trigonometric.inl:
 
 _deps/glm-src/glm/ext/vector_float3_precision.hpp:
 
@@ -6988,6 +7202,8 @@ _deps/glm-src/glm/detail/type_mat2x2.inl:
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/c++/v1/__algorithm/is_sorted_until.h:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/_types/_intmax_t.h:
+
+_deps/glm-src/glm/ext/vector_float1.hpp:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/machine/signal.h:
 
