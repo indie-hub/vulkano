@@ -885,3 +885,532 @@ index 5dbab3973478ef8db84e54c1c83776ebf0a9e264..89ead446424e69d7b7940e4fbc5f035e
 +} // namespace vulkano_codex
 
 [2025-09-16T10:19:41] exec bash -lc 'git add -A && git commit -m "refactor: move FpsAverager implementation to .cpp per headers-only policy" && cmake --build build -j$(sysctl -n hw.ncpu || nproc) && ctest --test-dir build -j1 --output-on-failure' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-16T10:19:44] bash -lc 'git add -A && git commit -m "refactor: move FpsAverager implementation to .cpp per headers-only policy" && cmake --build build -j$(sysctl -n hw.ncpu || nproc) && ctest --test-dir build -j1 --output-on-failure' succeeded in 2.61s:
+[personal/codex/third-attempt 4de01cc] refactor: move FpsAverager implementation to .cpp per headers-only policy
+ 4 files changed, 544 insertions(+), 30 deletions(-)
+ create mode 100644 imgui.ini
+[  1%] Built target shaders
+[  2%] Built target glm
+[ 16%] Built target glfw
+[ 21%] Built target imgui_backend
+[ 23%] Building CXX object CMakeFiles/vulkano_codex.dir/src/utils.cpp.o
+[ 23%] Building CXX object CMakeFiles/vulkano_codex.dir/src/app.cpp.o
+[ 92%] Built target Catch2
+[ 94%] Built target Catch2WithMain
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:70:95: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+   70 |         VkDebugUtilsObjectNameInfoEXT info {VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT};
+      |                                                                                               ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:212:67: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  212 |     VkApplicationInfo app_info {VK_STRUCTURE_TYPE_APPLICATION_INFO};
+      |                                                                   ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:229:77: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  229 |     VkInstanceCreateInfo create_info {VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
+      |                                                                             ^
+[2025-09-16T10:19:44] tokens used: 54,043
+[2025-09-16T10:19:44] turn diff:
+diff --git a/include/vulkano_codex/utils.hpp b/include/vulkano_codex/utils.hpp
+index 9cee29f6fe570a503f87287eb7dd4a59ac5477b6..2418b222fc664afd4220894e56b508fd4071e457
+--- a/include/vulkano_codex/utils.hpp
++++ b/include/vulkano_codex/utils.hpp
+@@ -1,4 +1,4 @@
+-#pragma once
++﻿#pragma once
+ 
+ #include <chrono>
+ 
+@@ -8,32 +8,10 @@
+ public:
+     FpsAverager() noexcept = default;
+ 
+-    void reset() noexcept {
+-        last_ = clock::now();
+-        avg_frame_ms_ = 0.0;
+-        initialized_ = false;
+-    }
+-
+-    void tick() noexcept {
+-        const auto now = clock::now();
+-        const auto dt = std::chrono::duration<double, std::milli>(now - last_).count();
+-        last_ = now;
+-        if (!initialized_) {
+-            avg_frame_ms_ = dt;
+-            initialized_ = true;
+-        } else {
+-            // Exponential moving average
+-            avg_frame_ms_ = smoothing_ * dt + (1.0 - smoothing_) * avg_frame_ms_;
+-        }
+-    }
+-
+-    [[nodiscard]] double frame_ms() const noexcept {
+-        return avg_frame_ms_;
+-    }
+-
+-    [[nodiscard]] double fps() const noexcept {
+-        return (avg_frame_ms_ > 0.0) ? (1000.0 / avg_frame_ms_) : 0.0;
+-    }
++    void reset() noexcept;
++    void tick() noexcept;
++    [[nodiscard]] double frame_ms() const noexcept;
++    [[nodiscard]] double fps() const noexcept;
+ 
+ private:
+     using clock = std::chrono::steady_clock;
+@@ -44,4 +22,3 @@
+ };
+ 
+ } // namespace vulkano_codex
+-
+diff --git a/src/utils.cpp b/src/utils.cpp
+index 5dbab3973478ef8db84e54c1c83776ebf0a9e264..89ead446424e69d7b7940e4fbc5f035e0e4d28ca
+--- a/src/utils.cpp
++++ b/src/utils.cpp
+@@ -1,4 +1,31 @@
+-#include <vulkano_codex/utils.hpp>
++﻿#include <vulkano_codex/utils.hpp>
++
++namespace vulkano_codex {
+ 
+-// Implementation currently header-only for FpsAverager.
++void FpsAverager::reset() noexcept {
++    last_ = clock::now();
++    avg_frame_ms_ = 0.0;
++    initialized_ = false;
++}
+ 
++void FpsAverager::tick() noexcept {
++    const auto now = clock::now();
++    const auto dt = std::chrono::duration<double, std::milli>(now - last_).count();
++    last_ = now;
++    if (!initialized_) {
++        avg_frame_ms_ = dt;
++        initialized_ = true;
++    } else {
++        avg_frame_ms_ = smoothing_ * dt + (1.0 - smoothing_) * avg_frame_ms_;
++    }
++}
++
++double FpsAverager::frame_ms() const noexcept {
++    return avg_frame_ms_;
++}
++
++double FpsAverager::fps() const noexcept {
++    return (avg_frame_ms_ > 0.0) ? (1000.0 / avg_frame_ms_) : 0.0;
++}
++
++} // namespace vulkano_codex
+
+[2025-09-16T10:19:52] exec bash -lc 'git rev-parse --abbrev-ref HEAD' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-16T10:19:52] bash -lc 'git rev-parse --abbrev-ref HEAD' succeeded in 41ms:
+personal/codex/third-attempt
+[2025-09-16T10:19:52] tokens used: 55,732
+[2025-09-16T10:19:52] turn diff:
+diff --git a/include/vulkano_codex/utils.hpp b/include/vulkano_codex/utils.hpp
+index 9cee29f6fe570a503f87287eb7dd4a59ac5477b6..2418b222fc664afd4220894e56b508fd4071e457
+--- a/include/vulkano_codex/utils.hpp
++++ b/include/vulkano_codex/utils.hpp
+@@ -1,4 +1,4 @@
+-#pragma once
++﻿#pragma once
+ 
+ #include <chrono>
+ 
+@@ -8,32 +8,10 @@
+ public:
+     FpsAverager() noexcept = default;
+ 
+-    void reset() noexcept {
+-        last_ = clock::now();
+-        avg_frame_ms_ = 0.0;
+-        initialized_ = false;
+-    }
+-
+-    void tick() noexcept {
+-        const auto now = clock::now();
+-        const auto dt = std::chrono::duration<double, std::milli>(now - last_).count();
+-        last_ = now;
+-        if (!initialized_) {
+-            avg_frame_ms_ = dt;
+-            initialized_ = true;
+-        } else {
+-            // Exponential moving average
+-            avg_frame_ms_ = smoothing_ * dt + (1.0 - smoothing_) * avg_frame_ms_;
+-        }
+-    }
+-
+-    [[nodiscard]] double frame_ms() const noexcept {
+-        return avg_frame_ms_;
+-    }
+-
+-    [[nodiscard]] double fps() const noexcept {
+-        return (avg_frame_ms_ > 0.0) ? (1000.0 / avg_frame_ms_) : 0.0;
+-    }
++    void reset() noexcept;
++    void tick() noexcept;
++    [[nodiscard]] double frame_ms() const noexcept;
++    [[nodiscard]] double fps() const noexcept;
+ 
+ private:
+     using clock = std::chrono::steady_clock;
+@@ -44,4 +22,3 @@
+ };
+ 
+ } // namespace vulkano_codex
+-
+diff --git a/src/utils.cpp b/src/utils.cpp
+index 5dbab3973478ef8db84e54c1c83776ebf0a9e264..89ead446424e69d7b7940e4fbc5f035e0e4d28ca
+--- a/src/utils.cpp
++++ b/src/utils.cpp
+@@ -1,4 +1,31 @@
+-#include <vulkano_codex/utils.hpp>
++﻿#include <vulkano_codex/utils.hpp>
++
++namespace vulkano_codex {
+ 
+-// Implementation currently header-only for FpsAverager.
++void FpsAverager::reset() noexcept {
++    last_ = clock::now();
++    avg_frame_ms_ = 0.0;
++    initialized_ = false;
++}
+ 
++void FpsAverager::tick() noexcept {
++    const auto now = clock::now();
++    const auto dt = std::chrono::duration<double, std::milli>(now - last_).count();
++    last_ = now;
++    if (!initialized_) {
++        avg_frame_ms_ = dt;
++        initialized_ = true;
++    } else {
++        avg_frame_ms_ = smoothing_ * dt + (1.0 - smoothing_) * avg_frame_ms_;
++    }
++}
++
++double FpsAverager::frame_ms() const noexcept {
++    return avg_frame_ms_;
++}
++
++double FpsAverager::fps() const noexcept {
++    return (avg_frame_ms_ > 0.0) ? (1000.0 / avg_frame_ms_) : 0.0;
++}
++
++} // namespace vulkano_codex
+
+[2025-09-16T10:19:54] exec bash -lc 'if [ -z "$GITHUB_TOKEN" ]; then echo "GITHUB_TOKEN is not set; skipping push."; else git push https://indie-hub:${GITHUB_TOKEN}@github.com/indie-hub/vulkano.git HEAD; fi' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-16T10:19:54] bash -lc 'if [ -z "$GITHUB_TOKEN" ]; then echo "GITHUB_TOKEN is not set; skipping push."; else git push https://indie-hub:${GITHUB_TOKEN}@github.com/indie-hub/vulkano.git HEAD; fi' succeeded in 13ms:
+GITHUB_TOKEN is not set; skipping push.
+[2025-09-16T10:19:55] tokens used: 55,870
+[2025-09-16T10:19:55] turn diff:
+diff --git a/include/vulkano_codex/utils.hpp b/include/vulkano_codex/utils.hpp
+index 9cee29f6fe570a503f87287eb7dd4a59ac5477b6..2418b222fc664afd4220894e56b508fd4071e457
+--- a/include/vulkano_codex/utils.hpp
++++ b/include/vulkano_codex/utils.hpp
+@@ -1,4 +1,4 @@
+-#pragma once
++﻿#pragma once
+ 
+ #include <chrono>
+ 
+@@ -8,32 +8,10 @@
+ public:
+     FpsAverager() noexcept = default;
+ 
+-    void reset() noexcept {
+-        last_ = clock::now();
+-        avg_frame_ms_ = 0.0;
+-        initialized_ = false;
+-    }
+-
+-    void tick() noexcept {
+-        const auto now = clock::now();
+-        const auto dt = std::chrono::duration<double, std::milli>(now - last_).count();
+-        last_ = now;
+-        if (!initialized_) {
+-            avg_frame_ms_ = dt;
+-            initialized_ = true;
+-        } else {
+-            // Exponential moving average
+-            avg_frame_ms_ = smoothing_ * dt + (1.0 - smoothing_) * avg_frame_ms_;
+-        }
+-    }
+-
+-    [[nodiscard]] double frame_ms() const noexcept {
+-        return avg_frame_ms_;
+-    }
+-
+-    [[nodiscard]] double fps() const noexcept {
+-        return (avg_frame_ms_ > 0.0) ? (1000.0 / avg_frame_ms_) : 0.0;
+-    }
++    void reset() noexcept;
++    void tick() noexcept;
++    [[nodiscard]] double frame_ms() const noexcept;
++    [[nodiscard]] double fps() const noexcept;
+ 
+ private:
+     using clock = std::chrono::steady_clock;
+@@ -44,4 +22,3 @@
+ };
+ 
+ } // namespace vulkano_codex
+-
+diff --git a/src/utils.cpp b/src/utils.cpp
+index 5dbab3973478ef8db84e54c1c83776ebf0a9e264..89ead446424e69d7b7940e4fbc5f035e0e4d28ca
+--- a/src/utils.cpp
++++ b/src/utils.cpp
+@@ -1,4 +1,31 @@
+-#include <vulkano_codex/utils.hpp>
++﻿#include <vulkano_codex/utils.hpp>
++
++namespace vulkano_codex {
+ 
+-// Implementation currently header-only for FpsAverager.
++void FpsAverager::reset() noexcept {
++    last_ = clock::now();
++    avg_frame_ms_ = 0.0;
++    initialized_ = false;
++}
+ 
++void FpsAverager::tick() noexcept {
++    const auto now = clock::now();
++    const auto dt = std::chrono::duration<double, std::milli>(now - last_).count();
++    last_ = now;
++    if (!initialized_) {
++        avg_frame_ms_ = dt;
++        initialized_ = true;
++    } else {
++        avg_frame_ms_ = smoothing_ * dt + (1.0 - smoothing_) * avg_frame_ms_;
++    }
++}
++
++double FpsAverager::frame_ms() const noexcept {
++    return avg_frame_ms_;
++}
++
++double FpsAverager::fps() const noexcept {
++    return (avg_frame_ms_ > 0.0) ? (1000.0 / avg_frame_ms_) : 0.0;
++}
++
++} // namespace vulkano_codex
+
+[2025-09-16T10:20:01] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/.agent/todo.txt
+@@ -1,4 +1,4 @@
+ TODO
+-- Build project
+-- Run app and verify triangle + ImGui
+-- Polish and push
++- Build project [done]
++- Run app and verify triangle + ImGui [done]
++- Polish and push [push pending: no GITHUB_TOKEN]
+[2025-09-16T10:20:01] apply_patch(auto_approved=true) exited 0 in 41ms:
+Success. Updated the following files:
+M .agent/todo.txt
+[2025-09-16T10:20:01] turn diff:
+diff --git a/.agent/todo.txt b/.agent/todo.txt
+index 427fc0d760172439489350099622f04a2d1b3235..8d150e4d0c6741db53a61e735254cf4feaf332c8
+--- a/.agent/todo.txt
++++ b/.agent/todo.txt
+@@ -1,4 +1,4 @@
+ TODO
+-- Build project
+-- Run app and verify triangle + ImGui
+-- Polish and push
++- Build project [done]
++- Run app and verify triangle + ImGui [done]
++- Polish and push [push pending: no GITHUB_TOKEN]
+diff --git a/include/vulkano_codex/utils.hpp b/include/vulkano_codex/utils.hpp
+index 9cee29f6fe570a503f87287eb7dd4a59ac5477b6..2418b222fc664afd4220894e56b508fd4071e457
+--- a/include/vulkano_codex/utils.hpp
++++ b/include/vulkano_codex/utils.hpp
+@@ -1,4 +1,4 @@
+-#pragma once
++﻿#pragma once
+ 
+ #include <chrono>
+ 
+@@ -8,32 +8,10 @@
+ public:
+     FpsAverager() noexcept = default;
+ 
+-    void reset() noexcept {
+-        last_ = clock::now();
+-        avg_frame_ms_ = 0.0;
+-        initialized_ = false;
+-    }
+-
+-    void tick() noexcept {
+-        const auto now = clock::now();
+-        const auto dt = std::chrono::duration<double, std::milli>(now - last_).count();
+-        last_ = now;
+-        if (!initialized_) {
+-            avg_frame_ms_ = dt;
+-            initialized_ = true;
+-        } else {
+-            // Exponential moving average
+-            avg_frame_ms_ = smoothing_ * dt + (1.0 - smoothing_) * avg_frame_ms_;
+-        }
+-    }
+-
+-    [[nodiscard]] double frame_ms() const noexcept {
+-        return avg_frame_ms_;
+-    }
+-
+-    [[nodiscard]] double fps() const noexcept {
+-        return (avg_frame_ms_ > 0.0) ? (1000.0 / avg_frame_ms_) : 0.0;
+-    }
++    void reset() noexcept;
++    void tick() noexcept;
++    [[nodiscard]] double frame_ms() const noexcept;
++    [[nodiscard]] double fps() const noexcept;
+ 
+ private:
+     using clock = std::chrono::steady_clock;
+@@ -44,4 +22,3 @@
+ };
+ 
+ } // namespace vulkano_codex
+-
+diff --git a/src/utils.cpp b/src/utils.cpp
+index 5dbab3973478ef8db84e54c1c83776ebf0a9e264..89ead446424e69d7b7940e4fbc5f035e0e4d28ca
+--- a/src/utils.cpp
++++ b/src/utils.cpp
+@@ -1,4 +1,31 @@
+-#include <vulkano_codex/utils.hpp>
++﻿#include <vulkano_codex/utils.hpp>
++
++namespace vulkano_codex {
+ 
+-// Implementation currently header-only for FpsAverager.
++void FpsAverager::reset() noexcept {
++    last_ = clock::now();
++    avg_frame_ms_ = 0.0;
++    initialized_ = false;
++}
+ 
++void FpsAverager::tick() noexcept {
++    const auto now = clock::now();
++    const auto dt = std::chrono::duration<double, std::milli>(now - last_).count();
++    last_ = now;
++    if (!initialized_) {
++        avg_frame_ms_ = dt;
++        initialized_ = true;
++    } else {
++        avg_frame_ms_ = smoothing_ * dt + (1.0 - smoothing_) * avg_frame_ms_;
++    }
++}
++
++double FpsAverager::frame_ms() const noexcept {
++    return avg_frame_ms_;
++}
++
++double FpsAverager::fps() const noexcept {
++    return (avg_frame_ms_ > 0.0) ? (1000.0 / avg_frame_ms_) : 0.0;
++}
++
++} // namespace vulkano_codex
+
+[2025-09-16T10:20:01] tokens used: 56,284
+[2025-09-16T10:20:01] turn diff:
+diff --git a/.agent/todo.txt b/.agent/todo.txt
+index 427fc0d760172439489350099622f04a2d1b3235..8d150e4d0c6741db53a61e735254cf4feaf332c8
+--- a/.agent/todo.txt
++++ b/.agent/todo.txt
+@@ -1,4 +1,4 @@
+ TODO
+-- Build project
+-- Run app and verify triangle + ImGui
+-- Polish and push
++- Build project [done]
++- Run app and verify triangle + ImGui [done]
++- Polish and push [push pending: no GITHUB_TOKEN]
+diff --git a/include/vulkano_codex/utils.hpp b/include/vulkano_codex/utils.hpp
+index 9cee29f6fe570a503f87287eb7dd4a59ac5477b6..2418b222fc664afd4220894e56b508fd4071e457
+--- a/include/vulkano_codex/utils.hpp
++++ b/include/vulkano_codex/utils.hpp
+@@ -1,4 +1,4 @@
+-#pragma once
++﻿#pragma once
+ 
+ #include <chrono>
+ 
+@@ -8,32 +8,10 @@
+ public:
+     FpsAverager() noexcept = default;
+ 
+-    void reset() noexcept {
+-        last_ = clock::now();
+-        avg_frame_ms_ = 0.0;
+-        initialized_ = false;
+-    }
+-
+-    void tick() noexcept {
+-        const auto now = clock::now();
+-        const auto dt = std::chrono::duration<double, std::milli>(now - last_).count();
+-        last_ = now;
+-        if (!initialized_) {
+-            avg_frame_ms_ = dt;
+-            initialized_ = true;
+-        } else {
+-            // Exponential moving average
+-            avg_frame_ms_ = smoothing_ * dt + (1.0 - smoothing_) * avg_frame_ms_;
+-        }
+-    }
+-
+-    [[nodiscard]] double frame_ms() const noexcept {
+-        return avg_frame_ms_;
+-    }
+-
+-    [[nodiscard]] double fps() const noexcept {
+-        return (avg_frame_ms_ > 0.0) ? (1000.0 / avg_frame_ms_) : 0.0;
+-    }
++    void reset() noexcept;
++    void tick() noexcept;
++    [[nodiscard]] double frame_ms() const noexcept;
++    [[nodiscard]] double fps() const noexcept;
+ 
+ private:
+     using clock = std::chrono::steady_clock;
+@@ -44,4 +22,3 @@
+ };
+ 
+ } // namespace vulkano_codex
+-
+diff --git a/src/utils.cpp b/src/utils.cpp
+index 5dbab3973478ef8db84e54c1c83776ebf0a9e264..89ead446424e69d7b7940e4fbc5f035e0e4d28ca
+--- a/src/utils.cpp
++++ b/src/utils.cpp
+@@ -1,4 +1,31 @@
+-#include <vulkano_codex/utils.hpp>
++﻿#include <vulkano_codex/utils.hpp>
++
++namespace vulkano_codex {
+ 
+-// Implementation currently header-only for FpsAverager.
++void FpsAverager::reset() noexcept {
++    last_ = clock::now();
++    avg_frame_ms_ = 0.0;
++    initialized_ = false;
++}
+ 
++void FpsAverager::tick() noexcept {
++    const auto now = clock::now();
++    const auto dt = std::chrono::duration<double, std::milli>(now - last_).count();
++    last_ = now;
++    if (!initialized_) {
++        avg_frame_ms_ = dt;
++        initialized_ = true;
++    } else {
++        avg_frame_ms_ = smoothing_ * dt + (1.0 - smoothing_) * avg_frame_ms_;
++    }
++}
++
++double FpsAverager::frame_ms() const noexcept {
++    return avg_frame_ms_;
++}
++
++double FpsAverager::fps() const noexcept {
++    return (avg_frame_ms_ > 0.0) ? (1000.0 / avg_frame_ms_) : 0.0;
++}
++
++} // namespace vulkano_codex
+
+[2025-09-16T10:20:04] exec bash -lc 'git add -A && git commit -m "docs: update .agent/todo with status; build verified and app runs briefly"' in /Users/bruno/Documents/Development/bruno/vulkano_codex
