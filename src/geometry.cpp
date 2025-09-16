@@ -22,6 +22,23 @@ namespace {
     }
 }
 
+// ---- Primitive common methods (out-of-line to keep headers free of impl) ----
+const Transform& Primitive::transform() const noexcept {
+    return transform_;
+}
+
+const Material& Primitive::material() const noexcept {
+    return material_;
+}
+
+void Primitive::set_transform(const Transform& t) noexcept {
+    transform_ = t;
+}
+
+void Primitive::set_material(const Material& m) noexcept {
+    material_ = m;
+}
+
 Plane::Plane() noexcept : params_ {} {
     build();
 }
@@ -51,6 +68,18 @@ void Plane::build() noexcept {
     indices_.push_back(2U);
     indices_.push_back(3U);
     indices_.push_back(0U);
+}
+
+const std::vector<Vertex>& Plane::vertices() const noexcept {
+    return vertices_;
+}
+
+const std::vector<std::uint32_t>& Plane::indices() const noexcept {
+    return indices_;
+}
+
+const char* Plane::type_name() const noexcept {
+    return "Plane";
 }
 
 Cube::Cube() noexcept {
@@ -103,6 +132,18 @@ void Cube::build() noexcept {
         indices_.push_back(base + 3U);
         indices_.push_back(base + 0U);
     }
+}
+
+const std::vector<Vertex>& Cube::vertices() const noexcept {
+    return vertices_;
+}
+
+const std::vector<std::uint32_t>& Cube::indices() const noexcept {
+    return indices_;
+}
+
+const char* Cube::type_name() const noexcept {
+    return "Cube";
 }
 
 Icosphere::Icosphere() noexcept : params_ {} {
@@ -231,6 +272,18 @@ void Icosphere::subdivide_once() noexcept {
         newIdx.push_back(a);  newIdx.push_back(b);  newIdx.push_back(c);
     }
     indices_.swap(newIdx);
+}
+
+const std::vector<Vertex>& Icosphere::vertices() const noexcept {
+    return vertices_;
+}
+
+const std::vector<std::uint32_t>& Icosphere::indices() const noexcept {
+    return indices_;
+}
+
+const char* Icosphere::type_name() const noexcept {
+    return "Icosphere";
 }
 
 } // namespace vulkano
