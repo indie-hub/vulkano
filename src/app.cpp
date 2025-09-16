@@ -20,6 +20,9 @@
 #include <vector>
 #include <cstring>
 
+// Forward declare debug name helper
+void setDebugName(VkDevice device, VkObjectType type, uint64_t handle, const char* name);
+
 namespace vulkano {
 
 namespace {
