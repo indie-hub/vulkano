@@ -1,4 +1,6 @@
 file(REMOVE_RECURSE
+  "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/mesh.frag.spv"
+  "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/mesh.vert.spv"
   "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/triangle.frag.spv"
   "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/triangle.vert.spv"
   "CMakeFiles/compile_shaders"

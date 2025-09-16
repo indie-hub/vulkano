@@ -185,6 +185,30 @@ vulkano_tests/fast:
 	cd /Users/bruno/Documents/Development/bruno/vulkano_codex/build && $(MAKE) $(MAKESILENT) -f tests/CMakeFiles/vulkano_tests.dir/build.make tests/CMakeFiles/vulkano_tests.dir/build
 .PHONY : vulkano_tests/fast
 
+geometry_tests.o: geometry_tests.cpp.o
+.PHONY : geometry_tests.o
+
+# target to build an object file
+geometry_tests.cpp.o:
+	cd /Users/bruno/Documents/Development/bruno/vulkano_codex/build && $(MAKE) $(MAKESILENT) -f tests/CMakeFiles/vulkano_tests.dir/build.make tests/CMakeFiles/vulkano_tests.dir/geometry_tests.cpp.o
+.PHONY : geometry_tests.cpp.o
+
+geometry_tests.i: geometry_tests.cpp.i
+.PHONY : geometry_tests.i
+
+# target to preprocess a source file
+geometry_tests.cpp.i:
+	cd /Users/bruno/Documents/Development/bruno/vulkano_codex/build && $(MAKE) $(MAKESILENT) -f tests/CMakeFiles/vulkano_tests.dir/build.make tests/CMakeFiles/vulkano_tests.dir/geometry_tests.cpp.i
+.PHONY : geometry_tests.cpp.i
+
+geometry_tests.s: geometry_tests.cpp.s
+.PHONY : geometry_tests.s
+
+# target to generate assembly for a file
+geometry_tests.cpp.s:
+	cd /Users/bruno/Documents/Development/bruno/vulkano_codex/build && $(MAKE) $(MAKESILENT) -f tests/CMakeFiles/vulkano_tests.dir/build.make tests/CMakeFiles/vulkano_tests.dir/geometry_tests.cpp.s
+.PHONY : geometry_tests.cpp.s
+
 stats_tests.o: stats_tests.cpp.o
 .PHONY : stats_tests.o
 
@@ -247,6 +271,9 @@ help:
 	@echo "... rebuild_cache"
 	@echo "... test"
 	@echo "... vulkano_tests"
+	@echo "... geometry_tests.o"
+	@echo "... geometry_tests.i"
+	@echo "... geometry_tests.s"
 	@echo "... stats_tests.o"
 	@echo "... stats_tests.i"
 	@echo "... stats_tests.s"

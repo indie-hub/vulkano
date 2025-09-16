@@ -68,7 +68,51 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="ea5f2232-e0d5-4be9-833c-c06073c2468d" name="Changes" comment="New TODO">
-      <change beforePath="$PROJECT_DIR$/.agent/TODO.md" beforeDir="false" afterPath="$PROJECT_DIR$/.agent/TODO.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/CMakeLists.txt" beforeDir="false" afterPath="$PROJECT_DIR$/CMakeLists.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/bin/vulkano_tests" beforeDir="false" afterPath="$PROJECT_DIR$/bin/vulkano_tests" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/CMakeRuleHashes.txt" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/CMakeRuleHashes.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/Makefile2" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/Makefile2" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/compile_shaders.dir/build.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/compile_shaders.dir/build.make" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/compile_shaders.dir/cmake_clean.cmake" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/compile_shaders.dir/cmake_clean.cmake" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/compile_shaders.dir/progress.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/compile_shaders.dir/progress.make" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/imgui.dir/compiler_depend.internal" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/imgui.dir/compiler_depend.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/imgui.dir/compiler_depend.make" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/imgui.dir/progress.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/imgui.dir/progress.make" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/vulkano.dir/DependInfo.cmake" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/vulkano.dir/DependInfo.cmake" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/vulkano.dir/build.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/vulkano.dir/build.make" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/vulkano.dir/cmake_clean.cmake" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/vulkano.dir/cmake_clean.cmake" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/vulkano.dir/compiler_depend.internal" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/vulkano.dir/compiler_depend.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/vulkano.dir/compiler_depend.make" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/vulkano.dir/link.txt" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/vulkano.dir/link.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/vulkano.dir/progress.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/vulkano.dir/progress.make" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/vulkano_app.dir/compiler_depend.internal" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/vulkano_app.dir/compiler_depend.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/vulkano_app.dir/compiler_depend.make" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/vulkano_app.dir/progress.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/vulkano_app.dir/progress.make" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/Makefile" beforeDir="false" afterPath="$PROJECT_DIR$/build/Makefile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/Testing/Temporary/CTestCostData.txt" beforeDir="false" afterPath="$PROJECT_DIR$/build/Testing/Temporary/CTestCostData.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/Testing/Temporary/LastTest.log" beforeDir="false" afterPath="$PROJECT_DIR$/build/Testing/Temporary/LastTest.log" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/_deps/catch2-build/CMakeFiles/progress.marks" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/catch2-build/CMakeFiles/progress.marks" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2.dir/progress.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2.dir/progress.make" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/compiler_depend.internal" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/compiler_depend.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/compiler_depend.make" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/progress.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/progress.make" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/progress.marks" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/progress.marks" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/_deps/glfw-build/src/CMakeFiles/glfw.dir/progress.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/glfw-build/src/CMakeFiles/glfw.dir/progress.make" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/_deps/glfw-build/src/CMakeFiles/update_mappings.dir/progress.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/glfw-build/src/CMakeFiles/update_mappings.dir/progress.make" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/_deps/glm-build/glm/CMakeFiles/glm.dir/progress.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/glm-build/glm/CMakeFiles/glm.dir/progress.make" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/tests/CMakeFiles/vulkano_tests.dir/DependInfo.cmake" beforeDir="false" afterPath="$PROJECT_DIR$/build/tests/CMakeFiles/vulkano_tests.dir/DependInfo.cmake" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/tests/CMakeFiles/vulkano_tests.dir/build.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/tests/CMakeFiles/vulkano_tests.dir/build.make" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/tests/CMakeFiles/vulkano_tests.dir/cmake_clean.cmake" beforeDir="false" afterPath="$PROJECT_DIR$/build/tests/CMakeFiles/vulkano_tests.dir/cmake_clean.cmake" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/tests/CMakeFiles/vulkano_tests.dir/compiler_depend.internal" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/tests/CMakeFiles/vulkano_tests.dir/compiler_depend.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/tests/CMakeFiles/vulkano_tests.dir/compiler_depend.make" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/tests/CMakeFiles/vulkano_tests.dir/link.txt" beforeDir="false" afterPath="$PROJECT_DIR$/build/tests/CMakeFiles/vulkano_tests.dir/link.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/tests/CMakeFiles/vulkano_tests.dir/progress.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/tests/CMakeFiles/vulkano_tests.dir/progress.make" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/tests/CTestTestfile.cmake" beforeDir="false" afterPath="$PROJECT_DIR$/build/tests/CTestTestfile.cmake" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/tests/Makefile" beforeDir="false" afterPath="$PROJECT_DIR$/build/tests/Makefile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/tests/vulkano_tests-b12d07c_tests.cmake" beforeDir="false" afterPath="$PROJECT_DIR$/build/tests/vulkano_tests-b12d07c_tests.cmake" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/include/vulkano/vulkan_context.hpp" beforeDir="false" afterPath="$PROJECT_DIR$/include/vulkano/vulkan_context.hpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/vulkan_context.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/vulkan_context.cpp" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -82,7 +126,7 @@
   <component name="Git.Settings">
     <option name="RECENT_BRANCH_BY_REPOSITORY">
       <map>
-        <entry key="$PROJECT_DIR$" value="personal/codex/sixth-attempt" />
+        <entry key="$PROJECT_DIR$" value="personal/codex/seventh-attempt" />
       </map>
     </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -91,10 +135,14 @@
   <component name="HighlightingSettingsPerFile">
     <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/app.hpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/app.hpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/geometry.hpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/vulkan_context.hpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/vulkan_context.hpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/src/geometry.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp" root0="SKIP_HIGHLIGHTING" />
   </component>
@@ -133,7 +181,7 @@
     "cf.first.check.clang-format": "false",
     "cidr.known.project.marker": "true",
     "ctest.advertisement.all.test.configuration.is.created": "true",
-    "git-widget-placeholder": "personal/codex/seventh-attempt",
+    "git-widget-placeholder": "personal/codex/2nd-first-attempt",
     "last_opened_file_path": "/Users/bruno/Documents/Development/bruno/vulkano_codex/.agent",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
@@ -165,7 +213,7 @@
       <updated>1757930371230</updated>
       <workItem from="1757930372426" duration="26134000" />
       <workItem from="1758017569975" duration="12202000" />
-      <workItem from="1758032482488" duration="5907000" />
+      <workItem from="1758032482488" duration="7483000" />
     </task>
     <task id="LOCAL-00001" summary="New TODO">
       <option name="closed" value="true" />

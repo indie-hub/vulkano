@@ -1,6 +1,8 @@
 #include <vulkano/vulkan_context.hpp>
+#include <vulkano/geometry.hpp>
 
 #include <algorithm>
+#include <cstddef>
 #include <array>
 #include <cassert>
 #include <cstring>
@@ -26,14 +28,11 @@ namespace {
 
     constexpr float kDefaultQueuePriority {1.0F};
 
-    struct Vertex final {
-        glm::vec2 pos {};
-    };
-
-    constexpr std::array<Vertex, 3> kTriangleVertices {
-        Vertex {glm::vec2 {-0.5F, -0.5F}},
-        Vertex {glm::vec2 {0.5F, -0.5F}},
-        Vertex {glm::vec2 {0.0F, 0.5F}},
+    // Minimal 3D triangle using project Vertex format (pos3, normal3, uv2)
+    constexpr std::array<Vertex, 3> kMeshVertices {
+        Vertex {glm::vec3 {-0.5F, -0.5F, 0.0F}, glm::vec3 {0.0F, 0.0F, 1.0F}, glm::vec2 {0.0F, 0.0F}},
+        Vertex {glm::vec3 { 0.5F, -0.5F, 0.0F}, glm::vec3 {0.0F, 0.0F, 1.0F}, glm::vec2 {1.0F, 0.0F}},
+        Vertex {glm::vec3 { 0.0F,  0.5F, 0.0F}, glm::vec3 {0.0F, 0.0F, 1.0F}, glm::vec2 {0.5F, 1.0F}}
     };
 
     // Named colors to avoid magic numbers in render logic
@@ -112,6 +111,7 @@ VulkanContext::VulkanContext(GLFWwindow* window) noexcept {
     init_imgui(window);
     create_pipeline_layout();
     create_graphics_pipeline();
+    create_depth_resources();
     create_vertex_buffer();
     create_framebuffers();
     create_command_pool_and_buffers();
@@ -481,6 +481,7 @@ void VulkanContext::destroy() noexcept {
     destroy_sync_objects();
     destroy_command_pool_and_buffers();
     destroy_framebuffers();
+    destroy_depth_resources();
     destroy_render_pass();
     destroy_pipeline();
     destroy_vertex_buffer();
@@ -722,6 +723,22 @@ void VulkanContext::create_render_pass() noexcept {
         return;
     }
 
+    // Choose depth format if not set
+    if (depth_format_ == VK_FORMAT_UNDEFINED) {
+        const VkFormat candidates[] = { VK_FORMAT_D32_SFLOAT, VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D16_UNORM };
+        for (VkFormat fmt : candidates) {
+            VkFormatProperties props {};
+            vkGetPhysicalDeviceFormatProperties(physical_device_, fmt, &props);
+            if ((props.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) == VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) {
+                depth_format_ = fmt;
+                break;
+            }
+        }
+        if (depth_format_ == VK_FORMAT_UNDEFINED) {
+            depth_format_ = VK_FORMAT_D32_SFLOAT;
+        }
+    }
+
     VkAttachmentDescription colorAttachment {};
     colorAttachment.format = swapchain_image_format_;
     colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -732,27 +749,44 @@ void VulkanContext::create_render_pass() noexcept {
     colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
+    VkAttachmentDescription depthAttachment {};
+    depthAttachment.format = depth_format_;
+    depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
     VkAttachmentReference colorAttachmentRef {};
     colorAttachmentRef.attachment = 0U;
     colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentReference depthAttachmentRef {};
+    depthAttachmentRef.attachment = 1U;
+    depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
     VkSubpassDescription subpass {};
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 1U;
     subpass.pColorAttachments = &colorAttachmentRef;
+    subpass.pDepthStencilAttachment = &depthAttachmentRef;
 
     VkSubpassDependency dependency {};
     dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
     dependency.dstSubpass = 0U;
-    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
     dependency.srcAccessMask = 0U;
-    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+    const VkAttachmentDescription attachments[2] { colorAttachment, depthAttachment };
 
     VkRenderPassCreateInfo renderPassInfo {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    renderPassInfo.attachmentCount = 1U;
-    renderPassInfo.pAttachments = &colorAttachment;
+    renderPassInfo.attachmentCount = 2U;
+    renderPassInfo.pAttachments = attachments;
     renderPassInfo.subpassCount = 1U;
     renderPassInfo.pSubpasses = &subpass;
     renderPassInfo.dependencyCount = 1U;
@@ -771,12 +805,12 @@ void VulkanContext::create_framebuffers() noexcept {
     }
     framebuffers_.resize(swapchain_image_views_.size());
     for (std::size_t i {0U}; i < swapchain_image_views_.size(); ++i) {
-        VkImageView attachments[1] {swapchain_image_views_[i]};
+        VkImageView attachments[2] {swapchain_image_views_[i], depth_image_view_};
 
         VkFramebufferCreateInfo fbInfo {};
         fbInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         fbInfo.renderPass = render_pass_;
-        fbInfo.attachmentCount = 1U;
+        fbInfo.attachmentCount = 2U;
         fbInfo.pAttachments = attachments;
         fbInfo.width = swapchain_extent_.width;
         fbInfo.height = swapchain_extent_.height;
@@ -790,6 +824,105 @@ void VulkanContext::create_framebuffers() noexcept {
     }
 }
 
+void VulkanContext::create_depth_resources() noexcept {
+    if (device_ == VK_NULL_HANDLE || physical_device_ == VK_NULL_HANDLE || depth_format_ == VK_FORMAT_UNDEFINED) {
+        return;
+    }
+    // Destroy previous if any (defensive)
+    destroy_depth_resources();
+
+    VkImageCreateInfo imgInfo {};
+    imgInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imgInfo.imageType = VK_IMAGE_TYPE_2D;
+    imgInfo.extent.width = swapchain_extent_.width;
+    imgInfo.extent.height = swapchain_extent_.height;
+    imgInfo.extent.depth = 1U;
+    imgInfo.mipLevels = 1U;
+    imgInfo.arrayLayers = 1U;
+    imgInfo.format = depth_format_;
+    imgInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imgInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    imgInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imgInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    VkImage image {VK_NULL_HANDLE};
+    if (vkCreateImage(device_, &imgInfo, nullptr, &image) != VK_SUCCESS) {
+        return;
+    }
+
+    VkMemoryRequirements memReq {};
+    vkGetImageMemoryRequirements(device_, image, &memReq);
+    const std::uint32_t typeIndex = [&]() noexcept {
+        VkPhysicalDeviceMemoryProperties memProps {};
+        vkGetPhysicalDeviceMemoryProperties(physical_device_, &memProps);
+        for (std::uint32_t i {0U}; i < memProps.memoryTypeCount; ++i) {
+            if ((memReq.memoryTypeBits & (1U << i)) != 0U &&
+                (memProps.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) {
+                return i;
+            }
+        }
+        return UINT32_MAX;
+    }();
+    if (typeIndex == UINT32_MAX) {
+        vkDestroyImage(device_, image, nullptr);
+        return;
+    }
+
+    VkMemoryAllocateInfo allocInfo {};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memReq.size;
+    allocInfo.memoryTypeIndex = typeIndex;
+    VkDeviceMemory memory {VK_NULL_HANDLE};
+    if (vkAllocateMemory(device_, &allocInfo, nullptr, &memory) != VK_SUCCESS) {
+        vkDestroyImage(device_, image, nullptr);
+        return;
+    }
+
+    vkBindImageMemory(device_, image, memory, 0U);
+
+    VkImageViewCreateInfo viewInfo {};
+    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    viewInfo.image = image;
+    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewInfo.format = depth_format_;
+    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    viewInfo.subresourceRange.baseMipLevel = 0U;
+    viewInfo.subresourceRange.levelCount = 1U;
+    viewInfo.subresourceRange.baseArrayLayer = 0U;
+    viewInfo.subresourceRange.layerCount = 1U;
+    VkImageView view {VK_NULL_HANDLE};
+    if (vkCreateImageView(device_, &viewInfo, nullptr, &view) != VK_SUCCESS) {
+        vkFreeMemory(device_, memory, nullptr);
+        vkDestroyImage(device_, image, nullptr);
+        return;
+    }
+
+    depth_image_ = image;
+    depth_image_memory_ = memory;
+    depth_image_view_ = view;
+    set_object_name(VK_OBJECT_TYPE_IMAGE, reinterpret_cast<std::uint64_t>(depth_image_), "DepthImage");
+    set_object_name(VK_OBJECT_TYPE_IMAGE_VIEW, reinterpret_cast<std::uint64_t>(depth_image_view_), "DepthImageView");
+}
+
+void VulkanContext::destroy_depth_resources() noexcept {
+    if (device_ == VK_NULL_HANDLE) {
+        return;
+    }
+    if (depth_image_view_ != VK_NULL_HANDLE) {
+        vkDestroyImageView(device_, depth_image_view_, nullptr);
+        depth_image_view_ = VK_NULL_HANDLE;
+    }
+    if (depth_image_ != VK_NULL_HANDLE) {
+        vkDestroyImage(device_, depth_image_, nullptr);
+        depth_image_ = VK_NULL_HANDLE;
+    }
+    if (depth_image_memory_ != VK_NULL_HANDLE) {
+        vkFreeMemory(device_, depth_image_memory_, nullptr);
+        depth_image_memory_ = VK_NULL_HANDLE;
+    }
+}
+
 namespace {
     [[nodiscard]] bool file_exists(const std::string& path) noexcept {
         std::ifstream f(path.c_str(), std::ios::binary);
@@ -800,18 +933,20 @@ namespace {
         const char* env {std::getenv("VK_SHADER_DIR")};
         if (env != nullptr && std::strlen(env) > 0U) {
             const std::string dir {env};
-            if (file_exists(dir + "/triangle.vert.spv") && file_exists(dir + "/triangle.frag.spv")) {
+            if ((file_exists(dir + "/mesh.vert.spv") && file_exists(dir + "/mesh.frag.spv")) ||
+                (file_exists(dir + "/triangle.vert.spv") && file_exists(dir + "/triangle.frag.spv"))) {
                 return dir;
             }
         }
         // Prefer bin/shaders alongside binary when run from repo root
-        if (file_exists("./bin/shaders/triangle.vert.spv") && file_exists("./bin/shaders/triangle.frag.spv")) {
+        if (file_exists("./bin/shaders/mesh.vert.spv") && file_exists("./bin/shaders/mesh.frag.spv")) {
             return std::string {"./bin/shaders"};
         }
         // Fallback to source shaders dir (in case of precompiled assets placed there)
-        if (file_exists("./shaders/triangle.vert.spv") && file_exists("./shaders/triangle.frag.spv")) {
+        if (file_exists("./shaders/mesh.vert.spv") && file_exists("./shaders/mesh.frag.spv")) {
             return std::string {"./shaders"};
         }
+        // Last resort: old triangle shaders
         return std::string {"./shaders"};
     }
 
@@ -859,8 +994,9 @@ void VulkanContext::create_graphics_pipeline() noexcept {
         return;
     }
     const std::string dir {shader_dir_guess()};
-    const std::vector<char> vertCode {read_file_binary(dir + "/triangle.vert.spv")};
-    const std::vector<char> fragCode {read_file_binary(dir + "/triangle.frag.spv")};
+    // Use new mesh shaders with pos3/normal3/uv2
+    const std::vector<char> vertCode {read_file_binary(dir + "/mesh.vert.spv")};
+    const std::vector<char> fragCode {read_file_binary(dir + "/mesh.frag.spv")};
     if (vertCode.empty() || fragCode.empty()) {
         return;
     }
@@ -891,18 +1027,17 @@ void VulkanContext::create_graphics_pipeline() noexcept {
     binding.stride = sizeof(Vertex);
     binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-    VkVertexInputAttributeDescription attrib {};
-    attrib.location = 0U;
-    attrib.binding = 0U;
-    attrib.format = VK_FORMAT_R32G32_SFLOAT;
-    attrib.offset = 0U;
+    VkVertexInputAttributeDescription attribs[3] {};
+    attribs[0].location = 0U; attribs[0].binding = 0U; attribs[0].format = VK_FORMAT_R32G32B32_SFLOAT; attribs[0].offset = 0U;
+    attribs[1].location = 1U; attribs[1].binding = 0U; attribs[1].format = VK_FORMAT_R32G32B32_SFLOAT; attribs[1].offset = static_cast<std::uint32_t>(offsetof(Vertex, normal));
+    attribs[2].location = 2U; attribs[2].binding = 0U; attribs[2].format = VK_FORMAT_R32G32_SFLOAT;      attribs[2].offset = static_cast<std::uint32_t>(offsetof(Vertex, uv));
 
     VkPipelineVertexInputStateCreateInfo vertexInput {};
     vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     vertexInput.vertexBindingDescriptionCount = 1U;
     vertexInput.pVertexBindingDescriptions = &binding;
-    vertexInput.vertexAttributeDescriptionCount = 1U;
-    vertexInput.pVertexAttributeDescriptions = &attrib;
+    vertexInput.vertexAttributeDescriptionCount = 3U;
+    vertexInput.pVertexAttributeDescriptions = attribs;
 
     VkPipelineInputAssemblyStateCreateInfo inputAssembly {};
     inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -956,6 +1091,14 @@ void VulkanContext::create_graphics_pipeline() noexcept {
     colorBlend.attachmentCount = 1U;
     colorBlend.pAttachments = &colorBlendAttach;
 
+    VkPipelineDepthStencilStateCreateInfo depthStencil {};
+    depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depthStencil.depthTestEnable = VK_TRUE;
+    depthStencil.depthWriteEnable = VK_TRUE;
+    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+    depthStencil.depthBoundsTestEnable = VK_FALSE;
+    depthStencil.stencilTestEnable = VK_FALSE;
+
     VkGraphicsPipelineCreateInfo info {};
     info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     info.stageCount = 2U;
@@ -965,7 +1108,7 @@ void VulkanContext::create_graphics_pipeline() noexcept {
     info.pViewportState = &viewportState;
     info.pRasterizationState = &raster;
     info.pMultisampleState = &msaa;
-    info.pDepthStencilState = nullptr;
+    info.pDepthStencilState = &depthStencil;
     info.pColorBlendState = &colorBlend;
     info.pDynamicState = nullptr;
     info.layout = pipeline_layout_;
@@ -999,7 +1142,7 @@ void VulkanContext::create_vertex_buffer() noexcept {
     if (device_ == VK_NULL_HANDLE || physical_device_ == VK_NULL_HANDLE) {
         return;
     }
-    const VkDeviceSize bufferSize {static_cast<VkDeviceSize>(kTriangleVertices.size() * sizeof(kTriangleVertices[0]))};
+    const VkDeviceSize bufferSize {static_cast<VkDeviceSize>(kMeshVertices.size() * sizeof(kMeshVertices[0]))};
 
     VkBufferCreateInfo bufInfo {};
     bufInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -1033,13 +1176,13 @@ void VulkanContext::create_vertex_buffer() noexcept {
 
     void* data {nullptr};
     if (vkMapMemory(device_, memory, 0U, bufferSize, 0U, &data) == VK_SUCCESS) {
-        std::memcpy(data, kTriangleVertices.data(), static_cast<std::size_t>(bufferSize));
+        std::memcpy(data, kMeshVertices.data(), static_cast<std::size_t>(bufferSize));
         vkUnmapMemory(device_, memory);
     }
 
     vertex_buffer_ = buffer;
     vertex_buffer_memory_ = memory;
-    set_object_name(VK_OBJECT_TYPE_BUFFER, reinterpret_cast<std::uint64_t>(vertex_buffer_), "TriangleVertexBuffer");
+    set_object_name(VK_OBJECT_TYPE_BUFFER, reinterpret_cast<std::uint64_t>(vertex_buffer_), "MeshVertexBuffer");
 }
 
 void VulkanContext::create_command_pool_and_buffers() noexcept {
@@ -1214,11 +1357,13 @@ bool VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
         return false;
     }
 
-    VkClearValue clear {};
-    clear.color.float32[0] = kClearColorBlack[0];
-    clear.color.float32[1] = kClearColorBlack[1];
-    clear.color.float32[2] = kClearColorBlack[2];
-    clear.color.float32[3] = kClearColorBlack[3];
+    VkClearValue clears[2] {};
+    clears[0].color.float32[0] = kClearColorBlack[0];
+    clears[0].color.float32[1] = kClearColorBlack[1];
+    clears[0].color.float32[2] = kClearColorBlack[2];
+    clears[0].color.float32[3] = kClearColorBlack[3];
+    clears[1].depthStencil.depth = 1.0F;
+    clears[1].depthStencil.stencil = 0U;
 
     VkRenderPassBeginInfo rpInfo {};
     rpInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -1226,8 +1371,8 @@ bool VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
     rpInfo.framebuffer = framebuffers_[imageIndex];
     rpInfo.renderArea.offset = {0, 0};
     rpInfo.renderArea.extent = swapchain_extent_;
-    rpInfo.clearValueCount = 1U;
-    rpInfo.pClearValues = &clear;
+    rpInfo.clearValueCount = 2U;
+    rpInfo.pClearValues = clears;
     vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
     begin_label(cmd, "Frame");
 
@@ -1240,7 +1385,7 @@ bool VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
     begin_label(cmd, "Triangle");
     vkCmdPushConstants(cmd, pipeline_layout_, VK_SHADER_STAGE_FRAGMENT_BIT, 0U, sizeof(float) * 4U, kTriangleColorWhite.data());
 
-    vkCmdDraw(cmd, static_cast<std::uint32_t>(kTriangleVertices.size()), 1U, 0U, 0U);
+    vkCmdDraw(cmd, static_cast<std::uint32_t>(kMeshVertices.size()), 1U, 0U, 0U);
     end_label(cmd);
 
     // Ensure ImGui draw data is ready and render overlay
@@ -1341,6 +1486,7 @@ void VulkanContext::recreate_swapchain(GLFWwindow* window) noexcept {
     // Tear down resources that depend on swapchain extent/format
     destroy_command_pool_and_buffers();
     destroy_framebuffers();
+    destroy_depth_resources();
     destroy_pipeline();
     destroy_render_pass();
     destroy_swapchain_and_views();
@@ -1348,6 +1494,7 @@ void VulkanContext::recreate_swapchain(GLFWwindow* window) noexcept {
     // Recreate
     create_swapchain_and_views(window);
     create_render_pass();
+    create_depth_resources();
     if (imgui_ready_) {
         // ImGui needs to be re-initialized with the new render pass
         const std::uint32_t minImages {static_cast<std::uint32_t>(swapchain_images_.size() > 1U ? swapchain_images_.size() : 2U)};

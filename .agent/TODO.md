@@ -1,5 +1,5 @@
 - [x] Add geometry OO layer (Primitive, Plane, Cube, Icosphere) with CPU mesh generation and unit tests
-- [ ] Add 3D vertex format (pos3, normal3, uv2) to pipeline; introduce depth buffer and render pass with depth
+- [x] Add 3D vertex format (pos3, normal3, uv2) to pipeline; introduce depth buffer and render pass with depth
 - [ ] Implement camera (orbit) with GLM; compute per-frame view/projection
 - [ ] Introduce per-primitive transform + material UBO/push constants; basic Blinn-Phong shaders; compile to bin/shaders
 - [ ] Create GPU buffers (vertex/index) with staging upload; store per-primitive buffers; draw each primitive

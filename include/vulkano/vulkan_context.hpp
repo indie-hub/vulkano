@@ -59,6 +59,8 @@ private:
     void create_swapchain_and_views(GLFWwindow* window) noexcept;
     void create_render_pass() noexcept;
     void create_framebuffers() noexcept;
+    void create_depth_resources() noexcept;
+    void destroy_depth_resources() noexcept;
     void create_pipeline_layout() noexcept;
     void create_graphics_pipeline() noexcept;
     void create_vertex_buffer() noexcept;
@@ -112,6 +114,11 @@ private:
     // Render pass and framebuffers
     VkRenderPass render_pass_ {VK_NULL_HANDLE};
     std::vector<VkFramebuffer> framebuffers_ {};
+    // Depth resources
+    VkImage depth_image_ {VK_NULL_HANDLE};
+    VkDeviceMemory depth_image_memory_ {VK_NULL_HANDLE};
+    VkImageView depth_image_view_ {VK_NULL_HANDLE};
+    VkFormat depth_format_ {VK_FORMAT_UNDEFINED};
 
     // Command pool and buffers
     VkCommandPool command_pool_ {VK_NULL_HANDLE};

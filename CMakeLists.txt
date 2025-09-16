@@ -173,6 +173,8 @@ find_program(GLSLANG_VALIDATOR_EXECUTABLE NAMES glslangValidator HINTS ENV VULKA
 set(SHADER_SOURCES
     ${CMAKE_SOURCE_DIR}/shaders/triangle.vert
     ${CMAKE_SOURCE_DIR}/shaders/triangle.frag
+    ${CMAKE_SOURCE_DIR}/shaders/mesh.vert
+    ${CMAKE_SOURCE_DIR}/shaders/mesh.frag
 )
 
 set(SHADER_OUTPUT_DIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders)
@@ -181,13 +183,20 @@ file(MAKE_DIRECTORY ${SHADER_OUTPUT_DIR})
 set(SHADER_BINS)
 foreach(SHADER ${SHADER_SOURCES})
   get_filename_component(SHADER_NAME ${SHADER} NAME)
+  get_filename_component(SHADER_EXT ${SHADER} EXT)
   set(SPV ${SHADER_OUTPUT_DIR}/${SHADER_NAME}.spv)
   list(APPEND SHADER_BINS ${SPV})
   if (GLSLC_EXECUTABLE)
+    set(SHADER_STAGE vert)
+    if (SHADER_EXT STREQUAL ".frag")
+      set(SHADER_STAGE frag)
+    elseif (SHADER_EXT STREQUAL ".vert")
+      set(SHADER_STAGE vert)
+    endif()
     add_custom_command(
       OUTPUT ${SPV}
       COMMAND ${CMAKE_COMMAND} -E make_directory ${SHADER_OUTPUT_DIR}
-      COMMAND ${GLSLC_EXECUTABLE} -fshader-stage=$<IF:$<STREQUAL:${SHADER_NAME},triangle.vert>,vert,frag> -O -o ${SPV} ${SHADER}
+      COMMAND ${GLSLC_EXECUTABLE} -fshader-stage=${SHADER_STAGE} -O -o ${SPV} ${SHADER}
       DEPENDS ${SHADER}
       COMMENT "Compiling ${SHADER_NAME} -> ${SPV} with glslc"
       VERBATIM)

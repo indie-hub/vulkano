@@ -100,16 +100,32 @@ tests/CMakeFiles/vulkano_tests.dir/stats_tests.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/vulkano_tests.dir/stats_tests.cpp.s"
 	cd /Users/bruno/Documents/Development/bruno/vulkano_codex/build/tests && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/bruno/Documents/Development/bruno/vulkano_codex/tests/stats_tests.cpp -o CMakeFiles/vulkano_tests.dir/stats_tests.cpp.s
 
+tests/CMakeFiles/vulkano_tests.dir/geometry_tests.cpp.o: tests/CMakeFiles/vulkano_tests.dir/flags.make
+tests/CMakeFiles/vulkano_tests.dir/geometry_tests.cpp.o: /Users/bruno/Documents/Development/bruno/vulkano_codex/tests/geometry_tests.cpp
+tests/CMakeFiles/vulkano_tests.dir/geometry_tests.cpp.o: tests/CMakeFiles/vulkano_tests.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object tests/CMakeFiles/vulkano_tests.dir/geometry_tests.cpp.o"
+	cd /Users/bruno/Documents/Development/bruno/vulkano_codex/build/tests && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT tests/CMakeFiles/vulkano_tests.dir/geometry_tests.cpp.o -MF CMakeFiles/vulkano_tests.dir/geometry_tests.cpp.o.d -o CMakeFiles/vulkano_tests.dir/geometry_tests.cpp.o -c /Users/bruno/Documents/Development/bruno/vulkano_codex/tests/geometry_tests.cpp
+
+tests/CMakeFiles/vulkano_tests.dir/geometry_tests.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/vulkano_tests.dir/geometry_tests.cpp.i"
+	cd /Users/bruno/Documents/Development/bruno/vulkano_codex/build/tests && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/bruno/Documents/Development/bruno/vulkano_codex/tests/geometry_tests.cpp > CMakeFiles/vulkano_tests.dir/geometry_tests.cpp.i
+
+tests/CMakeFiles/vulkano_tests.dir/geometry_tests.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/vulkano_tests.dir/geometry_tests.cpp.s"
+	cd /Users/bruno/Documents/Development/bruno/vulkano_codex/build/tests && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/bruno/Documents/Development/bruno/vulkano_codex/tests/geometry_tests.cpp -o CMakeFiles/vulkano_tests.dir/geometry_tests.cpp.s
+
 # Object files for target vulkano_tests
 vulkano_tests_OBJECTS = \
 "CMakeFiles/vulkano_tests.dir/tests_main.cpp.o" \
-"CMakeFiles/vulkano_tests.dir/stats_tests.cpp.o"
+"CMakeFiles/vulkano_tests.dir/stats_tests.cpp.o" \
+"CMakeFiles/vulkano_tests.dir/geometry_tests.cpp.o"
 
 # External object files for target vulkano_tests
 vulkano_tests_EXTERNAL_OBJECTS =
 
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests: tests/CMakeFiles/vulkano_tests.dir/tests_main.cpp.o
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests: tests/CMakeFiles/vulkano_tests.dir/stats_tests.cpp.o
+/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests: tests/CMakeFiles/vulkano_tests.dir/geometry_tests.cpp.o
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests: tests/CMakeFiles/vulkano_tests.dir/build.make
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libvulkano.a
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libCatch2Maind.a
@@ -119,7 +135,7 @@ vulkano_tests_EXTERNAL_OBJECTS =
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests: /usr/local/lib/libvulkan.dylib
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libCatch2d.a
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests: tests/CMakeFiles/vulkano_tests.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Linking CXX executable /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Linking CXX executable /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests"
 	cd /Users/bruno/Documents/Development/bruno/vulkano_codex/build/tests && $(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/vulkano_tests.dir/link.txt --verbose=$(VERBOSE)
 	cd /Users/bruno/Documents/Development/bruno/vulkano_codex/build/tests && /Applications/CMake.app/Contents/bin/cmake -D TEST_TARGET=vulkano_tests -D TEST_EXECUTABLE=/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests -D TEST_EXECUTOR= -D TEST_WORKING_DIR=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/tests -D TEST_SPEC= -D TEST_EXTRA_ARGS= -D TEST_PROPERTIES= -D TEST_PREFIX= -D TEST_SUFFIX= -D TEST_LIST=vulkano_tests_TESTS -D TEST_REPORTER= -D TEST_OUTPUT_DIR= -D TEST_OUTPUT_PREFIX= -D TEST_OUTPUT_SUFFIX= -D TEST_DL_PATHS= -D CTEST_FILE=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/tests/vulkano_tests-b12d07c_tests.cmake -P /Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/catch2-src/extras/CatchAddTests.cmake
 

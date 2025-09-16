@@ -872,6 +872,30 @@ src/app.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/vulkano.dir/build.make CMakeFiles/vulkano.dir/src/app.cpp.s
 .PHONY : src/app.cpp.s
 
+src/geometry.o: src/geometry.cpp.o
+.PHONY : src/geometry.o
+
+# target to build an object file
+src/geometry.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/vulkano.dir/build.make CMakeFiles/vulkano.dir/src/geometry.cpp.o
+.PHONY : src/geometry.cpp.o
+
+src/geometry.i: src/geometry.cpp.i
+.PHONY : src/geometry.i
+
+# target to preprocess a source file
+src/geometry.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/vulkano.dir/build.make CMakeFiles/vulkano.dir/src/geometry.cpp.i
+.PHONY : src/geometry.cpp.i
+
+src/geometry.s: src/geometry.cpp.s
+.PHONY : src/geometry.s
+
+# target to generate assembly for a file
+src/geometry.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/vulkano.dir/build.make CMakeFiles/vulkano.dir/src/geometry.cpp.s
+.PHONY : src/geometry.cpp.s
+
 src/imgui_overlay.o: src/imgui_overlay.cpp.o
 .PHONY : src/imgui_overlay.o
 
@@ -1043,6 +1067,9 @@ help:
 	@echo "... src/app.o"
 	@echo "... src/app.i"
 	@echo "... src/app.s"
+	@echo "... src/geometry.o"
+	@echo "... src/geometry.i"
+	@echo "... src/geometry.s"
 	@echo "... src/imgui_overlay.o"
 	@echo "... src/imgui_overlay.i"
 	@echo "... src/imgui_overlay.s"

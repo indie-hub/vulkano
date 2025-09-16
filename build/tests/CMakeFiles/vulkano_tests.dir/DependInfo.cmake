@@ -8,6 +8,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
+  "/Users/bruno/Documents/Development/bruno/vulkano_codex/tests/geometry_tests.cpp" "tests/CMakeFiles/vulkano_tests.dir/geometry_tests.cpp.o" "gcc" "tests/CMakeFiles/vulkano_tests.dir/geometry_tests.cpp.o.d"
   "/Users/bruno/Documents/Development/bruno/vulkano_codex/tests/stats_tests.cpp" "tests/CMakeFiles/vulkano_tests.dir/stats_tests.cpp.o" "gcc" "tests/CMakeFiles/vulkano_tests.dir/stats_tests.cpp.o.d"
   "/Users/bruno/Documents/Development/bruno/vulkano_codex/tests/tests_main.cpp" "tests/CMakeFiles/vulkano_tests.dir/tests_main.cpp.o" "gcc" "tests/CMakeFiles/vulkano_tests.dir/tests_main.cpp.o.d"
   )
