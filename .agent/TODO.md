@@ -9,11 +9,23 @@ Done so far:
 - CTest passes (sanity + FPS smoothing)
 
 Next:
-- Add more debug names/markers [DONE]
-- Expand unit tests for FPS smoothing [DONE]
-- Improve resize callback handling [DONE]
+- [COMPLETED] Add more debug names/markers
+- [COMPLETED] Expand unit tests for FPS smoothing
+- [COMPLETED] Improve resize callback handling
   - Window framebuffer callback now flags app to recreate swapchain before next frame
- - Make debug utils extension conditional on Debug [DONE]
+- [COMPLETED] Make debug utils extension conditional on Debug
+
+Status (final verification):
+- Built Debug successfully; binaries in `bin/` including SPIR-V shaders in `bin/shaders`.
+- Tests pass via CTest (`build_sanity`, `fps_smoothing`).
+- App integrates GLFW + Vulkan + GLM + ImGui.
+- Triangle renders with push-constant color (white) over black clear.
+- ImGui overlay shows FPS, frame time, device name, and swapchain extent.
+- Swapchain resize recreation works; validation layers clean in Debug.
+
+Run notes:
+- Ensure Vulkan SDK is installed and `glslc` is on PATH.
+- Launch with `bin/vulkano_app`.
 
 Notes (2025-09-16):
 - Verified clean Debug build on local machine; binaries land in bin/.
