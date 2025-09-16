@@ -96,9 +96,10 @@ vulkano_app_EXTERNAL_OBJECTS =
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_app: CMakeFiles/vulkano_app.dir/src/main.cpp.o
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_app: CMakeFiles/vulkano_app.dir/build.make
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_app: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libvulkano.a
+/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_app: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libglm.a
+/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_app: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libimgui.a
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_app: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libglfw3.a
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_app: /usr/local/lib/libvulkan.dylib
-/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_app: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libglm.a
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_app: CMakeFiles/vulkano_app.dir/link.txt
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Linking CXX executable /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_app"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/vulkano_app.dir/link.txt --verbose=$(VERBOSE)

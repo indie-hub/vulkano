@@ -98,6 +98,7 @@ add_library(vulkano STATIC
   src/app.cpp
   src/vulkan_context.cpp
   src/imgui_overlay.cpp
+  src/stats.cpp
 )
 
 target_sources(vulkano
@@ -107,6 +108,7 @@ target_sources(vulkano
     FILES
       include/vulkano/app.hpp
       include/vulkano/vulkan_context.hpp
+      include/vulkano/stats.hpp
 )
 
 target_include_directories(vulkano PUBLIC include)

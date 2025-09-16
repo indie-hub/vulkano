@@ -162,6 +162,10 @@ VkExtent2D VulkanContext::swapchain_extent() const noexcept {
     return swapchain_extent_;
 }
 
+const std::string& VulkanContext::device_name() const noexcept {
+    return device_name_cached_;
+}
+
 void VulkanContext::create_instance(GLFWwindow* window) noexcept {
     if (window == nullptr) {
         return;
@@ -371,6 +375,11 @@ void VulkanContext::pick_physical_device() noexcept {
         return;
     }
 
+    // Cache device name for UI
+    VkPhysicalDeviceProperties props {};
+    vkGetPhysicalDeviceProperties(best, &props);
+    device_name_cached_ = props.deviceName != nullptr ? std::string {props.deviceName} : std::string {};
+
     physical_device_ = best;
 }
 
@@ -444,6 +453,16 @@ void VulkanContext::create_logical_device() noexcept {
     }
     vkGetDeviceQueue(device_, graphics_family_index_, 0U, &graphics_queue_);
     vkGetDeviceQueue(device_, present_family_index_, 0U, &present_queue_);
+
+    // Load debug utils function pointers (device-level)
+    if (validation_enabled_) {
+        pfn_set_name_ = reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(vkGetDeviceProcAddr(device_, "vkSetDebugUtilsObjectNameEXT"));
+        pfn_cmd_begin_label_ = reinterpret_cast<PFN_vkCmdBeginDebugUtilsLabelEXT>(vkGetDeviceProcAddr(device_, "vkCmdBeginDebugUtilsLabelEXT"));
+        pfn_cmd_end_label_ = reinterpret_cast<PFN_vkCmdEndDebugUtilsLabelEXT>(vkGetDeviceProcAddr(device_, "vkCmdEndDebugUtilsLabelEXT"));
+    }
+    if (device_ != VK_NULL_HANDLE) {
+        set_object_name(VK_OBJECT_TYPE_DEVICE, reinterpret_cast<std::uint64_t>(device_), "LogicalDevice");
+    }
 }
 
 void VulkanContext::destroy() noexcept {
@@ -629,6 +648,7 @@ void VulkanContext::create_swapchain_and_views(GLFWwindow* window) noexcept {
         return;
     }
     swapchain_ = swapchain;
+    set_object_name(VK_OBJECT_TYPE_SWAPCHAIN_KHR, reinterpret_cast<std::uint64_t>(swapchain_), "Swapchain");
     swapchain_image_format_ = surfaceFormat.format;
     swapchain_extent_ = extent;
 
@@ -660,6 +680,7 @@ void VulkanContext::create_swapchain_and_views(GLFWwindow* window) noexcept {
         VkImageView view {VK_NULL_HANDLE};
         if (vkCreateImageView(device_, &viewInfo, nullptr, &view) == VK_SUCCESS) {
             swapchain_image_views_[i] = view;
+            set_object_name(VK_OBJECT_TYPE_IMAGE_VIEW, reinterpret_cast<std::uint64_t>(view), "SwapImageView");
         } else {
             swapchain_image_views_[i] = VK_NULL_HANDLE;
         }
@@ -731,6 +752,7 @@ void VulkanContext::create_render_pass() noexcept {
     VkRenderPass rp {VK_NULL_HANDLE};
     if (vkCreateRenderPass(device_, &renderPassInfo, nullptr, &rp) == VK_SUCCESS) {
         render_pass_ = rp;
+        set_object_name(VK_OBJECT_TYPE_RENDER_PASS, reinterpret_cast<std::uint64_t>(render_pass_), "RenderPass");
     }
 }
 
@@ -819,6 +841,7 @@ void VulkanContext::create_pipeline_layout() noexcept {
     VkPipelineLayout layout {VK_NULL_HANDLE};
     if (vkCreatePipelineLayout(device_, &info, nullptr, &layout) == VK_SUCCESS) {
         pipeline_layout_ = layout;
+        set_object_name(VK_OBJECT_TYPE_PIPELINE_LAYOUT, reinterpret_cast<std::uint64_t>(pipeline_layout_), "PipelineLayout");
     }
 }
 
@@ -941,6 +964,7 @@ void VulkanContext::create_graphics_pipeline() noexcept {
     VkPipeline pipeline {VK_NULL_HANDLE};
     if (vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1U, &info, nullptr, &pipeline) == VK_SUCCESS) {
         graphics_pipeline_ = pipeline;
+        set_object_name(VK_OBJECT_TYPE_PIPELINE, reinterpret_cast<std::uint64_t>(graphics_pipeline_), "GraphicsPipeline");
     }
 
     vkDestroyShaderModule(device_, vertModule, nullptr);
@@ -1004,6 +1028,7 @@ void VulkanContext::create_vertex_buffer() noexcept {
 
     vertex_buffer_ = buffer;
     vertex_buffer_memory_ = memory;
+    set_object_name(VK_OBJECT_TYPE_BUFFER, reinterpret_cast<std::uint64_t>(vertex_buffer_), "TriangleVertexBuffer");
 }
 
 void VulkanContext::create_command_pool_and_buffers() noexcept {
@@ -1036,6 +1061,11 @@ void VulkanContext::create_command_pool_and_buffers() noexcept {
     if (!command_buffers_.empty()) {
         if (vkAllocateCommandBuffers(device_, &allocInfo, command_buffers_.data()) != VK_SUCCESS) {
             command_buffers_.clear();
+        }
+    }
+    for (std::size_t i {0U}; i < command_buffers_.size(); ++i) {
+        if (command_buffers_[i] != VK_NULL_HANDLE) {
+            set_object_name(VK_OBJECT_TYPE_COMMAND_BUFFER, reinterpret_cast<std::uint64_t>(command_buffers_[i]), "PrimaryCmdBuffer");
         }
     }
 }
@@ -1185,6 +1215,7 @@ void VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
     rpInfo.clearValueCount = 1U;
     rpInfo.pClearValues = &clear;
     vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
+    begin_label(cmd, "Frame");
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_);
 
@@ -1193,20 +1224,25 @@ void VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
     vkCmdBindVertexBuffers(cmd, 0U, 1U, buffers, offsets);
 
     const float white[4] {1.0F, 1.0F, 1.0F, 1.0F};
+    begin_label(cmd, "Triangle");
     vkCmdPushConstants(cmd, pipeline_layout_, VK_SHADER_STAGE_FRAGMENT_BIT, 0U, sizeof(white), white);
 
     vkCmdDraw(cmd, static_cast<std::uint32_t>(kTriangleVertices.size()), 1U, 0U, 0U);
+    end_label(cmd);
 
     // Ensure ImGui draw data is ready and render overlay
     if (imgui_ready_) {
         ImGui::Render();
         if (ImGui::GetDrawData() != nullptr) {
+            begin_label(cmd, "ImGui");
             imgui_->render(cmd);
+            end_label(cmd);
         }
         imgui_frame_started_ = false;
     }
 
     vkCmdEndRenderPass(cmd);
+    end_label(cmd);
     (void)vkEndCommandBuffer(cmd);
 }
 
@@ -1322,5 +1358,35 @@ void VulkanContext::imgui_new_frame() noexcept {
 }
 
 // Reserved for future UI builder hook
+
+void VulkanContext::set_object_name(VkObjectType type, std::uint64_t handle, const char* name) const noexcept {
+    if (!validation_enabled_ || device_ == VK_NULL_HANDLE || pfn_set_name_ == nullptr || name == nullptr) {
+        return;
+    }
+    VkDebugUtilsObjectNameInfoEXT info {};
+    info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
+    info.objectType = type;
+    info.objectHandle = handle;
+    info.pObjectName = name;
+    (void)pfn_set_name_(device_, &info);
+}
+
+void VulkanContext::begin_label(VkCommandBuffer cmd, const char* name) const noexcept {
+    if (!validation_enabled_ || cmd == VK_NULL_HANDLE || pfn_cmd_begin_label_ == nullptr || name == nullptr) {
+        return;
+    }
+    VkDebugUtilsLabelEXT label {};
+    label.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT;
+    label.pLabelName = name;
+    label.color[0] = 0.2F; label.color[1] = 0.6F; label.color[2] = 0.9F; label.color[3] = 1.0F;
+    pfn_cmd_begin_label_(cmd, &label);
+}
+
+void VulkanContext::end_label(VkCommandBuffer cmd) const noexcept {
+    if (!validation_enabled_ || cmd == VK_NULL_HANDLE || pfn_cmd_end_label_ == nullptr) {
+        return;
+    }
+    pfn_cmd_end_label_(cmd);
+}
 
 } // namespace vulkano

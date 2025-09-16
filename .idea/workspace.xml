@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="BackendCodeEditorMiscSettings">
-    <option name="/Default/Environment/Hierarchy/GeneratedFilesCacheKey/Timestamp/@EntryValue" value="555" type="long" />
+    <option name="/Default/Environment/Hierarchy/GeneratedFilesCacheKey/Timestamp/@EntryValue" value="431" type="long" />
   </component>
   <component name="CMakePresetLoader">{
   &quot;useNewFormat&quot;: true
@@ -62,13 +62,28 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="ea5f2232-e0d5-4be9-833c-c06073c2468d" name="Changes" comment="New TODO">
+      <change beforePath="$PROJECT_DIR$/.idea/editor.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/editor.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/bin/vulkano_app" beforeDir="false" afterPath="$PROJECT_DIR$/bin/vulkano_app" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeCache.txt" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeCache.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/Makefile.cmake" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/Makefile.cmake" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/Makefile2" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/Makefile2" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/TargetDirectories.txt" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/TargetDirectories.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/progress.marks" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/progress.marks" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/vulkano.dir/DependInfo.cmake" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/vulkano.dir/DependInfo.cmake" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/vulkano.dir/build.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/vulkano.dir/build.make" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/vulkano.dir/cmake_clean.cmake" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/vulkano.dir/cmake_clean.cmake" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build/CMakeFiles/vulkano.dir/compiler_depend.internal" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/vulkano.dir/compiler_depend.internal" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/build/CMakeFiles/vulkano.dir/compiler_depend.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/vulkano.dir/compiler_depend.make" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/include/vulkano/vulkan_context.hpp" beforeDir="false" afterPath="$PROJECT_DIR$/include/vulkano/vulkan_context.hpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/app.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/vulkan_context.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/vulkan_context.cpp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/vulkano.dir/flags.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/vulkano.dir/flags.make" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/vulkano.dir/link.txt" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/vulkano.dir/link.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/vulkano.dir/progress.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/vulkano.dir/progress.make" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/vulkano_app.dir/build.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/vulkano_app.dir/build.make" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/vulkano_app.dir/flags.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/vulkano_app.dir/flags.make" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/vulkano_app.dir/link.txt" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/vulkano_app.dir/link.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/vulkano_app.dir/progress.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/vulkano_app.dir/progress.make" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/Makefile" beforeDir="false" afterPath="$PROJECT_DIR$/build/Makefile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/_deps/glfw-build/src/CMakeFiles/update_mappings.dir/progress.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/glfw-build/src/CMakeFiles/update_mappings.dir/progress.make" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -87,6 +102,16 @@
     </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
     <option name="RESET_MODE" value="HARD" />
+  </component>
+  <component name="HighlightingSettingsPerFile">
+    <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/app.hpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/app.hpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/vulkan_context.hpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/vulkan_context.hpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp" root0="SKIP_HIGHLIGHTING" />
   </component>
   <component name="ProjectColorInfo"><![CDATA[{
   "customColor": "",
@@ -141,7 +166,7 @@
       <updated>1757930371230</updated>
       <workItem from="1757930372426" duration="26134000" />
       <workItem from="1758017569975" duration="12202000" />
-      <workItem from="1758032482488" duration="1661000" />
+      <workItem from="1758032482488" duration="2616000" />
     </task>
     <task id="LOCAL-00001" summary="New TODO">
       <option name="closed" value="true" />

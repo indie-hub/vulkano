@@ -81,6 +81,7 @@ set(CMAKE_MAKEFILE_OUTPUTS
 set(CMAKE_MAKEFILE_PRODUCTS
   "_deps/glfw-subbuild/CMakeLists.txt"
   "_deps/glm-subbuild/CMakeLists.txt"
+  "_deps/imgui-subbuild/CMakeLists.txt"
   "DartConfiguration.tcl"
   "CMakeFiles/CMakeDirectoryInformation.cmake"
   "_deps/glfw-build/src/glfw3Config.cmake"
@@ -95,6 +96,7 @@ set(CMAKE_MAKEFILE_PRODUCTS
 
 # Dependency information for all targets:
 set(CMAKE_DEPEND_INFO_FILES
+  "CMakeFiles/imgui.dir/DependInfo.cmake"
   "CMakeFiles/vulkano.dir/DependInfo.cmake"
   "CMakeFiles/vulkano_app.dir/DependInfo.cmake"
   "CMakeFiles/Experimental.dir/DependInfo.cmake"

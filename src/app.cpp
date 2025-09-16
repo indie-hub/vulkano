@@ -70,9 +70,13 @@ void App::run() noexcept {
         useAutoClose ? std::chrono::milliseconds {std::strtol(envAutoClose, nullptr, 10)} : std::chrono::milliseconds {0}
     };
     const auto startTime {std::chrono::steady_clock::now()};
+    stats_.reset();
+    last_frame_time_ = Stats::clock::now();
 
     while (glfwWindowShouldClose(window_) == GLFW_FALSE) {
         glfwPollEvents();
+        const auto now {Stats::clock::now()};
+        stats_.on_frame(now);
         if (vk_ != nullptr) {
             // Begin ImGui frame and build minimal overlay
             vk_->imgui_new_frame();
@@ -117,8 +121,16 @@ void App::framebuffer_size_callback(GLFWwindow* window, int width, int height) n
 
 void App::build_ui() noexcept {
     ImGui::SetNextWindowBgAlpha(0.4F);
-    ImGui::Begin("Overlay", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove);
-    ImGui::Text("ImGui initialized");
+    ImGui::Begin("Stats", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove);
+    const float fps {stats_.fps()};
+    const float ms {stats_.frame_ms()};
+    ImGui::Text("FPS: %.1f", static_cast<double>(fps));
+    ImGui::Text("Frame: %.2f ms", static_cast<double>(ms));
+    if (vk_ != nullptr) {
+        const auto extent {vk_->swapchain_extent()};
+        ImGui::Text("Device: %s", vk_->device_name().c_str());
+        ImGui::Text("Extent: %u x %u", extent.width, extent.height);
+    }
     ImGui::End();
 }
 

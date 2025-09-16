@@ -6,6 +6,7 @@
 
 // External headers (angle brackets per policy)
 #include <GLFW/glfw3.h>
+#include <vulkano/stats.hpp>
 
 namespace vulkano {
 
@@ -39,6 +40,8 @@ private:
     GLFWwindow* window_ {nullptr};
     std::unique_ptr<VulkanContext> vk_ {};
     bool framebuffer_resized_ {false};
+    Stats stats_ {};
+    Stats::clock::time_point last_frame_time_ {};
 
     static void framebuffer_size_callback(GLFWwindow* window, int width, int height) noexcept;
 

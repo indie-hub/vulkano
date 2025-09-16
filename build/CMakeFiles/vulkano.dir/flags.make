@@ -4,9 +4,9 @@
 # compile CXX with /usr/bin/c++
 CXX_DEFINES = -DGLFW_INCLUDE_VULKAN -DVULKAN_LOADER_AVAILABLE=1
 
-CXX_INCLUDES = -I/Users/bruno/Documents/Development/bruno/vulkano_codex/include -I/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glfw-src/include -I/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src
+CXX_INCLUDES = -I/Users/bruno/Documents/Development/bruno/vulkano_codex/include -I/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glfw-src/include -I/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/glm-src -I/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/imgui-src -I/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/imgui-src/backends
 
-CXX_FLAGSarm64 = -g -std=c++20 -arch arm64 -Wall -Wextra -Wpedantic -Wconversion
+CXX_FLAGSarm64 = -O3 -DNDEBUG -std=c++20 -arch arm64 -Wall -Wextra -Wpedantic -Wconversion
 
-CXX_FLAGS = -g -std=c++20 -arch arm64 -Wall -Wextra -Wpedantic -Wconversion
+CXX_FLAGS = -O3 -DNDEBUG -std=c++20 -arch arm64 -Wall -Wextra -Wpedantic -Wconversion
 

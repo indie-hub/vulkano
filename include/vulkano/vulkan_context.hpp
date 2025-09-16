@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <vector>
 #include <array>
+#include <string>
 
 #include <glm/vec2.hpp>
 
@@ -37,6 +38,7 @@ public:
     // Swapchain accessors
     [[nodiscard]] VkFormat swapchain_image_format() const noexcept;
     [[nodiscard]] VkExtent2D swapchain_extent() const noexcept;
+    [[nodiscard]] const std::string& device_name() const noexcept;
 
     // Per-frame rendering
     // Returns true if a frame was rendered and queued for present; false if skipped (e.g., out-of-date swapchain).
@@ -72,6 +74,11 @@ private:
     void destroy_command_pool_and_buffers() noexcept;
     void destroy_render_pass() noexcept;
     void destroy() noexcept;
+
+    // Debug utils helpers
+    void set_object_name(VkObjectType type, std::uint64_t handle, const char* name) const noexcept;
+    void begin_label(VkCommandBuffer cmd, const char* name) const noexcept;
+    void end_label(VkCommandBuffer cmd) const noexcept;
 
     static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(
         VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
@@ -126,6 +133,12 @@ private:
     std::unique_ptr<ImGuiOverlay> imgui_ {};
     bool imgui_ready_ {false};
     bool imgui_frame_started_ {false};
+    std::string device_name_cached_ {};
+
+    // Debug utils function pointers (device level)
+    PFN_vkSetDebugUtilsObjectNameEXT pfn_set_name_ {nullptr};
+    PFN_vkCmdBeginDebugUtilsLabelEXT pfn_cmd_begin_label_ {nullptr};
+    PFN_vkCmdEndDebugUtilsLabelEXT pfn_cmd_end_label_ {nullptr};
     // Reserved for future per-frame UI callback
 };
 
