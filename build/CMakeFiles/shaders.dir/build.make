@@ -66,25 +66,25 @@ include CMakeFiles/Shaders.dir/compiler_depend.make
 # Include the progress variables for this target.
 include CMakeFiles/Shaders.dir/progress.make
 
-CMakeFiles/Shaders: shaders/triangle.vert.spv
-CMakeFiles/Shaders: shaders/triangle.frag.spv
+CMakeFiles/Shaders: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/triangle.vert.spv
+CMakeFiles/Shaders: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/triangle.frag.spv
 
-shaders/triangle.frag.spv: /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/triangle.frag
+/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/triangle.frag.spv: /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/triangle.frag
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Compiling triangle.frag to SPIR-V"
-	/Applications/CMake.app/Contents/bin/cmake -E make_directory /Users/bruno/Documents/Development/bruno/vulkano_codex/build/shaders
-	/usr/local/bin/glslc -fshader-stage=frag /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/triangle.frag -o /Users/bruno/Documents/Development/bruno/vulkano_codex/build/shaders/triangle.frag.spv
+	/Applications/CMake.app/Contents/bin/cmake -E make_directory /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders
+	/usr/local/bin/glslc -fshader-stage=frag /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/triangle.frag -o /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/triangle.frag.spv
 
-shaders/triangle.vert.spv: /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/triangle.vert
+/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/triangle.vert.spv: /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/triangle.vert
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Compiling triangle.vert to SPIR-V"
-	/Applications/CMake.app/Contents/bin/cmake -E make_directory /Users/bruno/Documents/Development/bruno/vulkano_codex/build/shaders
-	/usr/local/bin/glslc -fshader-stage=vert /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/triangle.vert -o /Users/bruno/Documents/Development/bruno/vulkano_codex/build/shaders/triangle.vert.spv
+	/Applications/CMake.app/Contents/bin/cmake -E make_directory /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders
+	/usr/local/bin/glslc -fshader-stage=vert /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/triangle.vert -o /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/triangle.vert.spv
 
 CMakeFiles/Shaders.dir/codegen:
 .PHONY : CMakeFiles/Shaders.dir/codegen
 
+Shaders: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/triangle.frag.spv
+Shaders: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/triangle.vert.spv
 Shaders: CMakeFiles/Shaders
-Shaders: shaders/triangle.frag.spv
-Shaders: shaders/triangle.vert.spv
 Shaders: CMakeFiles/Shaders.dir/build.make
 .PHONY : Shaders
 

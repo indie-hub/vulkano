@@ -77,6 +77,23 @@ namespace {
         info.pObjectName = name;
         fn(device, &info);
     }
+
+    void cmdBeginLabel(VkDevice device, VkCommandBuffer cmd, const char* name, const float color[4]) {
+        if (!kEnableValidation) { return; }
+        auto fn = (PFN_vkCmdBeginDebugUtilsLabelEXT)vkGetDeviceProcAddr(device, "vkCmdBeginDebugUtilsLabelEXT");
+        if (!fn) { return; }
+        VkDebugUtilsLabelEXT label{ VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT };
+        label.pLabelName = name;
+        if (color) { std::copy(color, color + 4, label.color); }
+        fn(cmd, &label);
+    }
+
+    void cmdEndLabel(VkDevice device, VkCommandBuffer cmd) {
+        if (!kEnableValidation) { return; }
+        auto fn = (PFN_vkCmdEndDebugUtilsLabelEXT)vkGetDeviceProcAddr(device, "vkCmdEndDebugUtilsLabelEXT");
+        if (!fn) { return; }
+        fn(cmd);
+    }
 }
 
 VkVertexInputBindingDescription Vertex::bindingDescription() {
@@ -381,6 +398,7 @@ void VulkanApp::createSwapchain() {
     if (vkCreateSwapchainKHR(device_, &info, nullptr, &swapchain_) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create swapchain");
     }
+    setDebugName(device_, VK_OBJECT_TYPE_SWAPCHAIN_KHR, (uint64_t)swapchain_, "Swapchain");
 
     uint32_t actual_count = 0;
     vkGetSwapchainImagesKHR(device_, swapchain_, &actual_count, nullptr);
@@ -407,6 +425,9 @@ void VulkanApp::createImageViews() {
         if (vkCreateImageView(device_, &info, nullptr, &swapchain_image_views_[i]) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create image view");
         }
+        char name[64]{};
+        std::snprintf(name, sizeof(name), "SwapchainImageView %zu", i);
+        setDebugName(device_, VK_OBJECT_TYPE_IMAGE_VIEW, (uint64_t)swapchain_image_views_[i], name);
     }
 }
 
@@ -587,6 +608,9 @@ void VulkanApp::createFramebuffers() {
         if (vkCreateFramebuffer(device_, &info, nullptr, &swapchain_framebuffers_[i]) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create framebuffer");
         }
+        char name[64]{};
+        std::snprintf(name, sizeof(name), "Framebuffer %zu", i);
+        setDebugName(device_, VK_OBJECT_TYPE_FRAMEBUFFER, (uint64_t)swapchain_framebuffers_[i], name);
     }
 }
 
@@ -597,6 +621,7 @@ void VulkanApp::createCommandPool() {
     if (vkCreateCommandPool(device_, &info, nullptr, &command_pool_) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create command pool");
     }
+    setDebugName(device_, VK_OBJECT_TYPE_COMMAND_POOL, (uint64_t)command_pool_, "CommandPool");
 }
 
 void VulkanApp::createVertexBuffer() {
@@ -628,6 +653,7 @@ void VulkanApp::createVertexBuffer() {
         throw std::runtime_error("Failed to allocate vertex buffer memory");
     }
     vkBindBufferMemory(device_, vertex_buffer_, vertex_buffer_memory_, 0);
+    setDebugName(device_, VK_OBJECT_TYPE_BUFFER, (uint64_t)vertex_buffer_, "VertexBuffer");
 
     void* data = nullptr;
     vkMapMemory(device_, vertex_buffer_memory_, 0, buffer_size, 0, &data);
@@ -643,6 +669,11 @@ void VulkanApp::createCommandBuffers() {
     alloc.commandBufferCount = static_cast<uint32_t>(command_buffers_.size());
     if (vkAllocateCommandBuffers(device_, &alloc, command_buffers_.data()) != VK_SUCCESS) {
         throw std::runtime_error("Failed to allocate command buffers");
+    }
+    for (size_t i = 0; i < command_buffers_.size(); ++i) {
+        char name[64]{};
+        std::snprintf(name, sizeof(name), "Cmd %zu", i);
+        setDebugName(device_, VK_OBJECT_TYPE_COMMAND_BUFFER, (uint64_t)command_buffers_[i], name);
     }
 }
 
@@ -678,6 +709,7 @@ void VulkanApp::createDescriptorPool() {
     if (vkCreateDescriptorPool(device_, &info, nullptr, &imgui_descriptor_pool_) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create ImGui descriptor pool");
     }
+    setDebugName(device_, VK_OBJECT_TYPE_DESCRIPTOR_POOL, (uint64_t)imgui_descriptor_pool_, "ImGuiDescriptorPool");
 }
 
 void VulkanApp::recreateSwapchain() {
@@ -751,6 +783,8 @@ void VulkanApp::drawFrame(const glm::vec4& color) {
     rp.clearValueCount = 1;
     rp.pClearValues = &clear;
     vkCmdBeginRenderPass(cmd, &rp, VK_SUBPASS_CONTENTS_INLINE);
+    const float passCol[4] = {0.1f, 0.2f, 0.8f, 1.0f};
+    cmdBeginLabel(device_, cmd, "MainPass", passCol);
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_);
     VkDeviceSize offsets[] = { 0 };
@@ -761,8 +795,12 @@ void VulkanApp::drawFrame(const glm::vec4& color) {
     // Render ImGui on top
     ImGui::GetDrawData(); // ensure frame started by caller
     // The caller will have called ImGui::NewFrame/Render. Just render draw data here
+    const float uiCol[4] = {0.8f, 0.7f, 0.2f, 1.0f};
+    cmdBeginLabel(device_, cmd, "ImGui", uiCol);
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
+    cmdEndLabel(device_, cmd);
 
+    cmdEndLabel(device_, cmd);
     vkCmdEndRenderPass(cmd);
     if (vkEndCommandBuffer(cmd) != VK_SUCCESS) { throw std::runtime_error("End cmd buffer failed"); }
 

@@ -1,6 +1,6 @@
 # Hashes of file build rules.
-f25f11851b1d54560f6965e65d0e1c86 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/triangle.frag.spv
-95fcb7bfde2295e7a65ea73f178f9ef1 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/triangle.vert.spv
+c7f440526d5269eb4d8c84232dacece1 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/triangle.frag.spv
+3a2dcce676fc673bb91fb8cc4e46001d /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/triangle.vert.spv
 22ba37c52b21a25c4676cd324bd41874 CMakeFiles/Shaders
 9e0b020ddcb81236e41d8bb76aff3324 _deps/glfw-build/src/CMakeFiles/update_mappings
 2e5fc1b13b8e44662d9b2438b70adbe9 shaders/triangle.frag.spv

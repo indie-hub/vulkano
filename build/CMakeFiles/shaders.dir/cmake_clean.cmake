@@ -1,7 +1,7 @@
 file(REMOVE_RECURSE
+  "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/triangle.frag.spv"
+  "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/triangle.vert.spv"
   "CMakeFiles/Shaders"
-  "shaders/triangle.frag.spv"
-  "shaders/triangle.vert.spv"
 )
 
 # Per-language clean rules from dependency scanning.
