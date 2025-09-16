@@ -25,9 +25,11 @@ public:
 
     void* native_handle() const noexcept;
 
+    // Query the current framebuffer size in pixels (swapchain extent target)
+    void framebuffer_size(std::uint32_t& out_width, std::uint32_t& out_height) const noexcept;
+
 private:
     std::unique_ptr<WindowImpl> impl;
 };
 
 } // namespace vulkano
-

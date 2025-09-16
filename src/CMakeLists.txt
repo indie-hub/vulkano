@@ -18,6 +18,11 @@ if (Vulkan_FOUND)
     target_link_libraries(vulkano PUBLIC Vulkan::Vulkan)
     target_compile_definitions(vulkano PUBLIC VULKANO_HAS_VULKAN=1)
     target_sources(vulkano PRIVATE vulkan_context.cpp)
+    if (ENABLE_VALIDATION)
+        target_compile_definitions(vulkano PUBLIC VULKANO_ENABLE_VALIDATION=1)
+    else()
+        target_compile_definitions(vulkano PUBLIC VULKANO_ENABLE_VALIDATION=0)
+    endif()
     # ImGui files and backends
     target_sources(vulkano PRIVATE
         ${imgui_SOURCE_DIR}/imgui.cpp

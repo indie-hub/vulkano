@@ -35,17 +35,24 @@ void Application::main_loop() {
         window->poll_events();
 #if VULKANO_HAS_VULKAN
         if (!vk && enable_vulkan) {
-            vk = std::make_unique<VulkanContext>(*window);
-            imgui = std::make_unique<ImGuiLayer>(*window, *vk);
-            // Renderer callback records ImGui draw data
-            vk->set_ui_renderer([this](void* cmd) {
-                if (imgui) {
-                    imgui->render(cmd);
-                }
-            });
-            // Initialize mesh once Vulkan is ready
-            vk->set_subdivisions(ui_subdivisions);
-            last_subdivisions = ui_subdivisions;
+            try {
+                vk = std::make_unique<VulkanContext>(*window);
+                imgui = std::make_unique<ImGuiLayer>(*window, *vk);
+                // Renderer callback records ImGui draw data
+                vk->set_ui_renderer([this](void* cmd) {
+                    if (imgui) {
+                        imgui->render(cmd);
+                    }
+                });
+                // Initialize mesh once Vulkan is ready
+                vk->set_subdivisions(ui_subdivisions);
+                last_subdivisions = ui_subdivisions;
+            } catch (...) {
+                // Gracefully disable Vulkan path if initialization fails
+                enable_vulkan = false;
+                vk.reset();
+                imgui.reset();
+            }
         }
         if (vk) {
             if (imgui) {

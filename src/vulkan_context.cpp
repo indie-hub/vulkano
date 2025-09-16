@@ -126,6 +126,23 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debug_cb(VkDebugUtilsMessageSeverityFlagBi
     return VK_FALSE;
 }
 
+static bool has_layer(const char* name) {
+    uint32_t count = 0U;
+    if (vkEnumerateInstanceLayerProperties(&count, nullptr) != VK_SUCCESS) {
+        return false;
+    }
+    std::vector<VkLayerProperties> layers(count);
+    if (vkEnumerateInstanceLayerProperties(&count, layers.data()) != VK_SUCCESS) {
+        return false;
+    }
+    for (const auto& l : layers) {
+        if (std::strcmp(l.layerName, name) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static void create_instance(VkInstance* instance) {
     VkApplicationInfo app_info {};
     app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -142,9 +159,14 @@ static void create_instance(VkInstance* instance) {
     for (uint32_t i = 0; i < ext_count; ++i) {
         extensions.push_back(exts[i]);
     }
-#ifndef NDEBUG
-    // Enable debug utils when validation is enabled
-    extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+
+    bool enable_validation = false;
+#if defined(VULKANO_ENABLE_VALIDATION) && VULKANO_ENABLE_VALIDATION
+    if (has_layer("VK_LAYER_KHRONOS_validation")) {
+        enable_validation = true;
+        // Debug utils extension is needed by validation
+        extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+    }
 #endif
 
     VkInstanceCreateInfo ci {};
@@ -153,11 +175,14 @@ static void create_instance(VkInstance* instance) {
     ci.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
     ci.ppEnabledExtensionNames = extensions.data();
 
-#ifndef NDEBUG
     const char* layers[] = {"VK_LAYER_KHRONOS_validation"};
-    ci.enabledLayerCount = 1U;
-    ci.ppEnabledLayerNames = layers;
-#endif
+    if (enable_validation) {
+        ci.enabledLayerCount = 1U;
+        ci.ppEnabledLayerNames = layers;
+    } else {
+        ci.enabledLayerCount = 0U;
+        ci.ppEnabledLayerNames = nullptr;
+    }
 
     const VkResult res = vkCreateInstance(&ci, nullptr, instance);
     if (res != VK_SUCCESS) {

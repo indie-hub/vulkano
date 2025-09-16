@@ -54,6 +54,16 @@ public:
         return static_cast<void*>(handle);
     }
 
+    void framebuffer_size(std::uint32_t& out_width, std::uint32_t& out_height) const noexcept {
+        int w = 0;
+        int h = 0;
+        glfwGetFramebufferSize(handle, &w, &h);
+        if (w < 0) { w = 0; }
+        if (h < 0) { h = 0; }
+        out_width = static_cast<std::uint32_t>(w);
+        out_height = static_cast<std::uint32_t>(h);
+    }
+
 private:
     GLFWwindow* handle;
 };
@@ -83,5 +93,8 @@ void* Window::native_handle() const noexcept {
     return impl->native_handle();
 }
 
-} // namespace vulkano
+void Window::framebuffer_size(std::uint32_t& out_width, std::uint32_t& out_height) const noexcept {
+    impl->framebuffer_size(out_width, out_height);
+}
 
+} // namespace vulkano

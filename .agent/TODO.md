@@ -1,7 +1,7 @@
 # Vulkano Codex – TODO
 
 Status: Forward Phong + normal mapping running; depth enabled; ImGui controls wired – DONE
-Update: SSAO controls added and AO hook in forward shader. G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and a simple isotropic blur pass are integrated. Robust swapchain‑recreation paths remain.
+Update: SSAO controls added and AO hook in forward shader. G-buffer prepass (normals+depth to RGBA16F), SSAO fullscreen pass (AO to R8), and a simple isotropic blur pass are integrated. Robust swapchain‑recreation paths remain. Validation layer enablement is now conditional on availability; app gracefully falls back if Vulkan init fails.
 Verification: Built Debug locally, tests pass, headless run OK.
 
 ## High-level Plan
@@ -41,6 +41,7 @@ Verification: Built Debug locally, tests pass, headless run OK.
 - [x] Blur: single-pass isotropic blur into AO_blur (reduces noise)
 - [x] Integrate: forward shading samples AO_blur (already wired)
 - [ ] Resize-safe swapchain recreation for multi-pass images
+- [x] Fix: terminating due to uncaught exception of type std::runtime_error: Failed to create Vulkan instance (conditional validation, graceful fallback)
 
 ## Session Summary (current)
 - Built Debug successfully on macOS; headless run OK (`HEADLESS_RUN_MS=500`).
