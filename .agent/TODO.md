@@ -14,7 +14,8 @@
  - [x] Compile/load shaders (push constant color)
  - [x] Create graphics pipeline and layout
  - [x] Record draw commands for triangle
- - [x] Handle resize and swapchain recreation
+- [x] Handle resize and swapchain recreation
+- [x] Fix ImGui re-init on swapchain recreation
  - [x] Integrate ImGui (GLFW+Vulkan backends)
  - [x] Show FPS, frame time, device name, extent
  - [x] Implement smoothed delta time

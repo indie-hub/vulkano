@@ -345,6 +345,11 @@ struct App::Impl {
         // Recreate dependent resources
         destroyPipeline();
         createTriangleResources();
+        // Reinitialize ImGui Vulkan backend to bind new render pass
+        if (imguiInitialized) {
+            ImGui_ImplVulkan_Shutdown();
+            initImGuiVulkanBackend();
+        }
     }
 
     void createRenderPass() {
@@ -762,7 +767,8 @@ struct App::Impl {
         raster.depthClampEnable = VK_FALSE;
         raster.rasterizerDiscardEnable = VK_FALSE;
         raster.polygonMode = VK_POLYGON_MODE_FILL;
-        raster.cullMode = VK_CULL_MODE_BACK_BIT;
+        // Disable culling to avoid winding-order surprises across platforms
+        raster.cullMode = VK_CULL_MODE_NONE;
         raster.frontFace = VK_FRONT_FACE_CLOCKWISE;
         raster.depthBiasEnable = VK_FALSE;
         raster.lineWidth = 1.0F;
@@ -860,37 +866,7 @@ struct App::Impl {
         std::memcpy(vinfo.pMappedData, vertices.data(), sizeof(vertices));
     }
 
-    void initImGui() {
-        // Descriptor pool for ImGui
-        VkDescriptorPoolSize poolSizes[] = {
-            {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
-            {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
-            {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
-            {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
-            {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
-            {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
-            {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
-            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
-            {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
-            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
-            {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
-        VkDescriptorPoolCreateInfo poolInfo {};
-        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-        poolInfo.maxSets = 1000 * static_cast<uint32_t>(std::size(poolSizes));
-        poolInfo.poolSizeCount = static_cast<uint32_t>(std::size(poolSizes));
-        poolInfo.pPoolSizes = poolSizes;
-        if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &imguiDescriptorPool) != VK_SUCCESS) {
-            throw std::runtime_error {"Failed to create ImGui descriptor pool"};
-        }
-
-        IMGUI_CHECKVERSION();
-        ImGui::CreateContext();
-        ImGuiIO& io = ImGui::GetIO();
-        (void)io;
-        ImGui::StyleColorsDark();
-        ImGui_ImplGlfw_InitForVulkan(window, true);
-
+    void initImGuiVulkanBackend() {
         ImGui_ImplVulkan_InitInfo initInfo {};
         initInfo.Instance = instance;
         initInfo.PhysicalDevice = physicalDevice;
@@ -931,6 +907,39 @@ struct App::Impl {
         ImGui_ImplVulkan_DestroyFontsTexture();
 
         imguiInitialized = true;
+    }
+
+    void initImGui() {
+        // Descriptor pool for ImGui
+        VkDescriptorPoolSize poolSizes[] = {
+            {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
+            {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
+            {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
+            {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
+            {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
+            {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
+            {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
+            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
+            {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
+            {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
+            {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
+        VkDescriptorPoolCreateInfo poolInfo {};
+        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+        poolInfo.maxSets = 1000 * static_cast<uint32_t>(std::size(poolSizes));
+        poolInfo.poolSizeCount = static_cast<uint32_t>(std::size(poolSizes));
+        poolInfo.pPoolSizes = poolSizes;
+        if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &imguiDescriptorPool) != VK_SUCCESS) {
+            throw std::runtime_error {"Failed to create ImGui descriptor pool"};
+        }
+
+        IMGUI_CHECKVERSION();
+        ImGui::CreateContext();
+        ImGuiIO& io = ImGui::GetIO();
+        (void)io;
+        ImGui::StyleColorsDark();
+        ImGui_ImplGlfw_InitForVulkan(window, true);
+        initImGuiVulkanBackend();
     }
 };
 
