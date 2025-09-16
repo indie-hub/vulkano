@@ -7,3 +7,5 @@
 - [x] Add orbit camera with GLM and wire per-frame UBO.
 - [x] Package runtime to bin/dist and run smoke tests.
 - [ ] Manual visual QA: run bin/vulkano_app and verify rendering and UI interactions on macOS.
+- [ ] Run with validation layers enabled; confirm no warnings/errors in console.
+- [ ] Update README with macOS notes (MoltenVK install hint, run instructions).
