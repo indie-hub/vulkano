@@ -1,0 +1,4 @@
+TODO
+- Build project
+- Run app and verify triangle + ImGui
+- Polish and push

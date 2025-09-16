@@ -11,6 +11,7 @@ Short-term plan:
 - Handle resize by recreating swapchain dependents.
 - Add a small unit test (FPS smoothing utility).
 - Add `tools/` scripts and `README` build/run instructions.
+- Break app.cpp in smaller files.
 
 Notes:
 - macOS requires MoltenVK and portability enumeration; request extensions accordingly.
