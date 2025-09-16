@@ -105,6 +105,13 @@ namespace {
     [[nodiscard]] PFN_DestroyDebugUtilsMessengerEXT load_destroy_debug(VkInstance instance) noexcept {
         return reinterpret_cast<PFN_DestroyDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT"));
     }
+
+    // Push constants layout used by both VS/FS (matches shaders)
+    struct PushConstants final {
+        glm::mat4 model;
+        glm::vec3 baseColor;
+        float shininess;
+    };
 }
 
 VulkanContext::VulkanContext(GLFWwindow* window) noexcept {
@@ -1037,8 +1044,8 @@ void VulkanContext::create_pipeline_layout() noexcept {
     VkPushConstantRange range {};
     range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     range.offset = 0U;
-    // model(64) + baseColor(12) + shininess(4) = 80 bytes
-    range.size = 80U;
+    // Keep size consistent with struct PushConstants
+    range.size = static_cast<std::uint32_t>(sizeof(PushConstants));
 
     VkPipelineLayoutCreateInfo info {};
     info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -1934,7 +1941,7 @@ bool VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
             vkCmdBindIndexBuffer(cmd, index_buffer_, 0U, VK_INDEX_TYPE_UINT32);
         }
 
-        struct PushConstants { glm::mat4 model; glm::vec3 baseColor; float shininess; } pc;
+        PushConstants pc {};
         for (const auto& dr : draw_ranges_) {
             if (dr.prim == nullptr) { continue; }
             const Transform& tr = dr.prim->transform();
@@ -1949,6 +1956,7 @@ bool VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
             pc.model = model;
             pc.baseColor = mat.baseColor;
             pc.shininess = mat.shininess;
+            begin_label(cmd, dr.prim->type_name());
             vkCmdPushConstants(cmd, pipeline_layout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0U, sizeof(PushConstants), &pc);
             if (index_buffer_ != VK_NULL_HANDLE) {
                 vkCmdDrawIndexed(cmd, dr.indexCount, 1U, dr.firstIndex, 0, 0);
@@ -1956,13 +1964,14 @@ bool VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
                 // Fallback to non-indexed draw if indices unavailable
                 vkCmdDraw(cmd, dr.indexCount, 1U, dr.firstVertex, 0U);
             }
+            end_label(cmd);
         }
     } else if (vertex_buffer_ != VK_NULL_HANDLE) {
         // Fallback single triangle vertex buffer
         const VkBuffer buffers[1] {vertex_buffer_};
         const VkDeviceSize offsets[1] {0U};
         vkCmdBindVertexBuffers(cmd, 0U, 1U, buffers, offsets);
-        struct PushConstants { glm::mat4 model; glm::vec3 baseColor; float shininess; } pc;
+        PushConstants pc {};
         pc.model = glm::mat4(1.0F);
         pc.baseColor = glm::vec3(kTriangleColorWhite[0], kTriangleColorWhite[1], kTriangleColorWhite[2]);
         pc.shininess = 32.0F;

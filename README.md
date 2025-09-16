@@ -1,6 +1,6 @@
 # Vulkano Codex — Vulkan + GLFW + ImGui (C++20)
 
-Small, production‑grade sample that opens a GLFW window and renders a single white triangle on a black background using Vulkan. It overlays runtime stats via Dear ImGui: FPS, frame time (ms), Vulkan device name, and swapchain extent. Built with C++20, CMake, and adheres to SOLID/Clean Code guidelines.
+Small, production‑grade sample that opens a GLFW window and renders a lit scene using Vulkan + GLFW + Dear ImGui. The scene contains a ground plane, a cube, and an icosphere with depth testing and per‑pixel Blinn‑Phong shading (ambient + diffuse + specular). It overlays runtime stats via Dear ImGui: FPS, frame time (ms), Vulkan device name, and swapchain extent. Built with C++20, CMake, and adheres to SOLID/Clean Code guidelines.
 
 This project targets desktop platforms and works on macOS via MoltenVK (Vulkan Portability). Validation layers are enabled in Debug builds and VK_EXT_debug_utils markers/names are applied.
 
@@ -22,7 +22,7 @@ Commands:
 
 Artifacts are placed in `bin/`:
 - `bin/vulkano_app`
-- `bin/shaders/triangle.vert.spv`, `bin/shaders/triangle.frag.spv`
+- `bin/shaders/mesh.vert.spv`, `bin/shaders/mesh.frag.spv` (and legacy triangle shaders)
 - `bin/imgui.ini` (created at first run)
 
 ## Run
@@ -33,6 +33,12 @@ From repo root:
 Environment options:
 - `VK_APP_AUTOCLOSE_MS=800` — auto‑close window after N milliseconds (handy for CI/smoke tests)
 - `VK_SHADER_DIR=./bin/shaders` — override shader directory discovery
+
+Controls (ImGui):
+- Stats: FPS, frame time, device name, swapchain extent
+- Light: position (XYZ), intensity
+- Per primitive (Plane, Cube, Icosphere): position, rotation (radians), scale, base color, shininess
+- Icosphere: optional subdivisions slider (rebuilds CPU mesh + re‑uploads GPU buffers)
 
 ## macOS Notes (MoltenVK)
 
@@ -45,11 +51,12 @@ Tips:
 ## Features
 - C++20, RAII, no magic numbers in logic (named constants/config)
 - Vulkan instance/device/swapchain/render‑pass/framebuffers/cmd buffers/sync
-- Vertex buffer with 3 GLM vertices (NDC)
-- Pipeline with push‑constant color (fragment shader is not hardcoded)
+- One graphics pipeline with depth testing; vertex format: position/normal/uv
+- Blinn‑Phong shading (ambient/diffuse/specular) with per‑primitive material via push constants; global camera/light via UBO
+- Depth‑correct rendering of plane, cube, icosphere; CPU geometry uploaded once using staging buffers
 - Resize handling with full swapchain recreation
 - ImGui overlay (imgui_impl_glfw + imgui_impl_vulkan)
-- Validation layers in Debug; debug utils names + labels
+- Validation layers in Debug; VK_EXT_debug_utils names + markers
 
 ## Tests
 
