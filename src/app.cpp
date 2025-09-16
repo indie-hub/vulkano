@@ -746,7 +746,8 @@ struct App::Impl {
         initInfo.ImageCount = static_cast<uint32_t>(swapchainImages.size());
         initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
         initInfo.CheckVkResultFn = nullptr;
-        ImGui_ImplVulkan_Init(&initInfo, renderPass);
+        initInfo.RenderPass = renderPass;
+        ImGui_ImplVulkan_Init(&initInfo);
 
         VkCommandBufferAllocateInfo allocInfo {};
         allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -760,7 +761,7 @@ struct App::Impl {
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
         vkBeginCommandBuffer(fontCmd, &beginInfo);
-        ImGui_ImplVulkan_CreateFontsTexture(fontCmd);
+        ImGui_ImplVulkan_CreateFontsTexture();
         vkEndCommandBuffer(fontCmd);
 
         VkSubmitInfo submitInfo {};
@@ -769,7 +770,7 @@ struct App::Impl {
         submitInfo.pCommandBuffers = &fontCmd;
         vkQueueSubmit(graphicsQueue, 1U, &submitInfo, VK_NULL_HANDLE);
         vkQueueWaitIdle(graphicsQueue);
-        ImGui_ImplVulkan_DestroyFontUploadObjects();
+        ImGui_ImplVulkan_DestroyFontsTexture();
 
         imguiInitialized = true;
     }
