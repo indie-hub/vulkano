@@ -1,4 +1,4 @@
-- [x] Build + compile shaders + run unit and E2E tests; package to `bin/dist`
+- [x] Build + compile shaders + run unit and E2E tests; package to bin/dist
 - [ ] Manual visual QA on macOS: verify plane/cube/icosphere depth, Blinn-Phong shading, UI controls, resizing, and no validation errors
-- [ ] CI: add macOS workflow to build, compile shaders, run tests; archive `bin/dist`
+- [x] CI: add macOS workflow to build, compile shaders, run tests; archive bin/dist
 - [ ] Polish: re-audit debug utils names/markers and include hygiene; address any minor tidy/format issues
