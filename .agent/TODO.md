@@ -1,5 +1,5 @@
- - [ ] Initialize CMake project skeleton
- - [ ] Add formatting and tidy configs
+ - [x] Initialize CMake project skeleton
+ - [x] Add formatting and tidy configs
  - [ ] Add third-party dependencies via FetchContent
  - [ ] Implement core Vulkan app scaffolding
  - [ ] Create window with GLFW
