@@ -32,9 +32,7 @@
     </configurations>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="ea5f2232-e0d5-4be9-833c-c06073c2468d" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/bin/vulkano_app" beforeDir="false" afterPath="$PROJECT_DIR$/bin/vulkano_app" afterDir="false" />
-    </list>
+    <list default="true" id="ea5f2232-e0d5-4be9-833c-c06073c2468d" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -194,7 +192,7 @@
       <option name="presentableId" value="Default" />
       <updated>1757930371230</updated>
       <workItem from="1757930372426" duration="26134000" />
-      <workItem from="1758017569975" duration="3493000" />
+      <workItem from="1758017569975" duration="4335000" />
     </task>
     <servers />
   </component>
