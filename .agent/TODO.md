@@ -1,5 +1,5 @@
 - [x] Create TODO with steps
-- [ ] Configure + build (bin/ + shaders)
+- [x] Configure + build (bin/ + shaders)
 - [ ] Run unit + E2E tests
 - [ ] Manual run validation (auto-close)
 - [ ] Review and tidy (clang-format/tidy)
