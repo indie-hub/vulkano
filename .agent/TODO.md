@@ -3,3 +3,6 @@
 - [ ] Exercise window resize to confirm swapchain recreation without validation errors.
 - [x] Package runtime to bin/dist and validate shaders present alongside binary.
 - [ ] Optional: add a lightweight unit test for shader path discovery fallback.
+- [x] Add a baseline .clang-tidy configuration aligned with Clean Code checks.
+- [ ] Run clang-tidy locally and address any actionable findings.
+- [ ] Add a GitHub Actions workflow to build, run shader compilation, and execute smoke tests on macOS.
