@@ -48,7 +48,8 @@ Verification: Built Debug locally, tests pass, headless run OK.
 - Built Debug successfully on macOS; headless run OK (`HEADLESS_RUN_MS=500`).
 - All unit tests pass (`ctest` Debug).
 - Implemented AO blur pass (single-pass isotropic) and forward wiring; shaders compiled and included.
-- Attempted push; skipped due to missing `GITHUB_TOKEN` in environment. Local commits are on `personal/codex/second_try`.
+- Verified fresh configure + build today; ran tests and a short headless app run.
+- Attempted push; skipped due to missing `GITHUB_TOKEN` in environment. Local commits are on `feature/swapchain-recreation`.
  - Current: Verified build + tests in this session; ready to push if token present.
 
 ### 2025-09-15 Additional Notes
