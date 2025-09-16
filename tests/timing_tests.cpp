@@ -61,5 +61,10 @@ TEST_CASE("AppConfig has sensible defaults") {
     REQUIRE(cfg.initialWidth > 0);
     REQUIRE(cfg.initialHeight > 0);
     REQUIRE(cfg.windowTitle.size() > 0);
+    // Validation layers enabled only in Debug builds
+#ifdef VULKANO_CODEX_DEBUG
+    REQUIRE(cfg.enableValidation == true);
+#else
     REQUIRE(cfg.enableValidation == false);
+#endif
 }

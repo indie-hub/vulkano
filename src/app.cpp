@@ -7,6 +7,7 @@
 #include <imgui.h>
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_vulkan.h>
+#include <glm/glm.hpp>
 #ifdef VULKANO_CODEX_USE_SHADERC
 #include <shaderc/shaderc.hpp>
 #endif
@@ -87,6 +88,10 @@ struct App::Impl {
     // ImGui
     VkDescriptorPool imguiDescriptorPool {VK_NULL_HANDLE};
     bool imguiInitialized {false};
+
+    // Debug utils labels
+    PFN_vkCmdBeginDebugUtilsLabelEXT pfnCmdBeginLabel {nullptr};
+    PFN_vkCmdEndDebugUtilsLabelEXT pfnCmdEndLabel {nullptr};
 
     // Timing for FPS/frame time
     std::chrono::steady_clock::time_point lastFrameTime {std::chrono::steady_clock::now()};
@@ -174,6 +179,10 @@ struct App::Impl {
         setDebugName(device, VK_OBJECT_TYPE_DEVICE, reinterpret_cast<uint64_t>(device), "LogicalDevice");
         setDebugName(device, VK_OBJECT_TYPE_QUEUE, reinterpret_cast<uint64_t>(graphicsQueue), "GraphicsQueue");
         setDebugName(device, VK_OBJECT_TYPE_QUEUE, reinterpret_cast<uint64_t>(presentQueue), "PresentQueue");
+
+        // Resolve debug label functions (optional)
+        pfnCmdBeginLabel = reinterpret_cast<PFN_vkCmdBeginDebugUtilsLabelEXT>(vkGetDeviceProcAddr(device, "vkCmdBeginDebugUtilsLabelEXT"));
+        pfnCmdEndLabel = reinterpret_cast<PFN_vkCmdEndDebugUtilsLabelEXT>(vkGetDeviceProcAddr(device, "vkCmdEndDebugUtilsLabelEXT"));
     }
 
     void init() {
@@ -453,6 +462,8 @@ struct App::Impl {
             throw std::runtime_error {"Failed to begin command buffer"};
         }
 
+        beginLabel(cb, "Frame");
+
         // Build ImGui frame
         if (imguiInitialized) {
             ImGui_ImplVulkan_NewFrame();
@@ -475,19 +486,25 @@ struct App::Impl {
         vkCmdBeginRenderPass(cb, &rpBegin, VK_SUBPASS_CONTENTS_INLINE);
 
         if (pipeline != VK_NULL_HANDLE && vertexBuffer != VK_NULL_HANDLE) {
+            beginLabel(cb, "Triangle");
             vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
             VkDeviceSize offsets[] {0U};
             vkCmdBindVertexBuffers(cb, 0U, 1U, &vertexBuffer, offsets);
             const float white[4] {1.0F, 1.0F, 1.0F, 1.0F};
             vkCmdPushConstants(cb, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0U, sizeof(white), white);
             vkCmdDraw(cb, 3U, 1U, 0U, 0U);
+            endLabel(cb);
         }
 
         if (imguiInitialized) {
+            beginLabel(cb, "ImGui");
             ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cb);
+            endLabel(cb);
         }
 
         vkCmdEndRenderPass(cb);
+
+        endLabel(cb);
 
         if (vkEndCommandBuffer(cb) != VK_SUCCESS) {
             throw std::runtime_error {"Failed to record command buffer"};
@@ -570,6 +587,30 @@ struct App::Impl {
         ImGui::End();
     }
 
+    void beginLabel(const VkCommandBuffer cb, const char* name) const noexcept {
+#ifdef VULKANO_CODEX_DEBUG
+        if (pfnCmdBeginLabel != nullptr) {
+            VkDebugUtilsLabelEXT label {};
+            label.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT;
+            label.pLabelName = name;
+            pfnCmdBeginLabel(cb, &label);
+            return;
+        }
+#endif
+        (void)cb;
+        (void)name;
+    }
+
+    void endLabel(const VkCommandBuffer cb) const noexcept {
+#ifdef VULKANO_CODEX_DEBUG
+        if (pfnCmdEndLabel != nullptr) {
+            pfnCmdEndLabel(cb);
+            return;
+        }
+#endif
+        (void)cb;
+    }
+
     static std::vector<uint32_t> compileGlslToSpv(const std::string& src, const VkShaderStageFlagBits stage) {
 #ifdef VULKANO_CODEX_USE_SHADERC
         shaderc_shader_kind kind = shaderc_glsl_vertex_shader;
@@ -650,7 +691,7 @@ struct App::Impl {
         // Vertex input: vec2 positions
         VkVertexInputBindingDescription binding {};
         binding.binding = 0U;
-        binding.stride = sizeof(float) * 2U;
+        binding.stride = sizeof(glm::vec2);
         binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
         VkVertexInputAttributeDescription attrib {};
@@ -772,11 +813,10 @@ struct App::Impl {
     }
 
     void createVertexBuffer() {
-        const std::array<float, 6> vertices { // 3x vec2 in NDC
-            // CCW triangle
-            0.0F, -0.5F,
-            0.5F, 0.5F,
-            -0.5F, 0.5F,
+        const std::array<glm::vec2, 3> vertices {
+            glm::vec2 {0.0F, -0.5F},
+            glm::vec2 {0.5F, 0.5F},
+            glm::vec2 {-0.5F, 0.5F},
         };
 
         VkBufferCreateInfo bufInfo {};
