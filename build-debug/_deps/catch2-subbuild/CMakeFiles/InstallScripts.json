@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/Users/bruno/Documents/Development/bruno/vulkano_codex/build-debug/_deps/catch2-subbuild/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

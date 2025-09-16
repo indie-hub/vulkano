@@ -1,0 +1,14 @@
+# Target labels
+ vma-populate
+# Source files and their labels
+/Users/bruno/Documents/Development/bruno/vulkano_codex/build-debug/_deps/vma-subbuild/CMakeFiles/vma-populate
+/Users/bruno/Documents/Development/bruno/vulkano_codex/build-debug/_deps/vma-subbuild/CMakeFiles/vma-populate.rule
+/Users/bruno/Documents/Development/bruno/vulkano_codex/build-debug/_deps/vma-subbuild/CMakeFiles/vma-populate-complete.rule
+/Users/bruno/Documents/Development/bruno/vulkano_codex/build-debug/_deps/vma-subbuild/vma-populate-prefix/src/vma-populate-stamp/vma-populate-build.rule
+/Users/bruno/Documents/Development/bruno/vulkano_codex/build-debug/_deps/vma-subbuild/vma-populate-prefix/src/vma-populate-stamp/vma-populate-configure.rule
+/Users/bruno/Documents/Development/bruno/vulkano_codex/build-debug/_deps/vma-subbuild/vma-populate-prefix/src/vma-populate-stamp/vma-populate-download.rule
+/Users/bruno/Documents/Development/bruno/vulkano_codex/build-debug/_deps/vma-subbuild/vma-populate-prefix/src/vma-populate-stamp/vma-populate-install.rule
+/Users/bruno/Documents/Development/bruno/vulkano_codex/build-debug/_deps/vma-subbuild/vma-populate-prefix/src/vma-populate-stamp/vma-populate-mkdir.rule
+/Users/bruno/Documents/Development/bruno/vulkano_codex/build-debug/_deps/vma-subbuild/vma-populate-prefix/src/vma-populate-stamp/vma-populate-patch.rule
+/Users/bruno/Documents/Development/bruno/vulkano_codex/build-debug/_deps/vma-subbuild/vma-populate-prefix/src/vma-populate-stamp/vma-populate-test.rule
+/Users/bruno/Documents/Development/bruno/vulkano_codex/build-debug/_deps/vma-subbuild/vma-populate-prefix/src/vma-populate-stamp/vma-populate-update.rule
