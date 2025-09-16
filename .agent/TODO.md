@@ -1,4 +1,4 @@
-- [x] Verify triangle rendering: code draws a white triangle via vertex buffer + push constants; smoke test passes (app runs/headless). No code change needed.
+- [x] Verify triangle rendering: adjusted pipeline to disable face culling to ensure visibility across platforms.
 - [x] Configure, build, and run smoke test (compile shaders, build app, run ctest).
 - [x] Manual run to visually verify black background, white triangle, and ImGui overlay stats.
 - [x] Package runtime to bin/dist and validate shaders present alongside binary.
@@ -6,3 +6,4 @@
 - [x] Add a baseline .clang-tidy configuration aligned with Clean Code checks.
 - [ ] Run clang-tidy locally and address any actionable findings.
 - [ ] Run with validation layers enabled and actively resize; ensure no validation errors in logs.
+ - [ ] Re-enable back-face culling with correct frontFace after visual verification on macOS and Linux/Windows.

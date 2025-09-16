@@ -933,7 +933,9 @@ void VulkanContext::create_graphics_pipeline() noexcept {
     raster.depthClampEnable = VK_FALSE;
     raster.rasterizerDiscardEnable = VK_FALSE;
     raster.polygonMode = VK_POLYGON_MODE_FILL;
-    raster.cullMode = VK_CULL_MODE_BACK_BIT;
+    // Disable culling to avoid orientation/portability differences hiding the triangle.
+    // We can tighten this later once verified visually across platforms.
+    raster.cullMode = VK_CULL_MODE_NONE;
     raster.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     raster.depthBiasEnable = VK_FALSE;
     raster.lineWidth = 1.0F;

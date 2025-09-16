@@ -69,45 +69,6 @@
   <component name="ChangeListManager">
     <list default="true" id="ea5f2232-e0d5-4be9-833c-c06073c2468d" name="Changes" comment="New TODO">
       <change beforePath="$PROJECT_DIR$/.agent/TODO.md" beforeDir="false" afterPath="$PROJECT_DIR$/.agent/TODO.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/bin/dist/vulkano_app" beforeDir="false" afterPath="$PROJECT_DIR$/bin/dist/vulkano_app" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/bin/vulkano_app" beforeDir="false" afterPath="$PROJECT_DIR$/bin/vulkano_app" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/bin/vulkano_tests" beforeDir="false" afterPath="$PROJECT_DIR$/bin/vulkano_tests" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/CMakeCache.txt" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeCache.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/Makefile2" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/Makefile2" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/imgui.dir/flags.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/imgui.dir/flags.make" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/vulkano.dir/flags.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/vulkano.dir/flags.make" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/vulkano_app.dir/flags.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/vulkano_app.dir/flags.make" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/CMakeFiles/vulkano_app.dir/link.txt" beforeDir="false" afterPath="$PROJECT_DIR$/build/CMakeFiles/vulkano_app.dir/link.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/_deps/catch2-build/cmake_install.cmake" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/catch2-build/cmake_install.cmake" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2.dir/build.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2.dir/build.make" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2.dir/cmake_clean.cmake" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2.dir/cmake_clean.cmake" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2.dir/cmake_clean_target.cmake" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2.dir/cmake_clean_target.cmake" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2.dir/compiler_depend.internal" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2.dir/compiler_depend.internal" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2.dir/compiler_depend.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2.dir/compiler_depend.make" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2.dir/flags.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2.dir/flags.make" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2.dir/link.txt" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2.dir/link.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/build.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/build.make" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/cmake_clean.cmake" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/cmake_clean.cmake" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/cmake_clean_target.cmake" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/cmake_clean_target.cmake" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/compiler_depend.internal" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/compiler_depend.internal" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/compiler_depend.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/compiler_depend.make" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/flags.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/flags.make" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/link.txt" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/link.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/_deps/catch2-build/src/cmake_install.cmake" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/catch2-build/src/cmake_install.cmake" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/_deps/glfw-build/cmake_install.cmake" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/glfw-build/cmake_install.cmake" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/_deps/glfw-build/src/CMakeFiles/glfw.dir/flags.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/glfw-build/src/CMakeFiles/glfw.dir/flags.make" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/_deps/glfw-build/src/cmake_install.cmake" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/glfw-build/src/cmake_install.cmake" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/_deps/glm-build/cmake_install.cmake" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/glm-build/cmake_install.cmake" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/_deps/glm-build/glm/CMakeFiles/glm.dir/flags.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/glm-build/glm/CMakeFiles/glm.dir/flags.make" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/_deps/glm-build/glm/cmake_install.cmake" beforeDir="false" afterPath="$PROJECT_DIR$/build/_deps/glm-build/glm/cmake_install.cmake" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/cmake_install.cmake" beforeDir="false" afterPath="$PROJECT_DIR$/build/cmake_install.cmake" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/tests/CMakeFiles/vulkano_tests.dir/build.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/tests/CMakeFiles/vulkano_tests.dir/build.make" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/tests/CMakeFiles/vulkano_tests.dir/compiler_depend.internal" beforeDir="false" afterPath="$PROJECT_DIR$/build/tests/CMakeFiles/vulkano_tests.dir/compiler_depend.internal" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/tests/CMakeFiles/vulkano_tests.dir/compiler_depend.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/tests/CMakeFiles/vulkano_tests.dir/compiler_depend.make" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/tests/CMakeFiles/vulkano_tests.dir/flags.make" beforeDir="false" afterPath="$PROJECT_DIR$/build/tests/CMakeFiles/vulkano_tests.dir/flags.make" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/tests/CMakeFiles/vulkano_tests.dir/link.txt" beforeDir="false" afterPath="$PROJECT_DIR$/build/tests/CMakeFiles/vulkano_tests.dir/link.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/tests/cmake_install.cmake" beforeDir="false" afterPath="$PROJECT_DIR$/build/tests/cmake_install.cmake" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -204,7 +165,7 @@
       <updated>1757930371230</updated>
       <workItem from="1757930372426" duration="26134000" />
       <workItem from="1758017569975" duration="12202000" />
-      <workItem from="1758032482488" duration="5593000" />
+      <workItem from="1758032482488" duration="5907000" />
     </task>
     <task id="LOCAL-00001" summary="New TODO">
       <option name="closed" value="true" />
