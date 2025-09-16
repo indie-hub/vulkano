@@ -65,6 +65,7 @@ CMAKE_BINARY_DIR = /Users/bruno/Documents/Development/bruno/vulkano_codex/build
 # The main recursive "all" target.
 all: CMakeFiles/Shaders.dir/all
 all: CMakeFiles/vulkano_app.dir/all
+all: CMakeFiles/vulkano_codex_tests.dir/all
 all: _deps/glfw-build/all
 all: _deps/glm-build/all
 .PHONY : all
@@ -72,6 +73,7 @@ all: _deps/glm-build/all
 # The main recursive "codegen" target.
 codegen: CMakeFiles/Shaders.dir/codegen
 codegen: CMakeFiles/vulkano_app.dir/codegen
+codegen: CMakeFiles/vulkano_codex_tests.dir/codegen
 codegen: _deps/glfw-build/codegen
 codegen: _deps/glm-build/codegen
 .PHONY : codegen
@@ -84,6 +86,7 @@ preinstall: _deps/glm-build/preinstall
 # The main recursive "clean" target.
 clean: CMakeFiles/Shaders.dir/clean
 clean: CMakeFiles/vulkano_app.dir/clean
+clean: CMakeFiles/vulkano_codex_tests.dir/clean
 clean: _deps/glfw-build/clean
 clean: _deps/glm-build/clean
 .PHONY : clean
@@ -230,6 +233,38 @@ CMakeFiles/vulkano_app.dir/codegen: CMakeFiles/Shaders.dir/all
 CMakeFiles/vulkano_app.dir/clean:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/vulkano_app.dir/build.make CMakeFiles/vulkano_app.dir/clean
 .PHONY : CMakeFiles/vulkano_app.dir/clean
+
+#=============================================================================
+# Target rules for target CMakeFiles/vulkano_codex_tests.dir
+
+# All Build rule for target.
+CMakeFiles/vulkano_codex_tests.dir/all: _deps/glm-build/glm/CMakeFiles/glm.dir/all
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/vulkano_codex_tests.dir/build.make CMakeFiles/vulkano_codex_tests.dir/depend
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/vulkano_codex_tests.dir/build.make CMakeFiles/vulkano_codex_tests.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=38,39 "Built target vulkano_codex_tests"
+.PHONY : CMakeFiles/vulkano_codex_tests.dir/all
+
+# Build rule for subdir invocation for target.
+CMakeFiles/vulkano_codex_tests.dir/rule: cmake_check_build_system
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles 4
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/vulkano_codex_tests.dir/all
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles 0
+.PHONY : CMakeFiles/vulkano_codex_tests.dir/rule
+
+# Convenience name for target.
+vulkano_codex_tests: CMakeFiles/vulkano_codex_tests.dir/rule
+.PHONY : vulkano_codex_tests
+
+# codegen rule for target.
+CMakeFiles/vulkano_codex_tests.dir/codegen:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/vulkano_codex_tests.dir/build.make CMakeFiles/vulkano_codex_tests.dir/codegen
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=38,39 "Finished codegen for target vulkano_codex_tests"
+.PHONY : CMakeFiles/vulkano_codex_tests.dir/codegen
+
+# clean rule for target.
+CMakeFiles/vulkano_codex_tests.dir/clean:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/vulkano_codex_tests.dir/build.make CMakeFiles/vulkano_codex_tests.dir/clean
+.PHONY : CMakeFiles/vulkano_codex_tests.dir/clean
 
 #=============================================================================
 # Target rules for target _deps/glfw-build/src/CMakeFiles/glfw.dir

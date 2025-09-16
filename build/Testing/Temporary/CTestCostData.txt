@@ -1,2 +1,3 @@
 vulkano_codex_tests 9 0.0487299
+build_sanity 1 0.295925
 ---

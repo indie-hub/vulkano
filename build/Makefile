@@ -65,6 +65,16 @@ CMAKE_BINARY_DIR = /Users/bruno/Documents/Development/bruno/vulkano_codex/build
 #=============================================================================
 # Targets provided globally by CMake.
 
+# Special rule for the target test
+test:
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --cyan "Running tests..."
+	/Applications/CMake.app/Contents/bin/ctest $(ARGS)
+.PHONY : test
+
+# Special rule for the target test
+test/fast: test
+.PHONY : test/fast
+
 # Special rule for the target edit_cache
 edit_cache:
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --cyan "Running CMake cache editor..."
@@ -141,6 +151,19 @@ vulkano_app: cmake_check_build_system
 vulkano_app/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/vulkano_app.dir/build.make CMakeFiles/vulkano_app.dir/build
 .PHONY : vulkano_app/fast
+
+#=============================================================================
+# Target rules for targets named vulkano_codex_tests
+
+# Build rule for target.
+vulkano_codex_tests: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 vulkano_codex_tests
+.PHONY : vulkano_codex_tests
+
+# fast build rule for target.
+vulkano_codex_tests/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/vulkano_codex_tests.dir/build.make CMakeFiles/vulkano_codex_tests.dir/build
+.PHONY : vulkano_codex_tests/fast
 
 #=============================================================================
 # Target rules for targets named glfw
@@ -397,6 +420,30 @@ src/vulkan_app.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/vulkano_app.dir/build.make CMakeFiles/vulkano_app.dir/src/vulkan_app.cpp.s
 .PHONY : src/vulkan_app.cpp.s
 
+tests/sanity.o: tests/sanity.cpp.o
+.PHONY : tests/sanity.o
+
+# target to build an object file
+tests/sanity.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/vulkano_codex_tests.dir/build.make CMakeFiles/vulkano_codex_tests.dir/tests/sanity.cpp.o
+.PHONY : tests/sanity.cpp.o
+
+tests/sanity.i: tests/sanity.cpp.i
+.PHONY : tests/sanity.i
+
+# target to preprocess a source file
+tests/sanity.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/vulkano_codex_tests.dir/build.make CMakeFiles/vulkano_codex_tests.dir/tests/sanity.cpp.i
+.PHONY : tests/sanity.cpp.i
+
+tests/sanity.s: tests/sanity.cpp.s
+.PHONY : tests/sanity.s
+
+# target to generate assembly for a file
+tests/sanity.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/vulkano_codex_tests.dir/build.make CMakeFiles/vulkano_codex_tests.dir/tests/sanity.cpp.s
+.PHONY : tests/sanity.cpp.s
+
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -405,11 +452,13 @@ help:
 	@echo "... depend"
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
+	@echo "... test"
 	@echo "... Shaders"
 	@echo "... update_mappings"
 	@echo "... glfw"
 	@echo "... glm"
 	@echo "... vulkano_app"
+	@echo "... vulkano_codex_tests"
 	@echo "... _deps/imgui-src/backends/imgui_impl_glfw.o"
 	@echo "... _deps/imgui-src/backends/imgui_impl_glfw.i"
 	@echo "... _deps/imgui-src/backends/imgui_impl_glfw.s"
@@ -437,6 +486,9 @@ help:
 	@echo "... src/vulkan_app.o"
 	@echo "... src/vulkan_app.i"
 	@echo "... src/vulkan_app.s"
+	@echo "... tests/sanity.o"
+	@echo "... tests/sanity.i"
+	@echo "... tests/sanity.s"
 .PHONY : help
 
 
