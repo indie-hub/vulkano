@@ -138,6 +138,12 @@ Verification: Built Debug locally, tests pass, headless run OK.
 - No source changes required this pass; repo already meets v1 acceptance.
 - Next: proceed to refactor `vulkan_context.cpp` into modules when time permits.
 
+### 2025-09-16 (CLI) – This Run (Codex session 6)
+- Fresh configure + build in `build_codex2/` using Ninja (`RelWithDebInfo`, tests ON).
+- All tests passed via `ctest` (1/1), and headless run for 200 ms succeeded.
+- Added `build_codex2/` to `.gitignore` and updated TODO.
+- No core source changes required; repo meets v1 acceptance.
+
 ## Acceptance Criteria – Self-check (initial)
 - App runs; window opens; headless path also runs.
 - Phong + tangent-space normal mapping visible; normal strength adjustable.
