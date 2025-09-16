@@ -96,8 +96,9 @@ int App::run() {
             auto* self = static_cast<App*>(user);
             self->m_imgui->render(cmd);
         }, this);
-        if (recreated) {
+        if (recreated || m_window->framebuffer_resized()) {
             m_vk->recreate_swapchain(m_window->width(), m_window->height());
+            m_window->set_framebuffer_resized(false);
         }
     }
     return 0;
