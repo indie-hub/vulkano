@@ -62,6 +62,11 @@ namespace {
         Vertex {glm::vec2 {0.0f, 0.5f}},
     };
 
+    // Named constants to avoid magic numbers
+    constexpr float clear_color_rgba[4] {0.0f, 0.0f, 0.0f, 1.0f};
+    constexpr uint64_t one_second_ns {1'000'000'000ull};
+    constexpr VkSampleCountFlagBits sample_count {VK_SAMPLE_COUNT_1_BIT};
+
     void set_object_name(VkDevice device, VkObjectType type, uint64_t handle, const char* name) {
         static auto func = reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(vkGetDeviceProcAddr(device, "vkSetDebugUtilsObjectNameEXT"));
         if (!enable_validation_layers || func == nullptr) {
@@ -612,7 +617,7 @@ void App::create_pipeline() {
     rs.lineWidth = 1.0f;
 
     VkPipelineMultisampleStateCreateInfo ms {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
-    ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    ms.rasterizationSamples = sample_count;
 
     VkPipelineColorBlendAttachmentState cb_att {};
     cb_att.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
@@ -823,7 +828,7 @@ void App::draw_frame() {
     VkCommandBufferBeginInfo begin {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
     vkBeginCommandBuffer(cmd, &begin);
 
-    VkClearValue clear {{0.0f, 0.0f, 0.0f, 1.0f}};
+    VkClearValue clear {clear_color_rgba};
     VkRenderPassBeginInfo rp {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
     rp.renderPass = render_pass_;
     rp.framebuffer = framebuffers_[image_index];
