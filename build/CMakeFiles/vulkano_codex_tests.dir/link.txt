@@ -1,1 +1,0 @@
-/usr/bin/c++ -g -arch arm64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/vulkano_codex_tests.dir/tests/sanity.cpp.o -o /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_codex_tests  /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libglm.a
