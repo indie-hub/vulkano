@@ -562,6 +562,19 @@ ContinuousSubmit/fast:
 .PHONY : ContinuousSubmit/fast
 
 #=============================================================================
+# Target rules for targets named compile_shaders
+
+# Build rule for target.
+compile_shaders: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 compile_shaders
+.PHONY : compile_shaders
+
+# fast build rule for target.
+compile_shaders/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/compile_shaders.dir/build.make CMakeFiles/compile_shaders.dir/build
+.PHONY : compile_shaders/fast
+
+#=============================================================================
 # Target rules for targets named uninstall
 
 # Build rule for target.
@@ -726,6 +739,7 @@ help:
 	@echo "... NightlySubmit"
 	@echo "... NightlyTest"
 	@echo "... NightlyUpdate"
+	@echo "... compile_shaders"
 	@echo "... uninstall"
 	@echo "... update_mappings"
 	@echo "... glfw"

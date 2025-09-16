@@ -28,6 +28,7 @@
 /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles/ContinuousCoverage.dir
 /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles/ContinuousMemCheck.dir
 /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles/ContinuousSubmit.dir
+/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles/compile_shaders.dir
 /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles/test.dir
 /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles/edit_cache.dir
 /Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles/rebuild_cache.dir

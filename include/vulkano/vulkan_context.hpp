@@ -2,6 +2,9 @@
 
 #include <cstdint>
 #include <vector>
+#include <array>
+
+#include <glm/vec2.hpp>
 
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.h>
@@ -42,10 +45,15 @@ private:
     void create_swapchain_and_views(GLFWwindow* window) noexcept;
     void create_render_pass() noexcept;
     void create_framebuffers() noexcept;
+    void create_pipeline_layout() noexcept;
+    void create_graphics_pipeline() noexcept;
+    void create_vertex_buffer() noexcept;
     void create_command_pool_and_buffers() noexcept;
     void create_sync_objects() noexcept;
     void destroy_swapchain_and_views() noexcept;
     void destroy_framebuffers() noexcept;
+    void destroy_pipeline() noexcept;
+    void destroy_vertex_buffer() noexcept;
     void destroy_sync_objects() noexcept;
     void destroy_command_pool_and_buffers() noexcept;
     void destroy_render_pass() noexcept;
@@ -85,6 +93,12 @@ private:
     // Command pool and buffers
     VkCommandPool command_pool_ {VK_NULL_HANDLE};
     std::vector<VkCommandBuffer> command_buffers_ {};
+
+    // Pipeline and vertex buffer
+    VkPipelineLayout pipeline_layout_ {VK_NULL_HANDLE};
+    VkPipeline graphics_pipeline_ {VK_NULL_HANDLE};
+    VkBuffer vertex_buffer_ {VK_NULL_HANDLE};
+    VkDeviceMemory vertex_buffer_memory_ {VK_NULL_HANDLE};
 
     // Synchronisation
     static constexpr std::uint32_t kMaxFramesInFlight {2U};

@@ -1,4 +1,6 @@
 # Hashes of file build rules.
+33dcb542aa68918d8bad1c0b2178d0b2 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/triangle.frag.spv
+991e1d13ac44534a5ffebc8844376bf1 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/triangle.vert.spv
 5ab077698c48a8517d7d2a0791b2243e CMakeFiles/Continuous
 05116189c913120a4d745601bed5237f CMakeFiles/ContinuousBuild
 a9ffaf03d7066f8ad5342d85506270aa CMakeFiles/ContinuousConfigure
@@ -27,5 +29,6 @@ bf2ae9a5da78d02edcaa57d6d534363f CMakeFiles/NightlyStart
 867373a7bf868b9f9b6ab527864e146f CMakeFiles/NightlySubmit
 c2d3ea3f5b9af34e0bb8f505271d765e CMakeFiles/NightlyTest
 be0f4452bf8bd6f2b9cb8f7c26ae7e2b CMakeFiles/NightlyUpdate
+22ba37c52b21a25c4676cd324bd41874 CMakeFiles/compile_shaders
 e82e894e3a8cfe5e47c207daf9dd80a3 _deps/glfw-build/CMakeFiles/uninstall
 9e0b020ddcb81236e41d8bb76aff3324 _deps/glfw-build/src/CMakeFiles/update_mappings

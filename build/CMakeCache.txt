@@ -418,6 +418,12 @@ GLM_FORCE_PURE:BOOL=OFF
 
 GLM_TEST_ENABLE:BOOL=OFF
 
+//Path to a program.
+GLSLANG_VALIDATOR_EXECUTABLE:FILEPATH=/usr/local/bin/glslangValidator
+
+//Path to a program.
+GLSLC_EXECUTABLE:FILEPATH=/usr/local/bin/glslc
+
 //Command to build the project
 MAKECOMMAND:STRING=/Applications/CMake.app/Contents/bin/cmake --build . --config "${CTEST_CONFIGURATION_TYPE}"
 

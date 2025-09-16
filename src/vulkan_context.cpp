@@ -4,8 +4,12 @@
 #include <array>
 #include <cassert>
 #include <cstring>
+#include <fstream>
 #include <limits>
+#include <string>
 #include <vector>
+
+#include <glm/vec2.hpp>
 
 namespace vulkano {
 
@@ -18,6 +22,32 @@ namespace {
     constexpr const char* kExtPortabilitySubset {"VK_KHR_portability_subset"};
 
     constexpr float kDefaultQueuePriority {1.0F};
+
+    struct Vertex final {
+        glm::vec2 pos {};
+    };
+
+    constexpr std::array<Vertex, 3> kTriangleVertices {
+        Vertex {glm::vec2 {-0.5F, -0.5F}},
+        Vertex {glm::vec2 {0.5F, -0.5F}},
+        Vertex {glm::vec2 {0.0F, 0.5F}},
+    };
+
+    [[nodiscard]] std::vector<char> read_file_binary(const std::string& path) noexcept {
+        std::vector<char> buffer {};
+        std::ifstream file(path, std::ios::ate | std::ios::binary);
+        if (!file) {
+            return buffer;
+        }
+        const std::streamsize size {file.tellg()};
+        if (size <= 0) {
+            return buffer;
+        }
+        buffer.resize(static_cast<std::size_t>(size));
+        file.seekg(0, std::ios::beg);
+        file.read(buffer.data(), size);
+        return buffer;
+    }
 
     [[nodiscard]] bool has_layer(const char* name) noexcept {
         std::uint32_t count {0U};
@@ -72,6 +102,9 @@ VulkanContext::VulkanContext(GLFWwindow* window) noexcept {
     create_logical_device();
     create_swapchain_and_views(window);
     create_render_pass();
+    create_pipeline_layout();
+    create_graphics_pipeline();
+    create_vertex_buffer();
     create_framebuffers();
     create_command_pool_and_buffers();
     create_sync_objects();
@@ -417,6 +450,8 @@ void VulkanContext::destroy() noexcept {
     destroy_command_pool_and_buffers();
     destroy_framebuffers();
     destroy_render_pass();
+    destroy_pipeline();
+    destroy_vertex_buffer();
     destroy_swapchain_and_views();
     if (device_ != VK_NULL_HANDLE) {
         vkDestroyDevice(device_, nullptr);
@@ -718,6 +753,237 @@ void VulkanContext::create_framebuffers() noexcept {
     }
 }
 
+namespace {
+    [[nodiscard]] std::string shader_dir_from_env() noexcept {
+        const char* env {std::getenv("VK_SHADER_DIR")};
+        if (env != nullptr && std::strlen(env) > 0U) {
+            return std::string {env};
+        }
+        return std::string {"./shaders"};
+    }
+
+    [[nodiscard]] VkShaderModule create_shader_module(VkDevice device, const std::vector<char>& code) noexcept {
+        if (device == VK_NULL_HANDLE || code.empty()) {
+            return VK_NULL_HANDLE;
+        }
+        VkShaderModuleCreateInfo info {};
+        info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+        info.codeSize = code.size();
+        info.pCode = reinterpret_cast<const std::uint32_t*>(code.data());
+        VkShaderModule module {VK_NULL_HANDLE};
+        if (vkCreateShaderModule(device, &info, nullptr, &module) != VK_SUCCESS) {
+            return VK_NULL_HANDLE;
+        }
+        return module;
+    }
+}
+
+void VulkanContext::create_pipeline_layout() noexcept {
+    if (device_ == VK_NULL_HANDLE) {
+        return;
+    }
+    VkPushConstantRange range {};
+    range.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    range.offset = 0U;
+    range.size = sizeof(float) * 4U;
+
+    VkPipelineLayoutCreateInfo info {};
+    info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    info.setLayoutCount = 0U;
+    info.pSetLayouts = nullptr;
+    info.pushConstantRangeCount = 1U;
+    info.pPushConstantRanges = &range;
+
+    VkPipelineLayout layout {VK_NULL_HANDLE};
+    if (vkCreatePipelineLayout(device_, &info, nullptr, &layout) == VK_SUCCESS) {
+        pipeline_layout_ = layout;
+    }
+}
+
+void VulkanContext::create_graphics_pipeline() noexcept {
+    if (device_ == VK_NULL_HANDLE || render_pass_ == VK_NULL_HANDLE || pipeline_layout_ == VK_NULL_HANDLE) {
+        return;
+    }
+    const std::string dir {shader_dir_from_env()};
+    const std::vector<char> vertCode {read_file_binary(dir + "/triangle.vert.spv")};
+    const std::vector<char> fragCode {read_file_binary(dir + "/triangle.frag.spv")};
+    if (vertCode.empty() || fragCode.empty()) {
+        return;
+    }
+    const VkShaderModule vertModule {create_shader_module(device_, vertCode)};
+    const VkShaderModule fragModule {create_shader_module(device_, fragCode)};
+    if (vertModule == VK_NULL_HANDLE || fragModule == VK_NULL_HANDLE) {
+        if (vertModule != VK_NULL_HANDLE) { vkDestroyShaderModule(device_, vertModule, nullptr); }
+        if (fragModule != VK_NULL_HANDLE) { vkDestroyShaderModule(device_, fragModule, nullptr); }
+        return;
+    }
+
+    VkPipelineShaderStageCreateInfo vertStage {};
+    vertStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    vertStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    vertStage.module = vertModule;
+    vertStage.pName = "main";
+
+    VkPipelineShaderStageCreateInfo fragStage {};
+    fragStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    fragStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    fragStage.module = fragModule;
+    fragStage.pName = "main";
+
+    const VkPipelineShaderStageCreateInfo stages[2] {vertStage, fragStage};
+
+    VkVertexInputBindingDescription binding {};
+    binding.binding = 0U;
+    binding.stride = sizeof(Vertex);
+    binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+    VkVertexInputAttributeDescription attrib {};
+    attrib.location = 0U;
+    attrib.binding = 0U;
+    attrib.format = VK_FORMAT_R32G32_SFLOAT;
+    attrib.offset = 0U;
+
+    VkPipelineVertexInputStateCreateInfo vertexInput {};
+    vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vertexInput.vertexBindingDescriptionCount = 1U;
+    vertexInput.pVertexBindingDescriptions = &binding;
+    vertexInput.vertexAttributeDescriptionCount = 1U;
+    vertexInput.pVertexAttributeDescriptions = &attrib;
+
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly {};
+    inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    inputAssembly.primitiveRestartEnable = VK_FALSE;
+
+    VkViewport viewport {};
+    viewport.x = 0.0F;
+    viewport.y = 0.0F;
+    viewport.width = static_cast<float>(swapchain_extent_.width);
+    viewport.height = static_cast<float>(swapchain_extent_.height);
+    viewport.minDepth = 0.0F;
+    viewport.maxDepth = 1.0F;
+
+    VkRect2D scissor {};
+    scissor.offset = {0, 0};
+    scissor.extent = swapchain_extent_;
+
+    VkPipelineViewportStateCreateInfo viewportState {};
+    viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewportState.viewportCount = 1U;
+    viewportState.pViewports = &viewport;
+    viewportState.scissorCount = 1U;
+    viewportState.pScissors = &scissor;
+
+    VkPipelineRasterizationStateCreateInfo raster {};
+    raster.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    raster.depthClampEnable = VK_FALSE;
+    raster.rasterizerDiscardEnable = VK_FALSE;
+    raster.polygonMode = VK_POLYGON_MODE_FILL;
+    raster.cullMode = VK_CULL_MODE_BACK_BIT;
+    raster.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    raster.depthBiasEnable = VK_FALSE;
+    raster.lineWidth = 1.0F;
+
+    VkPipelineMultisampleStateCreateInfo msaa {};
+    msaa.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    msaa.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    msaa.sampleShadingEnable = VK_FALSE;
+
+    VkPipelineColorBlendAttachmentState colorBlendAttach {};
+    colorBlendAttach.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                     VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    colorBlendAttach.blendEnable = VK_FALSE;
+
+    VkPipelineColorBlendStateCreateInfo colorBlend {};
+    colorBlend.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    colorBlend.logicOpEnable = VK_FALSE;
+    colorBlend.attachmentCount = 1U;
+    colorBlend.pAttachments = &colorBlendAttach;
+
+    VkGraphicsPipelineCreateInfo info {};
+    info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    info.stageCount = 2U;
+    info.pStages = stages;
+    info.pVertexInputState = &vertexInput;
+    info.pInputAssemblyState = &inputAssembly;
+    info.pViewportState = &viewportState;
+    info.pRasterizationState = &raster;
+    info.pMultisampleState = &msaa;
+    info.pDepthStencilState = nullptr;
+    info.pColorBlendState = &colorBlend;
+    info.pDynamicState = nullptr;
+    info.layout = pipeline_layout_;
+    info.renderPass = render_pass_;
+    info.subpass = 0U;
+
+    VkPipeline pipeline {VK_NULL_HANDLE};
+    if (vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1U, &info, nullptr, &pipeline) == VK_SUCCESS) {
+        graphics_pipeline_ = pipeline;
+    }
+
+    vkDestroyShaderModule(device_, vertModule, nullptr);
+    vkDestroyShaderModule(device_, fragModule, nullptr);
+}
+
+namespace {
+    [[nodiscard]] std::uint32_t find_memory_type(VkPhysicalDevice phys, std::uint32_t typeFilter, VkMemoryPropertyFlags props) noexcept {
+        VkPhysicalDeviceMemoryProperties memProps {};
+        vkGetPhysicalDeviceMemoryProperties(phys, &memProps);
+        for (std::uint32_t i {0U}; i < memProps.memoryTypeCount; ++i) {
+            if ((typeFilter & (1U << i)) != 0U && (memProps.memoryTypes[i].propertyFlags & props) == props) {
+                return i;
+            }
+        }
+        return UINT32_MAX;
+    }
+}
+
+void VulkanContext::create_vertex_buffer() noexcept {
+    if (device_ == VK_NULL_HANDLE || physical_device_ == VK_NULL_HANDLE) {
+        return;
+    }
+    const VkDeviceSize bufferSize {static_cast<VkDeviceSize>(kTriangleVertices.size() * sizeof(kTriangleVertices[0]))};
+
+    VkBufferCreateInfo bufInfo {};
+    bufInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufInfo.size = bufferSize;
+    bufInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    bufInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    VkBuffer buffer {VK_NULL_HANDLE};
+    if (vkCreateBuffer(device_, &bufInfo, nullptr, &buffer) != VK_SUCCESS) {
+        return;
+    }
+
+    VkMemoryRequirements memReq {};
+    vkGetBufferMemoryRequirements(device_, buffer, &memReq);
+    const std::uint32_t typeIndex {find_memory_type(physical_device_, memReq.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)};
+    if (typeIndex == UINT32_MAX) {
+        vkDestroyBuffer(device_, buffer, nullptr);
+        return;
+    }
+
+    VkMemoryAllocateInfo allocInfo {};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memReq.size;
+    allocInfo.memoryTypeIndex = typeIndex;
+    VkDeviceMemory memory {VK_NULL_HANDLE};
+    if (vkAllocateMemory(device_, &allocInfo, nullptr, &memory) != VK_SUCCESS) {
+        vkDestroyBuffer(device_, buffer, nullptr);
+        return;
+    }
+
+    vkBindBufferMemory(device_, buffer, memory, 0U);
+
+    void* data {nullptr};
+    if (vkMapMemory(device_, memory, 0U, bufferSize, 0U, &data) == VK_SUCCESS) {
+        std::memcpy(data, kTriangleVertices.data(), static_cast<std::size_t>(bufferSize));
+        vkUnmapMemory(device_, memory);
+    }
+
+    vertex_buffer_ = buffer;
+    vertex_buffer_memory_ = memory;
+}
+
 void VulkanContext::create_command_pool_and_buffers() noexcept {
     if (device_ == VK_NULL_HANDLE || graphics_family_index_ == UINT32_MAX || framebuffers_.empty()) {
         return;
@@ -826,6 +1092,33 @@ void VulkanContext::destroy_render_pass() noexcept {
     }
 }
 
- 
+void VulkanContext::destroy_pipeline() noexcept {
+    if (device_ == VK_NULL_HANDLE) {
+        return;
+    }
+    if (graphics_pipeline_ != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device_, graphics_pipeline_, nullptr);
+        graphics_pipeline_ = VK_NULL_HANDLE;
+    }
+    if (pipeline_layout_ != VK_NULL_HANDLE) {
+        vkDestroyPipelineLayout(device_, pipeline_layout_, nullptr);
+        pipeline_layout_ = VK_NULL_HANDLE;
+    }
+}
+
+void VulkanContext::destroy_vertex_buffer() noexcept {
+    if (device_ == VK_NULL_HANDLE) {
+        return;
+    }
+    if (vertex_buffer_ != VK_NULL_HANDLE) {
+        vkDestroyBuffer(device_, vertex_buffer_, nullptr);
+        vertex_buffer_ = VK_NULL_HANDLE;
+    }
+    if (vertex_buffer_memory_ != VK_NULL_HANDLE) {
+        vkFreeMemory(device_, vertex_buffer_memory_, nullptr);
+        vertex_buffer_memory_ = VK_NULL_HANDLE;
+    }
+}
+
 
 } // namespace vulkano

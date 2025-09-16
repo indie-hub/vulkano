@@ -120,3 +120,50 @@ if (BUILD_TESTING)
     add_subdirectory(tests)
   endif()
 endif()
+
+# --- Shader compilation (GLSL -> SPIR-V) ---
+find_program(GLSLC_EXECUTABLE NAMES glslc HINTS ENV VULKAN_SDK PATH_SUFFIXES Bin bin)
+find_program(GLSLANG_VALIDATOR_EXECUTABLE NAMES glslangValidator HINTS ENV VULKAN_SDK PATH_SUFFIXES Bin bin)
+
+set(SHADER_SOURCES
+    ${CMAKE_SOURCE_DIR}/shaders/triangle.vert
+    ${CMAKE_SOURCE_DIR}/shaders/triangle.frag
+)
+
+set(SHADER_OUTPUT_DIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders)
+file(MAKE_DIRECTORY ${SHADER_OUTPUT_DIR})
+
+set(SHADER_BINS)
+foreach(SHADER ${SHADER_SOURCES})
+  get_filename_component(SHADER_NAME ${SHADER} NAME)
+  set(SPV ${SHADER_OUTPUT_DIR}/${SHADER_NAME}.spv)
+  list(APPEND SHADER_BINS ${SPV})
+  if (GLSLC_EXECUTABLE)
+    add_custom_command(
+      OUTPUT ${SPV}
+      COMMAND ${CMAKE_COMMAND} -E make_directory ${SHADER_OUTPUT_DIR}
+      COMMAND ${GLSLC_EXECUTABLE} -fshader-stage=$<IF:$<STREQUAL:${SHADER_NAME},triangle.vert>,vert,frag> -O -o ${SPV} ${SHADER}
+      DEPENDS ${SHADER}
+      COMMENT "Compiling ${SHADER_NAME} -> ${SPV} with glslc"
+      VERBATIM)
+  elseif (GLSLANG_VALIDATOR_EXECUTABLE)
+    add_custom_command(
+      OUTPUT ${SPV}
+      COMMAND ${CMAKE_COMMAND} -E make_directory ${SHADER_OUTPUT_DIR}
+      COMMAND ${GLSLANG_VALIDATOR_EXECUTABLE} -V -o ${SPV} ${SHADER}
+      DEPENDS ${SHADER}
+      COMMENT "Compiling ${SHADER_NAME} -> ${SPV} with glslangValidator"
+      VERBATIM)
+  else()
+    message(WARNING "No GLSL compiler (glslc or glslangValidator) found. Shaders will not be compiled.")
+    # Create a phony rule to avoid CMake errors; runtime will fail if shaders are missing
+    add_custom_command(
+      OUTPUT ${SPV}
+      COMMAND ${CMAKE_COMMAND} -E echo "Missing GLSL compiler; ${SPV} not generated"
+      DEPENDS ${SHADER}
+      VERBATIM)
+  endif()
+endforeach()
+
+add_custom_target(compile_shaders ALL DEPENDS ${SHADER_BINS})
+add_dependencies(vulkano_app compile_shaders)
