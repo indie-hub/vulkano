@@ -1,5 +1,5 @@
 - [x] Configure, build, and run smoke test (compile shaders, build app, run ctest).
-- [ ] Manual run to visually verify black background, white triangle, and ImGui overlay stats.
+- [x] Manual run to visually verify black background, white triangle, and ImGui overlay stats.
 - [ ] Exercise window resize to confirm swapchain recreation without validation errors.
 - [x] Package runtime to bin/dist and validate shaders present alongside binary.
 - [ ] Optional: add a lightweight unit test for shader path discovery fallback.
