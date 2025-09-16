@@ -1,6 +1,6 @@
 # TODO
 
-Status: bootstrap scaffolding → Vulkan context → rendering → ImGui → resize → tests → docs/CI
+Status: Scaffolding, Vulkan core, rendering, ImGui, resize, tests complete; CI pending
 
 1. Initialize repo scaffolding
    - Create CMake project targeting C++20, output to `bin/`
@@ -45,14 +45,13 @@ Status: bootstrap scaffolding → Vulkan context → rendering → ImGui → res
    - Build tests with Catch2
 
 8. Build & run
-   - Ensure `bin/` contains executable and run-time assets
-   - Verify compiles and runs locally
+   - Ensure `bin/` contains executable and run-time assets [DONE]
+   - Verify compiles and runs locally [DONE]
 
 9. Docs/CI
-   - Add `docs/README.md` build/run instructions
-   - Add minimal CI workflow (configure + build + tests + format + tidy)
+   - Add `docs/README.md` build/run instructions [DONE]
+   - Add minimal CI workflow (configure + build + tests + format + tidy) [PENDING]
 
 10. Finalize
    - Review against AGENTS.md checklist
    - Commit frequently; final push
-
