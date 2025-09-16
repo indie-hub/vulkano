@@ -58,11 +58,11 @@ Verification: Built Debug locally, tests pass, headless run OK.
 - Prepared to push upstream; using `GITHUB_TOKEN` if present and remote `origin` at `indie-hub/vulkano`.
 
 ## Immediate TODOs
-- Add CI workflow to configure, build, run unit tests, and attempt headless app run on Linux and macOS (MoltenVK notes). Note: GLFW headless on Linux may require xvfb-run.
-- Optionally switch AO blur to separable Gaussian (2-pass) for better performance.
-- Harden swapchain/image recreation paths (destroy/recreate offscreen images, pipelines, and descriptor sets on resize).
-- Add helper scripts in tools/ (build_debug.sh, format_all.sh) — DONE
-- Split `vulkan_context.cpp` into smaller translation units (instance, device, swapchain, renderpasses, pipelines, resources) while preserving interfaces.
+- [x] Add CI workflow to configure, build, run unit tests, and attempt headless app run on Linux and macOS (MoltenVK notes). Note: GLFW headless on Linux requires xvfb-run (wired in CI).
+- [ ] Optionally switch AO blur to separable Gaussian (2-pass) for better performance.
+- [ ] Harden swapchain/image recreation paths (destroy/recreate offscreen images, pipelines, and descriptor sets on resize).
+- [x] Add helper scripts in tools/ (build_debug.sh, format_all.sh)
+- [ ] Split `vulkan_context.cpp` into smaller translation units (instance, device, swapchain, renderpasses, pipelines, resources) while preserving interfaces.
 
 ## Session Plan (short)
 - Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
@@ -70,6 +70,11 @@ Verification: Built Debug locally, tests pass, headless run OK.
 - Record command buffers: G-buffer -> SSAO -> forward — DONE
 - Keep non-Vulkan build working; run headless app to verify
 - Commit often; push at end
+
+## 2025-09-16 CI Update
+- Added `.github/workflows/ci.yml` running Linux (with `xvfb-run`) and macOS builds.
+- CI compiles with FetchContent deps (GLFW/GLM/Catch2). Vulkan remains optional; tests run headless (no Vulkan path required).
+- Next: consider caching deps and adding a matrix including `ENABLE_VALIDATION` toggles.
 
 ## Acceptance Criteria – Self-check (initial)
 - App runs; window opens; headless path also runs.
