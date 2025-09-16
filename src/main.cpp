@@ -69,7 +69,7 @@ int main() {
         auto extent = app.currentExtent();
         ImGui::Text("Swapchain: %ux%u", extent.width, extent.height);
         ImGui::End();
-
+        ImGui::Render();
         const glm::vec4 white{1.0f, 1.0f, 1.0f, 1.0f};
         app.drawFrame(white);
     }
