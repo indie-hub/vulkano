@@ -1,3 +1,0 @@
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build-debug/_deps/glfw-subbuild/CMakeFiles/glfw-populate.dir
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build-debug/_deps/glfw-subbuild/CMakeFiles/edit_cache.dir
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build-debug/_deps/glfw-subbuild/CMakeFiles/rebuild_cache.dir

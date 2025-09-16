@@ -1,3 +1,0 @@
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build-debug/_deps/shaderc-subbuild/CMakeFiles/shaderc-populate.dir
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build-debug/_deps/shaderc-subbuild/CMakeFiles/edit_cache.dir
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build-debug/_deps/shaderc-subbuild/CMakeFiles/rebuild_cache.dir
