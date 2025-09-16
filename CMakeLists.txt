@@ -43,7 +43,7 @@ FetchContent_MakeAvailable(glm)
 FetchContent_Declare(
     volk
     GIT_REPOSITORY https://github.com/zeux/volk.git
-    GIT_TAG v1.3.275
+    GIT_TAG master
 )
 set(VOLK_PULL_IN_VULKAN OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(volk)
@@ -123,4 +123,3 @@ include(CTest)
 if (BUILD_TESTING AND VULKANO_CODEX_BUILD_TESTS)
     add_subdirectory(tests)
 endif()
-
