@@ -177,3 +177,10 @@ Verification: Built Debug locally, tests pass, headless run OK.
 - No code in headers; only declarations.
 - Prefer RAII and `const` correctness.
  - SSAO will be implemented as a separate pass with sampled depth+normal and a tiled noise texture. Forward Phong is a milestone to validate mesh/UBO/descriptor plumbing first.
+
+### 2025-09-16 10:22 (CLI) – This Run
+- Configured Ninja build in build_codex4 (RelWithDebInfo, tests ON).
+- Built targets successfully; all tests passed via ctest.
+- Ran headless app for 200 ms successfully.
+- Minor: added build_codex4/ to .gitignore.
+- Next: push branch if GITHUB_TOKEN present.
