@@ -68,7 +68,11 @@ void App::run() noexcept {
 
     while (glfwWindowShouldClose(window_) == GLFW_FALSE) {
         glfwPollEvents();
-        std::this_thread::sleep_for(std::chrono::milliseconds {16});
+        if (vk_ != nullptr) {
+            (void)vk_->draw_frame();
+        } else {
+            std::this_thread::sleep_for(std::chrono::milliseconds {16});
+        }
         if (useAutoClose) {
             const auto now {std::chrono::steady_clock::now()};
             if (now - startTime >= autoCloseMs) {

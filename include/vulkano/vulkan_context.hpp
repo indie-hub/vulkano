@@ -36,6 +36,10 @@ public:
     [[nodiscard]] VkFormat swapchain_image_format() const noexcept;
     [[nodiscard]] VkExtent2D swapchain_extent() const noexcept;
 
+    // Per-frame rendering
+    // Returns true if a frame was rendered and queued for present; false if skipped (e.g., out-of-date swapchain).
+    bool draw_frame() noexcept;
+
 private:
     void create_instance(GLFWwindow* window) noexcept;
     void setup_debug_utils() noexcept;
@@ -50,6 +54,7 @@ private:
     void create_vertex_buffer() noexcept;
     void create_command_pool_and_buffers() noexcept;
     void create_sync_objects() noexcept;
+    void record_commands(std::uint32_t imageIndex) noexcept;
     void destroy_swapchain_and_views() noexcept;
     void destroy_framebuffers() noexcept;
     void destroy_pipeline() noexcept;
@@ -85,6 +90,7 @@ private:
     VkExtent2D swapchain_extent_ {0U, 0U};
     std::vector<VkImage> swapchain_images_ {};
     std::vector<VkImageView> swapchain_image_views_ {};
+    std::vector<VkFence> images_in_flight_ {};
 
     // Render pass and framebuffers
     VkRenderPass render_pass_ {VK_NULL_HANDLE};
@@ -103,7 +109,7 @@ private:
     // Synchronisation
     static constexpr std::uint32_t kMaxFramesInFlight {2U};
     std::array<VkSemaphore, kMaxFramesInFlight> image_available_semaphores_ {VK_NULL_HANDLE, VK_NULL_HANDLE};
-    std::array<VkSemaphore, kMaxFramesInFlight> render_finished_semaphores_ {VK_NULL_HANDLE, VK_NULL_HANDLE};
+    std::vector<VkSemaphore> render_finished_semaphores_ {};
     std::array<VkFence, kMaxFramesInFlight> in_flight_fences_ {VK_NULL_HANDLE, VK_NULL_HANDLE};
     std::uint32_t current_frame_ {0U};
 };

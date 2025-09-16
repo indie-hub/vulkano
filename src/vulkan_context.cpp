@@ -637,6 +637,7 @@ void VulkanContext::create_swapchain_and_views(GLFWwindow* window) noexcept {
     vkGetSwapchainImagesKHR(device_, swapchain_, &retrievedCount, swapchain_images_.data());
 
     swapchain_image_views_.resize(swapchain_images_.size());
+    images_in_flight_.assign(swapchain_images_.size(), VK_NULL_HANDLE);
     for (std::size_t i {0U}; i < swapchain_images_.size(); ++i) {
         VkImageViewCreateInfo viewInfo {};
         viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -674,6 +675,7 @@ void VulkanContext::destroy_swapchain_and_views() noexcept {
     }
     swapchain_image_views_.clear();
     swapchain_images_.clear();
+    images_in_flight_.clear();
 
     if (swapchain_ != VK_NULL_HANDLE) {
         vkDestroySwapchainKHR(device_, swapchain_, nullptr);
@@ -754,10 +756,26 @@ void VulkanContext::create_framebuffers() noexcept {
 }
 
 namespace {
-    [[nodiscard]] std::string shader_dir_from_env() noexcept {
+    [[nodiscard]] bool file_exists(const std::string& path) noexcept {
+        std::ifstream f(path.c_str(), std::ios::binary);
+        return static_cast<bool>(f);
+    }
+
+    [[nodiscard]] std::string shader_dir_guess() noexcept {
         const char* env {std::getenv("VK_SHADER_DIR")};
         if (env != nullptr && std::strlen(env) > 0U) {
-            return std::string {env};
+            const std::string dir {env};
+            if (file_exists(dir + "/triangle.vert.spv") && file_exists(dir + "/triangle.frag.spv")) {
+                return dir;
+            }
+        }
+        // Prefer bin/shaders alongside binary when run from repo root
+        if (file_exists("./bin/shaders/triangle.vert.spv") && file_exists("./bin/shaders/triangle.frag.spv")) {
+            return std::string {"./bin/shaders"};
+        }
+        // Fallback to source shaders dir (in case of precompiled assets placed there)
+        if (file_exists("./shaders/triangle.vert.spv") && file_exists("./shaders/triangle.frag.spv")) {
+            return std::string {"./shaders"};
         }
         return std::string {"./shaders"};
     }
@@ -804,7 +822,7 @@ void VulkanContext::create_graphics_pipeline() noexcept {
     if (device_ == VK_NULL_HANDLE || render_pass_ == VK_NULL_HANDLE || pipeline_layout_ == VK_NULL_HANDLE) {
         return;
     }
-    const std::string dir {shader_dir_from_env()};
+    const std::string dir {shader_dir_guess()};
     const std::vector<char> vertCode {read_file_binary(dir + "/triangle.vert.spv")};
     const std::vector<char> fragCode {read_file_binary(dir + "/triangle.frag.spv")};
     if (vertCode.empty() || fragCode.empty()) {
@@ -1030,8 +1048,13 @@ void VulkanContext::create_sync_objects() noexcept {
 
     for (std::uint32_t i {0U}; i < kMaxFramesInFlight; ++i) {
         vkCreateSemaphore(device_, &semInfo, nullptr, &image_available_semaphores_[i]);
-        vkCreateSemaphore(device_, &semInfo, nullptr, &render_finished_semaphores_[i]);
         vkCreateFence(device_, &fenceInfo, nullptr, &in_flight_fences_[i]);
+    }
+
+    // One render-finished semaphore per swapchain image to avoid reuse hazards across presents
+    render_finished_semaphores_.assign(swapchain_images_.size(), VK_NULL_HANDLE);
+    for (std::size_t i {0U}; i < swapchain_images_.size(); ++i) {
+        vkCreateSemaphore(device_, &semInfo, nullptr, &render_finished_semaphores_[i]);
     }
 }
 
@@ -1057,15 +1080,18 @@ void VulkanContext::destroy_sync_objects() noexcept {
             vkDestroySemaphore(device_, image_available_semaphores_[i], nullptr);
             image_available_semaphores_[i] = VK_NULL_HANDLE;
         }
-        if (render_finished_semaphores_[i] != VK_NULL_HANDLE) {
-            vkDestroySemaphore(device_, render_finished_semaphores_[i], nullptr);
-            render_finished_semaphores_[i] = VK_NULL_HANDLE;
-        }
         if (in_flight_fences_[i] != VK_NULL_HANDLE) {
             vkDestroyFence(device_, in_flight_fences_[i], nullptr);
             in_flight_fences_[i] = VK_NULL_HANDLE;
         }
     }
+    for (auto& s : render_finished_semaphores_) {
+        if (s != VK_NULL_HANDLE) {
+            vkDestroySemaphore(device_, s, nullptr);
+            s = VK_NULL_HANDLE;
+        }
+    }
+    render_finished_semaphores_.clear();
 }
 
 void VulkanContext::destroy_command_pool_and_buffers() noexcept {
@@ -1120,5 +1146,121 @@ void VulkanContext::destroy_vertex_buffer() noexcept {
     }
 }
 
+
+void VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
+    if (device_ == VK_NULL_HANDLE || graphics_pipeline_ == VK_NULL_HANDLE || pipeline_layout_ == VK_NULL_HANDLE) {
+        return;
+    }
+    if (imageIndex >= command_buffers_.size() || imageIndex >= framebuffers_.size()) {
+        return;
+    }
+
+    VkCommandBuffer cmd {command_buffers_[imageIndex]};
+    if (cmd == VK_NULL_HANDLE) {
+        return;
+    }
+
+    vkResetCommandBuffer(cmd, 0U);
+
+    VkCommandBufferBeginInfo beginInfo {};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    if (vkBeginCommandBuffer(cmd, &beginInfo) != VK_SUCCESS) {
+        return;
+    }
+
+    VkClearValue clear {};
+    clear.color = VkClearColorValue {{0.0F, 0.0F, 0.0F, 1.0F}};
+
+    VkRenderPassBeginInfo rpInfo {};
+    rpInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    rpInfo.renderPass = render_pass_;
+    rpInfo.framebuffer = framebuffers_[imageIndex];
+    rpInfo.renderArea.offset = {0, 0};
+    rpInfo.renderArea.extent = swapchain_extent_;
+    rpInfo.clearValueCount = 1U;
+    rpInfo.pClearValues = &clear;
+    vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_);
+
+    const VkBuffer buffers[1] {vertex_buffer_};
+    const VkDeviceSize offsets[1] {0U};
+    vkCmdBindVertexBuffers(cmd, 0U, 1U, buffers, offsets);
+
+    const float white[4] {1.0F, 1.0F, 1.0F, 1.0F};
+    vkCmdPushConstants(cmd, pipeline_layout_, VK_SHADER_STAGE_FRAGMENT_BIT, 0U, sizeof(white), white);
+
+    vkCmdDraw(cmd, static_cast<std::uint32_t>(kTriangleVertices.size()), 1U, 0U, 0U);
+
+    vkCmdEndRenderPass(cmd);
+    (void)vkEndCommandBuffer(cmd);
+}
+
+bool VulkanContext::draw_frame() noexcept {
+    if (device_ == VK_NULL_HANDLE || swapchain_ == VK_NULL_HANDLE) {
+        return false;
+    }
+
+    const std::uint32_t frameIndex {current_frame_ % kMaxFramesInFlight};
+    if (in_flight_fences_[frameIndex] != VK_NULL_HANDLE) {
+        (void)vkWaitForFences(device_, 1U, &in_flight_fences_[frameIndex], VK_TRUE, UINT64_MAX);
+        (void)vkResetFences(device_, 1U, &in_flight_fences_[frameIndex]);
+    }
+
+    std::uint32_t imageIndex {0U};
+    const VkResult acquireRes {vkAcquireNextImageKHR(device_, swapchain_, UINT64_MAX, image_available_semaphores_[frameIndex], VK_NULL_HANDLE, &imageIndex)};
+    if (acquireRes == VK_ERROR_OUT_OF_DATE_KHR) {
+        return false; // Will be handled in resize step
+    }
+    if (acquireRes != VK_SUBOPTIMAL_KHR && acquireRes != VK_SUCCESS) {
+        return false;
+    }
+
+    if (!images_in_flight_.empty() && images_in_flight_[imageIndex] != VK_NULL_HANDLE) {
+        (void)vkWaitForFences(device_, 1U, &images_in_flight_[imageIndex], VK_TRUE, UINT64_MAX);
+    }
+    if (!images_in_flight_.empty()) {
+        images_in_flight_[imageIndex] = in_flight_fences_[frameIndex];
+    }
+
+    record_commands(imageIndex);
+
+    const VkPipelineStageFlags waitStages[1] {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+    VkSubmitInfo submitInfo {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.waitSemaphoreCount = 1U;
+    submitInfo.pWaitSemaphores = &image_available_semaphores_[frameIndex];
+    submitInfo.pWaitDstStageMask = waitStages;
+    submitInfo.commandBufferCount = 1U;
+    const VkCommandBuffer cmdBuf {command_buffers_[imageIndex]};
+    submitInfo.pCommandBuffers = &cmdBuf;
+    submitInfo.signalSemaphoreCount = 1U;
+    VkSemaphore signalSem = render_finished_semaphores_.empty() ? VK_NULL_HANDLE : render_finished_semaphores_[imageIndex];
+    submitInfo.pSignalSemaphores = &signalSem;
+
+    if (vkQueueSubmit(graphics_queue_, 1U, &submitInfo, in_flight_fences_[frameIndex]) != VK_SUCCESS) {
+        return false;
+    }
+
+    VkPresentInfoKHR presentInfo {};
+    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    presentInfo.waitSemaphoreCount = 1U;
+    presentInfo.pWaitSemaphores = &signalSem;
+    presentInfo.swapchainCount = 1U;
+    presentInfo.pSwapchains = &swapchain_;
+    presentInfo.pImageIndices = &imageIndex;
+    presentInfo.pResults = nullptr;
+
+    const VkResult presentRes {vkQueuePresentKHR(present_queue_, &presentInfo)};
+    if (presentRes == VK_ERROR_OUT_OF_DATE_KHR || presentRes == VK_SUBOPTIMAL_KHR) {
+        // Skip frame; resize handling will recreate on next step
+        current_frame_ = (current_frame_ + 1U) % kMaxFramesInFlight;
+        return false;
+    }
+
+    current_frame_ = (current_frame_ + 1U) % kMaxFramesInFlight;
+    return true;
+}
 
 } // namespace vulkano
