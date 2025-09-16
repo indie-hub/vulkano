@@ -21,6 +21,7 @@ Notes (2025-09-16):
 - ImGui overlay renders FPS/frame time, device name, and swapchain extent.
 - Validation layers enabled via ENABLE_VALIDATION on Debug; debug utils names and labels in place.
 - Resize path tested via framebuffer resize flag; swapchain is recreated safely.
+- ImGui font upload: wired CommandPool into ImGui init and use backend helper CreateFontsTexture() to ensure fonts are uploaded reliably.
 
 Nice-to-have:
 - Separate transfer/upload path for ImGui font creation with explicit command buffer

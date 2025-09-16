@@ -45,6 +45,7 @@ int main() {
                app.device(),
                app.graphicsQueueFamily(),
                app.graphicsQueue(),
+               app.commandPool(),
                app.imguiDescriptorPool(),
                app.renderPass(),
                app.imageCount());

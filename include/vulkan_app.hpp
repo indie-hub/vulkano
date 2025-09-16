@@ -51,6 +51,7 @@ public:
     VkQueue graphicsQueue() const { return graphics_queue_; }
     VkQueue presentQueue() const { return present_queue_; }
     uint32_t graphicsQueueFamily() const { return queue_family_indices_.graphics.value(); }
+    VkCommandPool commandPool() const { return command_pool_; }
     VkRenderPass renderPass() const { return render_pass_; }
     VkDescriptorPool imguiDescriptorPool() const { return imgui_descriptor_pool_; }
     uint32_t imageCount() const { return static_cast<uint32_t>(swapchain_images_.size()); }
