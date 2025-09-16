@@ -1,0 +1,25 @@
+-- Including Cocoa support
+CMake Deprecation Warning at build/_deps/glm-src/CMakeLists.txt:1 (cmake_minimum_required):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+
+
+CMake Deprecation Warning at build/_deps/glm-src/CMakeLists.txt:2 (cmake_policy):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+
+
+-- GLM: Version 1.0.1
+-- GLM: Disable -Wc++98-compat warnings
+-- GLM: Build with C++ features auto detection
+-- Configuring done (1.5s)
+-- Generating done (0.1s)
+-- Build files have been written to: /Users/bruno/Documents/Development/bruno/vulkano_codex/build

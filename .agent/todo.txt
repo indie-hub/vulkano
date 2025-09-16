@@ -1,6 +1,0 @@
-TODO
-- Build project [done]
-- Run unit tests [done]
-- Run app and verify triangle + ImGui [pending]
-- Commit changes [in progress]
-- Final push [pending]

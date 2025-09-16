@@ -1224,3 +1224,1194 @@ index db31ebf8d84167ec9e8b0b6fb3daf7fe2785e9c8..aaedd8ee97baae3254efef216fc32b5b
      rp.framebuffer = framebuffers_[image_index];
 
 [2025-09-16T10:28:55] exec bash -lc 'git add -A && git commit -m "fix: build Vulkan app (add headers, correct VkClearValue init); tests pass"' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-16T10:28:55] bash -lc 'git add -A && git commit -m "fix: build Vulkan app (add headers, correct VkClearValue init); tests pass"' succeeded in 75ms:
+[personal/codex/third-attempt 8082035] fix: build Vulkan app (add headers, correct VkClearValue init); tests pass
+ 5 files changed, 2537 insertions(+), 1019 deletions(-)
+ create mode 100644 build_log.txt
+ create mode 100644 build_log2.txt
+[2025-09-16T10:28:55] tokens used: 88,763
+[2025-09-16T10:28:55] turn diff:
+diff --git a/.agent/todo.txt b/.agent/todo.txt
+index 8d150e4d0c6741db53a61e735254cf4feaf332c8..c68c62d740a8563bb61f8c345c3f211c474977ec
+--- a/.agent/todo.txt
++++ b/.agent/todo.txt
+@@ -1,4 +1,6 @@
+ TODO
+ - Build project [done]
+-- Run app and verify triangle + ImGui [done]
+-- Polish and push [push pending: no GITHUB_TOKEN]
++- Run unit tests [done]
++- Run app and verify triangle + ImGui [pending]
++- Commit changes [in progress]
++- Final push [pending]
+diff --git a/src/app.cpp b/src/app.cpp
+index db31ebf8d84167ec9e8b0b6fb3daf7fe2785e9c8..aaedd8ee97baae3254efef216fc32b5b741c74ef
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -4,6 +4,8 @@
+ #include <cassert>
+ #include <cstring>
+ #include <stdexcept>
++#include <algorithm>
++#include <limits>
+ 
+ #include <GLFW/glfw3.h>
+ #include <glm/glm.hpp>
+@@ -828,7 +830,11 @@
+     VkCommandBufferBeginInfo begin {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+     vkBeginCommandBuffer(cmd, &begin);
+ 
+-    VkClearValue clear {clear_color_rgba};
++    VkClearValue clear {};
++    clear.color.float32[0] = clear_color_rgba[0];
++    clear.color.float32[1] = clear_color_rgba[1];
++    clear.color.float32[2] = clear_color_rgba[2];
++    clear.color.float32[3] = clear_color_rgba[3];
+     VkRenderPassBeginInfo rp {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+     rp.renderPass = render_pass_;
+     rp.framebuffer = framebuffers_[image_index];
+
+[2025-09-16T10:28:59] exec bash -lc ./bin/vulkano_codex_app in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-16T10:30:09] bash -lc ./bin/vulkano_codex_app succeeded in 1m10s:
+Validation: vkQueueSubmit(): pSubmits[0].pSignalSemaphores[0] (VkSemaphore 0x160000000016) is being signaled by VkQueue 0xaa150df58, but it may still be in use by VkSwapchainKHR 0x30000000003[Swapchain].
+Here are the most recently acquired image indices: [0], 1, 2.
+(brackets mark the last use of VkSemaphore 0x160000000016 in a presentation operation)
+Swapchain image 0 was presented but was not re-acquired, so VkSemaphore 0x160000000016 may still be in use and cannot be safely reused with image index 2.
+Vulkan insight: One solution is to assign each image its own semaphore. Here are some common methods to ensure that a semaphore passed to vkQueuePresentKHR is not in use and can be safely reused:
+	a) Use a separate semaphore per swapchain image. Index these semaphores using the index of the acquired image.
+	b) Consider the VK_KHR_swapchain_maintenance1 extension. It allows using a VkFence with the presentation operation.
+The Vulkan spec states: Each binary semaphore element of the pSignalSemaphores member of any element of pSubmits must be unsignaled when the semaphore signal operation it defines is executed on the device (https://vulkan.lunarg.com/doc/view/1.4.321.0/mac/antora/spec/latest/chapters/cmdbuffers.html#VUID-vkQueueSubmit-pSignalSemaphores-00067)
+Validation: vkQueueSubmit(): pSubmits[0].pSignalSemaphores[0] (VkSemaphore 0x190000000019) is being signaled by VkQueue 0xaa150df58, but it may still be in use by VkSwapchainKHR 0x30000000003[Swapchain].
+Here are the most recently acquired image indices: 0, [1], 2, 0.
+(brackets mark the last use of VkSemaphore 0x190000000019 in a presentation operation)
+Swapchain image 1 was presented but was not re-acquired, so VkSemaphore 0x190000000019 may still be in use and cannot be safely reused with image index 0.
+Vulkan insight: One solution is to assign each image its own semaphore. Here are some common methods to ensure that a semaphore passed to vkQueuePresentKHR is not in use and can be safely reused:
+	a) Use a separate semaphore per swapchain image. Index these semaphores using the index of the acquired image.
+	b) Consider the VK_KHR_swapchain_maintenance1 extension. It allows using a VkFence with the presentation operation.
+The Vulkan spec states: Each binary semaphore element of the pSignalSemaphores member of any element of pSubmits must be unsignaled when the semaphore signal operation it defines is executed on the device (https://vulkan.lunarg.com/doc/view/1.4.321.0/mac/antora/spec/latest/chapters/cmdbuffers.html#VUID-vkQueueSubmit-pSignalSemaphores-00067)
+[2025-09-16T10:30:09] tokens used: 89,109
+[2025-09-16T10:30:09] turn diff:
+diff --git a/.agent/todo.txt b/.agent/todo.txt
+index 8d150e4d0c6741db53a61e735254cf4feaf332c8..c68c62d740a8563bb61f8c345c3f211c474977ec
+--- a/.agent/todo.txt
++++ b/.agent/todo.txt
+@@ -1,4 +1,6 @@
+ TODO
+ - Build project [done]
+-- Run app and verify triangle + ImGui [done]
+-- Polish and push [push pending: no GITHUB_TOKEN]
++- Run unit tests [done]
++- Run app and verify triangle + ImGui [pending]
++- Commit changes [in progress]
++- Final push [pending]
+diff --git a/src/app.cpp b/src/app.cpp
+index db31ebf8d84167ec9e8b0b6fb3daf7fe2785e9c8..aaedd8ee97baae3254efef216fc32b5b741c74ef
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -4,6 +4,8 @@
+ #include <cassert>
+ #include <cstring>
+ #include <stdexcept>
++#include <algorithm>
++#include <limits>
+ 
+ #include <GLFW/glfw3.h>
+ #include <glm/glm.hpp>
+@@ -828,7 +830,11 @@
+     VkCommandBufferBeginInfo begin {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+     vkBeginCommandBuffer(cmd, &begin);
+ 
+-    VkClearValue clear {clear_color_rgba};
++    VkClearValue clear {};
++    clear.color.float32[0] = clear_color_rgba[0];
++    clear.color.float32[1] = clear_color_rgba[1];
++    clear.color.float32[2] = clear_color_rgba[2];
++    clear.color.float32[3] = clear_color_rgba[3];
+     VkRenderPassBeginInfo rp {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+     rp.renderPass = render_pass_;
+     rp.framebuffer = framebuffers_[image_index];
+
+
+[2025-09-16T10:30:16] thinking
+
+**Analyzing semaphore warnings**
+
+I'm looking at validation warnings about semaphores in the app. We’re using two semaphores for max frames in flight, but we’re not ensuring semaphores per image. This could mean the semaphore used for waiting might still be active if frames wrap around without reacquiring an image. The solution typically involves tracking semaphores and fences per frame, which we do. However, the issue seems to tie semaphores to frames rather than images. We need to ensure we’re using the correct per-frame fences before reacquiring.
+**Clarifying semaphore signals**
+
+I'm ensuring that the previous submit using 'render_finished' and the in-flight fence is complete. However, there's an issue with 'image_available_[current_frame_]' as the signal semaphore for vkAcquireNextImage. We signal 'image_available' when vkAcquireNextImage indicates an image is available, but we pass 'image_available' as a wait semaphore during submission, not a signal. The validation indicates a problem with pSignalSemaphores, suggesting the render_finished semaphore is reused too soon before the present has completed. It's essential to manage these semaphores carefully.
+**Implementing fence tracking**
+
+To resolve the issue, I need to wait on vkQueuePresent or track per-image "in-flight" fences to ensure that an image isn't still in flight. A common approach is to use a vector of VkFence called images_in_flight, sized according to swapchain images. When acquiring an image index, if images_in_flight[image_index] isn't null, I should wait for that fence before setting it to in_flight_fences_[current_frame_]. This ensures proper synchronization before reusing any frame fence. Additionally, I must ensure semaphores used by present are finished before reuse.
+**Managing frame synchronization**
+
+In the draw_frame function, I need to wait for in_flight_fences_[current_frame_] before acquiring the image. If images_in_flight_[image_index] isn't null, I have to wait for that fence first, then set images_in_flight_[image_index] to in_flight_fences_[current_frame_]. It's important to handle VK_SUBOPTIMAL/OUT_OF_DATE as usual. I also need to initialize images_in_flight_ in create_sync_objects after the swapchain is created by sizing the vector and filling it with VK_NULL_HANDLE. Clearing it during cleanup_swapchain is essential, and I should recreate it appropriately when needed.
+**Updating swapchain synchronization**
+
+In the recreate_swapchain function, I notice we call create_command_buffers but not create_sync_objects. I need to update recreate_swapchain to reset the size of images_in_flight_ as well. After calling create_command_buffers(), I’ll assign the size of images_in_flight_ to match swapchain_images_ with null handles. I also need to define std::vector<VkFence> images_in_flight_ in the class. It’s crucial to initialize fields properly, so I’ll patch include/vulkano_codex/app.hpp to include the images_in_flight_ vector and implement it in create_sync_objects, recreate_swapchain, and draw_frame.
+[2025-09-16T10:30:32] codex
+**Clarifying semaphore signals**
+
+I'm ensuring that the previous submit using 'render_finished' and the in-flight fence is complete. However, there's an issue with 'image_available_[current_frame_]' as the signal semaphore for vkAcquireNextImage. We signal 'image_available' when vkAcquireNextImage indicates an image is available, but we pass 'image_available' as a wait semaphore during submission, not a signal. The validation indicates a problem with pSignalSemaphores, suggesting the render_finished semaphore is reused too soon before the present has completed. It's essential to manage these semaphores carefully.
+[2025-09-16T10:30:32] codex
+**Implementing fence tracking**
+
+To resolve the issue, I need to wait on vkQueuePresent or track per-image "in-flight" fences to ensure that an image isn't still in flight. A common approach is to use a vector of VkFence called images_in_flight, sized according to swapchain images. When acquiring an image index, if images_in_flight[image_index] isn't null, I should wait for that fence before setting it to in_flight_fences_[current_frame_]. This ensures proper synchronization before reusing any frame fence. Additionally, I must ensure semaphores used by present are finished before reuse.
+[2025-09-16T10:30:32] codex
+**Managing frame synchronization**
+
+In the draw_frame function, I need to wait for in_flight_fences_[current_frame_] before acquiring the image. If images_in_flight_[image_index] isn't null, I have to wait for that fence first, then set images_in_flight_[image_index] to in_flight_fences_[current_frame_]. It's important to handle VK_SUBOPTIMAL/OUT_OF_DATE as usual. I also need to initialize images_in_flight_ in create_sync_objects after the swapchain is created by sizing the vector and filling it with VK_NULL_HANDLE. Clearing it during cleanup_swapchain is essential, and I should recreate it appropriately when needed.
+[2025-09-16T10:30:32] codex
+**Updating swapchain synchronization**
+
+In the recreate_swapchain function, I notice we call create_command_buffers but not create_sync_objects. I need to update recreate_swapchain to reset the size of images_in_flight_ as well. After calling create_command_buffers(), I’ll assign the size of images_in_flight_ to match swapchain_images_ with null handles. I also need to define std::vector<VkFence> images_in_flight_ in the class. It’s crucial to initialize fields properly, so I’ll patch include/vulkano_codex/app.hpp to include the images_in_flight_ vector and implement it in create_sync_objects, recreate_swapchain, and draw_frame.
+[2025-09-16T10:30:32] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano_codex/app.hpp
+@@ -72,2 +72,3 @@
+     std::array<VkFence, max_frames_in_flight_> in_flight_fences_ {};
++    std::vector<VkFence> images_in_flight_ {};
+     size_t current_frame_ {0};
+@@ -114,2 +115 @@
+ } // namespace vulkano_codex
+-
+[2025-09-16T10:30:32] apply_patch(auto_approved=true) exited 0 in 35ms:
+Success. Updated the following files:
+M include/vulkano_codex/app.hpp
+[2025-09-16T10:30:32] turn diff:
+diff --git a/.agent/todo.txt b/.agent/todo.txt
+index 8d150e4d0c6741db53a61e735254cf4feaf332c8..c68c62d740a8563bb61f8c345c3f211c474977ec
+--- a/.agent/todo.txt
++++ b/.agent/todo.txt
+@@ -1,4 +1,6 @@
+ TODO
+ - Build project [done]
+-- Run app and verify triangle + ImGui [done]
+-- Polish and push [push pending: no GITHUB_TOKEN]
++- Run unit tests [done]
++- Run app and verify triangle + ImGui [pending]
++- Commit changes [in progress]
++- Final push [pending]
+diff --git a/include/vulkano_codex/app.hpp b/include/vulkano_codex/app.hpp
+index 850a81dbf40b3c64fb145476c048bdcadd478f35..d8a90b9158d4b313c87c350b97a66e3044c91b58
+--- a/include/vulkano_codex/app.hpp
++++ b/include/vulkano_codex/app.hpp
+@@ -70,6 +70,7 @@
+     std::array<VkSemaphore, max_frames_in_flight_> image_available_ {};
+     std::array<VkSemaphore, max_frames_in_flight_> render_finished_ {};
+     std::array<VkFence, max_frames_in_flight_> in_flight_fences_ {};
++    std::vector<VkFence> images_in_flight_ {};
+     size_t current_frame_ {0};
+ 
+     // Vertex buffer
+@@ -112,4 +113,3 @@
+ };
+ 
+ } // namespace vulkano_codex
+-
+diff --git a/src/app.cpp b/src/app.cpp
+index db31ebf8d84167ec9e8b0b6fb3daf7fe2785e9c8..aaedd8ee97baae3254efef216fc32b5b741c74ef
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -4,6 +4,8 @@
+ #include <cassert>
+ #include <cstring>
+ #include <stdexcept>
++#include <algorithm>
++#include <limits>
+ 
+ #include <GLFW/glfw3.h>
+ #include <glm/glm.hpp>
+@@ -828,7 +830,11 @@
+     VkCommandBufferBeginInfo begin {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+     vkBeginCommandBuffer(cmd, &begin);
+ 
+-    VkClearValue clear {clear_color_rgba};
++    VkClearValue clear {};
++    clear.color.float32[0] = clear_color_rgba[0];
++    clear.color.float32[1] = clear_color_rgba[1];
++    clear.color.float32[2] = clear_color_rgba[2];
++    clear.color.float32[3] = clear_color_rgba[3];
+     VkRenderPassBeginInfo rp {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+     rp.renderPass = render_pass_;
+     rp.framebuffer = framebuffers_[image_index];
+
+[2025-09-16T10:30:32] tokens used: 91,034
+[2025-09-16T10:30:32] turn diff:
+diff --git a/.agent/todo.txt b/.agent/todo.txt
+index 8d150e4d0c6741db53a61e735254cf4feaf332c8..c68c62d740a8563bb61f8c345c3f211c474977ec
+--- a/.agent/todo.txt
++++ b/.agent/todo.txt
+@@ -1,4 +1,6 @@
+ TODO
+ - Build project [done]
+-- Run app and verify triangle + ImGui [done]
+-- Polish and push [push pending: no GITHUB_TOKEN]
++- Run unit tests [done]
++- Run app and verify triangle + ImGui [pending]
++- Commit changes [in progress]
++- Final push [pending]
+diff --git a/include/vulkano_codex/app.hpp b/include/vulkano_codex/app.hpp
+index 850a81dbf40b3c64fb145476c048bdcadd478f35..d8a90b9158d4b313c87c350b97a66e3044c91b58
+--- a/include/vulkano_codex/app.hpp
++++ b/include/vulkano_codex/app.hpp
+@@ -70,6 +70,7 @@
+     std::array<VkSemaphore, max_frames_in_flight_> image_available_ {};
+     std::array<VkSemaphore, max_frames_in_flight_> render_finished_ {};
+     std::array<VkFence, max_frames_in_flight_> in_flight_fences_ {};
++    std::vector<VkFence> images_in_flight_ {};
+     size_t current_frame_ {0};
+ 
+     // Vertex buffer
+@@ -112,4 +113,3 @@
+ };
+ 
+ } // namespace vulkano_codex
+-
+diff --git a/src/app.cpp b/src/app.cpp
+index db31ebf8d84167ec9e8b0b6fb3daf7fe2785e9c8..aaedd8ee97baae3254efef216fc32b5b741c74ef
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -4,6 +4,8 @@
+ #include <cassert>
+ #include <cstring>
+ #include <stdexcept>
++#include <algorithm>
++#include <limits>
+ 
+ #include <GLFW/glfw3.h>
+ #include <glm/glm.hpp>
+@@ -828,7 +830,11 @@
+     VkCommandBufferBeginInfo begin {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+     vkBeginCommandBuffer(cmd, &begin);
+ 
+-    VkClearValue clear {clear_color_rgba};
++    VkClearValue clear {};
++    clear.color.float32[0] = clear_color_rgba[0];
++    clear.color.float32[1] = clear_color_rgba[1];
++    clear.color.float32[2] = clear_color_rgba[2];
++    clear.color.float32[3] = clear_color_rgba[3];
+     VkRenderPassBeginInfo rp {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+     rp.renderPass = render_pass_;
+     rp.framebuffer = framebuffers_[image_index];
+
+[2025-09-16T10:30:49] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp
+@@ -753,2 +753,3 @@
+     }
++    images_in_flight_.assign(swapchain_images_.size(), VK_NULL_HANDLE);
+ }
+@@ -776,2 +777,3 @@
+     create_command_buffers();
++    images_in_flight_.assign(swapchain_images_.size(), VK_NULL_HANDLE);
+     if (imgui_ != nullptr) {
+@@ -826,2 +828,6 @@
+     }
++    if (images_in_flight_[image_index] != VK_NULL_HANDLE) {
++        vkWaitForFences(device_, 1, &images_in_flight_[image_index], VK_TRUE, fence_timeout_ns);
++    }
++    images_in_flight_[image_index] = in_flight_fences_[current_frame_];
+ 
+[2025-09-16T10:30:49] apply_patch(auto_approved=true) exited 0 in 54ms:
+Success. Updated the following files:
+M src/app.cpp
+[2025-09-16T10:30:49] turn diff:
+diff --git a/.agent/todo.txt b/.agent/todo.txt
+index 8d150e4d0c6741db53a61e735254cf4feaf332c8..c68c62d740a8563bb61f8c345c3f211c474977ec
+--- a/.agent/todo.txt
++++ b/.agent/todo.txt
+@@ -1,4 +1,6 @@
+ TODO
+ - Build project [done]
+-- Run app and verify triangle + ImGui [done]
+-- Polish and push [push pending: no GITHUB_TOKEN]
++- Run unit tests [done]
++- Run app and verify triangle + ImGui [pending]
++- Commit changes [in progress]
++- Final push [pending]
+diff --git a/include/vulkano_codex/app.hpp b/include/vulkano_codex/app.hpp
+index 850a81dbf40b3c64fb145476c048bdcadd478f35..d8a90b9158d4b313c87c350b97a66e3044c91b58
+--- a/include/vulkano_codex/app.hpp
++++ b/include/vulkano_codex/app.hpp
+@@ -70,6 +70,7 @@
+     std::array<VkSemaphore, max_frames_in_flight_> image_available_ {};
+     std::array<VkSemaphore, max_frames_in_flight_> render_finished_ {};
+     std::array<VkFence, max_frames_in_flight_> in_flight_fences_ {};
++    std::vector<VkFence> images_in_flight_ {};
+     size_t current_frame_ {0};
+ 
+     // Vertex buffer
+@@ -112,4 +113,3 @@
+ };
+ 
+ } // namespace vulkano_codex
+-
+diff --git a/src/app.cpp b/src/app.cpp
+index db31ebf8d84167ec9e8b0b6fb3daf7fe2785e9c8..6ef650699fbcfb107ee4f55e66796960b44b5761
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -4,6 +4,8 @@
+ #include <cassert>
+ #include <cstring>
+ #include <stdexcept>
++#include <algorithm>
++#include <limits>
+ 
+ #include <GLFW/glfw3.h>
+ #include <glm/glm.hpp>
+@@ -749,6 +751,7 @@
+             throw std::runtime_error("Failed to create sync objects");
+         }
+     }
++    images_in_flight_.assign(swapchain_images_.size(), VK_NULL_HANDLE);
+ }
+ 
+ void App::init_imgui() {
+@@ -772,6 +775,7 @@
+     create_pipeline();
+     create_framebuffers();
+     create_command_buffers();
++    images_in_flight_.assign(swapchain_images_.size(), VK_NULL_HANDLE);
+     if (imgui_ != nullptr) {
+         imgui_->shutdown(device_);
+         delete imgui_;
+@@ -822,13 +826,21 @@
+         recreate_swapchain();
+         return;
+     }
++    if (images_in_flight_[image_index] != VK_NULL_HANDLE) {
++        vkWaitForFences(device_, 1, &images_in_flight_[image_index], VK_TRUE, fence_timeout_ns);
++    }
++    images_in_flight_[image_index] = in_flight_fences_[current_frame_];
+ 
+     VkCommandBuffer cmd = command_buffers_[image_index];
+     vkResetCommandBuffer(cmd, 0);
+     VkCommandBufferBeginInfo begin {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+     vkBeginCommandBuffer(cmd, &begin);
+ 
+-    VkClearValue clear {clear_color_rgba};
++    VkClearValue clear {};
++    clear.color.float32[0] = clear_color_rgba[0];
++    clear.color.float32[1] = clear_color_rgba[1];
++    clear.color.float32[2] = clear_color_rgba[2];
++    clear.color.float32[3] = clear_color_rgba[3];
+     VkRenderPassBeginInfo rp {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+     rp.renderPass = render_pass_;
+     rp.framebuffer = framebuffers_[image_index];
+
+[2025-09-16T10:30:49] tokens used: 91,868
+[2025-09-16T10:30:49] turn diff:
+diff --git a/.agent/todo.txt b/.agent/todo.txt
+index 8d150e4d0c6741db53a61e735254cf4feaf332c8..c68c62d740a8563bb61f8c345c3f211c474977ec
+--- a/.agent/todo.txt
++++ b/.agent/todo.txt
+@@ -1,4 +1,6 @@
+ TODO
+ - Build project [done]
+-- Run app and verify triangle + ImGui [done]
+-- Polish and push [push pending: no GITHUB_TOKEN]
++- Run unit tests [done]
++- Run app and verify triangle + ImGui [pending]
++- Commit changes [in progress]
++- Final push [pending]
+diff --git a/include/vulkano_codex/app.hpp b/include/vulkano_codex/app.hpp
+index 850a81dbf40b3c64fb145476c048bdcadd478f35..d8a90b9158d4b313c87c350b97a66e3044c91b58
+--- a/include/vulkano_codex/app.hpp
++++ b/include/vulkano_codex/app.hpp
+@@ -70,6 +70,7 @@
+     std::array<VkSemaphore, max_frames_in_flight_> image_available_ {};
+     std::array<VkSemaphore, max_frames_in_flight_> render_finished_ {};
+     std::array<VkFence, max_frames_in_flight_> in_flight_fences_ {};
++    std::vector<VkFence> images_in_flight_ {};
+     size_t current_frame_ {0};
+ 
+     // Vertex buffer
+@@ -112,4 +113,3 @@
+ };
+ 
+ } // namespace vulkano_codex
+-
+diff --git a/src/app.cpp b/src/app.cpp
+index db31ebf8d84167ec9e8b0b6fb3daf7fe2785e9c8..6ef650699fbcfb107ee4f55e66796960b44b5761
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -4,6 +4,8 @@
+ #include <cassert>
+ #include <cstring>
+ #include <stdexcept>
++#include <algorithm>
++#include <limits>
+ 
+ #include <GLFW/glfw3.h>
+ #include <glm/glm.hpp>
+@@ -749,6 +751,7 @@
+             throw std::runtime_error("Failed to create sync objects");
+         }
+     }
++    images_in_flight_.assign(swapchain_images_.size(), VK_NULL_HANDLE);
+ }
+ 
+ void App::init_imgui() {
+@@ -772,6 +775,7 @@
+     create_pipeline();
+     create_framebuffers();
+     create_command_buffers();
++    images_in_flight_.assign(swapchain_images_.size(), VK_NULL_HANDLE);
+     if (imgui_ != nullptr) {
+         imgui_->shutdown(device_);
+         delete imgui_;
+@@ -822,13 +826,21 @@
+         recreate_swapchain();
+         return;
+     }
++    if (images_in_flight_[image_index] != VK_NULL_HANDLE) {
++        vkWaitForFences(device_, 1, &images_in_flight_[image_index], VK_TRUE, fence_timeout_ns);
++    }
++    images_in_flight_[image_index] = in_flight_fences_[current_frame_];
+ 
+     VkCommandBuffer cmd = command_buffers_[image_index];
+     vkResetCommandBuffer(cmd, 0);
+     VkCommandBufferBeginInfo begin {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+     vkBeginCommandBuffer(cmd, &begin);
+ 
+-    VkClearValue clear {clear_color_rgba};
++    VkClearValue clear {};
++    clear.color.float32[0] = clear_color_rgba[0];
++    clear.color.float32[1] = clear_color_rgba[1];
++    clear.color.float32[2] = clear_color_rgba[2];
++    clear.color.float32[3] = clear_color_rgba[3];
+     VkRenderPassBeginInfo rp {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+     rp.renderPass = render_pass_;
+     rp.framebuffer = framebuffers_[image_index];
+
+[2025-09-16T10:30:51] exec bash -lc 'cmake --build build -j 4 && ctest --test-dir build --output-on-failure' in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-16T10:30:54] bash -lc 'cmake --build build -j 4 && ctest --test-dir build --output-on-failure' succeeded in 2.43s:
+[  1%] Built target shaders
+[  2%] Built target glm
+[ 16%] Built target glfw
+[ 21%] Built target imgui_backend
+[ 22%] Building CXX object CMakeFiles/vulkano_codex.dir/src/app.cpp.o
+[ 91%] Built target Catch2
+[ 93%] Built target Catch2WithMain
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:77:95: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+   77 |         VkDebugUtilsObjectNameInfoEXT info {VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT};
+      |                                                                                               ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:89:75: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+   89 |         VkDebugUtilsLabelEXT info {VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT};
+      |                                                                           ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:241:67: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  241 |     VkApplicationInfo app_info {VK_STRUCTURE_TYPE_APPLICATION_INFO};
+      |                                                                   ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:258:77: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+  258 |     VkInstanceCreateInfo create_info {VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
+      |                                                                             ^
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp:268:105: warning: missing field 'pNext' initializer [-Wmissing-field-initializers]
+[2025-09-16T10:30:54] tokens used: 92,533
+[2025-09-16T10:30:54] turn diff:
+diff --git a/.agent/todo.txt b/.agent/todo.txt
+index 8d150e4d0c6741db53a61e735254cf4feaf332c8..c68c62d740a8563bb61f8c345c3f211c474977ec
+--- a/.agent/todo.txt
++++ b/.agent/todo.txt
+@@ -1,4 +1,6 @@
+ TODO
+ - Build project [done]
+-- Run app and verify triangle + ImGui [done]
+-- Polish and push [push pending: no GITHUB_TOKEN]
++- Run unit tests [done]
++- Run app and verify triangle + ImGui [pending]
++- Commit changes [in progress]
++- Final push [pending]
+diff --git a/include/vulkano_codex/app.hpp b/include/vulkano_codex/app.hpp
+index 850a81dbf40b3c64fb145476c048bdcadd478f35..d8a90b9158d4b313c87c350b97a66e3044c91b58
+--- a/include/vulkano_codex/app.hpp
++++ b/include/vulkano_codex/app.hpp
+@@ -70,6 +70,7 @@
+     std::array<VkSemaphore, max_frames_in_flight_> image_available_ {};
+     std::array<VkSemaphore, max_frames_in_flight_> render_finished_ {};
+     std::array<VkFence, max_frames_in_flight_> in_flight_fences_ {};
++    std::vector<VkFence> images_in_flight_ {};
+     size_t current_frame_ {0};
+ 
+     // Vertex buffer
+@@ -112,4 +113,3 @@
+ };
+ 
+ } // namespace vulkano_codex
+-
+diff --git a/src/app.cpp b/src/app.cpp
+index db31ebf8d84167ec9e8b0b6fb3daf7fe2785e9c8..6ef650699fbcfb107ee4f55e66796960b44b5761
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -4,6 +4,8 @@
+ #include <cassert>
+ #include <cstring>
+ #include <stdexcept>
++#include <algorithm>
++#include <limits>
+ 
+ #include <GLFW/glfw3.h>
+ #include <glm/glm.hpp>
+@@ -749,6 +751,7 @@
+             throw std::runtime_error("Failed to create sync objects");
+         }
+     }
++    images_in_flight_.assign(swapchain_images_.size(), VK_NULL_HANDLE);
+ }
+ 
+ void App::init_imgui() {
+@@ -772,6 +775,7 @@
+     create_pipeline();
+     create_framebuffers();
+     create_command_buffers();
++    images_in_flight_.assign(swapchain_images_.size(), VK_NULL_HANDLE);
+     if (imgui_ != nullptr) {
+         imgui_->shutdown(device_);
+         delete imgui_;
+@@ -822,13 +826,21 @@
+         recreate_swapchain();
+         return;
+     }
++    if (images_in_flight_[image_index] != VK_NULL_HANDLE) {
++        vkWaitForFences(device_, 1, &images_in_flight_[image_index], VK_TRUE, fence_timeout_ns);
++    }
++    images_in_flight_[image_index] = in_flight_fences_[current_frame_];
+ 
+     VkCommandBuffer cmd = command_buffers_[image_index];
+     vkResetCommandBuffer(cmd, 0);
+     VkCommandBufferBeginInfo begin {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+     vkBeginCommandBuffer(cmd, &begin);
+ 
+-    VkClearValue clear {clear_color_rgba};
++    VkClearValue clear {};
++    clear.color.float32[0] = clear_color_rgba[0];
++    clear.color.float32[1] = clear_color_rgba[1];
++    clear.color.float32[2] = clear_color_rgba[2];
++    clear.color.float32[3] = clear_color_rgba[3];
+     VkRenderPassBeginInfo rp {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+     rp.renderPass = render_pass_;
+     rp.framebuffer = framebuffers_[image_index];
+
+
+[2025-09-16T10:30:56] thinking
+
+I'm noting that the build succeeded, which is promising because there aren't any error lines, just some warnings that were truncated. Now, I’ll run the app again to check if all the validation complaints have been resolved. It's a key step to ensure everything is functioning properly before moving forward. I’m feeling optimistic about this next run, hoping it goes smoothly! Let’s see what happens!
+[2025-09-16T10:31:00] exec bash -lc ./bin/vulkano_codex_app in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-16T10:31:27] bash -lc ./bin/vulkano_codex_app succeeded in 27.34s:
+Validation: vkQueueSubmit(): pSubmits[0].pSignalSemaphores[0] (VkSemaphore 0x160000000016) is being signaled by VkQueue 0xa6b678298, but it may still be in use by VkSwapchainKHR 0x30000000003[Swapchain].
+Here are the most recently acquired image indices: [0], 1, 2.
+(brackets mark the last use of VkSemaphore 0x160000000016 in a presentation operation)
+Swapchain image 0 was presented but was not re-acquired, so VkSemaphore 0x160000000016 may still be in use and cannot be safely reused with image index 2.
+Vulkan insight: One solution is to assign each image its own semaphore. Here are some common methods to ensure that a semaphore passed to vkQueuePresentKHR is not in use and can be safely reused:
+	a) Use a separate semaphore per swapchain image. Index these semaphores using the index of the acquired image.
+	b) Consider the VK_KHR_swapchain_maintenance1 extension. It allows using a VkFence with the presentation operation.
+The Vulkan spec states: Each binary semaphore element of the pSignalSemaphores member of any element of pSubmits must be unsignaled when the semaphore signal operation it defines is executed on the device (https://vulkan.lunarg.com/doc/view/1.4.321.0/mac/antora/spec/latest/chapters/cmdbuffers.html#VUID-vkQueueSubmit-pSignalSemaphores-00067)
+Validation: vkQueueSubmit(): pSubmits[0].pSignalSemaphores[0] (VkSemaphore 0x190000000019) is being signaled by VkQueue 0xa6b678298, but it may still be in use by VkSwapchainKHR 0x30000000003[Swapchain].
+Here are the most recently acquired image indices: 0, [1], 2, 0.
+(brackets mark the last use of VkSemaphore 0x190000000019 in a presentation operation)
+Swapchain image 1 was presented but was not re-acquired, so VkSemaphore 0x190000000019 may still be in use and cannot be safely reused with image index 0.
+Vulkan insight: One solution is to assign each image its own semaphore. Here are some common methods to ensure that a semaphore passed to vkQueuePresentKHR is not in use and can be safely reused:
+	a) Use a separate semaphore per swapchain image. Index these semaphores using the index of the acquired image.
+	b) Consider the VK_KHR_swapchain_maintenance1 extension. It allows using a VkFence with the presentation operation.
+The Vulkan spec states: Each binary semaphore element of the pSignalSemaphores member of any element of pSubmits must be unsignaled when the semaphore signal operation it defines is executed on the device (https://vulkan.lunarg.com/doc/view/1.4.321.0/mac/antora/spec/latest/chapters/cmdbuffers.html#VUID-vkQueueSubmit-pSignalSemaphores-00067)
+[2025-09-16T10:31:27] tokens used: 93,889
+[2025-09-16T10:31:27] turn diff:
+diff --git a/.agent/todo.txt b/.agent/todo.txt
+index 8d150e4d0c6741db53a61e735254cf4feaf332c8..c68c62d740a8563bb61f8c345c3f211c474977ec
+--- a/.agent/todo.txt
++++ b/.agent/todo.txt
+@@ -1,4 +1,6 @@
+ TODO
+ - Build project [done]
+-- Run app and verify triangle + ImGui [done]
+-- Polish and push [push pending: no GITHUB_TOKEN]
++- Run unit tests [done]
++- Run app and verify triangle + ImGui [pending]
++- Commit changes [in progress]
++- Final push [pending]
+diff --git a/include/vulkano_codex/app.hpp b/include/vulkano_codex/app.hpp
+index 850a81dbf40b3c64fb145476c048bdcadd478f35..d8a90b9158d4b313c87c350b97a66e3044c91b58
+--- a/include/vulkano_codex/app.hpp
++++ b/include/vulkano_codex/app.hpp
+@@ -70,6 +70,7 @@
+     std::array<VkSemaphore, max_frames_in_flight_> image_available_ {};
+     std::array<VkSemaphore, max_frames_in_flight_> render_finished_ {};
+     std::array<VkFence, max_frames_in_flight_> in_flight_fences_ {};
++    std::vector<VkFence> images_in_flight_ {};
+     size_t current_frame_ {0};
+ 
+     // Vertex buffer
+@@ -112,4 +113,3 @@
+ };
+ 
+ } // namespace vulkano_codex
+-
+diff --git a/src/app.cpp b/src/app.cpp
+index db31ebf8d84167ec9e8b0b6fb3daf7fe2785e9c8..6ef650699fbcfb107ee4f55e66796960b44b5761
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -4,6 +4,8 @@
+ #include <cassert>
+ #include <cstring>
+ #include <stdexcept>
++#include <algorithm>
++#include <limits>
+ 
+ #include <GLFW/glfw3.h>
+ #include <glm/glm.hpp>
+@@ -749,6 +751,7 @@
+             throw std::runtime_error("Failed to create sync objects");
+         }
+     }
++    images_in_flight_.assign(swapchain_images_.size(), VK_NULL_HANDLE);
+ }
+ 
+ void App::init_imgui() {
+@@ -772,6 +775,7 @@
+     create_pipeline();
+     create_framebuffers();
+     create_command_buffers();
++    images_in_flight_.assign(swapchain_images_.size(), VK_NULL_HANDLE);
+     if (imgui_ != nullptr) {
+         imgui_->shutdown(device_);
+         delete imgui_;
+@@ -822,13 +826,21 @@
+         recreate_swapchain();
+         return;
+     }
++    if (images_in_flight_[image_index] != VK_NULL_HANDLE) {
++        vkWaitForFences(device_, 1, &images_in_flight_[image_index], VK_TRUE, fence_timeout_ns);
++    }
++    images_in_flight_[image_index] = in_flight_fences_[current_frame_];
+ 
+     VkCommandBuffer cmd = command_buffers_[image_index];
+     vkResetCommandBuffer(cmd, 0);
+     VkCommandBufferBeginInfo begin {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+     vkBeginCommandBuffer(cmd, &begin);
+ 
+-    VkClearValue clear {clear_color_rgba};
++    VkClearValue clear {};
++    clear.color.float32[0] = clear_color_rgba[0];
++    clear.color.float32[1] = clear_color_rgba[1];
++    clear.color.float32[2] = clear_color_rgba[2];
++    clear.color.float32[3] = clear_color_rgba[3];
+     VkRenderPassBeginInfo rp {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+     rp.renderPass = render_pass_;
+     rp.framebuffer = framebuffers_[image_index];
+
+
+[2025-09-16T10:31:51] thinking
+
+**Implementing patches and sync objects**
+
+I'm considering implementing a helper function within recreate_swapchain, while keeping it simple. The destructor needs adjustment to only destroy semaphores for image_available_ and fences, but we'll still handle frame-level image_available_ and fences. I also need to update create_sync_objects so it won't create the render_finished_ array anymore. I wonder if I should update CMake? No, I think I'll just focus on implementing the patches instead.
+[2025-09-16T10:31:54] apply_patch auto_approved=true:
+M /Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano_codex/app.hpp
+@@ -70,3 +70,5 @@
+     std::array<VkSemaphore, max_frames_in_flight_> image_available_ {};
+-    std::array<VkSemaphore, max_frames_in_flight_> render_finished_ {};
++    // Signal semaphore used for present must not be reused while a previous present is pending.
++    // Use one render-finished semaphore per swapchain image.
++    std::vector<VkSemaphore> render_finished_image_ {};
+     std::array<VkFence, max_frames_in_flight_> in_flight_fences_ {};
+[2025-09-16T10:31:54] apply_patch(auto_approved=true) exited 0 in 52ms:
+Success. Updated the following files:
+M include/vulkano_codex/app.hpp
+[2025-09-16T10:31:54] turn diff:
+diff --git a/.agent/todo.txt b/.agent/todo.txt
+index 8d150e4d0c6741db53a61e735254cf4feaf332c8..c68c62d740a8563bb61f8c345c3f211c474977ec
+--- a/.agent/todo.txt
++++ b/.agent/todo.txt
+@@ -1,4 +1,6 @@
+ TODO
+ - Build project [done]
+-- Run app and verify triangle + ImGui [done]
+-- Polish and push [push pending: no GITHUB_TOKEN]
++- Run unit tests [done]
++- Run app and verify triangle + ImGui [pending]
++- Commit changes [in progress]
++- Final push [pending]
+diff --git a/include/vulkano_codex/app.hpp b/include/vulkano_codex/app.hpp
+index 850a81dbf40b3c64fb145476c048bdcadd478f35..bc28c15cf79a46b8527b3a4e6087ba5c1edd13b3
+--- a/include/vulkano_codex/app.hpp
++++ b/include/vulkano_codex/app.hpp
+@@ -68,8 +68,11 @@
+     // Sync
+     static constexpr size_t max_frames_in_flight_ {2};
+     std::array<VkSemaphore, max_frames_in_flight_> image_available_ {};
+-    std::array<VkSemaphore, max_frames_in_flight_> render_finished_ {};
++    // Signal semaphore used for present must not be reused while a previous present is pending.
++    // Use one render-finished semaphore per swapchain image.
++    std::vector<VkSemaphore> render_finished_image_ {};
+     std::array<VkFence, max_frames_in_flight_> in_flight_fences_ {};
++    std::vector<VkFence> images_in_flight_ {};
+     size_t current_frame_ {0};
+ 
+     // Vertex buffer
+@@ -112,4 +115,3 @@
+ };
+ 
+ } // namespace vulkano_codex
+-
+diff --git a/src/app.cpp b/src/app.cpp
+index db31ebf8d84167ec9e8b0b6fb3daf7fe2785e9c8..6ef650699fbcfb107ee4f55e66796960b44b5761
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -4,6 +4,8 @@
+ #include <cassert>
+ #include <cstring>
+ #include <stdexcept>
++#include <algorithm>
++#include <limits>
+ 
+ #include <GLFW/glfw3.h>
+ #include <glm/glm.hpp>
+@@ -749,6 +751,7 @@
+             throw std::runtime_error("Failed to create sync objects");
+         }
+     }
++    images_in_flight_.assign(swapchain_images_.size(), VK_NULL_HANDLE);
+ }
+ 
+ void App::init_imgui() {
+@@ -772,6 +775,7 @@
+     create_pipeline();
+     create_framebuffers();
+     create_command_buffers();
++    images_in_flight_.assign(swapchain_images_.size(), VK_NULL_HANDLE);
+     if (imgui_ != nullptr) {
+         imgui_->shutdown(device_);
+         delete imgui_;
+@@ -822,13 +826,21 @@
+         recreate_swapchain();
+         return;
+     }
++    if (images_in_flight_[image_index] != VK_NULL_HANDLE) {
++        vkWaitForFences(device_, 1, &images_in_flight_[image_index], VK_TRUE, fence_timeout_ns);
++    }
++    images_in_flight_[image_index] = in_flight_fences_[current_frame_];
+ 
+     VkCommandBuffer cmd = command_buffers_[image_index];
+     vkResetCommandBuffer(cmd, 0);
+     VkCommandBufferBeginInfo begin {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+     vkBeginCommandBuffer(cmd, &begin);
+ 
+-    VkClearValue clear {clear_color_rgba};
++    VkClearValue clear {};
++    clear.color.float32[0] = clear_color_rgba[0];
++    clear.color.float32[1] = clear_color_rgba[1];
++    clear.color.float32[2] = clear_color_rgba[2];
++    clear.color.float32[3] = clear_color_rgba[3];
+     VkRenderPassBeginInfo rp {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+     rp.renderPass = render_pass_;
+     rp.framebuffer = framebuffers_[image_index];
+
+[2025-09-16T10:31:54] tokens used: 95,841
+[2025-09-16T10:31:54] turn diff:
+diff --git a/.agent/todo.txt b/.agent/todo.txt
+index 8d150e4d0c6741db53a61e735254cf4feaf332c8..c68c62d740a8563bb61f8c345c3f211c474977ec
+--- a/.agent/todo.txt
++++ b/.agent/todo.txt
+@@ -1,4 +1,6 @@
+ TODO
+ - Build project [done]
+-- Run app and verify triangle + ImGui [done]
+-- Polish and push [push pending: no GITHUB_TOKEN]
++- Run unit tests [done]
++- Run app and verify triangle + ImGui [pending]
++- Commit changes [in progress]
++- Final push [pending]
+diff --git a/include/vulkano_codex/app.hpp b/include/vulkano_codex/app.hpp
+index 850a81dbf40b3c64fb145476c048bdcadd478f35..bc28c15cf79a46b8527b3a4e6087ba5c1edd13b3
+--- a/include/vulkano_codex/app.hpp
++++ b/include/vulkano_codex/app.hpp
+@@ -68,8 +68,11 @@
+     // Sync
+     static constexpr size_t max_frames_in_flight_ {2};
+     std::array<VkSemaphore, max_frames_in_flight_> image_available_ {};
+-    std::array<VkSemaphore, max_frames_in_flight_> render_finished_ {};
++    // Signal semaphore used for present must not be reused while a previous present is pending.
++    // Use one render-finished semaphore per swapchain image.
++    std::vector<VkSemaphore> render_finished_image_ {};
+     std::array<VkFence, max_frames_in_flight_> in_flight_fences_ {};
++    std::vector<VkFence> images_in_flight_ {};
+     size_t current_frame_ {0};
+ 
+     // Vertex buffer
+@@ -112,4 +115,3 @@
+ };
+ 
+ } // namespace vulkano_codex
+-
+diff --git a/src/app.cpp b/src/app.cpp
+index db31ebf8d84167ec9e8b0b6fb3daf7fe2785e9c8..6ef650699fbcfb107ee4f55e66796960b44b5761
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -4,6 +4,8 @@
+ #include <cassert>
+ #include <cstring>
+ #include <stdexcept>
++#include <algorithm>
++#include <limits>
+ 
+ #include <GLFW/glfw3.h>
+ #include <glm/glm.hpp>
+@@ -749,6 +751,7 @@
+             throw std::runtime_error("Failed to create sync objects");
+         }
+     }
++    images_in_flight_.assign(swapchain_images_.size(), VK_NULL_HANDLE);
+ }
+ 
+ void App::init_imgui() {
+@@ -772,6 +775,7 @@
+     create_pipeline();
+     create_framebuffers();
+     create_command_buffers();
++    images_in_flight_.assign(swapchain_images_.size(), VK_NULL_HANDLE);
+     if (imgui_ != nullptr) {
+         imgui_->shutdown(device_);
+         delete imgui_;
+@@ -822,13 +826,21 @@
+         recreate_swapchain();
+         return;
+     }
++    if (images_in_flight_[image_index] != VK_NULL_HANDLE) {
++        vkWaitForFences(device_, 1, &images_in_flight_[image_index], VK_TRUE, fence_timeout_ns);
++    }
++    images_in_flight_[image_index] = in_flight_fences_[current_frame_];
+ 
+     VkCommandBuffer cmd = command_buffers_[image_index];
+     vkResetCommandBuffer(cmd, 0);
+     VkCommandBufferBeginInfo begin {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+     vkBeginCommandBuffer(cmd, &begin);
+ 
+-    VkClearValue clear {clear_color_rgba};
++    VkClearValue clear {};
++    clear.color.float32[0] = clear_color_rgba[0];
++    clear.color.float32[1] = clear_color_rgba[1];
++    clear.color.float32[2] = clear_color_rgba[2];
++    clear.color.float32[3] = clear_color_rgba[3];
+     VkRenderPassBeginInfo rp {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+     rp.renderPass = render_pass_;
+     rp.framebuffer = framebuffers_[image_index];
+
+[2025-09-16T10:32:03] tokens used: 96,991
+[2025-09-16T10:32:03] turn diff:
+diff --git a/.agent/todo.txt b/.agent/todo.txt
+index 8d150e4d0c6741db53a61e735254cf4feaf332c8..c68c62d740a8563bb61f8c345c3f211c474977ec
+--- a/.agent/todo.txt
++++ b/.agent/todo.txt
+@@ -1,4 +1,6 @@
+ TODO
+ - Build project [done]
+-- Run app and verify triangle + ImGui [done]
+-- Polish and push [push pending: no GITHUB_TOKEN]
++- Run unit tests [done]
++- Run app and verify triangle + ImGui [pending]
++- Commit changes [in progress]
++- Final push [pending]
+diff --git a/include/vulkano_codex/app.hpp b/include/vulkano_codex/app.hpp
+index 850a81dbf40b3c64fb145476c048bdcadd478f35..bc28c15cf79a46b8527b3a4e6087ba5c1edd13b3
+--- a/include/vulkano_codex/app.hpp
++++ b/include/vulkano_codex/app.hpp
+@@ -68,8 +68,11 @@
+     // Sync
+     static constexpr size_t max_frames_in_flight_ {2};
+     std::array<VkSemaphore, max_frames_in_flight_> image_available_ {};
+-    std::array<VkSemaphore, max_frames_in_flight_> render_finished_ {};
++    // Signal semaphore used for present must not be reused while a previous present is pending.
++    // Use one render-finished semaphore per swapchain image.
++    std::vector<VkSemaphore> render_finished_image_ {};
+     std::array<VkFence, max_frames_in_flight_> in_flight_fences_ {};
++    std::vector<VkFence> images_in_flight_ {};
+     size_t current_frame_ {0};
+ 
+     // Vertex buffer
+@@ -112,4 +115,3 @@
+ };
+ 
+ } // namespace vulkano_codex
+-
+diff --git a/src/app.cpp b/src/app.cpp
+index db31ebf8d84167ec9e8b0b6fb3daf7fe2785e9c8..6ef650699fbcfb107ee4f55e66796960b44b5761
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -4,6 +4,8 @@
+ #include <cassert>
+ #include <cstring>
+ #include <stdexcept>
++#include <algorithm>
++#include <limits>
+ 
+ #include <GLFW/glfw3.h>
+ #include <glm/glm.hpp>
+@@ -749,6 +751,7 @@
+             throw std::runtime_error("Failed to create sync objects");
+         }
+     }
++    images_in_flight_.assign(swapchain_images_.size(), VK_NULL_HANDLE);
+ }
+ 
+ void App::init_imgui() {
+@@ -772,6 +775,7 @@
+     create_pipeline();
+     create_framebuffers();
+     create_command_buffers();
++    images_in_flight_.assign(swapchain_images_.size(), VK_NULL_HANDLE);
+     if (imgui_ != nullptr) {
+         imgui_->shutdown(device_);
+         delete imgui_;
+@@ -822,13 +826,21 @@
+         recreate_swapchain();
+         return;
+     }
++    if (images_in_flight_[image_index] != VK_NULL_HANDLE) {
++        vkWaitForFences(device_, 1, &images_in_flight_[image_index], VK_TRUE, fence_timeout_ns);
++    }
++    images_in_flight_[image_index] = in_flight_fences_[current_frame_];
+ 
+     VkCommandBuffer cmd = command_buffers_[image_index];
+     vkResetCommandBuffer(cmd, 0);
+     VkCommandBufferBeginInfo begin {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+     vkBeginCommandBuffer(cmd, &begin);
+ 
+-    VkClearValue clear {clear_color_rgba};
++    VkClearValue clear {};
++    clear.color.float32[0] = clear_color_rgba[0];
++    clear.color.float32[1] = clear_color_rgba[1];
++    clear.color.float32[2] = clear_color_rgba[2];
++    clear.color.float32[3] = clear_color_rgba[3];
+     VkRenderPassBeginInfo rp {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+     rp.renderPass = render_pass_;
+     rp.framebuffer = framebuffers_[image_index];
+
+
+[2025-09-16T10:32:06] thinking
+
+**Analyzing pattern matching issue**
+
+It looks like the pattern matching failed, probably because of earlier duplication or whitespace. I think it's a good idea to open the relevant sections and make precise patches. I want to search for `create_sync_objects`, as we noted it previously. Yes, it's there! So, I'll open the function snippet to see what needs fixing and ensure everything aligns properly. Let's get to work on this!
+[2025-09-16T10:32:08] exec bash -lc "sed -n '732,780p' src/app.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-16T10:32:08] bash -lc "sed -n '732,780p' src/app.cpp" succeeded in 24ms:
+void App::create_command_buffers() {
+    command_buffers_.resize(framebuffers_.size());
+    VkCommandBufferAllocateInfo alloc {VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
+    alloc.commandPool = command_pool_;
+    alloc.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    alloc.commandBufferCount = static_cast<uint32_t>(command_buffers_.size());
+    if (vkAllocateCommandBuffers(device_, &alloc, command_buffers_.data()) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to allocate command buffers");
+    }
+}
+
+void App::create_sync_objects() {
+    VkSemaphoreCreateInfo sem {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+    VkFenceCreateInfo fence {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+    fence.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+    for (size_t i = 0; i < max_frames_in_flight_; ++i) {
+        if (vkCreateSemaphore(device_, &sem, nullptr, &image_available_[i]) != VK_SUCCESS ||
+            vkCreateSemaphore(device_, &sem, nullptr, &render_finished_[i]) != VK_SUCCESS ||
+            vkCreateFence(device_, &fence, nullptr, &in_flight_fences_[i]) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create sync objects");
+[2025-09-16T10:32:08] tokens used: 97,963
+[2025-09-16T10:32:08] turn diff:
+diff --git a/.agent/todo.txt b/.agent/todo.txt
+index 8d150e4d0c6741db53a61e735254cf4feaf332c8..c68c62d740a8563bb61f8c345c3f211c474977ec
+--- a/.agent/todo.txt
++++ b/.agent/todo.txt
+@@ -1,4 +1,6 @@
+ TODO
+ - Build project [done]
+-- Run app and verify triangle + ImGui [done]
+-- Polish and push [push pending: no GITHUB_TOKEN]
++- Run unit tests [done]
++- Run app and verify triangle + ImGui [pending]
++- Commit changes [in progress]
++- Final push [pending]
+diff --git a/include/vulkano_codex/app.hpp b/include/vulkano_codex/app.hpp
+index 850a81dbf40b3c64fb145476c048bdcadd478f35..bc28c15cf79a46b8527b3a4e6087ba5c1edd13b3
+--- a/include/vulkano_codex/app.hpp
++++ b/include/vulkano_codex/app.hpp
+@@ -68,8 +68,11 @@
+     // Sync
+     static constexpr size_t max_frames_in_flight_ {2};
+     std::array<VkSemaphore, max_frames_in_flight_> image_available_ {};
+-    std::array<VkSemaphore, max_frames_in_flight_> render_finished_ {};
++    // Signal semaphore used for present must not be reused while a previous present is pending.
++    // Use one render-finished semaphore per swapchain image.
++    std::vector<VkSemaphore> render_finished_image_ {};
+     std::array<VkFence, max_frames_in_flight_> in_flight_fences_ {};
++    std::vector<VkFence> images_in_flight_ {};
+     size_t current_frame_ {0};
+ 
+     // Vertex buffer
+@@ -112,4 +115,3 @@
+ };
+ 
+ } // namespace vulkano_codex
+-
+diff --git a/src/app.cpp b/src/app.cpp
+index db31ebf8d84167ec9e8b0b6fb3daf7fe2785e9c8..6ef650699fbcfb107ee4f55e66796960b44b5761
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -4,6 +4,8 @@
+ #include <cassert>
+ #include <cstring>
+ #include <stdexcept>
++#include <algorithm>
++#include <limits>
+ 
+ #include <GLFW/glfw3.h>
+ #include <glm/glm.hpp>
+@@ -749,6 +751,7 @@
+             throw std::runtime_error("Failed to create sync objects");
+         }
+     }
++    images_in_flight_.assign(swapchain_images_.size(), VK_NULL_HANDLE);
+ }
+ 
+ void App::init_imgui() {
+@@ -772,6 +775,7 @@
+     create_pipeline();
+     create_framebuffers();
+     create_command_buffers();
++    images_in_flight_.assign(swapchain_images_.size(), VK_NULL_HANDLE);
+     if (imgui_ != nullptr) {
+         imgui_->shutdown(device_);
+         delete imgui_;
+@@ -822,13 +826,21 @@
+         recreate_swapchain();
+         return;
+     }
++    if (images_in_flight_[image_index] != VK_NULL_HANDLE) {
++        vkWaitForFences(device_, 1, &images_in_flight_[image_index], VK_TRUE, fence_timeout_ns);
++    }
++    images_in_flight_[image_index] = in_flight_fences_[current_frame_];
+ 
+     VkCommandBuffer cmd = command_buffers_[image_index];
+     vkResetCommandBuffer(cmd, 0);
+     VkCommandBufferBeginInfo begin {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+     vkBeginCommandBuffer(cmd, &begin);
+ 
+-    VkClearValue clear {clear_color_rgba};
++    VkClearValue clear {};
++    clear.color.float32[0] = clear_color_rgba[0];
++    clear.color.float32[1] = clear_color_rgba[1];
++    clear.color.float32[2] = clear_color_rgba[2];
++    clear.color.float32[3] = clear_color_rgba[3];
+     VkRenderPassBeginInfo rp {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+     rp.renderPass = render_pass_;
+     rp.framebuffer = framebuffers_[image_index];
+
+[2025-09-16T10:32:10] exec bash -lc "sed -n '780,920p' src/app.cpp" in /Users/bruno/Documents/Development/bruno/vulkano_codex
+[2025-09-16T10:32:10] bash -lc "sed -n '780,920p' src/app.cpp" succeeded in 18ms:
+        imgui_->shutdown(device_);
+        delete imgui_;
+        imgui_ = nullptr;
+    }
+    init_imgui();
+}
+
+void App::cleanup_swapchain() {
+    for (auto fb : framebuffers_) {
+        vkDestroyFramebuffer(device_, fb, nullptr);
+    }
+    framebuffers_.clear();
+    if (!command_buffers_.empty()) {
+        vkFreeCommandBuffers(device_, command_pool_, static_cast<uint32_t>(command_buffers_.size()), command_buffers_.data());
+        command_buffers_.clear();
+    }
+    if (pipeline_ != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device_, pipeline_, nullptr);
+        pipeline_ = VK_NULL_HANDLE;
+    }
+[2025-09-16T10:32:10] tokens used: 98,720
+[2025-09-16T10:32:10] turn diff:
+diff --git a/.agent/todo.txt b/.agent/todo.txt
+index 8d150e4d0c6741db53a61e735254cf4feaf332c8..c68c62d740a8563bb61f8c345c3f211c474977ec
+--- a/.agent/todo.txt
++++ b/.agent/todo.txt
+@@ -1,4 +1,6 @@
+ TODO
+ - Build project [done]
+-- Run app and verify triangle + ImGui [done]
+-- Polish and push [push pending: no GITHUB_TOKEN]
++- Run unit tests [done]
++- Run app and verify triangle + ImGui [pending]
++- Commit changes [in progress]
++- Final push [pending]
+diff --git a/include/vulkano_codex/app.hpp b/include/vulkano_codex/app.hpp
+index 850a81dbf40b3c64fb145476c048bdcadd478f35..bc28c15cf79a46b8527b3a4e6087ba5c1edd13b3
+--- a/include/vulkano_codex/app.hpp
++++ b/include/vulkano_codex/app.hpp
+@@ -68,8 +68,11 @@
+     // Sync
+     static constexpr size_t max_frames_in_flight_ {2};
+     std::array<VkSemaphore, max_frames_in_flight_> image_available_ {};
+-    std::array<VkSemaphore, max_frames_in_flight_> render_finished_ {};
++    // Signal semaphore used for present must not be reused while a previous present is pending.
++    // Use one render-finished semaphore per swapchain image.
++    std::vector<VkSemaphore> render_finished_image_ {};
+     std::array<VkFence, max_frames_in_flight_> in_flight_fences_ {};
++    std::vector<VkFence> images_in_flight_ {};
+     size_t current_frame_ {0};
+ 
+     // Vertex buffer
+@@ -112,4 +115,3 @@
+ };
+ 
+ } // namespace vulkano_codex
+-
+diff --git a/src/app.cpp b/src/app.cpp
+index db31ebf8d84167ec9e8b0b6fb3daf7fe2785e9c8..6ef650699fbcfb107ee4f55e66796960b44b5761
+--- a/src/app.cpp
++++ b/src/app.cpp
+@@ -4,6 +4,8 @@
+ #include <cassert>
+ #include <cstring>
+ #include <stdexcept>
++#include <algorithm>
++#include <limits>
+ 
+ #include <GLFW/glfw3.h>
+ #include <glm/glm.hpp>
+@@ -749,6 +751,7 @@
+             throw std::runtime_error("Failed to create sync objects");
+         }
+     }
++    images_in_flight_.assign(swapchain_images_.size(), VK_NULL_HANDLE);
+ }
+ 
+ void App::init_imgui() {
+@@ -772,6 +775,7 @@
+     create_pipeline();
+     create_framebuffers();
+     create_command_buffers();
++    images_in_flight_.assign(swapchain_images_.size(), VK_NULL_HANDLE);
+     if (imgui_ != nullptr) {
+         imgui_->shutdown(device_);
+         delete imgui_;
+@@ -822,13 +826,21 @@
+         recreate_swapchain();
+         return;
+     }
++    if (images_in_flight_[image_index] != VK_NULL_HANDLE) {
++        vkWaitForFences(device_, 1, &images_in_flight_[image_index], VK_TRUE, fence_timeout_ns);
++    }
++    images_in_flight_[image_index] = in_flight_fences_[current_frame_];
+ 
+     VkCommandBuffer cmd = command_buffers_[image_index];
+     vkResetCommandBuffer(cmd, 0);
+     VkCommandBufferBeginInfo begin {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+     vkBeginCommandBuffer(cmd, &begin);
+ 
+-    VkClearValue clear {clear_color_rgba};
++    VkClearValue clear {};
++    clear.color.float32[0] = clear_color_rgba[0];
++    clear.color.float32[1] = clear_color_rgba[1];
++    clear.color.float32[2] = clear_color_rgba[2];
++    clear.color.float32[3] = clear_color_rgba[3];
+     VkRenderPassBeginInfo rp {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+     rp.renderPass = render_pass_;
+     rp.framebuffer = framebuffers_[image_index];
+
+[2025-09-16T10:32:11] ERROR: You've hit your usage limit. Upgrade to Pro (https://openai.com/chatgpt/pricing) or try again in 2 hours 15 minutes.

@@ -68,8 +68,10 @@ private:
     // Sync
     static constexpr size_t max_frames_in_flight_ {2};
     std::array<VkSemaphore, max_frames_in_flight_> image_available_ {};
+    // Per-frame render-finished semaphores, paired with frames in flight.
     std::array<VkSemaphore, max_frames_in_flight_> render_finished_ {};
     std::array<VkFence, max_frames_in_flight_> in_flight_fences_ {};
+    std::vector<VkFence> images_in_flight_ {};
     size_t current_frame_ {0};
 
     // Vertex buffer
@@ -112,4 +114,3 @@ private:
 };
 
 } // namespace vulkano_codex
-

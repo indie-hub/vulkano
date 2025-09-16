@@ -751,6 +751,7 @@ void App::create_sync_objects() {
             throw std::runtime_error("Failed to create sync objects");
         }
     }
+    images_in_flight_.assign(swapchain_images_.size(), VK_NULL_HANDLE);
 }
 
 void App::init_imgui() {
@@ -774,6 +775,7 @@ void App::recreate_swapchain() {
     create_pipeline();
     create_framebuffers();
     create_command_buffers();
+    images_in_flight_.assign(swapchain_images_.size(), VK_NULL_HANDLE);
     if (imgui_ != nullptr) {
         imgui_->shutdown(device_);
         delete imgui_;
@@ -824,6 +826,10 @@ void App::draw_frame() {
         recreate_swapchain();
         return;
     }
+    if (images_in_flight_[image_index] != VK_NULL_HANDLE) {
+        vkWaitForFences(device_, 1, &images_in_flight_[image_index], VK_TRUE, fence_timeout_ns);
+    }
+    images_in_flight_[image_index] = in_flight_fences_[current_frame_];
 
     VkCommandBuffer cmd = command_buffers_[image_index];
     vkResetCommandBuffer(cmd, 0);
