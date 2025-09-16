@@ -4,5 +4,5 @@
 - [x] Integrate ImGui (FetchContent): create descriptor pool, init imgui_impl_glfw + imgui_impl_vulkan, render overlay after scene.
 - [x] Stats overlay: FPS/frame time smoothing, device name, and swapchain extent; wire into ImGui draw.
 - [x] Debug utils: set object names and insert command buffer labels around passes.
-- [ ] Tests: unit test for FPS smoothing; smoke test that starts app with autoclose env and exits cleanly.
+- [x] Tests: unit test for FPS smoothing; smoke test that starts app with autoclose env and exits cleanly.
 - [ ] Docs: update README with macOS (MoltenVK) setup, build/run instructions, and shader tool notes.

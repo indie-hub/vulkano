@@ -64,7 +64,8 @@ private:
     void create_vertex_buffer() noexcept;
     void create_command_pool_and_buffers() noexcept;
     void create_sync_objects() noexcept;
-    void record_commands(std::uint32_t imageIndex) noexcept;
+    // Returns true if commands were recorded successfully for the image.
+    bool record_commands(std::uint32_t imageIndex) noexcept;
     void init_imgui(GLFWwindow* window) noexcept;
     void destroy_swapchain_and_views() noexcept;
     void destroy_framebuffers() noexcept;

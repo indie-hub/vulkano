@@ -469,6 +469,11 @@ void VulkanContext::destroy() noexcept {
     if (device_ != VK_NULL_HANDLE) {
         vkDeviceWaitIdle(device_);
     }
+    if (imgui_) {
+        imgui_->shutdown();
+        imgui_.reset();
+        imgui_ready_ = false;
+    }
     destroy_sync_objects();
     destroy_command_pool_and_buffers();
     destroy_framebuffers();
@@ -1181,17 +1186,17 @@ void VulkanContext::destroy_vertex_buffer() noexcept {
 }
 
 
-void VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
-    if (device_ == VK_NULL_HANDLE || graphics_pipeline_ == VK_NULL_HANDLE || pipeline_layout_ == VK_NULL_HANDLE) {
-        return;
+bool VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
+    if (device_ == VK_NULL_HANDLE || render_pass_ == VK_NULL_HANDLE || graphics_pipeline_ == VK_NULL_HANDLE || pipeline_layout_ == VK_NULL_HANDLE) {
+        return false;
     }
     if (imageIndex >= command_buffers_.size() || imageIndex >= framebuffers_.size()) {
-        return;
+        return false;
     }
 
     VkCommandBuffer cmd {command_buffers_[imageIndex]};
     if (cmd == VK_NULL_HANDLE) {
-        return;
+        return false;
     }
 
     vkResetCommandBuffer(cmd, 0U);
@@ -1200,7 +1205,7 @@ void VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     if (vkBeginCommandBuffer(cmd, &beginInfo) != VK_SUCCESS) {
-        return;
+        return false;
     }
 
     VkClearValue clear {};
@@ -1243,7 +1248,10 @@ void VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
 
     vkCmdEndRenderPass(cmd);
     end_label(cmd);
-    (void)vkEndCommandBuffer(cmd);
+    if (vkEndCommandBuffer(cmd) != VK_SUCCESS) {
+        return false;
+    }
+    return true;
 }
 
 bool VulkanContext::draw_frame() noexcept {
@@ -1273,7 +1281,11 @@ bool VulkanContext::draw_frame() noexcept {
         images_in_flight_[imageIndex] = in_flight_fences_[frameIndex];
     }
 
-    record_commands(imageIndex);
+    const bool recorded {record_commands(imageIndex)};
+    if (!recorded) {
+        // Skip submit/present; let caller handle potential resize or resource init issue
+        return false;
+    }
 
     const VkPipelineStageFlags waitStages[1] {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
     VkSubmitInfo submitInfo {};
