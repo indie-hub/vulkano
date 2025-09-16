@@ -65,6 +65,17 @@ namespace {
         }
         throw std::runtime_error("Suitable memory type not found");
     }
+
+    void setDebugName(VkDevice device, VkObjectType type, uint64_t handle, const char* name) {
+        if (!kEnableValidation) { return; }
+        auto fn = (PFN_vkSetDebugUtilsObjectNameEXT)vkGetDeviceProcAddr(device, "vkSetDebugUtilsObjectNameEXT");
+        if (!fn) { return; }
+        VkDebugUtilsObjectNameInfoEXT info{ VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT };
+        info.objectType = type;
+        info.objectHandle = handle;
+        info.pObjectName = name;
+        fn(device, &info);
+    }
 }
 
 VkVertexInputBindingDescription Vertex::bindingDescription() {
@@ -436,6 +447,7 @@ void VulkanApp::createRenderPass() {
     if (vkCreateRenderPass(device_, &info, nullptr, &render_pass_) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create render pass");
     }
+    setDebugName(device_, VK_OBJECT_TYPE_RENDER_PASS, (uint64_t)render_pass_, "RenderPass");
 }
 
 VkShaderModule VulkanApp::createShaderModule(const std::vector<uint32_t>& code) const {
@@ -552,6 +564,8 @@ void VulkanApp::createPipeline() {
         vkDestroyShaderModule(device_, frag_module, nullptr);
         throw std::runtime_error("Failed to create graphics pipeline");
     }
+    setDebugName(device_, VK_OBJECT_TYPE_PIPELINE_LAYOUT, (uint64_t)pipeline_layout_, "PipelineLayout");
+    setDebugName(device_, VK_OBJECT_TYPE_PIPELINE, (uint64_t)graphics_pipeline_, "GraphicsPipeline");
 
     vkDestroyShaderModule(device_, vert_module, nullptr);
     vkDestroyShaderModule(device_, frag_module, nullptr);
