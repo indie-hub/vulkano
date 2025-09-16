@@ -11,7 +11,13 @@ struct AppConfig final {
     int initialWidth {1280};
     int initialHeight {720};
     std::string windowTitle {"Vulkano Codex"};
-    bool enableValidation {false};
+    bool enableValidation {
+#ifdef VULKANO_CODEX_DEBUG
+        true
+#else
+        false
+#endif
+    };
 };
 
 class App final {
@@ -33,4 +39,3 @@ private:
 };
 
 } // namespace vulkano
-
