@@ -1,7 +1,7 @@
 #include <vulkano/app.hpp>
 
 #include <GLFW/glfw3.h>
-#include <vk_bootstrap.h>
+#include <VkBootstrap.h>
 #include <volk.h>
 
 #include <array>
