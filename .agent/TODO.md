@@ -13,6 +13,7 @@ Next:
 - Expand unit tests for FPS smoothing [DONE]
 - Improve resize callback handling [DONE]
   - Window framebuffer callback now flags app to recreate swapchain before next frame
+ - Make debug utils extension conditional on Debug [DONE]
 
 Notes (2025-09-16):
 - Verified clean Debug build on local machine; binaries land in bin/.

@@ -191,7 +191,11 @@ void VulkanApp::createInstance() {
     std::vector<const char*> extensions(glfw_exts, glfw_exts + glfw_ext_count);
     // For portability (MoltenVK) on macOS
     extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-    extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+    // Request debug utils only when validation is enabled to avoid requiring
+    // the extension on systems that don't provide it in Release builds.
+    if (kEnableValidation) {
+        extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+    }
 
     VkInstanceCreateInfo create_info{ VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO };
     create_info.pApplicationInfo = &app_info;
