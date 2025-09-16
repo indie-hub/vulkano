@@ -36,6 +36,10 @@ namespace {
         Vertex {glm::vec2 {0.0F, 0.5F}},
     };
 
+    // Named colors to avoid magic numbers in render logic
+    constexpr std::array<float, 4> kClearColorBlack {0.0F, 0.0F, 0.0F, 1.0F};
+    constexpr std::array<float, 4> kTriangleColorWhite {1.0F, 1.0F, 1.0F, 1.0F};
+
     [[nodiscard]] std::vector<char> read_file_binary(const std::string& path) noexcept {
         std::vector<char> buffer {};
         std::ifstream file(path, std::ios::ate | std::ios::binary);
@@ -1209,7 +1213,10 @@ bool VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
     }
 
     VkClearValue clear {};
-    clear.color = VkClearColorValue {{0.0F, 0.0F, 0.0F, 1.0F}};
+    clear.color.float32[0] = kClearColorBlack[0];
+    clear.color.float32[1] = kClearColorBlack[1];
+    clear.color.float32[2] = kClearColorBlack[2];
+    clear.color.float32[3] = kClearColorBlack[3];
 
     VkRenderPassBeginInfo rpInfo {};
     rpInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -1228,9 +1235,8 @@ bool VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
     const VkDeviceSize offsets[1] {0U};
     vkCmdBindVertexBuffers(cmd, 0U, 1U, buffers, offsets);
 
-    const float white[4] {1.0F, 1.0F, 1.0F, 1.0F};
     begin_label(cmd, "Triangle");
-    vkCmdPushConstants(cmd, pipeline_layout_, VK_SHADER_STAGE_FRAGMENT_BIT, 0U, sizeof(white), white);
+    vkCmdPushConstants(cmd, pipeline_layout_, VK_SHADER_STAGE_FRAGMENT_BIT, 0U, sizeof(float) * 4U, kTriangleColorWhite.data());
 
     vkCmdDraw(cmd, static_cast<std::uint32_t>(kTriangleVertices.size()), 1U, 0U, 0U);
     end_label(cmd);

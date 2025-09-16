@@ -5,8 +5,7 @@
 - [x] Stats overlay: FPS/frame time smoothing, device name, and swapchain extent; wire into ImGui draw.
 - [x] Debug utils: set object names and insert command buffer labels around passes.
 - [x] Tests: unit test for FPS smoothing; smoke test that starts app with autoclose env and exits cleanly.
- - [x] Docs: update README with macOS (MoltenVK) setup, build/run instructions, and shader tool notes.
-
-Remaining next steps
+- [x] Docs: update README with macOS (MoltenVK) setup, build/run instructions, and shader tool notes.
+- [x] Remove magic numbers: replace inline clear color and push‑constant color with named constants.
 - [ ] CI: add GitHub Actions for format, build, and tests on macOS/Linux/Windows.
 - [ ] Packaging: copy runtime assets to a relocatable bundle and verify running outside the build tree.
