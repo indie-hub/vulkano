@@ -1,0 +1,14 @@
+Checks: >
+  clang-analyzer-*,
+  modernize-*,
+  readability-*,
+  performance-*,
+  bugprone-*,
+  cppcoreguidelines-*
+WarningsAsErrors: '*'
+HeaderFilterRegex: '.*'
+FormatStyle: none
+AnalyzeTemporaryDtors: false
+CheckOptions:
+  - key:             modernize-use-trailing-return-type.UseTrailingReturnType
+    value:           'false'
