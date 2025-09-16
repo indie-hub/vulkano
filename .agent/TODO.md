@@ -1,5 +1,6 @@
 - [x] Verify extended scene (plane, cube, icosphere), UI controls, and depth rendering
 - [x] Build Debug, compile shaders, run unit + e2e smoke (macOS/MoltenVK)
 - [x] Optional: expose light color and ambient strength controls in UI
+- [x] Confirm acceptance criteria: stats overlay, resize, no validation errors
 - [ ] Optional: add basic mouse orbit controls for Camera
 - [ ] Optional: add additional geometry tests (normals/UV ranges)

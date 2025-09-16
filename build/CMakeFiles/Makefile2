@@ -307,9 +307,9 @@ CMakeFiles/imgui.dir/clean:
 # Target rules for target CMakeFiles/vulkano.dir
 
 # All Build rule for target.
+CMakeFiles/vulkano.dir/all: CMakeFiles/imgui.dir/all
 CMakeFiles/vulkano.dir/all: _deps/glfw-build/src/CMakeFiles/glfw.dir/all
 CMakeFiles/vulkano.dir/all: _deps/glm-build/glm/CMakeFiles/glm.dir/all
-CMakeFiles/vulkano.dir/all: CMakeFiles/imgui.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/vulkano.dir/build.make CMakeFiles/vulkano.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/vulkano.dir/build.make CMakeFiles/vulkano.dir/build
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=92,93,94,95,96 "Built target vulkano"
@@ -341,11 +341,11 @@ CMakeFiles/vulkano.dir/clean:
 # Target rules for target CMakeFiles/vulkano_app.dir
 
 # All Build rule for target.
+CMakeFiles/vulkano_app.dir/all: CMakeFiles/imgui.dir/all
+CMakeFiles/vulkano_app.dir/all: CMakeFiles/vulkano.dir/all
 CMakeFiles/vulkano_app.dir/all: CMakeFiles/compile_shaders.dir/all
 CMakeFiles/vulkano_app.dir/all: _deps/glfw-build/src/CMakeFiles/glfw.dir/all
 CMakeFiles/vulkano_app.dir/all: _deps/glm-build/glm/CMakeFiles/glm.dir/all
-CMakeFiles/vulkano_app.dir/all: CMakeFiles/imgui.dir/all
-CMakeFiles/vulkano_app.dir/all: CMakeFiles/vulkano.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/vulkano_app.dir/build.make CMakeFiles/vulkano_app.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/vulkano_app.dir/build.make CMakeFiles/vulkano_app.dir/build
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=97 "Built target vulkano_app"
@@ -1305,8 +1305,8 @@ CMakeFiles/compile_shaders.dir/clean:
 # Target rules for target CMakeFiles/package_runtime.dir
 
 # All Build rule for target.
-CMakeFiles/package_runtime.dir/all: CMakeFiles/compile_shaders.dir/all
 CMakeFiles/package_runtime.dir/all: CMakeFiles/vulkano_app.dir/all
+CMakeFiles/package_runtime.dir/all: CMakeFiles/compile_shaders.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/package_runtime.dir/build.make CMakeFiles/package_runtime.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/package_runtime.dir/build.make CMakeFiles/package_runtime.dir/build
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=91 "Built target package_runtime"
@@ -1324,8 +1324,8 @@ package_runtime: CMakeFiles/package_runtime.dir/rule
 .PHONY : package_runtime
 
 # codegen rule for target.
-CMakeFiles/package_runtime.dir/codegen: CMakeFiles/compile_shaders.dir/all
 CMakeFiles/package_runtime.dir/codegen: CMakeFiles/vulkano_app.dir/all
+CMakeFiles/package_runtime.dir/codegen: CMakeFiles/compile_shaders.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/package_runtime.dir/build.make CMakeFiles/package_runtime.dir/codegen
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=91 "Finished codegen for target package_runtime"
 .PHONY : CMakeFiles/package_runtime.dir/codegen
@@ -1499,12 +1499,12 @@ _deps/glm-build/glm/CMakeFiles/glm.dir/clean:
 # Target rules for target tests/CMakeFiles/vulkano_tests.dir
 
 # All Build rule for target.
+tests/CMakeFiles/vulkano_tests.dir/all: CMakeFiles/imgui.dir/all
+tests/CMakeFiles/vulkano_tests.dir/all: CMakeFiles/vulkano.dir/all
 tests/CMakeFiles/vulkano_tests.dir/all: _deps/glfw-build/src/CMakeFiles/glfw.dir/all
 tests/CMakeFiles/vulkano_tests.dir/all: _deps/glm-build/glm/CMakeFiles/glm.dir/all
 tests/CMakeFiles/vulkano_tests.dir/all: _deps/catch2-build/src/CMakeFiles/Catch2.dir/all
 tests/CMakeFiles/vulkano_tests.dir/all: _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/all
-tests/CMakeFiles/vulkano_tests.dir/all: CMakeFiles/imgui.dir/all
-tests/CMakeFiles/vulkano_tests.dir/all: CMakeFiles/vulkano.dir/all
 	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/vulkano_tests.dir/build.make tests/CMakeFiles/vulkano_tests.dir/depend
 	$(MAKE) $(MAKESILENT) -f tests/CMakeFiles/vulkano_tests.dir/build.make tests/CMakeFiles/vulkano_tests.dir/build
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build/CMakeFiles --progress-num=98,99,100 "Built target vulkano_tests"
