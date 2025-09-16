@@ -170,6 +170,10 @@ struct App::Impl {
         presentQueue = vkbDevice.get_queue(vkb::QueueType::present).value();
         queueFamilyGraphics = vkbDevice.get_queue_index(vkb::QueueType::graphics).value();
         queueFamilyPresent = vkbDevice.get_queue_index(vkb::QueueType::present).value();
+
+        setDebugName(device, VK_OBJECT_TYPE_DEVICE, reinterpret_cast<uint64_t>(device), "LogicalDevice");
+        setDebugName(device, VK_OBJECT_TYPE_QUEUE, reinterpret_cast<uint64_t>(graphicsQueue), "GraphicsQueue");
+        setDebugName(device, VK_OBJECT_TYPE_QUEUE, reinterpret_cast<uint64_t>(presentQueue), "PresentQueue");
     }
 
     void init() {
@@ -297,6 +301,10 @@ struct App::Impl {
         swapchainImageViews = vkbSwap.get_image_views().value();
         swapchainFormat = vkbSwap.image_format;
         swapchainExtent = vkbSwap.extent;
+        setDebugName(device, VK_OBJECT_TYPE_SWAPCHAIN_KHR, reinterpret_cast<uint64_t>(swapchain), "Swapchain");
+        for (std::size_t i = 0; i < swapchainImageViews.size(); ++i) {
+            setDebugName(device, VK_OBJECT_TYPE_IMAGE_VIEW, reinterpret_cast<uint64_t>(swapchainImageViews[i]), "SwapchainImageView");
+        }
     }
 
     void destroySwapchain() noexcept {
@@ -369,6 +377,7 @@ struct App::Impl {
         if (vkCreateRenderPass(device, &rpInfo, nullptr, &renderPass) != VK_SUCCESS) {
             throw std::runtime_error {"Failed to create render pass"};
         }
+        setDebugName(device, VK_OBJECT_TYPE_RENDER_PASS, reinterpret_cast<uint64_t>(renderPass), "RenderPass");
     }
 
     void createFramebuffers() {
@@ -398,9 +407,10 @@ struct App::Impl {
             poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
             poolInfo.queueFamilyIndex = queueFamilyGraphics;
             poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-            if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
-                throw std::runtime_error {"Failed to create command pool"};
-            }
+        if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
+            throw std::runtime_error {"Failed to create command pool"};
+        }
+        setDebugName(device, VK_OBJECT_TYPE_COMMAND_POOL, reinterpret_cast<uint64_t>(commandPool), "CommandPool");
         }
         allocateCommandBuffers();
     }
@@ -872,3 +882,22 @@ void App::run() {
 }
 
 } // namespace vulkano
+void setDebugName(const VkDevice device, const VkObjectType type, const uint64_t handle, const char* name) {
+#ifdef VULKANO_CODEX_DEBUG
+    const auto pfn = reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(
+        vkGetDeviceProcAddr(device, "vkSetDebugUtilsObjectNameEXT"));
+    if (pfn != nullptr) {
+        VkDebugUtilsObjectNameInfoEXT info {};
+        info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
+        info.objectType = type;
+        info.objectHandle = handle;
+        info.pObjectName = name;
+        (void)pfn(device, &info);
+    }
+#else
+    (void)device;
+    (void)type;
+    (void)handle;
+    (void)name;
+#endif
+}
