@@ -143,15 +143,25 @@ void App::build_ui() noexcept {
         auto light = vk_->light();
         const float stepPos {0.1F};
         const float stepIntensity {0.01F};
+        const float minIntensity {0.0F};
+        const float maxIntensity {10.0F};
+        const float minAmbient {0.0F};
+        const float maxAmbient {1.0F};
         ImGui::SeparatorText("Light");
-        ImGui::DragFloat3("Position", &light.position.x, stepPos);
-        ImGui::DragFloat("Intensity", &light.intensity, stepIntensity, 0.0F, 10.0F);
         bool lightChanged {false};
-        if (ImGui::IsItemEdited()) {
+        if (ImGui::DragFloat3("Position", &light.position.x, stepPos)) {
             lightChanged = true;
         }
-        // Apply if any edits occurred
-        if (lightChanged || ImGui::IsItemDeactivatedAfterEdit()) {
+        if (ImGui::DragFloat("Intensity", &light.intensity, stepIntensity, minIntensity, maxIntensity)) {
+            lightChanged = true;
+        }
+        if (ImGui::ColorEdit3("Color", &light.color.x)) {
+            lightChanged = true;
+        }
+        if (ImGui::SliderFloat("Ambient", &light.ambient, minAmbient, maxAmbient)) {
+            lightChanged = true;
+        }
+        if (lightChanged) {
             vk_->set_light(light);
         }
 
