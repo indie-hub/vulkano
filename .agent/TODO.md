@@ -82,6 +82,13 @@ Verification: Built Debug locally, tests pass, headless run OK.
 - Environment variable `GITHUB_TOKEN` not set in this session; skipping authenticated push.
 - To push: export `GITHUB_TOKEN` and run `git push origin feature/swapchain-recreation`.
 
+### 2025-09-16 (CLI) Summary
+- Built `RelWithDebInfo` in `build_cli/` with `-DBUILD_TESTING=ON`.
+- All tests passing via `ctest`.
+- Headless run verified: `HEADLESS_RUN_MS=200` for app.
+- Added `build_cli/` to `.gitignore`.
+- No code changes required for core features; project already satisfies acceptance criteria for v1.
+
 ## Session Plan (short)
 - Add shaders: gbuffer.vert/frag, fullscreen.vert, ssao.frag
 - Add offscreen images + render passes + pipelines (guarded by VULKAN) — DONE
