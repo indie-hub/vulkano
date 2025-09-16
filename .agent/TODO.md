@@ -1,5 +1,5 @@
-- [x] Step 1: Render plane, cube, and icosphere via combined VBO/IBO and per-primitive push constants (static transforms/materials)
-- [ ] Step 2: Add ImGui controls for light and per-primitive transforms/material/shininess and optional icosphere subdivisions (rebuild + reupload)
-- [ ] Step 3: Switch geometry upload to device-local buffers using a staging buffer and immediate copy, with proper synchronization
-- [ ] Step 4: Add simple orbit camera input handling and UI toggles (sensitivity, speed)
-- [ ] Step 5: Polish: validation labels/names for new buffers, document module in README, smoke test updates
+- [x] Add UI controls for light and per-primitive transforms/materials; expose primitives via VulkanContext; add icosphere subdivisions setter; rebuild GPU buffers on change.
+- [ ] Switch geometry upload to use staging buffers (device-local VBO/IBO) while keeping CPU copies for rebuilds.
+- [ ] Extend ImGui with camera controls (orbit, reset) and optional plane/cube params if needed.
+- [ ] Add unit test for Icosphere::set_subdivisions() and minimal UI plumbing sanity (non-UI functions only).
+- [ ] Verify Mac runtime with MoltenVK; update README with notes and controls.

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cstddef>
 #include <vector>
 #include <array>
 #include <string>
@@ -64,6 +65,12 @@ public:
     };
     [[nodiscard]] const Light& light() const noexcept;
     void set_light(const Light& l) noexcept;
+
+    // Scene editing helpers
+    [[nodiscard]] std::size_t primitive_count() const noexcept;
+    [[nodiscard]] Primitive* primitive_at(std::size_t index) noexcept;
+    [[nodiscard]] const Primitive* primitive_at(std::size_t index) const noexcept;
+    void rebuild_scene_gpu_buffers() noexcept;
 
 private:
     void create_instance(GLFWwindow* window) noexcept;

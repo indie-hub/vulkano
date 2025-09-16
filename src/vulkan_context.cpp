@@ -198,6 +198,28 @@ void VulkanContext::set_light(const Light& l) noexcept {
     light_ = l;
 }
 
+std::size_t VulkanContext::primitive_count() const noexcept {
+    return primitives_.size();
+}
+
+Primitive* VulkanContext::primitive_at(std::size_t index) noexcept {
+    if (index >= primitives_.size()) {
+        return nullptr;
+    }
+    return primitives_[index].get();
+}
+
+const Primitive* VulkanContext::primitive_at(std::size_t index) const noexcept {
+    if (index >= primitives_.size()) {
+        return nullptr;
+    }
+    return primitives_[index].get();
+}
+
+void VulkanContext::rebuild_scene_gpu_buffers() noexcept {
+    create_scene_buffers();
+}
+
 void VulkanContext::create_instance(GLFWwindow* window) noexcept {
     if (window == nullptr) {
         return;

@@ -33,6 +33,7 @@ public:
 
     [[nodiscard]] virtual const std::vector<Vertex>& vertices() const noexcept = 0;
     [[nodiscard]] virtual const std::vector<std::uint32_t>& indices() const noexcept = 0;
+    [[nodiscard]] virtual const char* type_name() const noexcept = 0;
 
     [[nodiscard]] const Transform& transform() const noexcept { return transform_; }
     [[nodiscard]] const Material& material() const noexcept { return material_; }
@@ -57,6 +58,7 @@ public:
 
     [[nodiscard]] const std::vector<Vertex>& vertices() const noexcept override { return vertices_; }
     [[nodiscard]] const std::vector<std::uint32_t>& indices() const noexcept override { return indices_; }
+    [[nodiscard]] const char* type_name() const noexcept override { return "Plane"; }
 
 private:
     void build() noexcept;
@@ -73,6 +75,7 @@ public:
 
     [[nodiscard]] const std::vector<Vertex>& vertices() const noexcept override { return vertices_; }
     [[nodiscard]] const std::vector<std::uint32_t>& indices() const noexcept override { return indices_; }
+    [[nodiscard]] const char* type_name() const noexcept override { return "Cube"; }
 
 private:
     void build() noexcept;
@@ -93,6 +96,9 @@ public:
 
     [[nodiscard]] const std::vector<Vertex>& vertices() const noexcept override { return vertices_; }
     [[nodiscard]] const std::vector<std::uint32_t>& indices() const noexcept override { return indices_; }
+    [[nodiscard]] const char* type_name() const noexcept override { return "Icosphere"; }
+
+    void set_subdivisions(std::uint32_t subdivisions) noexcept;
 
 private:
     void build_icosahedron() noexcept;

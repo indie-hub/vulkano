@@ -26,3 +26,13 @@ TEST_CASE("Icosphere vertex/index counts grow with subdivisions") {
     REQUIRE(s1.indices().size() < s2.indices().size());
 }
 
+TEST_CASE("Icosphere set_subdivisions rebuilds geometry") {
+    vulkano::Icosphere s {{0U}};
+    const auto v0 = s.vertices().size();
+    const auto i0 = s.indices().size();
+    s.set_subdivisions(2U);
+    const auto v1 = s.vertices().size();
+    const auto i1 = s.indices().size();
+    REQUIRE(v1 > v0);
+    REQUIRE(i1 > i0);
+}

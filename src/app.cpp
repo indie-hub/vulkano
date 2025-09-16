@@ -1,9 +1,12 @@
 #include <vulkano/app.hpp>
 #include <vulkano/vulkan_context.hpp>
+#include <vulkano/geometry.hpp>
 
 #include <chrono>
 #include <cstdlib>
+#include <cstring>
 #include <thread>
+#include <string>
 #include <imgui.h>
 
 namespace vulkano {
@@ -130,6 +133,80 @@ void App::build_ui() noexcept {
         const auto extent {vk_->swapchain_extent()};
         ImGui::Text("Device: %s", vk_->device_name().c_str());
         ImGui::Text("Extent: %u x %u", extent.width, extent.height);
+    }
+    ImGui::End();
+
+    // Scene controls window
+    ImGui::Begin("Scene");
+    if (vk_ != nullptr) {
+        // Light controls
+        auto light = vk_->light();
+        const float stepPos {0.1F};
+        const float stepIntensity {0.01F};
+        ImGui::SeparatorText("Light");
+        ImGui::DragFloat3("Position", &light.position.x, stepPos);
+        ImGui::DragFloat("Intensity", &light.intensity, stepIntensity, 0.0F, 10.0F);
+        bool lightChanged {false};
+        if (ImGui::IsItemEdited()) {
+            lightChanged = true;
+        }
+        // Apply if any edits occurred
+        if (lightChanged || ImGui::IsItemDeactivatedAfterEdit()) {
+            vk_->set_light(light);
+        }
+
+        // Per-primitive controls
+        const std::size_t count {vk_->primitive_count()};
+        for (std::size_t i {0U}; i < count; ++i) {
+            auto* prim {vk_->primitive_at(i)};
+            if (prim == nullptr) {
+                continue;
+            }
+            const char* name {prim->type_name()};
+            const std::string header {std::string {name != nullptr ? name : "Primitive"} + " ##" + std::to_string(i)};
+            if (ImGui::CollapsingHeader(header.c_str())) {
+                Transform t {prim->transform()};
+                Material m {prim->material()};
+                const float stepTransform {0.05F};
+                const float stepRotate {0.01745329252F}; // ~1 degree in radians
+                const float minScale {0.01F};
+                const float maxScale {100.0F};
+                ImGui::DragFloat3("Position", &t.position.x, stepTransform);
+                ImGui::DragFloat3("Rotation (rad)", &t.rotationEuler.x, stepRotate);
+                ImGui::DragFloat3("Scale", &t.scale.x, stepTransform, minScale, maxScale);
+                ImGui::ColorEdit3("Base Color", &m.baseColor.x);
+                ImGui::SliderFloat("Shininess", &m.shininess, 1.0F, 256.0F);
+                prim->set_transform(t);
+                prim->set_material(m);
+
+                // Optional control: Icosphere subdivisions
+                // Rebuild mesh if changed
+                bool needsRebuild {false};
+                // Simple RTTI via name check to avoid dynamic_cast dependency cost
+                if (std::strcmp(name, "Icosphere") == 0) {
+                    std::uint32_t sub {2U};
+                    // Fetch current value by sampling vertex count heuristically is unreliable; skip.
+                    // Provide an interactive slider using a local static per-index state.
+                    static std::uint32_t s_subdivisions[16] {};
+                    if (i < 16U) {
+                        ImGui::SliderScalar("Subdivisions", ImGuiDataType_U32, &s_subdivisions[i], &((const std::uint32_t&)0U), &((const std::uint32_t&)5U));
+                        if (ImGui::IsItemDeactivatedAfterEdit()) {
+                            sub = s_subdivisions[i];
+                            // Try to downcast safely
+                            // NOLINTNEXTLINE(cppcoreguidelines-pro-type-static-cast-downcast)
+                            auto* iso = static_cast<Icosphere*>(prim);
+                            if (iso != nullptr) {
+                                iso->set_subdivisions(sub);
+                                needsRebuild = true;
+                            }
+                        }
+                    }
+                }
+                if (needsRebuild) {
+                    vk_->rebuild_scene_gpu_buffers();
+                }
+            }
+        }
     }
     ImGui::End();
 }

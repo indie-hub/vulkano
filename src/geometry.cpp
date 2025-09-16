@@ -129,6 +129,21 @@ Icosphere::Icosphere(const Params& p) noexcept : params_ {p} {
     }
 }
 
+void Icosphere::set_subdivisions(std::uint32_t subdivisions) noexcept {
+    const std::uint32_t clamped {subdivisions > 8U ? 8U : subdivisions};
+    if (params_.subdivisions == clamped) {
+        return;
+    }
+    params_.subdivisions = clamped;
+    build_icosahedron();
+    for (std::uint32_t i {0U}; i < params_.subdivisions; ++i) {
+        subdivide_once();
+    }
+    for (std::uint32_t i {0U}; i < static_cast<std::uint32_t>(vertices_.size()); ++i) {
+        normalize_and_uv(i);
+    }
+}
+
 void Icosphere::build_icosahedron() noexcept {
     vertices_.clear();
     indices_.clear();
