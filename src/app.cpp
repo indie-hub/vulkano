@@ -200,6 +200,43 @@ struct App::Impl {
         if (device != VK_NULL_HANDLE) {
             vkDeviceWaitIdle(device);
         }
+        // Destroy ImGui
+        if (imguiInitialized) {
+            ImGui_ImplVulkan_Shutdown();
+            ImGui_ImplGlfw_Shutdown();
+            ImGui::DestroyContext();
+            imguiInitialized = false;
+        }
+        if (imguiDescriptorPool != VK_NULL_HANDLE) {
+            vkDestroyDescriptorPool(device, imguiDescriptorPool, nullptr);
+            imguiDescriptorPool = VK_NULL_HANDLE;
+        }
+        destroyPipeline();
+        if (inFlightFence != VK_NULL_HANDLE) {
+            vkDestroyFence(device, inFlightFence, nullptr);
+            inFlightFence = VK_NULL_HANDLE;
+        }
+        if (imageAvailableSemaphore != VK_NULL_HANDLE) {
+            vkDestroySemaphore(device, imageAvailableSemaphore, nullptr);
+            imageAvailableSemaphore = VK_NULL_HANDLE;
+        }
+        if (renderFinishedSemaphore != VK_NULL_HANDLE) {
+            vkDestroySemaphore(device, renderFinishedSemaphore, nullptr);
+            renderFinishedSemaphore = VK_NULL_HANDLE;
+        }
+        if (commandPool != VK_NULL_HANDLE) {
+            vkDestroyCommandPool(device, commandPool, nullptr);
+            commandPool = VK_NULL_HANDLE;
+        }
+        if (renderPass != VK_NULL_HANDLE) {
+            vkDestroyRenderPass(device, renderPass, nullptr);
+            renderPass = VK_NULL_HANDLE;
+        }
+        destroySwapchain();
+        if (allocator != VK_NULL_HANDLE) {
+            vmaDestroyAllocator(allocator);
+            allocator = VK_NULL_HANDLE;
+        }
         if (surface != VK_NULL_HANDLE) {
             vkDestroySurfaceKHR(instance, surface, nullptr);
             surface = VK_NULL_HANDLE;
