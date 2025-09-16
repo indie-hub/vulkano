@@ -24,5 +24,7 @@
  - [x] Fix tests to respect Debug/Release validation setting
 - [x] Build app + tests; ensure bin/ output
 - [x] Final cleanup (naming, small constants)
-- [x] Attempt push to origin (if token present)
-- [ ] Push to origin with GITHUB_TOKEN (env not set)
+ - [x] Attempt push to origin (if token present)
+ - [x] Build (Release) and run tests
+ - [x] Commit final changes
+ - [ ] Push to origin with GITHUB_TOKEN (env not set)
