@@ -73,6 +73,28 @@ namespace {
         info.pObjectName = name;
         func(device, &info);
     }
+
+    void cmd_begin_label(VkDevice device, VkCommandBuffer cmd, const char* label, float r, float g, float b, float a) {
+        static auto func = reinterpret_cast<PFN_vkCmdBeginDebugUtilsLabelEXT>(vkGetDeviceProcAddr(device, "vkCmdBeginDebugUtilsLabelEXT"));
+        if (!enable_validation_layers || func == nullptr) {
+            return;
+        }
+        VkDebugUtilsLabelEXT info {VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT};
+        info.pLabelName = label;
+        info.color[0] = r;
+        info.color[1] = g;
+        info.color[2] = b;
+        info.color[3] = a;
+        func(cmd, &info);
+    }
+
+    void cmd_end_label(VkDevice device, VkCommandBuffer cmd) {
+        static auto func = reinterpret_cast<PFN_vkCmdEndDebugUtilsLabelEXT>(vkGetDeviceProcAddr(device, "vkCmdEndDebugUtilsLabelEXT"));
+        if (!enable_validation_layers || func == nullptr) {
+            return;
+        }
+        func(cmd);
+    }
 }
 
 App::~App() {
@@ -813,9 +835,11 @@ void App::draw_frame() {
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
     VkDeviceSize offsets[] {0};
     vkCmdBindVertexBuffers(cmd, 0, 1, &vertex_buffer_, offsets);
+    cmd_begin_label(device_, cmd, "DrawTriangle", 0.9f, 0.9f, 0.2f, 1.0f);
     const float white[4] {1.0f, 1.0f, 1.0f, 1.0f};
     vkCmdPushConstants(cmd, pipeline_layout_, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(white), white);
     vkCmdDraw(cmd, 3, 1, 0, 0);
+    cmd_end_label(device_, cmd);
 
     // ImGui overlay render
     imgui_->end_frame(cmd);
