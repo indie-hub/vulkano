@@ -1,4 +1,4 @@
-- [ ] Build Debug; compile shaders; run unit + e2e tests
+- [x] Build Debug; compile shaders; run unit + e2e tests
 - [ ] Verify runtime package in bin/dist contains app and shaders
 - [ ] Review code for AGENTS.md compliance; fix nits if any
 - [ ] Update README with texture usage and env vars
