@@ -197,6 +197,14 @@ const std::string& VulkanContext::device_name() const noexcept {
     return device_name_cached_;
 }
 
+bool VulkanContext::sampler_anisotropy_supported() const noexcept {
+    return sampler_anisotropy_supported_;
+}
+
+float VulkanContext::max_sampler_anisotropy() const noexcept {
+    return max_sampler_anisotropy_;
+}
+
 const VulkanContext::Light& VulkanContext::light() const noexcept {
     return light_;
 }
@@ -440,6 +448,8 @@ void VulkanContext::pick_physical_device() noexcept {
     VkPhysicalDeviceProperties props {};
     vkGetPhysicalDeviceProperties(best, &props);
     device_name_cached_ = std::string {props.deviceName};
+    // Cache anisotropy capabilities (used later when creating samplers)
+    max_sampler_anisotropy_ = props.limits.maxSamplerAnisotropy > 0.0F ? props.limits.maxSamplerAnisotropy : 1.0F;
 
     physical_device_ = best;
 }
@@ -475,7 +485,17 @@ void VulkanContext::create_logical_device() noexcept {
         queueInfos.push_back(qinfoP);
     }
 
+    VkPhysicalDeviceFeatures supported {};
+    vkGetPhysicalDeviceFeatures(physical_device_, &supported);
+
     VkPhysicalDeviceFeatures features {};
+    // Enable sampler anisotropy if supported (MoltenVK supports it)
+    if (supported.samplerAnisotropy == VK_TRUE) {
+        features.samplerAnisotropy = VK_TRUE;
+        sampler_anisotropy_supported_ = true;
+    } else {
+        sampler_anisotropy_supported_ = false;
+    }
 
     std::vector<const char*> deviceExts {kExtSwapchain};
     // On Apple/MoltenVK, portability subset is required

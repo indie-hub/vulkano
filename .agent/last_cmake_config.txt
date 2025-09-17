@@ -1,4 +1,3 @@
-Configuring...
 -- glfw3 not found; fetching via FetchContent
 -- Including Cocoa support
 -- glm not found; fetching via FetchContent
@@ -24,6 +23,6 @@ CMake Deprecation Warning at build/_deps/glm-src/CMakeLists.txt:2 (cmake_policy)
 -- GLM: Disable -Wc++98-compat warnings
 -- GLM: Build with C++ features auto detection
 -- imgui not found; fetching via FetchContent
--- Configuring done (1.8s)
--- Generating done (0.2s)
+-- Configuring done (2.1s)
+-- Generating done (0.4s)
 -- Build files have been written to: /Users/bruno/Documents/Development/bruno/vulkano_codex/build

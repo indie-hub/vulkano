@@ -1,4 +1,4 @@
-[] Add sampler anisotropy feature check and enable in device creation
+[x] Add sampler anisotropy feature check and enable in device creation
 [] Add Texture helpers: image creation, staging upload, mipmap blits
 [] Procedural checkerboard albedo (sRGB) generation and upload
 [] Procedural blue-noise-ish normal map (UNORM) generation and upload

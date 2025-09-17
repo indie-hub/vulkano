@@ -45,6 +45,8 @@ public:
     [[nodiscard]] VkFormat swapchain_image_format() const noexcept;
     [[nodiscard]] VkExtent2D swapchain_extent() const noexcept;
     [[nodiscard]] const std::string& device_name() const noexcept;
+    [[nodiscard]] bool sampler_anisotropy_supported() const noexcept;
+    [[nodiscard]] float max_sampler_anisotropy() const noexcept;
 
     // Per-frame rendering
     // Returns true if a frame was rendered and queued for present; false if skipped (e.g., out-of-date swapchain).
@@ -194,6 +196,9 @@ private:
     bool imgui_ready_ {false};
     bool imgui_frame_started_ {false};
     std::string device_name_cached_ {};
+    // Device capabilities cached for UI/texture setup
+    bool sampler_anisotropy_supported_ {false};
+    float max_sampler_anisotropy_ {1.0F};
 
     // Camera
     std::unique_ptr<Camera> camera_ {};

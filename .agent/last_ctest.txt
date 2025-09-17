@@ -1,1 +1,21 @@
-Running tests...
+Test project /Users/bruno/Documents/Development/bruno/vulkano_codex/build
+    Start 8: app_smoke
+    Start 3: stats_smoothing_behaviour
+    Start 7: Icosphere set_subdivisions rebuilds geometry
+    Start 1: catch2_sanity
+    Start 4: Plane generates 4 verts and 6 indices
+    Start 5: Cube generates 24 verts and 36 indices
+    Start 6: Icosphere vertex/index counts grow with subdivisions
+    Start 2: stats_initial_values
+1/8 Test #7: Icosphere set_subdivisions rebuilds geometry ...........   Passed    0.01 sec
+2/8 Test #1: catch2_sanity ..........................................   Passed    0.01 sec
+3/8 Test #6: Icosphere vertex/index counts grow with subdivisions ...   Passed    0.01 sec
+4/8 Test #5: Cube generates 24 verts and 36 indices .................   Passed    0.01 sec
+5/8 Test #3: stats_smoothing_behaviour ..............................   Passed    0.01 sec
+6/8 Test #4: Plane generates 4 verts and 6 indices ..................   Passed    0.01 sec
+7/8 Test #2: stats_initial_values ...................................   Passed    0.01 sec
+8/8 Test #8: app_smoke ..............................................   Passed    1.49 sec
+
+100% tests passed, 0 tests failed out of 8
+
+Total Test time (real) =   1.49 sec
