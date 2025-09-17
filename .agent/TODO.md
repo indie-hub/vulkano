@@ -1,8 +1,5 @@
-[x] Verify repository structure and existing features
-[x] Configure and build the project (Debug)
-[x] Run unit tests and app smoke test
-[x] Manually run the app to confirm multi-primitive rendering
-[x] Validate ImGui controls (light, per-primitive transforms/colors/shininess)
-[x] Check for validation layer warnings/errors during a short run
-[x] Package runtime to bin/dist and verify shaders included
-[] Final tidy: clang-format/tidy pass and update notes if needed
+- [x] Configure and build (Debug), compile shaders, run unit tests and smoke test.
+- [ ] Manually verify rendering (plane, cube, icosphere) and UI controls; adjust if needed.
+- [ ] Package runtime to bin/dist and validate bundle (binary + shaders).
+- [ ] Update README with scene controls and build/run notes.
+- [ ] Light perf sanity: frame pacing, validation noise check.
