@@ -8,3 +8,7 @@
 - [ ] Optional: file dialog for loading textures
 - [x] Update CHANGELOG with texture/normal‑map feature
 - [x] Rebuild and verify app/tests; capture logs in .agent
+- [x] Package runtime bundle to bin/dist and verify contents
+- [ ] Optional: add file dialogs (Load Albedo / Load Normal) for runtime texture swapping
+- [ ] Optional: support distinct textures per primitive (separate descriptors and material bindings)
+- [ ] Optional: expose anisotropy and LOD bias controls in UI (readonly -> interactive)
