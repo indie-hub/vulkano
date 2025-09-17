@@ -1,18 +1,11 @@
-- [x] Investigate: Assertion failed: ((g.FrameCount == 0 || g.FrameCountEnded == g.FrameCount) && "Forgot to call Render() or EndFrame() at the end of the previous frame?"), function ErrorCheckNewFrameSanityChecks
-- [x] Fix compiler warning: device name cached from VkPhysicalDeviceProperties without null check of fixed array.
-- [x] Investigate crash on resize in macOS.
-- [x] Re-verify full build, unit tests, and app smoke run; update .agent logs (this run)
-- [x] Run app with VK_APP_AUTOCLOSE_MS and capture stdout/stderr logs (this run)
-- [x] Verify that Y-UP is pointing up
-- [x] Have the cube and sphere render on top of the plane (it is under the plane)
-- [ ] Manual acceptance verification on macOS: open app, confirm plane/cube/icosphere render with correct depth and lighting, adjust UI controls (light, transforms, color, shininess), resize window, and check no validation errors in console.
-- [ ] Re-enable back-face culling after confirming winding across platforms.
-- [ ] Optional: add simple perf counter/benchmark toggle.
-- [ ] Investigate any depth ordering or Z-fighting anomalies across GPUs.
-- [ ] Document macOS setup notes (MoltenVK/Vulkan SDK) and run instructions.
-- [x] Verify build/tests and smoke run (app + shaders).
-- [x] Package runtime bundle to bin/dist and verify contents.
-- [x] Audit include style (angle brackets only) across codebase.
-- [x] Build Debug + run unit tests and smoke test; compile shaders to bin/shaders; all passed. Logs captured.
-- [x] Smoke run with validation enabled; confirm no validation errors in .agent/last_run_stderr.txt.
-- [x] Update README: scene controls (light, transforms, colors, shininess).
+[] Add sampler anisotropy feature check and enable in device creation
+[] Add Texture helpers: image creation, staging upload, mipmap blits
+[] Procedural checkerboard albedo (sRGB) generation and upload
+[] Procedural blue-noise-ish normal map (UNORM) generation and upload
+[] Create samplers (albedo sRGB + anisotropy, normal UNORM)
+[] Extend descriptor set layouts: set1 for albedo/normal; allocate per-primitive
+[] Update shaders for albedo + normal mapping, normal strength, toggles via PC
+[] Bind per-primitive textures and updated push constants in draw loop
+[] Extend ImGui UI: per-primitive toggles, strength, UV tiling, base color; global texture stats
+[] stb_image loading for external textures with mipmaps and sRGB/UNORM formats
+[] Add unit tests for procedural generators; update README with new controls

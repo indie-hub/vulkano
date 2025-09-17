@@ -4,6 +4,9 @@
 #include <array>
 #include <cmath>
 #include <limits>
+#include <cstddef>
+
+#include <glm/geometric.hpp>
 
 namespace vulkano {
 
@@ -19,6 +22,56 @@ namespace {
         const std::uint64_t lo {static_cast<std::uint64_t>(std::min(a, b))};
         const std::uint64_t hi {static_cast<std::uint64_t>(std::max(a, b))};
         return (hi << 32U) | lo;
+    }
+
+    inline void compute_tangents(std::vector<Vertex>& verts, const std::vector<std::uint32_t>& idx) noexcept {
+        if (verts.empty() || idx.size() < 3U) {
+            return;
+        }
+        std::vector<glm::vec3> tanAccum(verts.size(), glm::vec3 {0.0F, 0.0F, 0.0F});
+        for (std::size_t i {0U}; i + 2U < idx.size(); i += 3U) {
+            const std::uint32_t i0 {idx[i + 0U]};
+            const std::uint32_t i1 {idx[i + 1U]};
+            const std::uint32_t i2 {idx[i + 2U]};
+            if (i0 >= verts.size() || i1 >= verts.size() || i2 >= verts.size()) {
+                continue;
+            }
+            const glm::vec3 p0 {verts[i0].position};
+            const glm::vec3 p1 {verts[i1].position};
+            const glm::vec3 p2 {verts[i2].position};
+            const glm::vec2 uv0 {verts[i0].uv};
+            const glm::vec2 uv1 {verts[i1].uv};
+            const glm::vec2 uv2 {verts[i2].uv};
+
+            const glm::vec3 dp1 {p1 - p0};
+            const glm::vec3 dp2 {p2 - p0};
+            const glm::vec2 duv1 {uv1 - uv0};
+            const glm::vec2 duv2 {uv2 - uv0};
+
+            const float denom {duv1.x * duv2.y - duv1.y * duv2.x};
+            if (std::abs(denom) <= std::numeric_limits<float>::epsilon()) {
+                continue;
+            }
+            const float r {1.0F / denom};
+            const glm::vec3 t {(dp1 * duv2.y - dp2 * duv1.y) * r};
+
+            tanAccum[i0] += t;
+            tanAccum[i1] += t;
+            tanAccum[i2] += t;
+        }
+        for (std::size_t i {0U}; i < verts.size(); ++i) {
+            const glm::vec3 n {verts[i].normal};
+            glm::vec3 t {tanAccum[i]};
+            t = t - n * glm::dot(n, t);
+            const float len {std::sqrt(t.x * t.x + t.y * t.y + t.z * t.z)};
+            if (len > std::numeric_limits<float>::epsilon()) {
+                t = t * (1.0F / len);
+            } else {
+                const glm::vec3 ref {std::abs(n.x) < 0.9F ? glm::vec3 {1.0F, 0.0F, 0.0F} : glm::vec3 {0.0F, 1.0F, 0.0F}};
+                t = glm::normalize(glm::cross(ref, n));
+            }
+            verts[i].tangent = t;
+        }
     }
 }
 
@@ -57,10 +110,10 @@ void Plane::build() noexcept {
     const glm::vec2 uvScale {params_.uvTiling};
 
     // XZ plane at y = 0, CCW winding
-    vertices_.push_back(Vertex {glm::vec3 {-halfW, 0.0F, -halfD}, n, glm::vec2 {0.0F, 0.0F} * uvScale});
-    vertices_.push_back(Vertex {glm::vec3 {+halfW, 0.0F, -halfD}, n, glm::vec2 {1.0F, 0.0F} * uvScale});
-    vertices_.push_back(Vertex {glm::vec3 {+halfW, 0.0F, +halfD}, n, glm::vec2 {1.0F, 1.0F} * uvScale});
-    vertices_.push_back(Vertex {glm::vec3 {-halfW, 0.0F, +halfD}, n, glm::vec2 {0.0F, 1.0F} * uvScale});
+    vertices_.push_back(Vertex {glm::vec3 {-halfW, 0.0F, -halfD}, n, glm::vec2 {0.0F, 0.0F} * uvScale, glm::vec3 {1.0F, 0.0F, 0.0F}});
+    vertices_.push_back(Vertex {glm::vec3 {+halfW, 0.0F, -halfD}, n, glm::vec2 {1.0F, 0.0F} * uvScale, glm::vec3 {1.0F, 0.0F, 0.0F}});
+    vertices_.push_back(Vertex {glm::vec3 {+halfW, 0.0F, +halfD}, n, glm::vec2 {1.0F, 1.0F} * uvScale, glm::vec3 {1.0F, 0.0F, 0.0F}});
+    vertices_.push_back(Vertex {glm::vec3 {-halfW, 0.0F, +halfD}, n, glm::vec2 {0.0F, 1.0F} * uvScale, glm::vec3 {1.0F, 0.0F, 0.0F}});
 
     indices_.push_back(0U);
     indices_.push_back(1U);
@@ -68,6 +121,8 @@ void Plane::build() noexcept {
     indices_.push_back(2U);
     indices_.push_back(3U);
     indices_.push_back(0U);
+
+    compute_tangents(vertices_, indices_);
 }
 
 const std::vector<Vertex>& Plane::vertices() const noexcept {
@@ -120,10 +175,11 @@ void Cube::build() noexcept {
         const glm::vec3 p3 {f.center - f.u * h + f.v * h};
 
         const std::uint32_t base {static_cast<std::uint32_t>(vertices_.size())};
-        vertices_.push_back(Vertex {p0, f.n, uv00});
-        vertices_.push_back(Vertex {p1, f.n, uv10});
-        vertices_.push_back(Vertex {p2, f.n, uv11});
-        vertices_.push_back(Vertex {p3, f.n, uv01});
+        const glm::vec3 t {glm::normalize(f.u)};
+        vertices_.push_back(Vertex {p0, f.n, uv00, t});
+        vertices_.push_back(Vertex {p1, f.n, uv10, t});
+        vertices_.push_back(Vertex {p2, f.n, uv11, t});
+        vertices_.push_back(Vertex {p3, f.n, uv01, t});
 
         indices_.push_back(base + 0U);
         indices_.push_back(base + 1U);
@@ -132,6 +188,7 @@ void Cube::build() noexcept {
         indices_.push_back(base + 3U);
         indices_.push_back(base + 0U);
     }
+    compute_tangents(vertices_, indices_);
 }
 
 const std::vector<Vertex>& Cube::vertices() const noexcept {
@@ -154,6 +211,7 @@ Icosphere::Icosphere() noexcept : params_ {} {
     for (std::uint32_t i {0U}; i < static_cast<std::uint32_t>(vertices_.size()); ++i) {
         normalize_and_uv(i);
     }
+    compute_tangents(vertices_, indices_);
 }
 
 Icosphere::Icosphere(const Params& p) noexcept : params_ {p} {
@@ -168,6 +226,7 @@ Icosphere::Icosphere(const Params& p) noexcept : params_ {p} {
     for (std::uint32_t i {0U}; i < static_cast<std::uint32_t>(vertices_.size()); ++i) {
         normalize_and_uv(i);
     }
+    compute_tangents(vertices_, indices_);
 }
 
 void Icosphere::set_subdivisions(std::uint32_t subdivisions) noexcept {
@@ -183,6 +242,7 @@ void Icosphere::set_subdivisions(std::uint32_t subdivisions) noexcept {
     for (std::uint32_t i {0U}; i < static_cast<std::uint32_t>(vertices_.size()); ++i) {
         normalize_and_uv(i);
     }
+    compute_tangents(vertices_, indices_);
 }
 
 std::uint32_t Icosphere::subdivisions() const noexcept {
@@ -209,7 +269,7 @@ void Icosphere::build_icosahedron() noexcept {
 
     vertices_.reserve(verts.size());
     for (const auto& p : verts) {
-        vertices_.push_back(Vertex {p, glm::vec3 {0.0F, 0.0F, 0.0F}, glm::vec2 {0.0F, 0.0F}});
+        vertices_.push_back(Vertex {p, glm::vec3 {0.0F, 0.0F, 0.0F}, glm::vec2 {0.0F, 0.0F}, glm::vec3 {0.0F, 0.0F, 0.0F}});
     }
 
     // 20 faces
@@ -237,7 +297,7 @@ std::uint32_t Icosphere::midpoint(std::uint32_t a, std::uint32_t b) noexcept {
     const glm::vec3 pb {vertices_[b].position};
     const glm::vec3 pm {lerp3(pa, pb, 0.5F)};
     const std::uint32_t idx {static_cast<std::uint32_t>(vertices_.size())};
-    vertices_.push_back(Vertex {pm, glm::vec3 {0.0F, 0.0F, 0.0F}, glm::vec2 {0.0F, 0.0F}});
+    vertices_.push_back(Vertex {pm, glm::vec3 {0.0F, 0.0F, 0.0F}, glm::vec2 {0.0F, 0.0F}, glm::vec3 {0.0F, 0.0F, 0.0F}});
     midpoint_cache_.emplace_back(key, idx);
     return idx;
 }
