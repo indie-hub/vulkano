@@ -10,7 +10,7 @@
 - [x] Manual visual QA: run bin/vulkano_app and verify rendering and UI interactions on macOS.
 - [x] Run with validation layers enabled; confirm no warnings/errors in console.
 - [x] Update README with macOS notes (MoltenVK install hint, run instructions).
- - [ ] Add mouse/touchpad orbit camera input (GLFW callbacks).
+ - [x] Add mouse/touchpad orbit camera input (GLFW callbacks).
  - [ ] Add unit tests for cube face normals/UVs and icosphere UV seam constraints.
  - [ ] Add CI artifact packaging: upload bin/dist bundle on successful builds.
  - [ ] Add docs: module architecture diagram and brief per‑module README in docs/.

@@ -14,6 +14,9 @@ namespace vulkano {
 namespace {
     constexpr int glfw_context_version_major {3};
     constexpr int glfw_context_version_minor {3};
+    // Input sensitivities (no magic numbers in code paths)
+    constexpr float kOrbitSensitivity {0.005F}; // radians per pixel
+    constexpr float kZoomSensitivity {0.25F};   // distance units per scroll step
 }
 
 App::App(const AppConfig& config) noexcept : config_ {config} {
@@ -40,6 +43,9 @@ void App::init_glfw() noexcept {
     if (window_ != nullptr) {
         glfwSetWindowUserPointer(window_, this);
         glfwSetFramebufferSizeCallback(window_, &App::framebuffer_size_callback);
+        glfwSetCursorPosCallback(window_, &App::cursor_pos_callback);
+        glfwSetMouseButtonCallback(window_, &App::mouse_button_callback);
+        glfwSetScrollCallback(window_, &App::scroll_callback);
     }
 }
 
@@ -119,6 +125,72 @@ void App::framebuffer_size_callback(GLFWwindow* window, int width, int height) n
     auto* appPtr {static_cast<App*>(glfwGetWindowUserPointer(window))};
     if (appPtr != nullptr) {
         appPtr->framebuffer_resized_ = true;
+        if (width > 0 && height > 0 && appPtr->vk_ != nullptr) {
+            const float aspect {static_cast<float>(width) / static_cast<float>(height)};
+            appPtr->vk_->camera_set_aspect(aspect);
+        }
+    }
+}
+
+void App::cursor_pos_callback(GLFWwindow* window, double xpos, double ypos) noexcept {
+    if (window == nullptr) {
+        return;
+    }
+    auto* appPtr {static_cast<App*>(glfwGetWindowUserPointer(window))};
+    if (appPtr == nullptr) {
+        return;
+    }
+    if (!appPtr->mouse_left_pressed_) {
+        appPtr->last_cursor_x_ = xpos;
+        appPtr->last_cursor_y_ = ypos;
+        return;
+    }
+    const double dx {xpos - appPtr->last_cursor_x_};
+    const double dy {ypos - appPtr->last_cursor_y_};
+    appPtr->last_cursor_x_ = xpos;
+    appPtr->last_cursor_y_ = ypos;
+    if (appPtr->vk_ != nullptr) {
+        const float dYaw {static_cast<float>(dx) * kOrbitSensitivity};
+        const float dPitch {static_cast<float>(-dy) * kOrbitSensitivity};
+        appPtr->vk_->camera_orbit_delta(dYaw, dPitch);
+    }
+}
+
+void App::mouse_button_callback(GLFWwindow* window, int button, int action, int mods) noexcept {
+    (void)mods;
+    if (window == nullptr) {
+        return;
+    }
+    auto* appPtr {static_cast<App*>(glfwGetWindowUserPointer(window))};
+    if (appPtr == nullptr) {
+        return;
+    }
+    if (button == GLFW_MOUSE_BUTTON_LEFT) {
+        if (action == GLFW_PRESS) {
+            appPtr->mouse_left_pressed_ = true;
+            double x {0.0};
+            double y {0.0};
+            glfwGetCursorPos(window, &x, &y);
+            appPtr->last_cursor_x_ = x;
+            appPtr->last_cursor_y_ = y;
+        } else if (action == GLFW_RELEASE) {
+            appPtr->mouse_left_pressed_ = false;
+        }
+    }
+}
+
+void App::scroll_callback(GLFWwindow* window, double xoffset, double yoffset) noexcept {
+    (void)xoffset;
+    if (window == nullptr) {
+        return;
+    }
+    auto* appPtr {static_cast<App*>(glfwGetWindowUserPointer(window))};
+    if (appPtr == nullptr) {
+        return;
+    }
+    if (appPtr->vk_ != nullptr) {
+        const float dDist {static_cast<float>(-yoffset) * kZoomSensitivity};
+        appPtr->vk_->camera_zoom_delta(dDist);
     }
 }
 

@@ -66,6 +66,11 @@ public:
     [[nodiscard]] const Light& light() const noexcept;
     void set_light(const Light& l) noexcept;
 
+    // Camera interaction (for input handling)
+    void camera_orbit_delta(float dYaw, float dPitch) noexcept;
+    void camera_zoom_delta(float dDistance) noexcept;
+    void camera_set_aspect(float aspect) noexcept;
+
     // Scene editing helpers
     [[nodiscard]] std::size_t primitive_count() const noexcept;
     [[nodiscard]] Primitive* primitive_at(std::size_t index) noexcept;

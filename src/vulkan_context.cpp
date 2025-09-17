@@ -2193,4 +2193,28 @@ void VulkanContext::end_label(VkCommandBuffer cmd) const noexcept {
     pfn_cmd_end_label_(cmd);
 }
 
+// --- Camera interaction helpers ---
+void VulkanContext::camera_orbit_delta(float dYaw, float dPitch) noexcept {
+    if (!camera_) {
+        return;
+    }
+    camera_->orbit_delta(dYaw, dPitch, 0.0F);
+}
+
+void VulkanContext::camera_zoom_delta(float dDistance) noexcept {
+    if (!camera_) {
+        return;
+    }
+    camera_->orbit_delta(0.0F, 0.0F, dDistance);
+}
+
+void VulkanContext::camera_set_aspect(float aspect) noexcept {
+    if (!camera_) {
+        return;
+    }
+    if (aspect > 0.0F) {
+        camera_->set_aspect(aspect);
+    }
+}
+
 } // namespace vulkano
