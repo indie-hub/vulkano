@@ -7,3 +7,4 @@
 - [x] Name constants audit: centralize texture sizes/colors as named constants
 - [ ] Optional: file dialog for loading textures
 - [x] Update CHANGELOG with texture/normal‑map feature
+- [x] Rebuild and verify app/tests; capture logs in .agent
