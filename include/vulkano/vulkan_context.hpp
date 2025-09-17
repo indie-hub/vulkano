@@ -48,6 +48,12 @@ public:
     [[nodiscard]] bool sampler_anisotropy_supported() const noexcept;
     [[nodiscard]] float max_sampler_anisotropy() const noexcept;
 
+    // Texture info (for UI display)
+    [[nodiscard]] std::uint32_t albedo_width() const noexcept;
+    [[nodiscard]] std::uint32_t albedo_height() const noexcept;
+    [[nodiscard]] std::uint32_t normal_width() const noexcept;
+    [[nodiscard]] std::uint32_t normal_height() const noexcept;
+
     // Per-frame rendering
     // Returns true if a frame was rendered and queued for present; false if skipped (e.g., out-of-date swapchain).
     bool draw_frame() noexcept;

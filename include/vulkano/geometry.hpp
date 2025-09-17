@@ -20,6 +20,10 @@ struct Vertex final {
 struct Material final {
     glm::vec3 baseColor {1.0F, 1.0F, 1.0F};
     float shininess {32.0F};
+    // Texture controls
+    bool useAlbedo {true};
+    bool useNormal {true};
+    float normalStrength {1.0F};
 };
 
 struct Transform final {
@@ -60,6 +64,10 @@ public:
     [[nodiscard]] const std::vector<Vertex>& vertices() const noexcept override;
     [[nodiscard]] const std::vector<std::uint32_t>& indices() const noexcept override;
     [[nodiscard]] const char* type_name() const noexcept override;
+
+    // UI support: update/get UV tiling and rebuild geometry as needed
+    void set_uv_tiling(const glm::vec2& tiling) noexcept;
+    [[nodiscard]] glm::vec2 uv_tiling() const noexcept;
 
 private:
     void build() noexcept;

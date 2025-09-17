@@ -36,3 +36,21 @@ TEST_CASE("Icosphere set_subdivisions rebuilds geometry") {
     REQUIRE(v1 > v0);
     REQUIRE(i1 > i0);
 }
+
+TEST_CASE("Plane UV tiling setter updates UVs") {
+    using namespace vulkano;
+    Plane::Params p {};
+    p.width = 2.0F;
+    p.depth = 2.0F;
+    p.uvTiling = glm::vec2 {1.0F, 1.0F};
+    Plane plane {p};
+    REQUIRE(plane.vertices().size() == 4);
+    const auto uv_before = plane.vertices()[1].uv; // top-right
+    REQUIRE(uv_before.x == Catch::Approx(1.0F));
+    REQUIRE(uv_before.y == Catch::Approx(0.0F));
+    plane.set_uv_tiling(glm::vec2 {2.0F, 3.0F});
+    REQUIRE(plane.vertices().size() == 4);
+    const auto uv_after = plane.vertices()[1].uv;
+    REQUIRE(uv_after.x == Catch::Approx(2.0F));
+    REQUIRE(uv_after.y == Catch::Approx(0.0F));
+}

@@ -212,6 +212,22 @@ float VulkanContext::max_sampler_anisotropy() const noexcept {
     return max_sampler_anisotropy_;
 }
 
+std::uint32_t VulkanContext::albedo_width() const noexcept {
+    return albedo_width_;
+}
+
+std::uint32_t VulkanContext::albedo_height() const noexcept {
+    return albedo_height_;
+}
+
+std::uint32_t VulkanContext::normal_width() const noexcept {
+    return normal_width_;
+}
+
+std::uint32_t VulkanContext::normal_height() const noexcept {
+    return normal_height_;
+}
+
 const VulkanContext::Light& VulkanContext::light() const noexcept {
     return light_;
 }
@@ -2576,9 +2592,9 @@ bool VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
             pc.model = model;
             pc.baseColor = mat.baseColor;
             pc.shininess = mat.shininess;
-            pc.useAlbedoMap = 1;
-            pc.useNormalMap = 1;
-            pc.normalStrength = 1.0F;
+            pc.useAlbedoMap = (mat.useAlbedo ? 1 : 0);
+            pc.useNormalMap = (mat.useNormal ? 1 : 0);
+            pc.normalStrength = std::clamp(mat.normalStrength, 0.0F, 2.0F);
             pc._pad1 = 0.0F;
             begin_label(cmd, dr.prim->type_name());
             vkCmdPushConstants(cmd, pipeline_layout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0U, sizeof(PushConstants), &pc);

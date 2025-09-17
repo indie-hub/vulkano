@@ -137,6 +137,15 @@ const char* Plane::type_name() const noexcept {
     return "Plane";
 }
 
+void Plane::set_uv_tiling(const glm::vec2& tiling) noexcept {
+    params_.uvTiling = tiling;
+    build();
+}
+
+glm::vec2 Plane::uv_tiling() const noexcept {
+    return params_.uvTiling;
+}
+
 Cube::Cube() noexcept {
     build();
 }

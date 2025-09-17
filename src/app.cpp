@@ -205,6 +205,20 @@ void App::build_ui() noexcept {
         const auto extent {vk_->swapchain_extent()};
         ImGui::Text("Device: %s", vk_->device_name().c_str());
         ImGui::Text("Extent: %u x %u", extent.width, extent.height);
+        // Texture + sampler info (readonly)
+        const std::uint32_t aw {vk_->albedo_width()};
+        const std::uint32_t ah {vk_->albedo_height()};
+        const std::uint32_t nw {vk_->normal_width()};
+        const std::uint32_t nh {vk_->normal_height()};
+        ImGui::SeparatorText("Textures");
+        ImGui::Text("Albedo: %u x %u (sRGB RGBA8)", aw, ah);
+        ImGui::Text("Normal: %u x %u (UNORM RGBA8)", nw, nh);
+        ImGui::Text("Sampler: Linear + Mipmaps");
+        if (vk_->sampler_anisotropy_supported()) {
+            ImGui::Text("Anisotropy: On (max %.1f)", static_cast<double>(vk_->max_sampler_anisotropy()));
+        } else {
+            ImGui::Text("Anisotropy: Off");
+        }
     }
     ImGui::End();
 
@@ -258,6 +272,10 @@ void App::build_ui() noexcept {
                 ImGui::DragFloat3("Scale", &t.scale.x, stepTransform, minScale, maxScale);
                 ImGui::ColorEdit3("Base Color", &m.baseColor.x);
                 ImGui::SliderFloat("Shininess", &m.shininess, 1.0F, 256.0F);
+                // Material texture toggles and normal strength
+                ImGui::Checkbox("Use Albedo Map", &m.useAlbedo);
+                ImGui::Checkbox("Use Normal Map", &m.useNormal);
+                ImGui::SliderFloat("Normal Strength", &m.normalStrength, 0.0F, 2.0F);
                 prim->set_transform(t);
                 prim->set_material(m);
 
@@ -271,6 +289,21 @@ void App::build_ui() noexcept {
                         const std::uint32_t maxSub {5U};
                         if (ImGui::SliderScalar("Subdivisions", ImGuiDataType_U32, &sub, &minSub, &maxSub)) {
                             iso->set_subdivisions(sub);
+                            vk_->rebuild_scene_gpu_buffers();
+                        }
+                    }
+                } else if (std::strcmp(name, "Plane") == 0) {
+                    // UV tiling for plane primitive
+                    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-static-cast-downcast)
+                    auto* plane = static_cast<Plane*>(prim);
+                    if (plane != nullptr) {
+                        glm::vec2 tiling {plane->uv_tiling()};
+                        const float minTile {0.01F};
+                        if (ImGui::DragFloat2("UV Tiling", &tiling.x, 0.1F, minTile, 1000.0F)) {
+                            // Clamp to minimum to avoid zeros/negatives
+                            tiling.x = std::max(tiling.x, minTile);
+                            tiling.y = std::max(tiling.y, minTile);
+                            plane->set_uv_tiling(tiling);
                             vk_->rebuild_scene_gpu_buffers();
                         }
                     }
