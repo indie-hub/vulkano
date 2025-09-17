@@ -51,10 +51,17 @@ public:
     // Texture info (for UI display)
     [[nodiscard]] std::uint32_t albedo_width() const noexcept;
     [[nodiscard]] std::uint32_t albedo_height() const noexcept;
+    [[nodiscard]] std::uint32_t albedo_mip_levels() const noexcept;
     [[nodiscard]] std::uint32_t normal_width() const noexcept;
     [[nodiscard]] std::uint32_t normal_height() const noexcept;
+    [[nodiscard]] std::uint32_t normal_mip_levels() const noexcept;
+    [[nodiscard]] VkFormat albedo_format() const noexcept;
+    [[nodiscard]] VkFormat normal_format() const noexcept;
     [[nodiscard]] const std::string& albedo_label() const noexcept;
     [[nodiscard]] const std::string& normal_label() const noexcept;
+    // Human-readable format strings for UI
+    [[nodiscard]] std::string albedo_format_string() const noexcept;
+    [[nodiscard]] std::string normal_format_string() const noexcept;
 
     // Per-frame rendering
     // Returns true if a frame was rendered and queued for present; false if skipped (e.g., out-of-date swapchain).
@@ -234,6 +241,7 @@ private:
     std::uint32_t albedo_width_ {0U};
     std::uint32_t albedo_height_ {0U};
     std::uint32_t albedo_mip_levels_ {1U};
+    VkFormat albedo_format_ {VK_FORMAT_UNDEFINED};
     std::string albedo_label_ {};
 
     VkImage normal_image_ {VK_NULL_HANDLE};
@@ -243,6 +251,7 @@ private:
     std::uint32_t normal_width_ {0U};
     std::uint32_t normal_height_ {0U};
     std::uint32_t normal_mip_levels_ {1U};
+    VkFormat normal_format_ {VK_FORMAT_UNDEFINED};
     std::string normal_label_ {};
 
     // Synchronisation

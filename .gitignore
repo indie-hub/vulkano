@@ -42,4 +42,5 @@
 
 # Build directories and artifacts
 build/
+build_debug/
 bin/

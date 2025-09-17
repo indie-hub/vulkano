@@ -1,5 +1,5 @@
 - [x] Build and run tests; verify bin/ outputs.
-- [ ] Verify SRGB albedo and UNORM normal formats, mipmaps, anisotropy.
+- [x] Verify SRGB albedo and UNORM normal formats, mipmaps, anisotropy.
 - [ ] Confirm per-primitive UI (albedo/normal toggles, strength, UV tiling).
 - [ ] Validate procedural fallbacks upload + mipmap path (staging).
 - [ ] Manual macOS run; check swapchain resize + ImGui stats.

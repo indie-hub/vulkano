@@ -223,6 +223,10 @@ std::uint32_t VulkanContext::albedo_height() const noexcept {
     return albedo_height_;
 }
 
+std::uint32_t VulkanContext::albedo_mip_levels() const noexcept {
+    return albedo_mip_levels_;
+}
+
 std::uint32_t VulkanContext::normal_width() const noexcept {
     return normal_width_;
 }
@@ -231,12 +235,42 @@ std::uint32_t VulkanContext::normal_height() const noexcept {
     return normal_height_;
 }
 
+std::uint32_t VulkanContext::normal_mip_levels() const noexcept {
+    return normal_mip_levels_;
+}
+
 const std::string& VulkanContext::albedo_label() const noexcept {
     return albedo_label_;
 }
 
 const std::string& VulkanContext::normal_label() const noexcept {
     return normal_label_;
+}
+
+VkFormat VulkanContext::albedo_format() const noexcept {
+    return albedo_format_;
+}
+
+VkFormat VulkanContext::normal_format() const noexcept {
+    return normal_format_;
+}
+
+namespace {
+    [[nodiscard]] const char* format_to_string(VkFormat fmt) noexcept {
+        switch (fmt) {
+            case VK_FORMAT_R8G8B8A8_SRGB: { return "VK_FORMAT_R8G8B8A8_SRGB"; }
+            case VK_FORMAT_R8G8B8A8_UNORM: { return "VK_FORMAT_R8G8B8A8_UNORM"; }
+            default: { return "VK_FORMAT_UNKNOWN"; }
+        }
+    }
+}
+
+std::string VulkanContext::albedo_format_string() const noexcept {
+    return std::string {format_to_string(albedo_format_)};
+}
+
+std::string VulkanContext::normal_format_string() const noexcept {
+    return std::string {format_to_string(normal_format_)};
 }
 
 const VulkanContext::Light& VulkanContext::light() const noexcept {
@@ -1803,6 +1837,20 @@ void VulkanContext::create_default_textures() noexcept {
         normal = make_blue_noise_normal_rgba(NormalSize, NormalAmplitude);
     }
 
+    // Helper to compute mip level count for a format/size (linear blit required for >1)
+    auto compute_mip_levels = [&](VkFormat format, std::uint32_t width, std::uint32_t height) noexcept -> std::uint32_t {
+        VkFormatProperties props {};
+        vkGetPhysicalDeviceFormatProperties(physical_device_, format, &props);
+        const bool canLinearBlit { (props.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT) != 0 };
+        if (!canLinearBlit) {
+            return 1U;
+        }
+        const std::uint32_t maxDim {width > height ? width : height};
+        std::uint32_t m {0U};
+        while ((1U << m) < maxDim) { ++m; }
+        return m + 1U;
+    };
+
     // Helper lambda to create, upload, mipmap, and view
     auto createTexture = [&](const ImageRGBA8& img, VkFormat format, VkImage& outImage, VkDeviceMemory& outMem, VkImageView& outView, VkSampler& outSampler, const char* baseName, bool enableAniso) {
         const std::uint32_t width {img.width};
@@ -1810,18 +1858,7 @@ void VulkanContext::create_default_textures() noexcept {
         if (width == 0U || height == 0U || img.pixels.empty()) {
             return false;
         }
-        std::uint32_t mipLevels {1U};
-        VkFormatProperties props {};
-        vkGetPhysicalDeviceFormatProperties(physical_device_, format, &props);
-        const bool canLinearBlit { (props.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT) != 0 };
-        if (canLinearBlit) {
-            const std::uint32_t maxDim {width > height ? width : height};
-            std::uint32_t m {0U};
-            while ((1U << m) < maxDim) { ++m; }
-            mipLevels = m + 1U;
-        } else {
-            mipLevels = 1U;
-        }
+        const std::uint32_t mipLevels {compute_mip_levels(format, width, height)};
 
         const VkDeviceSize imageSize {static_cast<VkDeviceSize>(img.pixels.size())};
         VkBuffer staging {VK_NULL_HANDLE};
@@ -1905,7 +1942,8 @@ void VulkanContext::create_default_textures() noexcept {
     // Albedo (sRGB)
     albedo_width_ = albedo.width;
     albedo_height_ = albedo.height;
-    albedo_mip_levels_ = 1U; // will be set by creator
+    albedo_mip_levels_ = compute_mip_levels(VK_FORMAT_R8G8B8A8_SRGB, albedo_width_, albedo_height_);
+    albedo_format_ = VK_FORMAT_R8G8B8A8_SRGB;
     if (albedoFromFile) {
         albedo_label_ = std::string {"External ("} + (albedoPath != nullptr ? albedoPath : "?") + ")";
     } else {
@@ -1917,7 +1955,8 @@ void VulkanContext::create_default_textures() noexcept {
     // Normal (UNORM)
     normal_width_ = normal.width;
     normal_height_ = normal.height;
-    normal_mip_levels_ = 1U;
+    normal_mip_levels_ = compute_mip_levels(VK_FORMAT_R8G8B8A8_UNORM, normal_width_, normal_height_);
+    normal_format_ = VK_FORMAT_R8G8B8A8_UNORM;
     if (normalFromFile) {
         normal_label_ = std::string {"External ("} + (normalPath != nullptr ? normalPath : "?") + ")";
     } else {

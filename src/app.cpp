@@ -246,9 +246,13 @@ void App::build_ui() noexcept {
         ImGui::SeparatorText("Textures");
         const std::string& alLabel {vk_->albedo_label()};
         const std::string& nmLabel {vk_->normal_label()};
-        ImGui::Text("Albedo: %u x %u (sRGB RGBA8)", aw, ah);
+        const std::uint32_t amips {vk_->albedo_mip_levels()};
+        const std::uint32_t nmips {vk_->normal_mip_levels()};
+        ImGui::Text("Albedo: %u x %u, mips=%u", aw, ah, amips);
+        ImGui::Text("  Format: %s", vk_->albedo_format_string().c_str());
         ImGui::Text("  Source: %s", alLabel.c_str());
-        ImGui::Text("Normal: %u x %u (UNORM RGBA8)", nw, nh);
+        ImGui::Text("Normal: %u x %u, mips=%u", nw, nh, nmips);
+        ImGui::Text("  Format: %s", vk_->normal_format_string().c_str());
         ImGui::Text("  Source: %s", nmLabel.c_str());
         ImGui::Text("Sampler: Linear + Mipmaps");
         if (vk_->sampler_anisotropy_supported()) {
