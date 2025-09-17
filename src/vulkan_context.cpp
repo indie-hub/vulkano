@@ -153,6 +153,18 @@ VulkanContext::VulkanContext(GLFWwindow* window) noexcept {
     create_framebuffers();
     create_command_pool_and_buffers();
     create_sync_objects();
+
+    // Initialize SSAO defaults from config once device/swapchain exist
+    ssao_.enabled = config::SsaoEnabledByDefault;
+    ssao_.kernel_size = config::SsaoDefaultKernelSize;
+    ssao_.radius = config::SsaoDefaultRadius;
+    ssao_.bias = config::SsaoDefaultBias;
+    ssao_.power = config::SsaoDefaultPower;
+    ssao_.blur = config::SsaoBlurEnabledByDefault;
+    ssao_.blur_radius = config::SsaoDefaultBlurRadius;
+    ssao_.blur_sigma = config::SsaoDefaultBlurSigma;
+    ssao_.strength = config::SsaoDefaultStrength;
+    ssao_.noise_texture_size = config::SsaoNoiseTextureSize;
 }
 
 VulkanContext::~VulkanContext() noexcept {
@@ -279,6 +291,14 @@ const VulkanContext::Light& VulkanContext::light() const noexcept {
 
 void VulkanContext::set_light(const Light& l) noexcept {
     light_ = l;
+}
+
+const VulkanContext::SsaoSettings& VulkanContext::ssao() const noexcept {
+    return ssao_;
+}
+
+void VulkanContext::set_ssao(const SsaoSettings& s) noexcept {
+    ssao_ = s;
 }
 
 std::size_t VulkanContext::primitive_count() const noexcept {

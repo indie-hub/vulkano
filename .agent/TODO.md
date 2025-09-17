@@ -1,4 +1,11 @@
-- [x] Ensure unique ImGui IDs per primitive UI (PushID/PopID)
-- [x] Ensure independent per-primitive state (no shared Material/Transform)
-- [x] Add targeted tests for per-primitive independence (already present; verified)
-- [x] Build Debug, run tests, and package to bin/dist; smoke-run with VK_APP_AUTOCLOSE_MS
+ - [x] SSAO: settings model + ImGui panel
+ - [ ] SSAO: G-buffer + geometry pass
+ - [ ] SSAO: kernel + noise texture generation
+ - [ ] SSAO: fullscreen SSAO pass (descriptor sets, pipeline)
+ - [ ] SSAO: optional Gaussian blur pass
+ - [ ] SSAO: compose AO with lit scene (barriers correct)
+ - [ ] Resize-safe: recreate G-buffer/AO targets
+ - [ ] Validation: names + markers for new resources
+ - [ ] Tests: unit (kernel/noise), e2e toggle + resize
+ - [ ] Shaders/CMake: add SSAO/blur/compose shaders to build + dist
+ - [ ] Docs: README controls and SSAO notes

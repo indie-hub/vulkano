@@ -465,6 +465,68 @@ void App::build_ui() noexcept {
         ImGui::Text("FOV Y: %.3f rad", static_cast<double>(fov));
     }
     ImGui::End();
+
+    // SSAO panel
+    ImGui::Begin("SSAO");
+    if (vk_ != nullptr) {
+        auto s = vk_->ssao();
+        bool dirty {false};
+        ImGui::SeparatorText("Settings");
+        if (ImGui::Checkbox("Enabled", &s.enabled)) { dirty = true; }
+
+        // Kernel size combo: 16 / 32 / 64
+        const char* kernelItems[] {"16", "32", "64"};
+        int comboIndex {1}; // default maps to 32
+        if (s.kernel_size == 16U) { comboIndex = 0; }
+        else if (s.kernel_size == 32U) { comboIndex = 1; }
+        else if (s.kernel_size == 64U) { comboIndex = 2; }
+        if (ImGui::Combo("Kernel Size", &comboIndex, kernelItems, 3)) {
+            const std::uint32_t newSizes[3] {16U, 32U, 64U};
+            s.kernel_size = newSizes[static_cast<std::size_t>(comboIndex)];
+            dirty = true;
+        }
+
+        // Sliders with named ranges (no magic numbers)
+        const float kRadiusMin {0.05F};
+        const float kRadiusMax {2.0F};
+        const float kBiasMin {0.001F};
+        const float kBiasMax {0.1F};
+        const float kPowerMin {0.5F};
+        const float kPowerMax {2.5F};
+        const float kSigmaMin {0.5F};
+        const float kSigmaMax {3.0F};
+        const float kStrengthMin {0.0F};
+        const float kStrengthMax {1.5F};
+        const int kBlurRadiusMin {1};
+        const int kBlurRadiusMax {5};
+
+        if (ImGui::SliderFloat("Radius", &s.radius, kRadiusMin, kRadiusMax)) { dirty = true; }
+        if (ImGui::SliderFloat("Bias", &s.bias, kBiasMin, kBiasMax)) { dirty = true; }
+        if (ImGui::SliderFloat("Power", &s.power, kPowerMin, kPowerMax)) { dirty = true; }
+
+        if (ImGui::Checkbox("Blur", &s.blur)) { dirty = true; }
+        int blurR {static_cast<int>(s.blur_radius)};
+        if (ImGui::SliderInt("Blur Radius", &blurR, kBlurRadiusMin, kBlurRadiusMax)) {
+            blurR = std::clamp(blurR, kBlurRadiusMin, kBlurRadiusMax);
+            s.blur_radius = static_cast<std::uint32_t>(blurR);
+            dirty = true;
+        }
+        if (ImGui::SliderFloat("Blur Sigma", &s.blur_sigma, kSigmaMin, kSigmaMax)) { dirty = true; }
+
+        if (ImGui::SliderFloat("AO Strength", &s.strength, kStrengthMin, kStrengthMax)) { dirty = true; }
+
+        if (dirty) {
+            vk_->set_ssao(s);
+        }
+
+        // Read-only diagnostics
+        ImGui::SeparatorText("Diagnostics");
+        const auto extent {vk_->swapchain_extent()};
+        ImGui::Text("Kernel Count: %u", s.kernel_size);
+        ImGui::Text("Noise Tex: %u x %u", s.noise_texture_size, s.noise_texture_size);
+        ImGui::Text("Framebuffer: %u x %u", extent.width, extent.height);
+    }
+    ImGui::End();
 }
 
 } // namespace vulkano

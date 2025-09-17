@@ -85,6 +85,22 @@ public:
     [[nodiscard]] const Light& light() const noexcept;
     void set_light(const Light& l) noexcept;
 
+    // SSAO parameters (UI-controlled). Rendering hooks added progressively.
+    struct SsaoSettings final {
+        bool enabled {false};
+        std::uint32_t kernel_size {0U};     // valid: 16, 32, 64
+        float radius {0.0F};                 // sampling radius in world/view space units
+        float bias {0.0F};                   // angle bias to reduce self-occlusion
+        float power {1.0F};                  // post-curve power
+        bool blur {false};                   // enable optional blur
+        std::uint32_t blur_radius {1U};      // integer kernel radius [1..5]
+        float blur_sigma {1.0F};             // Gaussian sigma [0.5..3.0]
+        float strength {1.0F};               // AO strength multiplier [0..1.5]
+        std::uint32_t noise_texture_size {0U}; // NxN tiling size of noise texture
+    };
+    [[nodiscard]] const SsaoSettings& ssao() const noexcept;
+    void set_ssao(const SsaoSettings& s) noexcept;
+
     // Camera interaction (for input handling)
     void camera_orbit_delta(float dYaw, float dPitch) noexcept;
     void camera_zoom_delta(float dDistance) noexcept;
@@ -282,6 +298,7 @@ private:
     // Camera
     std::unique_ptr<Camera> camera_ {};
     Light light_ {};
+    SsaoSettings ssao_ {};
 
     // Scene: CPU primitives and GPU draw ranges
     std::vector<std::unique_ptr<Primitive>> primitives_ {};
