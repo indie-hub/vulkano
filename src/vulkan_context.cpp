@@ -23,6 +23,8 @@
 #include <imgui.h>
 
 #include <vulkano/imgui_overlay.hpp>
+// Optional external image loading
+#include <stb_image.h>
 
 namespace vulkano {
 
@@ -1729,7 +1731,7 @@ void VulkanContext::create_default_textures() noexcept {
     if (albedo_image_ != VK_NULL_HANDLE && normal_image_ != VK_NULL_HANDLE) {
         return;
     }
-    // Config constants for procedurals
+    // Config constants for procedurals (fallbacks)
     constexpr std::uint32_t kAlbedoSize {256U};
     constexpr std::uint32_t kAlbedoSquares {8U};
     const glm::vec3 kAlbedoLight {0.92F, 0.92F, 0.92F};
@@ -1737,8 +1739,50 @@ void VulkanContext::create_default_textures() noexcept {
     constexpr std::uint32_t kNormalSize {128U};
     constexpr float kNormalAmp {0.8F};
 
-    const ImageRGBA8 albedo = make_checkerboard_rgba(kAlbedoSize, kAlbedoSquares, kAlbedoLight, kAlbedoDark);
-    const ImageRGBA8 normal = make_blue_noise_normal_rgba(kNormalSize, kNormalAmp);
+    // Attempt external textures via stb_image when env variables are provided
+    auto load_rgba8_from_file = [](const char* path, bool flipY) noexcept -> ImageRGBA8 {
+        ImageRGBA8 out {};
+        if (path == nullptr) {
+            return out;
+        }
+        stbi_set_flip_vertically_on_load(flipY ? 1 : 0);
+        int w {0};
+        int h {0};
+        int comp {0};
+        unsigned char* data {stbi_load(path, &w, &h, &comp, STBI_rgb_alpha)};
+        if (data == nullptr || w <= 0 || h <= 0) {
+            if (data != nullptr) {
+                stbi_image_free(data);
+            }
+            return out;
+        }
+        out.width = static_cast<std::uint32_t>(w);
+        out.height = static_cast<std::uint32_t>(h);
+        const std::size_t total {static_cast<std::size_t>(w) * static_cast<std::size_t>(h) * 4U};
+        out.pixels.assign(data, data + total);
+        stbi_image_free(data);
+        return out;
+    };
+
+    const char* albedoPath {std::getenv("VK_ALBEDO_PATH")};
+    const char* normalPath {std::getenv("VK_NORMAL_PATH")};
+    // Flip vertically by default for typical image conventions
+    const bool flipY {true};
+
+    ImageRGBA8 albedo {};
+    ImageRGBA8 normal {};
+    if (albedoPath != nullptr && std::strlen(albedoPath) > 0U) {
+        albedo = load_rgba8_from_file(albedoPath, flipY);
+    }
+    if (normalPath != nullptr && std::strlen(normalPath) > 0U) {
+        normal = load_rgba8_from_file(normalPath, flipY);
+    }
+    if (albedo.width == 0U || albedo.height == 0U || albedo.pixels.empty()) {
+        albedo = make_checkerboard_rgba(kAlbedoSize, kAlbedoSquares, kAlbedoLight, kAlbedoDark);
+    }
+    if (normal.width == 0U || normal.height == 0U || normal.pixels.empty()) {
+        normal = make_blue_noise_normal_rgba(kNormalSize, kNormalAmp);
+    }
 
     // Helper lambda to create, upload, mipmap, and view
     auto createTexture = [&](const ImageRGBA8& img, VkFormat format, VkImage& outImage, VkDeviceMemory& outMem, VkImageView& outView, VkSampler& outSampler, const char* baseName, bool enableAniso) {

@@ -4,7 +4,7 @@
 - [x] Add per-primitive material controls:
   - Extend Material with useAlbedo, useNormal, normalStrength. Push constants carry toggles and strength; UI exposes toggles, strength slider [0..2], plane UV tiling; show bound textures and sampler caps.
 
-- [ ] Optional external texture loading via stb_image:
+- [x] Optional external texture loading via stb_image:
   - Implement loaders for albedo (sRGB) and normal (UNORM) with vertical flip option and mipmap generation. Wire minimal UI buttons (no file dialog; toggles only if unavailable).
 
 - [ ] Robustness and polish:

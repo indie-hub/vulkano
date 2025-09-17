@@ -1,763 +1,170 @@
-[  1%] Building CXX object CMakeFiles/stb.dir/src/stb_image_impl.cpp.o
-[  4%] Built target compile_shaders
-[  6%] Built target glm
-In file included from /Users/bruno/Documents/Development/bruno/vulkano_codex/src/stb_image_impl.cpp:11:
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:852:30: warning: implicit conversion changes signedness: 'int' to 'size_t' (aka 'unsigned long') [-Wsign-conversion]
-  852 |    return (int) fread(data,1,size,(FILE*) user);
-      |                 ~~~~~        ^~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1051:28: warning: implicit conversion changes signedness: 'int' to 'size_t' (aka 'unsigned long') [-Wsign-conversion]
- 1051 |    return stbi__malloc(a*b + add);
-      |           ~~~~~~~~~~~~ ~~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1058:30: warning: implicit conversion changes signedness: 'int' to 'size_t' (aka 'unsigned long') [-Wsign-conversion]
- 1058 |    return stbi__malloc(a*b*c + add);
-      |           ~~~~~~~~~~~~ ~~~~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1065:32: warning: implicit conversion changes signedness: 'int' to 'size_t' (aka 'unsigned long') [-Wsign-conversion]
- 1065 |    return stbi__m[ 19%] Built target glfw
-alloc(a*b*c*d + add);
-      |           ~~~~~~~~~~~~ ~~~~~~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1196:39: warning: implicit conversion changes signedness: 'int' to 'size_t' (aka 'unsigned long') [-Wsign-conversion]
- 1196 |    reduced = (stbi_uc *) stbi__malloc(img_len);
-      |                          ~~~~~~~~~~~~ ^~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1212:52: warning: implicit conversion changes signedness: 'int' to 'size_t' (aka 'unsigned long') [-Wsign-conversion]
- 1212 |    enlarged = (stbi__uint16 *) stbi__malloc(img_len*2);
-      |                                ~~~~~~~~~~~~ ~~~~~~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1225:39: warning: implicit conversion changes signedness: 'int' to 'size_t' (aka 'unsigned long') [-Wsign-conversion]
- 1225 |    size_t bytes_per_row = (size_t)w * bytes_per_pixel;
-      |                                     ~ ^~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1230:31: warning: implicit conversion changes signedness: 'int' to 'size_t' (aka 'unsigned long') [-Wsign-conversion]
- 1230 |       stbi_uc *row0 = bytes + row*bytes_per_row;
-      |                               ^~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1231:40: warning: implicit conversion changes signedness: 'int' to 'size_t' (aka 'unsigned long') [-Wsign-conversion]
- 1231 |       stbi_uc *row1 = bytes + (h - row - 1)*bytes_per_row;
-      |                                ~~~~~~~~^~~ ~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1280:52: warning: implicit conversion changes signedness: 'unsigned long' to 'int' [-Wsign-conversion]
- 1280 |       stbi__vertical_flip(result, *x, *y, channels * sizeof(stbi_uc));
-      |       ~~~~~~~~~~~~~~~~~~~                 ~~~~~~~~~^~~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1280:43: warning: implicit conversion changes signedness: 'int' to 'unsigned long' [-Wsign-conversion]
- 1280 |       stbi__vertical_flip(result, *x, *y, channels * sizeof(stbi_uc));
-      |                                           ^~~~~~~~ ~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1307:52: warning: implicit conversion changes signedness: 'unsigned long' to 'int' [-Wsign-conversion]
- 1307 |       stbi__vertical_flip(result, *x, *y, channels * sizeof(stbi__uint16));
-      |       ~~~~~~~~~~~~~~~~~~~                 ~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1307:43: warning: implicit conversion changes signedness: 'int' to 'unsigned long' [-Wsign-conversion]
- 1307 |       stbi__vertical_flip(result, *x, *y, channels * sizeof(stbi__uint16));
-      |                                           ^~~~~~~~ ~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1318:52: warning: implicit conversion changes signedness: 'unsigned long' to 'int' [-Wsign-conversion]
- 1318 |       stbi__vertical_flip(result, *x, *y, channels * sizeof(float));
-      |       ~~~~~~~~~~~~~~~~~~~                 ~~~~~~~~~^~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1318:43: warning: implicit conversion changes signedness: 'int' to 'unsigned long' [-Wsign-conversion]
- 1318 |       stbi__vertical_flip(result, *x, *y, channels * sizeof(float));
-      |                                           ^~~~~~~~ ~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1673:40: warning: implicit conversion changes signedness: 'int' to 'size_t' (aka 'unsigned long') [-Wsign-conversion]
- 1673 |          memcpy(buffer, s->img_buffer, blen);
-      |          ~~~~~~                        ^~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1683:37: warning: implicit conversion changes signedness: 'int' to 'size_t' (aka 'unsigned long') [-Wsign-conversion]
- 1683 |       memcpy(buffer, s->img_buffer, n);
-      |       ~~~~~~                        ^
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1706:21: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 1706 |    stbi__uint32 z = stbi__get16be(s);
-      |                 ~   ^~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1707:23: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 1707 |    return (z << 16) + stbi__get16be(s);
-      |                     ~ ^~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1724:21: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 1724 |    stbi__uint32 z = stbi__get16le(s);
-      |                 ~   ^~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1763:60: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 1763 |    good = (unsigned char *) stbi__malloc_mad3(req_comp, x, y, 0);
-      |                             ~~~~~~~~~~~~~~~~~              ^
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1763:57: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 1763 |    good = (unsigned char *) stbi__malloc_mad3(req_comp, x, y, 0);
-      |                             ~~~~~~~~~~~~~~~~~           ^
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1770:44: warning: implicit conversion changes signedness: 'int' to 'unsigned int' [-Wsign-conversion]
- 1770 |       unsigned char *src  = data + j * x * img_n   ;
-      |                                          ~ ^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1770:36: warning: implicit conversion changes signedness: 'int' to 'unsigned int' [-Wsign-conversion]
- 1770 |       unsigned char *src  = data + j * x * img_n   ;
-      |                                    ^ ~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1771:44: warning: implicit conversion changes signedness: 'int' to 'unsigned int' [-Wsign-conversion]
- 1771 |       unsigned char *dest = good + j * x * req_comp;
-      |                                          ~ ^~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1771:36: warning: implicit conversion changes signedness: 'int' to 'unsigned int' [-Wsign-conversion]
- 1771 |       unsigned char *dest = good + j * x * req_comp;
-      |                                    ^ ~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1778:10: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 1778 |          STBI__CASE(1,2) { dest[0]=src[0]; dest[1]=255;                                     } break;
-      |          ^~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1774:63: note: expanded from macro 'STBI__CASE'
- 1774 |       #define STBI__CASE(a,b)   case STBI__COMBO(a,b): for(i=x-1; i >= 0; --i, src += a, dest += b)
-      |                                                             ~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1779:10: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 1779 |          STBI__CASE(1,3) { dest[0]=dest[1]=dest[2]=src[0];                                  } break;
-      |          ^~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1774:63: note: expanded from macro 'STBI__CASE'
- 1774 |       #define STBI__CASE(a,b)   case STBI__COMBO(a,b): for(i=x-1; i >= 0; --i, src += a, dest += b)
-      |                                                             ~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1780:10: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 1780 |          STBI__CASE(1,4) { dest[0]=dest[1]=dest[2]=src[0]; dest[3]=255;                     } break;
-      |          ^~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1774:63: note: expanded from macro 'STBI__CASE'
- 1774 |       #define STBI__CASE(a,b)   case STBI__COMBO(a,b): for(i=x-1; i >= 0; --i, src += a, dest += b)
-      |                                                             ~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1781:10: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 1781 |          STBI__CASE(2,1) { dest[0]=src[0];                                                  } break;
-      |          ^~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1774:63: note: expanded from macro 'STBI__CASE'
- 1774 |       #define STBI__CASE(a,b)   case STBI__COMBO(a,b): for(i=x-1; i >= 0; --i, src += a, dest += b)
-      |                                                             ~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1782:10: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 1782 |          STBI__CASE(2,3) { dest[0]=dest[1]=dest[2]=src[0];                                  } break;
-      |          ^~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1774:63: note: expanded from macro 'STBI__CASE'
- 1774 |       #define STBI__CASE(a,b)   case STBI__COMBO(a,b): for(i=x-1; i >= 0; --i, src += a, dest += b)
-      |                                                             ~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1783:10: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 1783 |          STBI__CASE(2,4) { dest[0]=dest[1]=dest[2]=src[0]; dest[3]=src[1];                  } break;
-      |          ^~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1774:63: note: expanded from macro 'STBI__CASE'
- 1774 |       #define STBI__CASE(a,b)   case STBI__COMBO(a,b): for(i=x-1; i >= 0; --i, src += a, dest += b)
-      |                                                             ~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1784:10: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 1784 |          STBI__CASE(3,4) { dest[0]=src[0];dest[1]=src[1];dest[2]=src[2];dest[3]=255;        } break;
-      |          ^~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1774:63: note: expanded from macro 'STBI__CASE'
- 1774 |       #define STBI__CASE(a,b)   case STBI__COMBO(a,b): for(i=x-1; i >= 0; --i, src += a, dest += b)
-      |                                                             ~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1785:10: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 1785 |          STBI__CASE(3,1) { dest[0]=stbi__compute_y(src[0],src[1],src[2]);                   } break;
-      |          ^~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1774:63: note: expanded from macro 'STBI__CASE'
- 1774 |       #define STBI__CASE(a,b)   case STBI__COMBO(a,b): for(i=x-1; i >= 0; --i, src += a, dest += b)
-      |                                                             ~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1786:10: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 1786 |          STBI__CASE(3,2) { dest[0]=stbi__compute_y(src[0],src[1],src[2]); dest[1] = 255;    } break;
-      |          ^~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1774:63: note: expanded from macro 'STBI__CASE'
- 1774 |       #define STBI__CASE(a,b)   case STBI__COMBO(a,b): for(i=x-1; i >= 0; --i, src += a, dest += b)
-      |                                                             ~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1787:10: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 1787 |          STBI__CASE(4,1) { dest[0]=stbi__compute_y(src[0],src[1],src[2]);                   } break;
-      |          ^~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1774:63: note: expanded from macro 'STBI__CASE'
- 1774 |       #define STBI__CASE(a,b)   case STBI__COMBO(a,b): for(i=x-1; i >= 0; --i, src += a, dest += b)
-      |                                                             ~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1788:10: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 1788 |          STBI__CASE(4,2) { dest[0]=stbi__compute_y(src[0],src[1],src[2]); dest[1] = src[3]; } break;
-      |          ^~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1774:63: note: expanded from macro 'STBI__CASE'
- 1774 |       #define STBI__CASE(a,b)   case STBI__COMBO(a,b): for(i=x-1; i >= 0; --i, src += a, dest += b)
-      |                                                             ~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1789:10: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 1789 |          STBI__CASE(4,3) { dest[0]=src[0];dest[1]=src[1];dest[2]=src[2];                    } break;
-      |          ^~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1774:63: note: expanded from macro 'STBI__CASE'
- 1774 |       #define STBI__CASE(a,b)   case STBI__COMBO(a,b): for(i=x-1; i >= 0; --i, src += a, dest += b)
-      |                                                             ~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1820:41: warning: implicit conversion changes signedness: 'int' to 'unsigned int' [-Wsign-conversion]
- 1820 |    good = (stbi__uint16 *) stbi__malloc(req_comp * x * y * 2);
-      |                                         ^~~~~~~~ ~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1827:43: warning: implicit conversion changes signedness: 'int' to 'unsigned int' [-Wsign-conversion]
- 1827 |       stbi__uint16 *src  = data + j * x * img_n   ;
-      |                                         ~ ^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1827:35: warning: implicit conversion changes signedness: 'int' to 'unsigned int' [-Wsign-conversion]
- 1827 |       stbi__uint16 *src  = data + j * x * img_n   ;
-      |                                   ^ ~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1828:43: warning: implicit conversion changes signedness: 'int' to 'unsigned int' [-Wsign-conversion]
- 1828 |       stbi__uint16 *dest = good + j * x * req_comp;
-      |                                         ~ ^~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1828:35: warning: implicit conversion changes signedness: 'int' to 'unsigned int' [-Wsign-conversion]
- 1828 |       stbi__uint16 *dest = good + j * x * req_comp;
-      |                                   ^ ~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1835:10: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 1835 |          STBI__CASE(1,2) { dest[0]=src[0]; dest[1]=0xffff;                                     } break;
-      |          ^~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1831:63: note: expanded from macro 'STBI__CASE'
- 1831 |       #define STBI__CASE(a,b)   case STBI__COMBO(a,b): for(i=x-1; i >= 0; --i, src += a, dest += b)
-      |                                                             ~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1836:10: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 1836 |          STBI__CASE(1,3) { dest[0]=dest[1]=dest[2]=src[0];                                     } break;
-      |          ^~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1831:63: note: expanded from macro 'STBI__CASE'
- 1831 |       #define STBI__CASE(a,b)   case STBI__COMBO(a,b): for(i=x-1; i >= 0; --i, src += a, dest += b)
-      |                                                             ~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1837:10: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 1837 |          STBI__CASE(1,4) { dest[0]=dest[1]=dest[2]=src[0]; dest[3]=0xffff;                     } break;
-      |          ^~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1831:63: note: expanded from macro 'STBI__CASE'
- 1831 |       #define STBI__CASE(a,b)   case STBI__COMBO(a,b): for(i=x-1; i >= 0; --i, src += a, dest += b)
-      |                                                             ~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1838:10: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 1838 |          STBI__CASE(2,1) { dest[0]=src[0];                                                     } break;
-      |          ^~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1831:63: note: expanded from macro 'STBI__CASE'
- 1831 |       #define STBI__CASE(a,b)   case STBI__COMBO(a,b): for(i=x-1; i >= 0; --i, src += a, dest += b)
-      |                                                             ~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1839:10: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 1839 |          STBI__CASE(2,3) { dest[0]=dest[1]=dest[2]=src[0];                                     } break;
-      |          ^~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1831:63: note: expanded from macro 'STBI__CASE'
- 1831 |       #define STBI__CASE(a,b)   case STBI__COMBO(a,b): for(i=x-1; i >= 0; --i, src += a, dest += b)
-      |                                                             ~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1840:10: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 1840 |          STBI__CASE(2,4) { dest[0]=dest[1]=dest[2]=src[0]; dest[3]=src[1];                     } break;
-      |          ^~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1831:63: note: expanded from macro 'STBI__CASE'
- 1831 |       #define STBI__CASE(a,b)   case STBI__COMBO(a,b): for(i=x-1; i >= 0; --i, src += a, dest += b)
-      |                                                             ~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1841:10: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 1841 |          STBI__CASE(3,4) { dest[0]=src[0];dest[1]=src[1];dest[2]=src[2];dest[3]=0xffff;        } break;
-      |          ^~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1831:63: note: expanded from macro 'STBI__CASE'
- 1831 |       #define STBI__CASE(a,b)   case STBI__COMBO(a,b): for(i=x-1; i >= 0; --i, src += a, dest += b)
-      |                                                             ~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1842:10: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 1842 |          STBI__CASE(3,1) { dest[0]=stbi__compute_y_16(src[0],src[1],src[2]);                   } break;
-      |          ^~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1831:63: note: expanded from macro 'STBI__CASE'
- 1831 |       #define STBI__CASE(a,b)   case STBI__COMBO(a,b): for(i=x-1; i >= 0; --i, src += a, dest += b)
-      |                                                             ~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1843:10: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 1843 |          STBI__CASE(3,2) { dest[0]=stbi__compute_y_16(src[0],src[1],src[2]); dest[1] = 0xffff; } break;
-      |          ^~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1831:63: note: expanded from macro 'STBI__CASE'
- 1831 |       #define STBI__CASE(a,b)   case STBI__COMBO(a,b): for(i=x-1; i >= 0; --i, src += a, dest += b)
-      |                                                             ~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1844:10: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 1844 |          STBI__CASE(4,1) { dest[0]=stbi__compute_y_16(src[0],src[1],src[2]);                   } break;
-      |          ^~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1831:63: note: expanded from macro 'STBI__CASE'
- 1831 |       #define STBI__CASE(a,b)   case STBI__COMBO(a,b): for(i=x-1; i >= 0; --i, src += a, dest += b)
-      |                                                             ~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1845:10: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 1845 |          STBI__CASE(4,2) { dest[0]=stbi__compute_y_16(src[0],src[1],src[2]); dest[1] = src[3]; } break;
-      |          ^~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1831:63: note: expanded from macro 'STBI__CASE'
- 1831 |       #define STBI__CASE(a,b)   case STBI__COMBO(a,b): for(i=x-1; i >= 0; --i, src += a, dest += b)
-      |                                                             ~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1846:10: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 1846 |          STBI__CASE(4,3) { dest[0]=src[0];dest[1]=src[1];dest[2]=src[2];                       } break;
-      |          ^~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1831:63: note: expanded from macro 'STBI__CASE'
- 1831 |       #define STBI__CASE(a,b)   case STBI__COMBO(a,b): for(i=x-1; i >= 0; --i, src += a, dest += b)
-      |                                                             ~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:2021:23: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 2021 |       h->delta[j] = k - code;
-      |                   ~ ~~^~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:2021:21: warning: implicit conversion changes signedness: 'int' to 'unsigned int' [-Wsign-conversion]
- 2021 |       h->delta[j] = k - code;
-      |                     ^ ~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:2137:56: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 2137 |    c = ((j->code_buffer >> (32 - k)) & stbi__bmask[k]) + h->delta[k];
-      |      ~ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:2137:58: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 2137 |    c = ((j->code_buffer >> (32 - k)) & stbi__bmask[k]) + h->delta[k];
-      |                                                        ~ ^~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:2165:13: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 2165 |    return k + (stbi__jbias[n] & (sgn - 1));
-      |    ~~~~~~ ~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:2165:31: warning: implicit conversion changes signedness: 'int' to 'unsigned int' [-Wsign-conversion]
- 2165 |    return k + (stbi__jbias[n] & (sgn - 1));
-      |             ~  ~~~~~~~~~~~~~~~^~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:2178:11: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 2178 |    return k;
-      |    ~~~~~~ ^
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:2189:13: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 2189 |    return k & 0x80000000;
-      |    ~~~~~~ ~~^~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3270:15: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 3270 |    s->img_y = stbi__get16be(s);   if (s->img_y == 0) return stbi__err("no header height", "JPEG format not supported: delayed height"); // Legal, but we don't handle it--but neither does IJG
-      |             ~ ^~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3271:15: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 3271 |    s->img_x = stbi__get16be(s);   if (s->img_x == 0) return stbi__err("0 width","Corrupt JPEG"); // JPEG requires
-      |             ~ ^~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3298:44: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 3298 |    if (!stbi__mad3sizes_valid(s->img_x, s->img_y, s->img_n, 0)) return stbi__err("too large", "Image too large to decode");
-      |         ~~~~~~~~~~~~~~~~~~~~~           ~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3298:34: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 3298 |    if (!stbi__mad3sizes_valid(s->img_x, s->img_y, s->img_n, 0)) return stbi__err("too large", "Image too large to decode");
-      |         ~~~~~~~~~~~~~~~~~~~~~ ~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3318:47: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 3318 |    z->img_mcu_x = (s->img_x + z->img_mcu_w-1) / z->img_mcu_w;
-      |                 ~ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3318:52: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 3318 |    z->img_mcu_x = (s->img_x + z->img_mcu_w-1) / z->img_mcu_w;
-      |                                               ~ ~~~^~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3318:34: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 3318 |    z->img_mcu_x = (s->img_x + z->img_mcu_w-1) / z->img_mcu_w;
-      |                             ~ ~~~^~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3319:47: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 3319 |    z->img_mcu_y = (s->img_y + z->img_mcu_h-1) / z->img_mcu_h;
-      |                 ~ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3319:52: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 3319 |    z->img_mcu_y = (s->img_y + z->img_mcu_h-1) / z->img_mcu_h;
-      |                                               ~ ~~~^~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3319:34: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 3319 |    z->img_mcu_y = (s->img_y + z->img_mcu_h-1) / z->img_mcu_h;
-      |                             ~ ~~~^~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3323:66: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 3323 |       z->img_comp[i].x = (s->img_x * z->img_comp[i].h + h_max-1) / h_max;
-      |                        ~ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3323:68: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 3323 |       z->img_comp[i].x = (s->img_x * z->img_comp[i].h + h_max-1) / h_max;
-      |                                                                  ~ ^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3323:57: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 3323 |       z->img_comp[i].x = (s->img_x * z->img_comp[i].h + h_max-1) / h_max;
-      |                                                       ~ ^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3323:53: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 3323 |       z->img_comp[i].x = (s->img_x * z->img_comp[i].h + h_max-1) / h_max;
-      |                                    ~ ~~~~~~~~~~~~~~~^
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3324:66: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 3324 |       z->img_comp[i].y = (s->img_y * z->img_comp[i].v + v_max-1) / v_max;
-      |                        ~ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3324:68: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 3324 |       z->img_comp[i].y = (s->img_y * z->img_comp[i].v + v_max-1) / v_max;
-      |                                                                  ~ ^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3324:57: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 3324 |       z->img_comp[i].y = (s->img_y * z->img_comp[i].v + v_max-1) / v_max;
-      |                                                       ~ ^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3324:53: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 3324 |       z->img_comp[i].y = (s->img_y * z->img_comp[i].v + v_max-1) / v_max;
-      |                                    ~ ~~~~~~~~~~~~~~~^
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3341:83: warning: implicit conversion changes signedness: 'int' to 'size_t' (aka 'unsigned long') [-Wsign-conversion]
- 3341 |       z->img_comp[i].data = (stbi_uc*) (((size_t) z->img_comp[i].raw_data + 15) & ~15);
-      |                                                                                 ~ ^~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3349:86: warning: implicit conversion changes signedness: 'int' to 'size_t' (aka 'unsigned long') [-Wsign-conversion]
- 3349 |          z->img_comp[i].coeff = (short*) (((size_t) z->img_comp[i].raw_coeff + 15) & ~15);
-      |                                                                                    ~ ^~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3435:28: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 3435 |          stbi__uint32 NL = stbi__get16be(j->s);
-      |                       ~~   ^~~~~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3669:55: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 3669 |       g = y_fixed + (cr*-stbi__float2fixed(0.71414f)) + ((cb*-stbi__float2fixed(0.34414f)) & 0xffff0000);
-      |         ~ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3669:61: warning: implicit conversion changes signedness: 'int' to 'unsigned int' [-Wsign-conversion]
- 3669 |       g = y_fixed + (cr*-stbi__float2fixed(0.71414f)) + ((cb*-stbi__float2fixed(0.34414f)) & 0xffff0000);
-      |                                                           ~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~  ~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3669:19: warning: implicit conversion changes signedness: 'int' to 'unsigned int' [-Wsign-conversion]
- 3669 |       g = y_fixed + (cr*-stbi__float2fixed(0.71414f)) + ((cb*-stbi__float2fixed(0.34414f)) & 0xffff0000);
-      |           ~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3910:47: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 3910 |          r->w_lores = (z->s->img_x + r->hs-1) / r->hs;
-      |                     ~ ~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3910:52: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 3910 |          r->w_lores = (z->s->img_x + r->hs-1) / r->hs;
-      |                                               ~ ~~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3910:41: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 3910 |          r->w_lores = (z->s->img_x + r->hs-1) / r->hs;
-      |                                    ~ ~~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3922:68: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 3922 |       output = (stbi_uc *) stbi__malloc_mad3(n, z->s->img_x, z->s->img_y, 1);
-      |                            ~~~~~~~~~~~~~~~~~                 ~~~~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3922:55: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 3922 |       output = (stbi_uc *) stbi__malloc_mad3(n, z->s->img_x, z->s->img_y, 1);
-      |                            ~~~~~~~~~~~~~~~~~    ~~~~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3927:34: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 3927 |          stbi_uc *out = output + n * z->s->img_x * j;
-      |                                  ^ ~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3954:80: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 3954 |                   z->YCbCr_to_RGB_kernel(out, y, coutput[1], coutput[2], z->s->img_x, n);
-      |                   ~                                                      ~~~~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3967:80: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 3967 |                   z->YCbCr_to_RGB_kernel(out, y, coutput[1], coutput[2], z->s->img_x, n);
-      |                   ~                                                      ~~~~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:3976:80: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 3976 |                   z->YCbCr_to_RGB_kernel(out, y, coutput[1], coutput[2], z->s->img_x, n);
-      |                   ~                                                      ~~~~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4021:22: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 4021 |       *out_x = z->s->img_x;
-      |              ~ ~~~~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4022:22: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 4022 |       *out_y = z->s->img_y;
-      |              ~ ~~~~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4062:22: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 4062 |    if (x) *x = j->s->img_x;
-      |              ~ ~~~~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4063:22: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 4063 |    if (y) *y = j->s->img_y;
-      |              ~ ~~~~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4229:29: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 4229 |    k = stbi__bit_reverse(a->code_buffer, 16);
-      |        ~~~~~~~~~~~~~~~~~ ~~~^~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4282:17: warning: implicit conversion changes signedness: 'int' to 'unsigned int' [-Wsign-conversion]
- 4282 |    while (cur + n > limit) {
-      |               ~ ^
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4351:37: warning: implicit conversion changes signedness: 'stbi_uc' (aka 'unsigned char') to 'char' [-Wsign-conversion]
- 4351 |             if (len) { do *zout++ = v; while (--len); }
-      |                                   ~ ^
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4353:37: warning: implicit conversion changes signedness: 'stbi_uc' (aka 'unsigned char') to 'char' [-Wsign-conversion]
- 4353 |             if (len) { do *zout++ = *p++; while (--len); }
-      |                                   ~ ^~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4367:36: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 4367 |    int hlit  = stbi__zreceive(a,5) + 257;
-      |        ~~~~    ~~~~~~~~~~~~~~~~~~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4368:36: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 4368 |    int hdist = stbi__zreceive(a,5) + 1;
-      |        ~~~~~   ~~~~~~~~~~~~~~~~~~~~^~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4369:36: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 4369 |    int hclen = stbi__zreceive(a,4) + 4;
-      |        ~~~~~   ~~~~~~~~~~~~~~~~~~~~^~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4374:15: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 4374 |       int s = stbi__zreceive(a,3);
-      |           ~   ^~~~~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4388:36: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 4388 |             c = stbi__zreceive(a,2)+3;
-      |               ~ ~~~~~~~~~~~~~~~~~~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4392:36: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 4392 |             c = stbi__zreceive(a,3)+3;
-      |               ~ ~~~~~~~~~~~~~~~~~~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4394:36: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 4394 |             c = stbi__zreceive(a,7)+11;
-      |               ~ ~~~~~~~~~~~~~~~~~~~^~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4399:35: warning: implicit conversion changes signedness: 'int' to 'size_t' (aka 'unsigned long') [-Wsign-conversion]
- 4399 |          memset(lencodes+n, fill, c);
-      |          ~~~~~~                   ^
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4432:32: warning: implicit conversion changes signedness: 'int' to 'size_t' (aka 'unsigned long') [-Wsign-conversion]
- 4432 |    memcpy(a->zout, a->zbuffer, len);
-      |    ~~~~~~                      ^~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4490:15: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 4490 |       final = stbi__zreceive(a,1);
-      |             ~ ^~~~~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4491:14: warning: implicit conversion changes signedness: 'unsigned int' to 'int' [-Wsign-conversion]
- 4491 |       type = stbi__zreceive(a,2);
-      |            ~ ^~~~~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4523:36: warning: implicit conversion changes signedness: 'int' to 'size_t' (aka 'unsigned long') [-Wsign-conversion]
- 4523 |    char *p = (char *) stbi__malloc(initial_size);
-      |                       ~~~~~~~~~~~~ ^~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4544:36: warning: implicit conversion changes signedness: 'int' to 'size_t' (aka 'unsigned long') [-Wsign-conversion]
- 4544 |    char *p = (char *) stbi__malloc(initial_size);
-      |                       ~~~~~~~~~~~~ ^~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4680:15: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 4680 |       for (i=x-1; i >= 0; --i) {
-      |             ~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4686:15: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 4686 |       for (i=x-1; i >= 0; --i) {
-      |             ~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4700:38: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 4700 |    stbi__uint32 i,j,stride = x*out_n*bytes;
-      |                                     ~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4700:32: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 4700 |    stbi__uint32 i,j,stride = x*out_n*bytes;
-      |                               ~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4709:16: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 4709 |    int width = x;
-      |        ~~~~~   ^
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4712:46: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 4712 |    a->out = (stbi_uc *) stbi__malloc_mad3(x, y, output_bytes, 0); // extra bytes to write off the end into
-      |                         ~~~~~~~~~~~~~~~~~    ^
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4712:43: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 4712 |    a->out = (stbi_uc *) stbi__malloc_mad3(x, y, output_bytes, 0); // extra bytes to write off the end into
-      |                         ~~~~~~~~~~~~~~~~~ ^
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4717:38: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 4717 |    if (!stbi__mad3sizes_valid(img_n, x, depth, 7)) return stbi__err("too large", "Corrupt PNG");
-      |         ~~~~~~~~~~~~~~~~~~~~~        ^
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4718:37: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 4718 |    img_width_bytes = (((img_n * x * depth) + 7) >> 3);
-      |                                   ~ ^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4718:25: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 4718 |    img_width_bytes = (((img_n * x * depth) + 7) >> 3);
-      |                         ^~~~~ ~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4719:51: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 4719 |    if (!stbi__mad2sizes_valid(img_width_bytes, y, img_width_bytes)) return stbi__err("too large", "Corrupt PNG");
-      |         ~~~~~~~~~~~~~~~~~~~~~                     ^~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4719:48: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 4719 |    if (!stbi__mad2sizes_valid(img_width_bytes, y, img_width_bytes)) return stbi__err("too large", "Corrupt PNG");
-      |         ~~~~~~~~~~~~~~~~~~~~~                  ^
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4719:31: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 4719 |    if (!stbi__mad2sizes_valid(img_width_bytes, y, img_width_bytes)) return stbi__err("too large", "Corrupt PNG");
-      |         ~~~~~~~~~~~~~~~~~~~~~ ^~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4728:47: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 4728 |    filter_buf = (stbi_uc *) stbi__malloc_mad2(img_width_bytes, 2, 0);
-      |                             ~~~~~~~~~~~~~~~~~ ^~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4734:15: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 4734 |       width = img_width_bytes;
-      |             ~ ^~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4757:27: warning: implicit conversion changes signedness: 'int' to 'size_t' (aka 'unsigned long') [-Wsign-conversion]
- 4757 |          memcpy(cur, raw, nk);
-      |          ~~~~~~           ^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4760:27: warning: implicit conversion changes signedness: 'int' to 'size_t' (aka 'unsigned long') [-Wsign-conversion]
- 4760 |          memcpy(cur, raw, filter_bytes);
-      |          ~~~~~~           ^~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4781:27: warning: implicit conversion changes signedness: 'int' to 'size_t' (aka 'unsigned long') [-Wsign-conversion]
- 4781 |          memcpy(cur, raw, filter_bytes);
-      |          ~~~~~~           ^~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4795:32: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 4795 |          stbi__uint32 nsmp = x*img_n;
-      |                               ~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4824:33: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 4824 |             memcpy(dest, cur, x*img_n);
-      |                                ~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4830:32: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 4830 |          stbi__uint32 nsmp = x*img_n;
-      |                               ~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4834:40: warning: implicit conversion loses integer precision: 'int' to 'stbi__uint16' (aka 'unsigned short') [-Wimplicit-int-conversion]
- 4834 |                *dest16 = (cur[0] << 8) | cur[1];
-      |                        ~ ~~~~~~~~~~~~~~^~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4839:45: warning: implicit conversion loses integer precision: 'int' to 'stbi__uint16' (aka 'unsigned short') [-Wimplicit-int-conversion]
- 4839 |                   dest16[0] = (cur[0] << 8) | cur[1];
-      |                             ~ ~~~~~~~~~~~~~~^~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4845:45: warning: implicit conversion loses integer precision: 'int' to 'stbi__uint16' (aka 'unsigned short') [-Wimplicit-int-conversion]
- 4845 |                   dest16[0] = (cur[0] << 8) | cur[1];
-      |                             ~ ~~~~~~~~~~~~~~^~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4846:45: warning: implicit conversion loses integer precision: 'int' to 'stbi__uint16' (aka 'unsigned short') [-Wimplicit-int-conversion]
- 4846 |                   dest16[1] = (cur[2] << 8) | cur[3];
-      |                             ~ ~~~~~~~~~~~~~~^~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4847:45: warning: implicit conversion loses integer precision: 'int' to 'stbi__uint16' (aka 'unsigned short') [-Wimplicit-int-conversion]
- 4847 |                   dest16[2] = (cur[4] << 8) | cur[5];
-      |                             ~ ~~~~~~~~~~~~~~^~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4871:61: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 4871 |    final = (stbi_uc *) stbi__malloc_mad3(a->s->img_x, a->s->img_y, out_bytes, 0);
-      |                        ~~~~~~~~~~~~~~~~~              ~~~~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4871:48: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 4871 |    final = (stbi_uc *) stbi__malloc_mad3(a->s->img_x, a->s->img_y, out_bytes, 0);
-      |                        ~~~~~~~~~~~~~~~~~ ~~~~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4880:48: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 4880 |       x = (a->s->img_x - xorig[p] + xspc[p]-1) / xspc[p];
-      |         ~ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4880:50: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 4880 |       x = (a->s->img_x - xorig[p] + xspc[p]-1) / xspc[p];
-      |                                                ~ ^~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4880:37: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 4880 |       x = (a->s->img_x - xorig[p] + xspc[p]-1) / xspc[p];
-      |                                   ~ ^~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4880:26: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 4880 |       x = (a->s->img_x - xorig[p] + xspc[p]-1) / xspc[p];
-      |                        ~ ^~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4881:48: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 4881 |       y = (a->s->img_y - yorig[p] + yspc[p]-1) / yspc[p];
-      |         ~ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4881:50: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 4881 |       y = (a->s->img_y - yorig[p] + yspc[p]-1) / yspc[p];
-      |                                                ~ ^~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4881:37: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 4881 |       y = (a->s->img_y - yorig[p] + yspc[p]-1) / yspc[p];
-      |                                   ~ ^~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4881:26: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 4881 |       y = (a->s->img_y - yorig[p] + yspc[p]-1) / yspc[p];
-      |                        ~ ^~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4883:78: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 4883 |          stbi__uint32 img_len = ((((a->s->img_n * x * depth) + 7) >> 3) + 1) * y;
-      |                       ~~~~~~~   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4884:83: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 4884 |          if (!stbi__create_png_image_raw(a, image_data, image_data_len, out_n, x, y, depth, color)) {
-      |               ~~~~~~~~~~~~~~~~~~~~~~~~~~                                          ^
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4884:80: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 4884 |          if (!stbi__create_png_image_raw(a, image_data, image_data_len, out_n, x, y, depth, color)) {
-      |               ~~~~~~~~~~~~~~~~~~~~~~~~~~                                       ^
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4893:51: warning: implicit conversion changes signedness: 'int' to 'size_t' (aka 'unsigned long') [-Wsign-conversion]
- 4892 |                memcpy(final + out_y*a->s->img_x*out_bytes + out_x*out_bytes,
-      |                ~~~~~~
- 4893 |                       a->out + (j*x+i)*out_bytes, out_bytes);
-      |                                                   ^~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4892:49: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 4892 |                memcpy(final + out_y*a->s->img_x*out_bytes + out_x*out_bytes,
-      |                                                ~^~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4892:31: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 4892 |                memcpy(final + out_y*a->s->img_x*out_bytes + out_x*out_bytes,
-      |                               ^~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:4961:38: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 4961 |    p = (stbi_uc *) stbi__malloc_mad2(pixel_count, pal_img_n, 0);
-      |                    ~~~~~~~~~~~~~~~~~ ^~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5100:29: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 5100 |             stbi__skip(s, c.length);
-      |             ~~~~~~~~~~    ~~^~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5121:46: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 5121 |                if ((1 << 30) / s->img_x / s->img_n < s->img_y) return stbi__err("too large", "Image too large to decode");
-      |                                         ~ ~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5194:48: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 5194 |             if (!stbi__getn(s, z->idata+ioff,c.length)) return stbi__err("outofdata","Corrupt PNG");
-      |                  ~~~~~~~~~~                  ~~^~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5205:34: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 5205 |             bpl = (s->img_x * z->depth + 7) / 8; // bytes per line, per component
-      |                             ~ ~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5206:43: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 5206 |             raw_len = bpl * s->img_y * s->img_n /* pixels */ + s->img_y /* filter mode per row */;
-      |                                      ~ ~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5207:109: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 5207 |             z->expanded = (stbi_uc *) stbi_zlib_decode_malloc_guesssize_headerflag((char *) z->idata, ioff, raw_len, (int *) &raw_len, !is_iphone);
-      |                                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~                          ^~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5207:103: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 5207 |             z->expanded = (stbi_uc *) stbi_zlib_decode_malloc_guesssize_headerflag((char *) z->idata, ioff, raw_len, (int *) &raw_len, !is_iphone);
-      |                                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~                    ^~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5229:58: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 5229 |                if (!stbi__expand_png_palette(z, palette, pal_len, s->img_out_n))
-      |                     ~~~~~~~~~~~~~~~~~~~~~~~~             ^~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5248:35: warning: implicit conversion changes signedness: 'stbi_uc' (aka 'unsigned char') to 'char' [-Wsign-conversion]
- 5248 |                invalid_chunk[0] = STBI__BYTECAST(c.type >> 24);
-      |                                 ~ ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1730:29: note: expanded from macro 'STBI__BYTECAST'
- 1730 | #define STBI__BYTECAST(x)  ((stbi_uc) ((x) & 255))  // truncate int to byte without warnings
-      |                             ^~~~~~~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5249:35: warning: implicit conversion changes signedness: 'stbi_uc' (aka 'unsigned char') to 'char' [-Wsign-conversion]
- 5249 |                invalid_chunk[1] = STBI__BYTECAST(c.type >> 16);
-      |                                 ~ ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1730:29: note: expanded from macro 'STBI__BYTECAST'
- 1730 | #define STBI__BYTECAST(x)  ((stbi_uc) ((x) & 255))  // truncate int to byte without warnings
-      |                             ^~~~~~~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5250:35: warning: implicit conversion changes signedness: 'stbi_uc' (aka 'unsigned char') to 'char' [-Wsign-conversion]
- 5250 |                invalid_chunk[2] = STBI__BYTECAST(c.type >>  8);
-      |                                 ~ ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1730:29: note: expanded from macro 'STBI__BYTECAST'
- 1730 | #define STBI__BYTECAST(x)  ((stbi_uc) ((x) & 255))  // truncate int to byte without warnings
-      |                             ^~~~~~~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5251:35: warning: implicit conversion changes signedness: 'stbi_uc' (aka 'unsigned char') to 'char' [-Wsign-conversion]
- 5251 |                invalid_chunk[3] = STBI__BYTECAST(c.type >>  0);
-      |                                 ~ ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:1730:29: note: expanded from macro 'STBI__BYTECAST'
- 1730 | #define STBI__BYTECAST(x)  ((stbi_uc) ((x) & 255))  // truncate int to byte without warnings
-      |                             ^~~~~~~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5255:29: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 5255 |             stbi__skip(s, c.length);
-      |             ~~~~~~~~~~    ~~^~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5284:18: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 5284 |       *x = p->s->img_x;
-      |          ~ ~~~~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5285:18: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 5285 |       *y = p->s->img_y;
-      |          ~ ~~~~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5316:22: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 5316 |    if (x) *x = p->s->img_x;
-      |              ~ ~~~~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5317:22: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 5317 |    if (y) *y = p->s->img_y;
-      |              ~ ~~~~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5356:9: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 5356 |    sz = stbi__get32le(s);
-      |       ~ ^~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5455:19: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 5455 |    info->offset = stbi__get32le(s);
-      |                 ~ ^~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5456:22: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 5456 |    info->hsz = hsz = stbi__get32le(s);
-      |                    ~ ^~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5464:18: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 5464 |       s->img_x = stbi__get16le(s);
-      |                ~ ^~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5465:18: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 5465 |       s->img_y = stbi__get16le(s);
-      |                ~ ^~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5473:22: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 5473 |       int compress = stbi__get32le(s);
-      |           ~~~~~~~~   ^~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5546:15: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 5546 |    s->img_y = abs((int) s->img_y);
-      |             ~ ^~~~~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5594:52: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 5594 |    if (!stbi__mad3sizes_valid(target, s->img_x, s->img_y, 0))
-      |         ~~~~~~~~~~~~~~~~~~~~~                   ~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5594:42: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 5594 |    if (!stbi__mad3sizes_valid(target, s->img_x, s->img_y, 0))
-      |         ~~~~~~~~~~~~~~~~~~~~~         ~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5597:61: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 5597 |    out = (stbi_uc *) stbi__malloc_mad3(target, s->img_x, s->img_y, 0);
-      |                      ~~~~~~~~~~~~~~~~~                   ~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5597:51: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 5597 |    out = (stbi_uc *) stbi__malloc_mad3(target, s->img_x, s->img_y, 0);
-      |                      ~~~~~~~~~~~~~~~~~         ~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5612:42: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 5612 |       else if (info.bpp == 8) width = s->img_x;
-      |                                     ~ ~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5659:37: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 5659 |       if (info.bpp == 24) width = 3 * s->img_x;
-      |                                 ~ ~~^~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5660:41: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 5660 |       else if (info.bpp == 16) width = 2*s->img_x;
-      |                                      ~ ~^~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5698:26: warning: operand of ? changes signedness: 'int' to 'unsigned int' [-Wsign-conversion]
- 5698 |                a = (ma ? stbi__shiftsigned(v & ma, ashift, acount) : 255);
-      |                  ~       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5709:33: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 5709 |       for (i=4*s->img_x*s->img_y-1; i >= 0; i -= 4)
-      |             ~~~~~~~~~~~~~~~~~~~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5715:51: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 5715 |          stbi_uc *p1 = out +      j     *s->img_x*target;
-      |                                                  ~^~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5715:35: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 5715 |          stbi_uc *p1 = out +      j     *s->img_x*target;
-      |                                   ^     ~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5716:54: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 5716 |          stbi_uc *p2 = out + (s->img_y-1-j)*s->img_x*target;
-      |                                                     ~^~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5716:42: warning: implicit conversion changes signedness: 'int' to 'stbi__uint32' (aka 'unsigned int') [-Wsign-conversion]
- 5716 |          stbi_uc *p2 = out + (s->img_y-1-j)*s->img_x*target;
-      |                                         ~^
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5728:12: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 5728 |    *x = s->img_x;
-      |       ~ ~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:5729:12: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 5729 |    *y = s->img_y;
-      |       ~ ~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:6065:80: warning: implicit conversion changes signedness: 'int' to 'unsigned int' [-Wsign-conversion]
- 6065 |       tga_data = stbi__convert_format(tga_data, tga_comp, req_comp, tga_width, tga_height);
-      |                  ~~~~~~~~~~~~~~~~~~~~                                          ^~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:6065:69: warning: implicit conversion changes signedness: 'int' to 'unsigned int' [-Wsign-conversion]
- 6065 |       tga_data = stbi__convert_format(tga_data, tga_comp, req_comp, tga_width, tga_height);
-      |                  ~~~~~~~~~~~~~~~~~~~~                               ^~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:6153:8: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 6153 |    h = stbi__get32be(s);
-      |      ~ ^~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:6154:8: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 6154 |    w = stbi__get32be(s);
-      |      ~ ^~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:6178:17: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 6178 |    stbi__skip(s,stbi__get32be(s) );
-      |    ~~~~~~~~~~   ^~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:6181:18: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 6181 |    stbi__skip(s, stbi__get32be(s) );
-      |    ~~~~~~~~~~    ^~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:6184:18: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 6184 |    stbi__skip(s, stbi__get32be(s) );
-      |    ~~~~~~~~~~    ^~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:6204:43: warning: implicit conversion changes signedness: 'int' to 'size_t' (aka 'unsigned long') [-Wsign-conversion]
- 6204 |       out = (stbi_uc *) stbi__malloc(4 * w*h);
-      |                         ~~~~~~~~~~~~ ~~~~~^~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:6314:89: warning: implicit conversion changes signedness: 'int' to 'unsigned int' [-Wsign-conversion]
- 6314 |          out = (stbi_uc *) stbi__convert_format16((stbi__uint16 *) out, 4, req_comp, w, h);
-      |                            ~~~~~~~~~~~~~~~~~~~~~~                                       ^
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:6314:86: warning: implicit conversion changes signedness: 'int' to 'unsigned int' [-Wsign-conversion]
- 6314 |          out = (stbi_uc *) stbi__convert_format16((stbi__uint16 *) out, 4, req_comp, w, h);
-      |                            ~~~~~~~~~~~~~~~~~~~~~~                                    ^
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:6316:58: warning: implicit conversion changes signedness: 'int' to 'unsigned int' [-Wsign-conversion]
- 6316 |          out = stbi__convert_format(out, 4, req_comp, w, h);
-      |                ~~~~~~~~~~~~~~~~~~~~                      ^
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:6316:55: warning: implicit conversion changes signedness: 'int' to 'unsigned int' [-Wsign-conversion]
- 6316 |          out = stbi__convert_format(out, 4, req_comp, w, h);
-      |                ~~~~~~~~~~~~~~~~~~~~                   ^
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:7346:19: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 7346 |    if (x) *x = s->img_x;
-      |              ~ ~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:7347:19: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 7347 |    if (y) *y = s->img_y;
-      |              ~ ~~~^~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:7379:9: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 7379 |    *y = stbi__get32be(s);
-      |       ~ ^~~~~~~~~~~~~~~~
-/Users/bruno/Documents/Development/bruno/vulkano_codex/build/_deps/stb-src/stb_image.h:7380:9: warning: implicit conversion changes signedness: 'stbi__uint32' (aka 'unsigned int') to 'int' [-Wsign-conversion]
- 7380 |    *x = stbi__get32be(s);
-      |       ~ ^~~~~~~~~~~~~~~~
-[ 23%] Built target imgui
-[ 88%] Built target Catch2
-215 warnings generated.
-[ 89%] Linking CXX static library /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libstb.a
-[ 90%] Built target Catch2WithMain
-[ 90%] Built target stb
-[ 91%] Building CXX object CMakeFiles/vulkano.dir/src/app.cpp.o
-[ 92%] Building CXX object CMakeFiles/vulkano.dir/src/imgui_overlay.cpp.o
-[ 92%] Building CXX object CMakeFiles/vulkano.dir/src/vulkan_context.cpp.o
-[ 93%] Building CXX object CMakeFiles/vulkano.dir/src/stats.cpp.o
-[ 93%] Building CXX object CMakeFiles/vulkano.dir/src/geometry.cpp.o
-[ 95%] Building CXX object CMakeFiles/vulkano.dir/src/camera.cpp.o
-[ 95%] Building CXX object CMakeFiles/vulkano.dir/src/textures.cpp.o
-[ 95%] Linking CXX static library /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libvulkano.a
-[ 95%] Built target vulkano
-[ 96%] Building CXX object CMakeFiles/vulkano_app.dir/src/main.cpp.o
-[ 98%] Building CXX object tests/CMakeFiles/vulkano_tests.dir/tests_main.cpp.o
+[  3%] Built target compile_shaders
+[  5%] Building CXX object CMakeFiles/stb.dir/src/stb_image_impl.cpp.o
+[  5%] Building CXX object _deps/glm-build/glm/CMakeFiles/glm.dir/detail/glm.cpp.o
+[  6%] Building C object _deps/glfw-build/src/CMakeFiles/glfw.dir/context.c.o
+[  7%] Building C object _deps/glfw-build/src/CMakeFiles/glfw.dir/init.c.o
+[  7%] Building C object _deps/glfw-build/src/CMakeFiles/glfw.dir/input.c.o
+[  8%] Linking CXX static library /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libstb.a
+[  8%] Built target stb
+[  8%] Building C object _deps/glfw-build/src/CMakeFiles/glfw.dir/monitor.c.o
+[ 10%] Building C object _deps/glfw-build/src/CMakeFiles/glfw.dir/vulkan.c.o
+[ 10%] Building C object _deps/glfw-build/src/CMakeFiles/glfw.dir/platform.c.o
+[ 10%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/benchmark/catch_chronometer.cpp.o
+[ 11%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/benchmark/detail/catch_analyse.cpp.o
+[ 11%] Building C object _deps/glfw-build/src/CMakeFiles/glfw.dir/window.c.o
+[ 12%] Building C object _deps/glfw-build/src/CMakeFiles/glfw.dir/egl_context.c.o
+[ 12%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/benchmark/detail/catch_benchmark_function.cpp.o
+[ 13%] Linking CXX static library /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libglm.a
+[ 13%] Built target glm
+[ 14%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/benchmark/detail/catch_run_for_at_least.cpp.o
+[ 14%] Building C object _deps/glfw-build/src/CMakeFiles/glfw.dir/osmesa_context.c.o
+[ 15%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/benchmark/detail/catch_stats.cpp.o
+[ 15%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/generators/catch_generator_exception.cpp.o
+[ 16%] Building C object _deps/glfw-build/src/CMakeFiles/glfw.dir/null_init.c.o
+[ 17%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/generators/catch_generators.cpp.o
+[ 17%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/generators/catch_generators_random.cpp.o
+[ 18%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/reporters/catch_reporter_automake.cpp.o
+[ 19%] Building C object _deps/glfw-build/src/CMakeFiles/glfw.dir/null_monitor.c.o
+[ 19%] Building C object _deps/glfw-build/src/CMakeFiles/glfw.dir/null_window.c.o
+[ 20%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/reporters/catch_reporter_common_base.cpp.o
+[ 20%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/reporters/catch_reporter_compact.cpp.o
+[ 21%] Building C object _deps/glfw-build/src/CMakeFiles/glfw.dir/null_joystick.c.o
+[ 21%] Building C object _deps/glfw-build/src/CMakeFiles/glfw.dir/cocoa_time.c.o
+[ 22%] Building C object _deps/glfw-build/src/CMakeFiles/glfw.dir/posix_module.c.o
+[ 23%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/reporters/catch_reporter_console.cpp.o
+[ 23%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/reporters/catch_reporter_cumulative_base.cpp.o
+[ 24%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/reporters/catch_reporter_event_listener.cpp.o
+[ 25%] Building C object _deps/glfw-build/src/CMakeFiles/glfw.dir/posix_thread.c.o
+[ 26%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/reporters/catch_reporter_helpers.cpp.o
+[ 26%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/reporters/catch_reporter_json.cpp.o
+[ 26%] Building C object _deps/glfw-build/src/CMakeFiles/glfw.dir/cocoa_init.m.o
+[ 27%] Building C object _deps/glfw-build/src/CMakeFiles/glfw.dir/cocoa_joystick.m.o
+[ 28%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/reporters/catch_reporter_junit.cpp.o
+[ 28%] Building C object _deps/glfw-build/src/CMakeFiles/glfw.dir/cocoa_monitor.m.o
+[ 29%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/reporters/catch_reporter_multi.cpp.o
+[ 30%] Building C object _deps/glfw-build/src/CMakeFiles/glfw.dir/cocoa_window.m.o
+[ 31%] Building C object _deps/glfw-build/src/CMakeFiles/glfw.dir/nsgl_context.m.o
+[ 31%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/reporters/catch_reporter_registrars.cpp.o
+[ 32%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/reporters/catch_reporter_sonarqube.cpp.o
+[ 32%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/reporters/catch_reporter_streaming_base.cpp.o
+[ 33%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/reporters/catch_reporter_tap.cpp.o
+[ 34%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/reporters/catch_reporter_teamcity.cpp.o
+[ 34%] Linking C static library /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libglfw3.a
+[ 34%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/reporters/catch_reporter_xml.cpp.o
+[ 34%] Built target glfw
+[ 35%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/interfaces/catch_interfaces_capture.cpp.o
+[ 35%] Building CXX object CMakeFiles/imgui.dir/_deps/imgui-src/imgui.cpp.o
+[ 35%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/interfaces/catch_interfaces_config.cpp.o
+[ 36%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/interfaces/catch_interfaces_exception.cpp.o
+[ 37%] Building CXX object CMakeFiles/imgui.dir/_deps/imgui-src/imgui_draw.cpp.o
+[ 38%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/interfaces/catch_interfaces_generatortracker.cpp.o
+[ 38%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/interfaces/catch_interfaces_registry_hub.cpp.o
+[ 39%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/interfaces/catch_interfaces_reporter.cpp.o
+[ 39%] Building CXX object CMakeFiles/imgui.dir/_deps/imgui-src/imgui_tables.cpp.o
+[ 40%] Building CXX object CMakeFiles/imgui.dir/_deps/imgui-src/imgui_widgets.cpp.o
+[ 41%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/interfaces/catch_interfaces_reporter_factory.cpp.o
+[ 41%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/interfaces/catch_interfaces_testcase.cpp.o
+[ 42%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/catch_approx.cpp.o
+[ 43%] Building CXX object CMakeFiles/imgui.dir/_deps/imgui-src/backends/imgui_impl_glfw.cpp.o
+[ 43%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/catch_assertion_result.cpp.o
+[ 44%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/catch_config.cpp.o
+[ 44%] Building CXX object CMakeFiles/imgui.dir/_deps/imgui-src/backends/imgui_impl_vulkan.cpp.o
+[ 45%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/catch_get_random_seed.cpp.o
+[ 45%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/catch_message.cpp.o
+[ 46%] Linking CXX static library /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libimgui.a
+[ 47%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/catch_registry_hub.cpp.o
+[ 47%] Built target imgui
+[ 47%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/catch_session.cpp.o
+[ 48%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/catch_tag_alias_autoregistrar.cpp.o
+[ 49%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/catch_test_case_info.cpp.o
+[ 49%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/catch_test_spec.cpp.o
+[ 50%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/catch_timer.cpp.o
+[ 50%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/catch_tostring.cpp.o
+[ 51%] Building CXX object CMakeFiles/vulkano.dir/src/app.cpp.o
+[ 52%] Building CXX object CMakeFiles/vulkano.dir/src/vulkan_context.cpp.o
+[ 53%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/catch_totals.cpp.o
+[ 54%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/catch_translate_exception.cpp.o
+[ 54%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/catch_version.cpp.o
+[ 55%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_assertion_handler.cpp.o
+[ 56%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_case_insensitive_comparisons.cpp.o
+[ 56%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_clara.cpp.o
+[ 57%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_commandline.cpp.o
+[ 57%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_console_colour.cpp.o
+[ 57%] Building CXX object CMakeFiles/vulkano.dir/src/imgui_overlay.cpp.o
+[ 58%] Building CXX object CMakeFiles/vulkano.dir/src/stats.cpp.o
+[ 58%] Building CXX object CMakeFiles/vulkano.dir/src/geometry.cpp.o
+[ 59%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_context.cpp.o
+[ 60%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_debug_console.cpp.o
+[ 60%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_debugger.cpp.o
+[ 61%] Building CXX object CMakeFiles/vulkano.dir/src/camera.cpp.o
+[ 62%] Building CXX object CMakeFiles/vulkano.dir/src/textures.cpp.o
+[ 63%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_decomposer.cpp.o
+[ 63%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_enforce.cpp.o
+[ 64%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_enum_values_registry.cpp.o
+[ 65%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_errno_guard.cpp.o
+[ 65%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_exception_translator_registry.cpp.o
+[ 66%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_fatal_condition_handler.cpp.o
+[ 66%] Linking CXX static library /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libvulkano.a
+[ 66%] Built target vulkano
+[ 67%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_floating_point_helpers.cpp.o
+[ 67%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_getenv.cpp.o
+[ 68%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_istream.cpp.o
+[ 68%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_jsonwriter.cpp.o
+[ 69%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_lazy_expr.cpp.o
+[ 70%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_leak_detector.cpp.o
+[ 70%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_list.cpp.o
+[ 71%] Building CXX object CMakeFiles/vulkano_app.dir/src/main.cpp.o
+[ 72%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_message_info.cpp.o
+[ 72%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_output_redirect.cpp.o
+[ 73%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_parse_numbers.cpp.o
+[ 74%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_polyfills.cpp.o
+[ 74%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_random_number_generator.cpp.o
+[ 75%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_random_seed_generation.cpp.o
+[ 76%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_reporter_registry.cpp.o
+[ 76%] Linking CXX executable /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_app
+[ 76%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_reporter_spec_parser.cpp.o
+[ 77%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_result_type.cpp.o
+[ 77%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_reusable_string_stream.cpp.o
+[ 78%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_run_context.cpp.o
+[ 78%] Built target vulkano_app
+[ 78%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_singletons.cpp.o
+[ 79%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_section.cpp.o
+[ 80%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_source_line_info.cpp.o
+[ 80%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_startup_exception_registry.cpp.o
+[ 81%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_stdstreams.cpp.o
+[ 82%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_string_manip.cpp.o
+[ 82%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_stringref.cpp.o
+[ 83%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_tag_alias_registry.cpp.o
+[ 83%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_test_case_info_hasher.cpp.o
+[ 83%] Packaging runtime bundle to /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/dist
+[ 84%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_test_case_registry_impl.cpp.o
+[ 84%] Built target package_runtime
+[ 85%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_test_case_tracker.cpp.o
+[ 85%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_test_failure_exception.cpp.o
+[ 86%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_test_registry.cpp.o
+[ 87%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_test_spec_parser.cpp.o
+[ 87%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_textflow.cpp.o
+[ 87%] Built target dist
+[ 88%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_uncaught_exceptions.cpp.o
+[ 88%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_wildcard_pattern.cpp.o
+[ 89%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/internal/catch_xmlwriter.cpp.o
+[ 90%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/matchers/catch_matchers.cpp.o
+[ 90%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/matchers/catch_matchers_container_properties.cpp.o
+[ 91%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/matchers/catch_matchers_exception.cpp.o
+[ 91%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/matchers/catch_matchers_floating_point.cpp.o
+[ 92%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/matchers/catch_matchers_predicate.cpp.o
+[ 93%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/matchers/catch_matchers_quantifiers.cpp.o
+[ 93%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/matchers/catch_matchers_string.cpp.o
+[ 94%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/matchers/catch_matchers_templated.cpp.o
+[ 95%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2.dir/catch2/matchers/internal/catch_matchers_impl.cpp.o
+[ 95%] Linking CXX static library /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libCatch2d.a
+[ 95%] Built target Catch2
+[ 96%] Building CXX object _deps/catch2-build/src/CMakeFiles/Catch2WithMain.dir/catch2/internal/catch_main.cpp.o
+[ 96%] Linking CXX static library /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libCatch2Maind.a
+[ 96%] Built target Catch2WithMain
 [ 98%] Building CXX object tests/CMakeFiles/vulkano_tests.dir/stats_tests.cpp.o
+[ 98%] Building CXX object tests/CMakeFiles/vulkano_tests.dir/tests_main.cpp.o
 [ 98%] Building CXX object tests/CMakeFiles/vulkano_tests.dir/geometry_tests.cpp.o
 [ 99%] Building CXX object tests/CMakeFiles/vulkano_tests.dir/textures_tests.cpp.o
-[ 99%] Linking CXX executable /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_app
-[ 99%] Built target vulkano_app
-[ 99%] Packaging runtime bundle to /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/dist
 [100%] Linking CXX executable /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests
-[100%] Built target package_runtime
-[100%] Built target dist
 [100%] Built target vulkano_tests
