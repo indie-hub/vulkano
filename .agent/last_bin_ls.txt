@@ -1,0 +1,23 @@
+total 102312
+drwxr-xr-x@ 15 bruno  staff       480 17 Sep 10:30 .
+drwxr-xr-x@ 20 bruno  staff       640 17 Sep 10:30 ..
+drwxr-xr-x@  5 bruno  staff       160 17 Sep 10:37 dist
+-rw-r--r--@  1 bruno  staff       129 16 Sep 16:30 imgui.ini
+-rw-r--r--@  1 bruno  staff   1617624 17 Sep 10:13 libCatch2.a
+-rw-r--r--@  1 bruno  staff  32482240 17 Sep 10:30 libCatch2d.a
+-rw-r--r--@  1 bruno  staff      2064 17 Sep 10:13 libCatch2Main.a
+-rw-r--r--@  1 bruno  staff    329312 17 Sep 10:30 libCatch2Maind.a
+-rw-r--r--@  1 bruno  staff    972712 17 Sep 10:30 libglfw3.a
+-rw-r--r--@  1 bruno  staff   1702312 17 Sep 10:30 libglm.a
+-rw-r--r--@  1 bruno  staff   3916032 17 Sep 10:30 libimgui.a
+-rw-r--r--@  1 bruno  staff   3892928 17 Sep 10:30 libvulkano.a
+drwxr-xr-x@  6 bruno  staff       192 16 Sep 17:29 shaders
+-rwxr-xr-x@  1 bruno  staff   2685288 17 Sep 10:30 vulkano_app
+-rwxr-xr-x@  1 bruno  staff   4758128 17 Sep 10:30 vulkano_tests
+total 32
+drwxr-xr-x@  6 bruno  staff   192 16 Sep 17:29 .
+drwxr-xr-x@ 15 bruno  staff   480 17 Sep 10:30 ..
+-rw-r--r--@  1 bruno  staff  2028 16 Sep 17:36 mesh.frag.spv
+-rw-r--r--@  1 bruno  staff  2000 16 Sep 17:36 mesh.vert.spv
+-rw-r--r--@  1 bruno  staff   404 16 Sep 15:41 triangle.frag.spv
+-rw-r--r--@  1 bruno  staff   632 16 Sep 15:41 triangle.vert.spv
