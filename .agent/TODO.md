@@ -1,5 +1,5 @@
 - [x] Ensure math header included for sqrt usage in App
-- [ ] Validate FPS camera input gating (RMB look, ImGui capture, scroll FOV, sprint)
+- [x] Validate FPS camera input gating (RMB look, ImGui capture, scroll FOV, sprint)
 - [ ] Fix any input edge cases discovered during manual QA
 - [ ] Update README controls and Camera panel details
 - [ ] Package runtime to bin/dist and commit
