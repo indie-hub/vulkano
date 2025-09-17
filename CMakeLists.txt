@@ -124,6 +124,7 @@ add_library(vulkano STATIC
   src/geometry.cpp
   src/camera.cpp
   src/textures.cpp
+  src/config.cpp
 )
 
 target_sources(vulkano
@@ -137,6 +138,7 @@ target_sources(vulkano
       include/vulkano/geometry.hpp
       include/vulkano/camera.hpp
       include/vulkano/textures.hpp
+      include/vulkano/config.hpp
 )
 
 target_include_directories(vulkano PUBLIC include)

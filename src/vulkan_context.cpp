@@ -2,6 +2,7 @@
 #include <vulkano/geometry.hpp>
 #include <vulkano/camera.hpp>
 #include <vulkano/textures.hpp>
+#include <vulkano/config.hpp>
 
 #include <algorithm>
 #include <cstdint>
@@ -1739,13 +1740,13 @@ void VulkanContext::create_default_textures() noexcept {
     if (albedo_image_ != VK_NULL_HANDLE && normal_image_ != VK_NULL_HANDLE) {
         return;
     }
-    // Config constants for procedurals (fallbacks)
-    constexpr std::uint32_t kAlbedoSize {256U};
-    constexpr std::uint32_t kAlbedoSquares {8U};
-    const glm::vec3 kAlbedoLight {0.92F, 0.92F, 0.92F};
-    const glm::vec3 kAlbedoDark {0.12F, 0.12F, 0.12F};
-    constexpr std::uint32_t kNormalSize {128U};
-    constexpr float kNormalAmp {0.8F};
+    // Config constants for procedurals (fallbacks) centralized in config
+    using vulkano::config::AlbedoSize;
+    using vulkano::config::AlbedoSquares;
+    using vulkano::config::AlbedoLight;
+    using vulkano::config::AlbedoDark;
+    using vulkano::config::NormalSize;
+    using vulkano::config::NormalAmplitude;
 
     // Attempt external textures via stb_image when env variables are provided
     auto load_rgba8_from_file = [](const char* path, bool flipY) noexcept -> ImageRGBA8 {
@@ -1789,7 +1790,7 @@ void VulkanContext::create_default_textures() noexcept {
         }
     }
     if (!albedoFromFile) {
-        albedo = make_checkerboard_rgba(kAlbedoSize, kAlbedoSquares, kAlbedoLight, kAlbedoDark);
+        albedo = make_checkerboard_rgba(AlbedoSize, AlbedoSquares, AlbedoLight, AlbedoDark);
     }
     if (normalPath != nullptr && std::strlen(normalPath) > 0U) {
         const ImageRGBA8 tmp {load_rgba8_from_file(normalPath, flipY)};
@@ -1799,7 +1800,7 @@ void VulkanContext::create_default_textures() noexcept {
         }
     }
     if (!normalFromFile) {
-        normal = make_blue_noise_normal_rgba(kNormalSize, kNormalAmp);
+        normal = make_blue_noise_normal_rgba(NormalSize, NormalAmplitude);
     }
 
     // Helper lambda to create, upload, mipmap, and view
