@@ -1,17 +1,17 @@
-- [x] Audit baseline code and build status.
-- [x] Validate multi-primitive scene matches task (build, tests, smoke run).
-- [x] Implement/verify Plane, Cube, Icosphere primitives (CPU meshes).
-- [x] Implement graphics pipeline with depth testing and vertex format (pos3, normal3, uv2).
-- [x] Implement Blinn-Phong shading (UBO + push constants); compile shaders.
-- [x] Build and upload combined geometry buffers via staging.
-- [x] Hook ImGui overlay for stats and scene controls (light, per-primitive), incl. icosphere subdivisions rebuild.
-- [x] Add orbit camera with GLM and wire per-frame UBO.
-- [x] Package runtime to bin/dist and run smoke tests.
-- [x] Manual visual QA: run bin/vulkano_app and verify rendering and UI interactions on macOS.
-- [x] Run with validation layers enabled; confirm no warnings/errors in console.
-- [x] Update README with macOS notes (MoltenVK install hint, run instructions).
- - [x] Add mouse/touchpad orbit camera input (GLFW callbacks).
  - [ ] Add unit tests for cube face normals/UVs and icosphere UV seam constraints.
  - [ ] Add CI artifact packaging: upload bin/dist bundle on successful builds.
  - [ ] Add docs: module architecture diagram and brief per‑module README in docs/.
  - [ ] Optional: hot‑reload shaders in Debug to speed up iteration.
+ - [x] Audit baseline code and build status.
+ - [x] Validate multi-primitive scene matches task (build, tests, smoke run).
+ - [x] Implement/verify Plane, Cube, Icosphere primitives (CPU meshes).
+ - [x] Implement graphics pipeline with depth testing and vertex format (pos3, normal3, uv2).
+ - [x] Implement Blinn-Phong shading (UBO + push constants); compile shaders.
+ - [x] Build and upload combined geometry buffers via staging.
+ - [x] Hook ImGui overlay for stats and scene controls (light, per-primitive), incl. icosphere subdivisions rebuild.
+ - [x] Add orbit camera with GLM and wire per-frame UBO.
+ - [x] Package runtime to bin/dist and run smoke tests.
+ - [x] Manual visual QA: run bin/vulkano_app and verify rendering and UI interactions on macOS.
+ - [x] Run with validation layers enabled; confirm no warnings/errors in console.
+ - [x] Update README with macOS notes (MoltenVK install hint, run instructions).
+ - [x] Add mouse/touchpad orbit camera input (GLFW callbacks).
