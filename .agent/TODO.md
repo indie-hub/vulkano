@@ -1,5 +1,5 @@
  - [x] Build project and run unit + e2e tests
- - [ ] Verify shader compilation to `bin/shaders` and packaging to `bin/dist`
+ - [x] Verify shader compilation to `bin/shaders` and packaging to `bin/dist`
  - [ ] Manual runtime smoke (auto-close) to confirm rendering path
  - [ ] Review validation output for errors/warnings
  - [ ] Update README with texture/normal-map features
