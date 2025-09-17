@@ -1,6 +1,6 @@
 Test project /Users/bruno/Documents/Development/bruno/vulkano_codex/build_debug
       Start  1: catch2_sanity
- 1/17 Test  #1: catch2_sanity ..........................................   Passed    0.01 sec
+ 1/17 Test  #1: catch2_sanity ..........................................   Passed    0.02 sec
       Start  2: stats_initial_values
  2/17 Test  #2: stats_initial_values ...................................   Passed    0.01 sec
       Start  3: stats_smoothing_behaviour
@@ -30,10 +30,10 @@ Test project /Users/bruno/Documents/Development/bruno/vulkano_codex/build_debug
       Start 15: camera_pitch_is_clamped_to_avoid_flip
 15/17 Test #15: camera_pitch_is_clamped_to_avoid_flip ..................   Passed    0.01 sec
       Start 16: app_smoke
-16/17 Test #16: app_smoke ..............................................   Passed    1.51 sec
+16/17 Test #16: app_smoke ..............................................   Passed    1.38 sec
       Start 17: app_resize
-17/17 Test #17: app_resize .............................................   Passed    1.69 sec
+17/17 Test #17: app_resize .............................................   Passed    1.77 sec
 
 100% tests passed, 0 tests failed out of 17
 
-Total Test time (real) =   3.32 sec
+Total Test time (real) =   3.27 sec
