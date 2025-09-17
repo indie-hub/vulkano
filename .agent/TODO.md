@@ -1,5 +1,9 @@
-- [ ] Create/refresh .agent/TODO.md with task steps
-- [ ] Build Debug with tests
-- [ ] Run unit + e2e tests
-- [ ] Package runtime to bin/dist
-- [ ] Commit changes with reasoning summary
+- [x] Create/refresh .agent/TODO.md with task steps
+- [x] Build Debug with tests
+- [x] Run unit + e2e tests
+- [x] Package runtime to bin/dist
+- [x] Commit changes with reasoning summary
+
+Next steps (optional improvements):
+- [ ] Expose camera sensitivities/speeds in UI (readonly->draggable)
+- [ ] Add config file to tweak input constants
