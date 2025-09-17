@@ -3,6 +3,7 @@
 #include <vulkano/camera.hpp>
 #include <vulkano/textures.hpp>
 #include <vulkano/config.hpp>
+#include <vulkano/ssao.hpp>
 
 #include <algorithm>
 #include <cstdint>
@@ -2986,26 +2987,7 @@ void VulkanContext::destroy_ssao_resources() noexcept {
 }
 
 void VulkanContext::rebuild_ssao_kernel(std::uint32_t kernelSize) noexcept {
-    // Rebuild CPU-side kernel only
-    ssao_kernel_.clear();
-    ssao_kernel_.reserve(static_cast<std::size_t>(kernelSize));
-    std::mt19937 rng(1337U);
-    std::uniform_real_distribution<float> uni(0.0F, 1.0F);
-    for (std::uint32_t i {0U}; i < kernelSize; ++i) {
-        // Hemisphere oriented along +Z in view space
-        float x = uni(rng) * 2.0F - 1.0F;
-        float y = uni(rng) * 2.0F - 1.0F;
-        float z = uni(rng);
-        glm::vec3 sample {x, y, z};
-        sample = glm::normalize(sample);
-        float scale = static_cast<float>(i) / static_cast<float>(kernelSize);
-        // Concentrate samples near origin
-        float biasA {0.1F};
-        float biasB {1.0F};
-        float s = biasA + (biasB - biasA) * (scale * scale);
-        sample *= s;
-        ssao_kernel_.push_back(sample);
-    }
+    ssao_kernel_ = generate_ssao_kernel(kernelSize);
 }
 
 void VulkanContext::create_ssao_resources() noexcept {

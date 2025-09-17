@@ -17,6 +17,7 @@ add_executable(vulkano_tests
     textures_tests.cpp
     camera_tests.cpp
     primitive_state_tests.cpp
+    ssao_tests.cpp
 )
 target_link_libraries(vulkano_tests PRIVATE vulkano Catch2::Catch2WithMain)
 
