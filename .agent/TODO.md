@@ -1,4 +1,5 @@
 - [x] Re-verify full build, unit tests, and app smoke run; update .agent logs (this run)
+- [x] Run app with VK_APP_AUTOCLOSE_MS and capture stdout/stderr logs (this run)
 - [x] Verify that Y-UP is pointing up
 - [x] Have the cube and sphere render on top of the plane (it is under the plane)
 - [ ] Manual acceptance verification on macOS: open app, confirm plane/cube/icosphere render with correct depth and lighting, adjust UI controls (light, transforms, color, shininess), resize window, and check no validation errors in console.
