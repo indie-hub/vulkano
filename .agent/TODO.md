@@ -1,9 +1,6 @@
-// Task: Extend Vulkan app with FPS camera controls, ImGui gating, cursor lock
-
 - [x] Verify build succeeds and tests pass locally (Debug).
-- [x] Sanity-check code for FPS camera: RMB look gating, keyboard movement gating, FOV scroll when not captured, cursor hide/lock toggling, and Camera panel in ImGui.
-- [ ] Manual QA: Run the app and verify acceptance criteria interactively (RMB look, ImGui not affecting camera, scroll FOV, lock toggle).
-- [ ] Add a focused unit test for input gating logic (extract minimal gate helpers from `vulkano::App` for pure tests without GLFW).
-- [ ] Update CHANGELOG with “feat: FPS camera with ImGui gating and cursor lock”.
-- [ ] Confirm portability on macOS: run app with MoltenVK installed; validate no validation errors during resize and input.
-
+- [x] Smoke-run app (autoclose) to validate launch.
+- [ ] Manual interactive QA: RMB-look, ImGui capture, scroll FOV, lock toggle.
+- [ ] Add unit test for input gating (extract pure gate helpers from App).
+- [ ] Update CHANGELOG with feat: FPS camera + ImGui gating + cursor lock.
+- [ ] Confirm macOS portability with MoltenVK; ensure no validation errors on resize/input.
