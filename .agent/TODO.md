@@ -1,4 +1,4 @@
 - [x] Ensure unique ImGui IDs per primitive UI (PushID/PopID)
 - [x] Ensure independent per-primitive state (no shared Material/Transform)
-- [ ] Add targeted tests for per-primitive independence (already present; extend if needed)
-- [ ] Build Debug, run tests, and package to bin/dist; smoke-run with VK_APP_AUTOCLOSE_MS
+- [x] Add targeted tests for per-primitive independence (already present; verified)
+- [x] Build Debug, run tests, and package to bin/dist; smoke-run with VK_APP_AUTOCLOSE_MS
