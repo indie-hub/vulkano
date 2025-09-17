@@ -2,6 +2,7 @@
 - [x] Capture smoke run logs to .agent/last_run_stdout.txt and .agent/last_run_stderr.txt.
 - [x] Package runtime bundle to bin/dist and verify contents.
 - [x] Audit include style (angle brackets only) across codebase.
+- [x] Smoke run with validation enabled; confirm no validation errors in .agent/last_run_stderr.txt.
 - [ ] Confirm acceptance criteria via manual run on macOS (rendering, UI controls, resizing, no validation errors).
 - [ ] Manually verify rendering: plane/cube/icosphere depth and lighting.
 - [x] Update README: scene controls (light, transforms, colors, shininess).
