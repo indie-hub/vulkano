@@ -1,35 +1,36 @@
-Test project /Users/bruno/Documents/Development/bruno/vulkano_codex/build_debug
+Running ctest...
+Test project /Users/bruno/Documents/Development/bruno/vulkano_codex/build_release
       Start  1: catch2_sanity
- 1/15 Test  #1: catch2_sanity ..........................................   Passed    0.01 sec
+ 1/15 Test  #1: catch2_sanity ..........................................   Passed    0.00 sec
       Start  2: stats_initial_values
- 2/15 Test  #2: stats_initial_values ...................................   Passed    0.01 sec
+ 2/15 Test  #2: stats_initial_values ...................................   Passed    0.00 sec
       Start  3: stats_smoothing_behaviour
- 3/15 Test  #3: stats_smoothing_behaviour ..............................   Passed    0.01 sec
+ 3/15 Test  #3: stats_smoothing_behaviour ..............................   Passed    0.00 sec
       Start  4: Plane generates 4 verts and 6 indices
- 4/15 Test  #4: Plane generates 4 verts and 6 indices ..................   Passed    0.01 sec
+ 4/15 Test  #4: Plane generates 4 verts and 6 indices ..................   Passed    0.00 sec
       Start  5: Cube generates 24 verts and 36 indices
- 5/15 Test  #5: Cube generates 24 verts and 36 indices .................   Passed    0.01 sec
+ 5/15 Test  #5: Cube generates 24 verts and 36 indices .................   Passed    0.00 sec
       Start  6: Icosphere vertex/index counts grow with subdivisions
- 6/15 Test  #6: Icosphere vertex/index counts grow with subdivisions ...   Passed    0.01 sec
+ 6/15 Test  #6: Icosphere vertex/index counts grow with subdivisions ...   Passed    0.00 sec
       Start  7: Icosphere set_subdivisions rebuilds geometry
- 7/15 Test  #7: Icosphere set_subdivisions rebuilds geometry ...........   Passed    0.01 sec
+ 7/15 Test  #7: Icosphere set_subdivisions rebuilds geometry ...........   Passed    0.00 sec
       Start  8: Plane UV tiling setter updates UVs
- 8/15 Test  #8: Plane UV tiling setter updates UVs .....................   Passed    0.01 sec
+ 8/15 Test  #8: Plane UV tiling setter updates UVs .....................   Passed    0.00 sec
       Start  9: Checkerboard image dimensions and pattern
- 9/15 Test  #9: Checkerboard image dimensions and pattern ..............   Passed    0.01 sec
+ 9/15 Test  #9: Checkerboard image dimensions and pattern ..............   Passed    0.00 sec
       Start 10: Blue-noise-ish normal map basics
-10/15 Test #10: Blue-noise-ish normal map basics .......................   Passed    0.01 sec
+10/15 Test #10: Blue-noise-ish normal map basics .......................   Passed    0.00 sec
       Start 11: camera_look_delta_keeps_eye_position
-11/15 Test #11: camera_look_delta_keeps_eye_position ...................   Passed    0.01 sec
+11/15 Test #11: camera_look_delta_keeps_eye_position ...................   Passed    0.00 sec
       Start 12: camera_move_local_changes_position
-12/15 Test #12: camera_move_local_changes_position .....................   Passed    0.01 sec
+12/15 Test #12: camera_move_local_changes_position .....................   Passed    0.00 sec
       Start 13: camera_forward_and_right_are_orthogonal
-13/15 Test #13: camera_forward_and_right_are_orthogonal ................   Passed    0.01 sec
+13/15 Test #13: camera_forward_and_right_are_orthogonal ................   Passed    0.00 sec
       Start 14: app_smoke
-14/15 Test #14: app_smoke ..............................................   Passed    1.27 sec
+14/15 Test #14: app_smoke ..............................................   Passed    1.86 sec
       Start 15: app_resize
-15/15 Test #15: app_resize .............................................   Passed    1.83 sec
+15/15 Test #15: app_resize .............................................   Passed    1.65 sec
 
 100% tests passed, 0 tests failed out of 15
 
-Total Test time (real) =   3.22 sec
+Total Test time (real) =   3.57 sec

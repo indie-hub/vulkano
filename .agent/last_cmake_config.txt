@@ -1,7 +1,8 @@
+Configuring Release build...
 -- glfw3 not found; fetching via FetchContent
 -- Including Cocoa support
 -- glm not found; fetching via FetchContent
-CMake Deprecation Warning at build_debug/_deps/glm-src/CMakeLists.txt:1 (cmake_minimum_required):
+CMake Deprecation Warning at build_release/_deps/glm-src/CMakeLists.txt:1 (cmake_minimum_required):
   Compatibility with CMake < 3.10 will be removed from a future version of
   CMake.
 
@@ -10,7 +11,7 @@ CMake Deprecation Warning at build_debug/_deps/glm-src/CMakeLists.txt:1 (cmake_m
   to work with policies introduced by <max> or earlier.
 
 
-CMake Deprecation Warning at build_debug/_deps/glm-src/CMakeLists.txt:2 (cmake_policy):
+CMake Deprecation Warning at build_release/_deps/glm-src/CMakeLists.txt:2 (cmake_policy):
   Compatibility with CMake < 3.10 will be removed from a future version of
   CMake.
 
@@ -24,6 +25,6 @@ CMake Deprecation Warning at build_debug/_deps/glm-src/CMakeLists.txt:2 (cmake_p
 -- GLM: Build with C++ features auto detection
 -- imgui not found; fetching via FetchContent
 -- stb not found; fetching via FetchContent
--- Configuring done (3.0s)
+-- Configuring done (2.7s)
 -- Generating done (0.1s)
--- Build files have been written to: /Users/bruno/Documents/Development/bruno/vulkano_codex/build_debug
+-- Build files have been written to: /Users/bruno/Documents/Development/bruno/vulkano_codex/build_release

@@ -1,13 +1,29 @@
+Building...
 [  2%] Built target compile_shaders
 [  6%] Built target stb
 [  6%] Built target glm
 [ 19%] Built target glfw
 [ 23%] Built target imgui
-[ 29%] Built target vulkano
-[ 30%] Built target vulkano_app
-[ 30%] Packaging runtime bundle to /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/dist
-[ 30%] Built target package_runtime
-[ 30%] Built target dist
-[ 94%] Built target Catch2
-[ 96%] Built target Catch2WithMain
+[ 24%] Building CXX object CMakeFiles/vulkano.dir/src/app.cpp.o
+[ 24%] Building CXX object CMakeFiles/vulkano.dir/src/vulkan_context.cpp.o
+[ 25%] Building CXX object CMakeFiles/vulkano.dir/src/camera.cpp.o
+[ 89%] Built target Catch2
+[ 91%] Built target Catch2WithMain
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:34:27: warning: unused variable 'kExtDebugUtils' [-Wunused-const-variable]
+   34 |     constexpr const char* kExtDebugUtils {VK_EXT_DEBUG_UTILS_EXTENSION_NAME};
+      |                           ^~~~~~~~~~~~~~
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:70:24: warning: unused function 'has_layer' [-Wunused-function]
+   70 |     [[nodiscard]] bool has_layer(const char* name) noexcept {
+      |                        ^~~~~~~~~
+2 warnings generated.
+[ 92%] Linking CXX static library /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libvulkano.a
+[ 95%] Built target vulkano
+[ 95%] Building CXX object CMakeFiles/vulkano_app.dir/src/main.cpp.o
+[ 96%] Building CXX object tests/CMakeFiles/vulkano_tests.dir/camera_tests.cpp.o
+[ 97%] Linking CXX executable /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_app
+[ 98%] Linking CXX executable /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests
+[ 98%] Built target vulkano_app
+[ 98%] Packaging runtime bundle to /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/dist
+[ 98%] Built target package_runtime
+[ 98%] Built target dist
 [100%] Built target vulkano_tests
