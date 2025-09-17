@@ -12,3 +12,4 @@
 - [ ] Optional: add file dialogs (Load Albedo / Load Normal) for runtime texture swapping
 - [ ] Optional: support distinct textures per primitive (separate descriptors and material bindings)
 - [ ] Optional: expose anisotropy and LOD bias controls in UI (readonly -> interactive)
+ - [ ] Manual QA: run app and verify UI labels/toggles/normal strength affect shading; capture screenshots

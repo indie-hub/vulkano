@@ -1,15 +1,13 @@
-[100%] Built target dist
 [  2%] Built target compile_shaders
-[  3%] Built target stb
-[  4%] Built target glm
+[  3%] Built target glm
+[  4%] Built target stb
 [ 18%] Built target glfw
 [ 22%] Built target imgui
-[ 26%] Built target vulkano_tests
-Built target vulkano
-Built target vulkano_app
-Packaging runtime bundle to /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/dist
-Built target package_runtime
-Built target dist
-Built target Catch2
-Built target Catch2WithMain
-Built target vulkano_tests
+[ 27%] Built target vulkano
+[ 28%] Built target vulkano_app
+[ 29%] Packaging runtime bundle to /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/dist
+[ 29%] Built target package_runtime
+[ 29%] Built target dist
+[ 94%] Built target Catch2
+[ 95%] Built target Catch2WithMain
+[100%] Built target vulkano_tests
