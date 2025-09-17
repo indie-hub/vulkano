@@ -1,21 +1,107 @@
+UpdateCTestConfiguration  from :/Users/bruno/Documents/Development/bruno/vulkano_codex/build/DartConfiguration.tcl
+Parse Config file:/Users/bruno/Documents/Development/bruno/vulkano_codex/build/DartConfiguration.tcl
 Test project /Users/bruno/Documents/Development/bruno/vulkano_codex/build
+Constructing a list of tests
+Done constructing a list of tests
+Updating test list for fixtures
+Added 0 tests to meet fixture requirements
+Checking test dependency graph...
+Checking test dependency graph end
+test 1
     Start 1: catch2_sanity
+
+1: Test command: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests "catch2_sanity"
+1: Working Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build/tests
+1: Test timeout computed to be: 1500
+1: Filters: "catch2_sanity"
+1: Randomness seeded to: 163301830
+1: ===============================================================================
+1: All tests passed (1 assertion in 1 test case)
+1: 
 1/8 Test #1: catch2_sanity ..........................................   Passed    0.01 sec
+test 2
     Start 2: stats_initial_values
+
+2: Test command: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests "stats_initial_values"
+2: Working Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build/tests
+2: Test timeout computed to be: 1500
+2: Filters: "stats_initial_values"
+2: Randomness seeded to: 2493862379
+2: ===============================================================================
+2: All tests passed (2 assertions in 1 test case)
+2: 
 2/8 Test #2: stats_initial_values ...................................   Passed    0.01 sec
+test 3
     Start 3: stats_smoothing_behaviour
+
+3: Test command: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests "stats_smoothing_behaviour"
+3: Working Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build/tests
+3: Test timeout computed to be: 1500
+3: Filters: "stats_smoothing_behaviour"
+3: Randomness seeded to: 1028209089
+3: ===============================================================================
+3: All tests passed (2 assertions in 1 test case)
+3: 
 3/8 Test #3: stats_smoothing_behaviour ..............................   Passed    0.01 sec
+test 4
     Start 4: Plane generates 4 verts and 6 indices
+
+4: Test command: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests "Plane generates 4 verts and 6 indices"
+4: Working Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build/tests
+4: Test timeout computed to be: 1500
+4: Filters: "Plane generates 4 verts and 6 indices"
+4: Randomness seeded to: 1391268612
+4: ===============================================================================
+4: All tests passed (2 assertions in 1 test case)
+4: 
 4/8 Test #4: Plane generates 4 verts and 6 indices ..................   Passed    0.01 sec
+test 5
     Start 5: Cube generates 24 verts and 36 indices
+
+5: Test command: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests "Cube generates 24 verts and 36 indices"
+5: Working Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build/tests
+5: Test timeout computed to be: 1500
+5: Filters: "Cube generates 24 verts and 36 indices"
+5: Randomness seeded to: 769176681
+5: ===============================================================================
+5: All tests passed (2 assertions in 1 test case)
+5: 
 5/8 Test #5: Cube generates 24 verts and 36 indices .................   Passed    0.01 sec
+test 6
     Start 6: Icosphere vertex/index counts grow with subdivisions
-6/8 Test #6: Icosphere vertex/index counts grow with subdivisions ...   Passed    0.01 sec
+
+6: Test command: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests "Icosphere vertex/index counts grow with subdivisions"
+6: Working Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build/tests
+6: Test timeout computed to be: 1500
+6: Filters: "Icosphere vertex/index counts grow with subdivisions"
+6: Randomness seeded to: 2298056069
+6: ===============================================================================
+6: All tests passed (4 assertions in 1 test case)
+6: 
+6/8 Test #6: Icosphere vertex/index counts grow with subdivisions ...   Passed    0.02 sec
+test 7
     Start 7: Icosphere set_subdivisions rebuilds geometry
+
+7: Test command: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests "Icosphere set_subdivisions rebuilds geometry"
+7: Working Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build/tests
+7: Test timeout computed to be: 1500
+7: Filters: "Icosphere set_subdivisions rebuilds geometry"
+7: Randomness seeded to: 2662022704
+7: ===============================================================================
+7: All tests passed (2 assertions in 1 test case)
+7: 
 7/8 Test #7: Icosphere set_subdivisions rebuilds geometry ...........   Passed    0.01 sec
+test 8
     Start 8: app_smoke
-8/8 Test #8: app_smoke ..............................................   Passed    1.09 sec
+
+8: Test command: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_app
+8: Working Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build/tests
+8: Environment variables: 
+8:  VK_APP_AUTOCLOSE_MS=800
+8:  VK_SHADER_DIR=/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders
+8: Test timeout computed to be: 1500
+8/8 Test #8: app_smoke ..............................................   Passed    1.64 sec
 
 100% tests passed, 0 tests failed out of 8
 
-Total Test time (real) =   1.18 sec
+Total Test time (real) =   1.70 sec
