@@ -1,4 +1,5 @@
 - [x] Verify build/tests and smoke run (app + shaders).
+- [x] Capture smoke run logs to .agent/last_run_stdout.txt and .agent/last_run_stderr.txt.
 - [x] Package runtime bundle to bin/dist and verify contents.
 - [x] Audit include style (angle brackets only) across codebase.
 - [ ] Confirm acceptance criteria via manual run on macOS (rendering, UI controls, resizing, no validation errors).
