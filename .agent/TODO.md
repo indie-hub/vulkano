@@ -1,14 +1,5 @@
-- [x] Prepare shader + descriptor pipeline for textures (albedo sRGB, normal UNORM)
-- [x] Add per-primitive material controls (toggles, normal strength, UV tiling)
-- [x] Optional external texture loading via stb_image (RGBA8 + flip)
-- [x] Add README docs for textures, env vars, samplers, UI
-- [x] Show which textures are bound in UI (labels per map)
-- [x] Stress‑test resize: verify swapchain recreation stability
-- [x] Name constants audit: centralize texture sizes/colors as named constants
-- [x] Update CHANGELOG with texture/normal‑map feature
-- [x] Rebuild and verify app/tests; capture logs in .agent
-- [x] Package runtime bundle to bin/dist and verify contents
-- [ ] Optional: add file dialogs (Load Albedo / Load Normal) for runtime texture swapping
-- [ ] Optional: support distinct textures per primitive (separate descriptors and material bindings)
-- [ ] Optional: expose anisotropy and LOD bias controls in UI (readonly -> interactive)
-- [ ] Manual QA: run app and verify UI labels/toggles/normal strength affect shading; capture screenshots
+ - [x] Build project and run unit + e2e tests
+ - [ ] Verify shader compilation to `bin/shaders` and packaging to `bin/dist`
+ - [ ] Manual runtime smoke (auto-close) to confirm rendering path
+ - [ ] Review validation output for errors/warnings
+ - [ ] Update README with texture/normal-map features
