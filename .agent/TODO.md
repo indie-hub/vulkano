@@ -6,4 +6,4 @@
 - [x] Stress‑test resize: verify swapchain recreation stability
 - [x] Name constants audit: centralize texture sizes/colors as named constants
 - [ ] Optional: file dialog for loading textures
-- [ ] Update CHANGELOG with texture/normal‑map feature
+- [x] Update CHANGELOG with texture/normal‑map feature
