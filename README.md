@@ -22,7 +22,7 @@ Commands:
 
 Artifacts are placed in `bin/`:
 - `bin/vulkano_app`
-- `bin/shaders/mesh.vert.spv`, `bin/shaders/mesh.frag.spv` (and legacy triangle shaders)
+- `bin/shaders/*.spv` (mesh, gbuffer, ssao, blur)
 - `bin/imgui.ini` (created at first run)
 
 Runtime bundle (relocatable):
@@ -90,6 +90,38 @@ Tips:
 - Resize handling with full swapchain recreation
 - ImGui overlay (imgui_impl_glfw + imgui_impl_vulkan)
 - Validation layers in Debug; VK_EXT_debug_utils names + markers
+
+## SSAO (Ambient Occlusion)
+
+Three‑pass flow (separate render passes):
+- G‑Buffer: renders view‑space normals to an offscreen UNORM target; depth is written and later sampled read‑only.
+- SSAO: fullscreen pass generates AO (R8) using depth, normals, and a tiling noise texture; writes to an AO image.
+- Blur (optional): fullscreen Gaussian blur (radius [1..5], sigma [0.5..3]) to reduce noise; writes to AO‑blur image.
+
+Compose: the forward fragment shader samples the AO (blurred if enabled) and multiplies the lit color by AO with adjustable strength.
+
+ImGui → “SSAO” panel:
+- Enabled (toggle)
+- Kernel Size: 16 / 32 / 64
+- Radius: [0.05 .. 2.0]
+- Bias: [0.001 .. 0.1]
+- Power: [0.5 .. 2.5]
+- Blur (toggle)
+- Blur Radius: [1 .. 5]
+- Blur Sigma: [0.5 .. 3.0]
+- AO Strength: [0 .. 1.5]
+
+Diagnostics (read‑only): kernel count, noise texture size, current framebuffer extent.
+
+Validation & Resize:
+- Depth transitions between attachment and read‑only for SSAO sampling; AO images use finalLayout=SHADER_READ_ONLY_OPTIMAL.
+- Swapchain recreation rebuilds G‑Buffer, SSAO, and Blur resources (images, FBs, pipelines, descriptors).
+
+Shaders (GLSL compiled to SPIR‑V at build):
+- `mesh.vert/.frag` (forward lighting + AO compose)
+- `gbuffer.vert/.frag` (outputs packed view‑space normals)
+- `ssao.vert/.frag` (fullscreen AO)
+- `blur.vert/.frag` (fullscreen Gaussian blur)
 
 ## Textures & Normal Mapping
 

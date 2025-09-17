@@ -7,5 +7,5 @@
  - [x] Resize-safe: recreate G-buffer/AO targets
  - [x] Validation: names + markers for new resources
   - [x] Tests: unit (kernel/noise), e2e toggle + resize
- - [ ] Shaders/CMake: add SSAO/blur/compose shaders to build + dist
- - [ ] Docs: README controls and SSAO notes
+ - [x] Shaders/CMake: add SSAO/blur/compose shaders to build + dist
+ - [x] Docs: README controls and SSAO notes
