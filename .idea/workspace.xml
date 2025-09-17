@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="BackendCodeEditorMiscSettings">
-    <option name="/Default/Environment/Hierarchy/GeneratedFilesCacheKey/Timestamp/@EntryValue" value="449" type="long" />
+    <option name="/Default/Environment/Hierarchy/GeneratedFilesCacheKey/Timestamp/@EntryValue" value="455" type="long" />
   </component>
   <component name="CMakePresetLoader">{
   &quot;useNewFormat&quot;: true
@@ -67,16 +67,7 @@
     <configurations />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="ea5f2232-e0d5-4be9-833c-c06073c2468d" name="Changes" comment="New TODO">
-      <change beforePath="$PROJECT_DIR$/.agent/TODO.md" beforeDir="false" afterPath="$PROJECT_DIR$/.agent/TODO.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/include/vulkano/app.hpp" beforeDir="false" afterPath="$PROJECT_DIR$/include/vulkano/app.hpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/include/vulkano/camera.hpp" beforeDir="false" afterPath="$PROJECT_DIR$/include/vulkano/camera.hpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/include/vulkano/vulkan_context.hpp" beforeDir="false" afterPath="$PROJECT_DIR$/include/vulkano/vulkan_context.hpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/app.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/app.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/camera.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/camera.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/vulkan_context.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/vulkan_context.cpp" afterDir="false" />
-    </list>
+    <list default="true" id="ea5f2232-e0d5-4be9-833c-c06073c2468d" name="Changes" comment="New TODO" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />

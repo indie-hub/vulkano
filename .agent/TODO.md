@@ -6,6 +6,7 @@
  - [x] Build project and run tests; verify cursor lock/unlock behavior manually if possible.
 - [x] Document camera controls briefly in `README.md` (controls + ImGui gating).
 - [x] Verify packaged runtime under `bin/dist` launches with shaders present.
+- [x] Build `dist` bundle and smoke-run packaged app (`bin/dist/vulkano_app`) with `VK_APP_AUTOCLOSE_MS` and `VK_SHADER_DIR`.
 - [ ] Manual QA on macOS: verify RMB look hides/locks cursor, ImGui gating, scroll FOV, and keyboard rules.
 - [ ] Record QA results and any follow-ups.
 - [ ] Tune look/move sensitivities based on QA feedback.

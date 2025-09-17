@@ -1,13 +1,16 @@
-catch2_sanity 1 0.00497704
-stats_initial_values 1 0.0108745
-stats_smoothing_behaviour 1 0.00357875
-Plane generates 4 verts and 6 indices 1 0.00352908
-Cube generates 24 verts and 36 indices 1 0.00315646
-Icosphere vertex/index counts grow with subdivisions 1 0.00423513
-Icosphere set_subdivisions rebuilds geometry 1 0.00305787
-Plane UV tiling setter updates UVs 1 0.00291333
-Checkerboard image dimensions and pattern 1 0.00311721
-Blue-noise-ish normal map basics 1 0.00306867
-app_smoke 1 1.83958
-app_resize 1 2.02535
+catch2_sanity 2 0.00228
+stats_initial_values 2 0.00204369
+stats_smoothing_behaviour 2 0.00214473
+Plane generates 4 verts and 6 indices 2 0.0018371
+Cube generates 24 verts and 36 indices 2 0.00203637
+Icosphere vertex/index counts grow with subdivisions 2 0.00169042
+Icosphere set_subdivisions rebuilds geometry 2 0.0019405
+Plane UV tiling setter updates UVs 2 0.00200694
+Checkerboard image dimensions and pattern 2 0.00191071
+Blue-noise-ish normal map basics 2 0.00200835
+app_smoke 2 0.929099
+app_resize 2 0.824111
+camera_look_delta_keeps_eye_position 1 0.00369767
+camera_move_local_changes_position 1 0.00390342
+camera_forward_and_right_are_orthogonal 1 0.00312729
 ---

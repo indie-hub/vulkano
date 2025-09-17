@@ -1,14 +1,14 @@
-Start testing: Sep 17 12:57 BST
+Start testing: Sep 17 14:14 BST
 ----------------------------------------------------------
-1/12 Testing: catch2_sanity
-1/12 Test: catch2_sanity
+1/15 Testing: catch2_sanity
+1/15 Test: catch2_sanity
 Command: "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests" "catch2_sanity"
 Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build_release/tests
-"catch2_sanity" start time: Sep 17 12:57 BST
+"catch2_sanity" start time: Sep 17 14:14 BST
 Output:
 ----------------------------------------------------------
 Filters: "catch2_sanity"
-Randomness seeded to: 2914180405
+Randomness seeded to: 3340651326
 ===============================================================================
 All tests passed (1 assertion in 1 test case)
 
@@ -16,39 +16,39 @@ All tests passed (1 assertion in 1 test case)
 Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"catch2_sanity" end time: Sep 17 12:57 BST
+"catch2_sanity" end time: Sep 17 14:14 BST
 "catch2_sanity" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-2/12 Testing: stats_initial_values
-2/12 Test: stats_initial_values
+2/15 Testing: stats_initial_values
+2/15 Test: stats_initial_values
 Command: "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests" "stats_initial_values"
 Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build_release/tests
-"stats_initial_values" start time: Sep 17 12:57 BST
+"stats_initial_values" start time: Sep 17 14:14 BST
 Output:
 ----------------------------------------------------------
 Filters: "stats_initial_values"
-Randomness seeded to: 3617323586
+Randomness seeded to: 3164202553
 ===============================================================================
 All tests passed (2 assertions in 1 test case)
 
 <end of output>
-Test time =   0.01 sec
+Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"stats_initial_values" end time: Sep 17 12:57 BST
+"stats_initial_values" end time: Sep 17 14:14 BST
 "stats_initial_values" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-3/12 Testing: stats_smoothing_behaviour
-3/12 Test: stats_smoothing_behaviour
+3/15 Testing: stats_smoothing_behaviour
+3/15 Test: stats_smoothing_behaviour
 Command: "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests" "stats_smoothing_behaviour"
 Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build_release/tests
-"stats_smoothing_behaviour" start time: Sep 17 12:57 BST
+"stats_smoothing_behaviour" start time: Sep 17 14:14 BST
 Output:
 ----------------------------------------------------------
 Filters: "stats_smoothing_behaviour"
-Randomness seeded to: 1964529440
+Randomness seeded to: 1879866903
 ===============================================================================
 All tests passed (2 assertions in 1 test case)
 
@@ -56,19 +56,19 @@ All tests passed (2 assertions in 1 test case)
 Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"stats_smoothing_behaviour" end time: Sep 17 12:57 BST
+"stats_smoothing_behaviour" end time: Sep 17 14:14 BST
 "stats_smoothing_behaviour" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-4/12 Testing: Plane generates 4 verts and 6 indices
-4/12 Test: Plane generates 4 verts and 6 indices
+4/15 Testing: Plane generates 4 verts and 6 indices
+4/15 Test: Plane generates 4 verts and 6 indices
 Command: "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests" "Plane generates 4 verts and 6 indices"
 Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build_release/tests
-"Plane generates 4 verts and 6 indices" start time: Sep 17 12:57 BST
+"Plane generates 4 verts and 6 indices" start time: Sep 17 14:14 BST
 Output:
 ----------------------------------------------------------
 Filters: "Plane generates 4 verts and 6 indices"
-Randomness seeded to: 389730641
+Randomness seeded to: 71999786
 ===============================================================================
 All tests passed (2 assertions in 1 test case)
 
@@ -76,19 +76,19 @@ All tests passed (2 assertions in 1 test case)
 Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"Plane generates 4 verts and 6 indices" end time: Sep 17 12:57 BST
+"Plane generates 4 verts and 6 indices" end time: Sep 17 14:14 BST
 "Plane generates 4 verts and 6 indices" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-5/12 Testing: Cube generates 24 verts and 36 indices
-5/12 Test: Cube generates 24 verts and 36 indices
+5/15 Testing: Cube generates 24 verts and 36 indices
+5/15 Test: Cube generates 24 verts and 36 indices
 Command: "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests" "Cube generates 24 verts and 36 indices"
 Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build_release/tests
-"Cube generates 24 verts and 36 indices" start time: Sep 17 12:57 BST
+"Cube generates 24 verts and 36 indices" start time: Sep 17 14:14 BST
 Output:
 ----------------------------------------------------------
 Filters: "Cube generates 24 verts and 36 indices"
-Randomness seeded to: 3163921822
+Randomness seeded to: 2296549023
 ===============================================================================
 All tests passed (2 assertions in 1 test case)
 
@@ -96,19 +96,19 @@ All tests passed (2 assertions in 1 test case)
 Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"Cube generates 24 verts and 36 indices" end time: Sep 17 12:57 BST
+"Cube generates 24 verts and 36 indices" end time: Sep 17 14:14 BST
 "Cube generates 24 verts and 36 indices" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-6/12 Testing: Icosphere vertex/index counts grow with subdivisions
-6/12 Test: Icosphere vertex/index counts grow with subdivisions
+6/15 Testing: Icosphere vertex/index counts grow with subdivisions
+6/15 Test: Icosphere vertex/index counts grow with subdivisions
 Command: "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests" "Icosphere vertex/index counts grow with subdivisions"
 Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build_release/tests
-"Icosphere vertex/index counts grow with subdivisions" start time: Sep 17 12:57 BST
+"Icosphere vertex/index counts grow with subdivisions" start time: Sep 17 14:14 BST
 Output:
 ----------------------------------------------------------
 Filters: "Icosphere vertex/index counts grow with subdivisions"
-Randomness seeded to: 1036310453
+Randomness seeded to: 3043913108
 ===============================================================================
 All tests passed (4 assertions in 1 test case)
 
@@ -116,19 +116,19 @@ All tests passed (4 assertions in 1 test case)
 Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"Icosphere vertex/index counts grow with subdivisions" end time: Sep 17 12:57 BST
+"Icosphere vertex/index counts grow with subdivisions" end time: Sep 17 14:14 BST
 "Icosphere vertex/index counts grow with subdivisions" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-7/12 Testing: Icosphere set_subdivisions rebuilds geometry
-7/12 Test: Icosphere set_subdivisions rebuilds geometry
+7/15 Testing: Icosphere set_subdivisions rebuilds geometry
+7/15 Test: Icosphere set_subdivisions rebuilds geometry
 Command: "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests" "Icosphere set_subdivisions rebuilds geometry"
 Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build_release/tests
-"Icosphere set_subdivisions rebuilds geometry" start time: Sep 17 12:57 BST
+"Icosphere set_subdivisions rebuilds geometry" start time: Sep 17 14:14 BST
 Output:
 ----------------------------------------------------------
 Filters: "Icosphere set_subdivisions rebuilds geometry"
-Randomness seeded to: 578539338
+Randomness seeded to: 20055420
 ===============================================================================
 All tests passed (2 assertions in 1 test case)
 
@@ -136,19 +136,19 @@ All tests passed (2 assertions in 1 test case)
 Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"Icosphere set_subdivisions rebuilds geometry" end time: Sep 17 12:57 BST
+"Icosphere set_subdivisions rebuilds geometry" end time: Sep 17 14:14 BST
 "Icosphere set_subdivisions rebuilds geometry" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-8/12 Testing: Plane UV tiling setter updates UVs
-8/12 Test: Plane UV tiling setter updates UVs
+8/15 Testing: Plane UV tiling setter updates UVs
+8/15 Test: Plane UV tiling setter updates UVs
 Command: "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests" "Plane UV tiling setter updates UVs"
 Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build_release/tests
-"Plane UV tiling setter updates UVs" start time: Sep 17 12:57 BST
+"Plane UV tiling setter updates UVs" start time: Sep 17 14:14 BST
 Output:
 ----------------------------------------------------------
 Filters: "Plane UV tiling setter updates UVs"
-Randomness seeded to: 2964058235
+Randomness seeded to: 1287316585
 ===============================================================================
 All tests passed (6 assertions in 1 test case)
 
@@ -156,19 +156,19 @@ All tests passed (6 assertions in 1 test case)
 Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"Plane UV tiling setter updates UVs" end time: Sep 17 12:57 BST
+"Plane UV tiling setter updates UVs" end time: Sep 17 14:14 BST
 "Plane UV tiling setter updates UVs" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-9/12 Testing: Checkerboard image dimensions and pattern
-9/12 Test: Checkerboard image dimensions and pattern
+9/15 Testing: Checkerboard image dimensions and pattern
+9/15 Test: Checkerboard image dimensions and pattern
 Command: "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests" "Checkerboard image dimensions and pattern"
 Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build_release/tests
-"Checkerboard image dimensions and pattern" start time: Sep 17 12:57 BST
+"Checkerboard image dimensions and pattern" start time: Sep 17 14:14 BST
 Output:
 ----------------------------------------------------------
 Filters: "Checkerboard image dimensions and pattern"
-Randomness seeded to: 249139139
+Randomness seeded to: 3950902808
 ===============================================================================
 All tests passed (9 assertions in 1 test case)
 
@@ -176,19 +176,19 @@ All tests passed (9 assertions in 1 test case)
 Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"Checkerboard image dimensions and pattern" end time: Sep 17 12:57 BST
+"Checkerboard image dimensions and pattern" end time: Sep 17 14:14 BST
 "Checkerboard image dimensions and pattern" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-10/12 Testing: Blue-noise-ish normal map basics
-10/12 Test: Blue-noise-ish normal map basics
+10/15 Testing: Blue-noise-ish normal map basics
+10/15 Test: Blue-noise-ish normal map basics
 Command: "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests" "Blue-noise-ish normal map basics"
 Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build_release/tests
-"Blue-noise-ish normal map basics" start time: Sep 17 12:57 BST
+"Blue-noise-ish normal map basics" start time: Sep 17 14:14 BST
 Output:
 ----------------------------------------------------------
 Filters: "Blue-noise-ish normal map basics"
-Randomness seeded to: 3307522918
+Randomness seeded to: 4152124870
 ===============================================================================
 All tests passed (7 assertions in 1 test case)
 
@@ -196,38 +196,98 @@ All tests passed (7 assertions in 1 test case)
 Test time =   0.00 sec
 ----------------------------------------------------------
 Test Passed.
-"Blue-noise-ish normal map basics" end time: Sep 17 12:57 BST
+"Blue-noise-ish normal map basics" end time: Sep 17 14:14 BST
 "Blue-noise-ish normal map basics" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-11/12 Testing: app_smoke
-11/12 Test: app_smoke
+11/15 Testing: camera_look_delta_keeps_eye_position
+11/15 Test: camera_look_delta_keeps_eye_position
+Command: "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests" "camera_look_delta_keeps_eye_position"
+Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build_release/tests
+"camera_look_delta_keeps_eye_position" start time: Sep 17 14:14 BST
+Output:
+----------------------------------------------------------
+Filters: "camera_look_delta_keeps_eye_position"
+Randomness seeded to: 4265946939
+===============================================================================
+All tests passed (3 assertions in 1 test case)
+
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"camera_look_delta_keeps_eye_position" end time: Sep 17 14:14 BST
+"camera_look_delta_keeps_eye_position" time elapsed: 00:00:00
+----------------------------------------------------------
+
+12/15 Testing: camera_move_local_changes_position
+12/15 Test: camera_move_local_changes_position
+Command: "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests" "camera_move_local_changes_position"
+Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build_release/tests
+"camera_move_local_changes_position" start time: Sep 17 14:14 BST
+Output:
+----------------------------------------------------------
+Filters: "camera_move_local_changes_position"
+Randomness seeded to: 3088938964
+===============================================================================
+All tests passed (1 assertion in 1 test case)
+
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"camera_move_local_changes_position" end time: Sep 17 14:14 BST
+"camera_move_local_changes_position" time elapsed: 00:00:00
+----------------------------------------------------------
+
+13/15 Testing: camera_forward_and_right_are_orthogonal
+13/15 Test: camera_forward_and_right_are_orthogonal
+Command: "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests" "camera_forward_and_right_are_orthogonal"
+Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build_release/tests
+"camera_forward_and_right_are_orthogonal" start time: Sep 17 14:14 BST
+Output:
+----------------------------------------------------------
+Filters: "camera_forward_and_right_are_orthogonal"
+Randomness seeded to: 546301909
+===============================================================================
+All tests passed (1 assertion in 1 test case)
+
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"camera_forward_and_right_are_orthogonal" end time: Sep 17 14:14 BST
+"camera_forward_and_right_are_orthogonal" time elapsed: 00:00:00
+----------------------------------------------------------
+
+14/15 Testing: app_smoke
+14/15 Test: app_smoke
 Command: "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_app"
 Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build_release/tests
-"app_smoke" start time: Sep 17 12:57 BST
+"app_smoke" start time: Sep 17 14:14 BST
 Output:
 ----------------------------------------------------------
 <end of output>
-Test time =   1.84 sec
+Test time =   1.86 sec
 ----------------------------------------------------------
 Test Passed.
-"app_smoke" end time: Sep 17 12:57 BST
+"app_smoke" end time: Sep 17 14:14 BST
 "app_smoke" time elapsed: 00:00:01
 ----------------------------------------------------------
 
-12/12 Testing: app_resize
-12/12 Test: app_resize
+15/15 Testing: app_resize
+15/15 Test: app_resize
 Command: "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_app"
 Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build_release/tests
-"app_resize" start time: Sep 17 12:57 BST
+"app_resize" start time: Sep 17 14:14 BST
 Output:
 ----------------------------------------------------------
 <end of output>
-Test time =   2.03 sec
+Test time =   1.65 sec
 ----------------------------------------------------------
 Test Passed.
-"app_resize" end time: Sep 17 12:57 BST
-"app_resize" time elapsed: 00:00:02
+"app_resize" end time: Sep 17 14:14 BST
+"app_resize" time elapsed: 00:00:01
 ----------------------------------------------------------
 
-End testing: Sep 17 12:57 BST
+End testing: Sep 17 14:14 BST

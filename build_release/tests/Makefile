@@ -185,6 +185,30 @@ vulkano_tests/fast:
 	cd /Users/bruno/Documents/Development/bruno/vulkano_codex/build_release && $(MAKE) $(MAKESILENT) -f tests/CMakeFiles/vulkano_tests.dir/build.make tests/CMakeFiles/vulkano_tests.dir/build
 .PHONY : vulkano_tests/fast
 
+camera_tests.o: camera_tests.cpp.o
+.PHONY : camera_tests.o
+
+# target to build an object file
+camera_tests.cpp.o:
+	cd /Users/bruno/Documents/Development/bruno/vulkano_codex/build_release && $(MAKE) $(MAKESILENT) -f tests/CMakeFiles/vulkano_tests.dir/build.make tests/CMakeFiles/vulkano_tests.dir/camera_tests.cpp.o
+.PHONY : camera_tests.cpp.o
+
+camera_tests.i: camera_tests.cpp.i
+.PHONY : camera_tests.i
+
+# target to preprocess a source file
+camera_tests.cpp.i:
+	cd /Users/bruno/Documents/Development/bruno/vulkano_codex/build_release && $(MAKE) $(MAKESILENT) -f tests/CMakeFiles/vulkano_tests.dir/build.make tests/CMakeFiles/vulkano_tests.dir/camera_tests.cpp.i
+.PHONY : camera_tests.cpp.i
+
+camera_tests.s: camera_tests.cpp.s
+.PHONY : camera_tests.s
+
+# target to generate assembly for a file
+camera_tests.cpp.s:
+	cd /Users/bruno/Documents/Development/bruno/vulkano_codex/build_release && $(MAKE) $(MAKESILENT) -f tests/CMakeFiles/vulkano_tests.dir/build.make tests/CMakeFiles/vulkano_tests.dir/camera_tests.cpp.s
+.PHONY : camera_tests.cpp.s
+
 geometry_tests.o: geometry_tests.cpp.o
 .PHONY : geometry_tests.o
 
@@ -295,6 +319,9 @@ help:
 	@echo "... rebuild_cache"
 	@echo "... test"
 	@echo "... vulkano_tests"
+	@echo "... camera_tests.o"
+	@echo "... camera_tests.i"
+	@echo "... camera_tests.s"
 	@echo "... geometry_tests.o"
 	@echo "... geometry_tests.i"
 	@echo "... geometry_tests.s"

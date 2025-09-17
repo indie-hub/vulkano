@@ -7,10 +7,8 @@ set(CMAKE_DEPENDS_GENERATOR "Unix Makefiles")
 # The top level Makefile was generated from the following files:
 set(CMAKE_MAKEFILE_DEPENDS
   "CMakeCache.txt"
-  "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/CMakeDetermineSystem.cmake"
   "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/CMakeGenericSystem.cmake"
   "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/CMakeInitializeConfigs.cmake"
-  "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/CMakeSystem.cmake.in"
   "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/CMakeSystemSpecificInformation.cmake"
   "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/CMakeSystemSpecificInitialize.cmake"
   "/Applications/CMake.app/Contents/share/cmake-4.0/Modules/ExternalProject.cmake"
@@ -38,7 +36,6 @@ set(CMAKE_MAKEFILE_OUTPUTS
 
 # Byproducts of CMake generate step:
 set(CMAKE_MAKEFILE_PRODUCTS
-  "CMakeFiles/4.0.3/CMakeSystem.cmake"
   "catch2-populate-prefix/tmp/catch2-populate-mkdirs.cmake"
   "catch2-populate-prefix/tmp/catch2-populate-gitclone.cmake"
   "catch2-populate-prefix/src/catch2-populate-stamp/catch2-populate-gitinfo.txt"
