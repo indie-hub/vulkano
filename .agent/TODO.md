@@ -1,8 +1,8 @@
-- [x] Review repo and confirm OO primitives (Plane, Cube, Icosphere) with Vertex(pos3, normal3, uv2) and materials/transforms exist.
-- [x] Configure and build (Release) with CMake to bin/ and generate shaders.
-- [x] Run unit tests and app smoke test to validate functionality.
-- [x] Verify bin/dist contains the app binary and compiled shaders.
-- [ ] Manual visual verification: open app and confirm plane, cube, icosphere render with depth; ImGui controls adjust transforms, color, shininess, light.
-- [ ] Debug build: run with validation layers enabled; confirm no validation errors during resize and interaction.
-- [ ] Optional: extend end-to-end tests to tweak ImGui parameters programmatically (if feasible in CI).
-- [ ] Optional: expand README with macOS MoltenVK notes and controls quick reference.
+[] Verify repository structure and existing features
+[] Configure and build the project (Debug)
+[] Run unit tests and app smoke test
+[] Manually run the app to confirm multi-primitive rendering
+[] Validate ImGui controls (light, per-primitive transforms/colors/shininess)
+[] Check for validation layer warnings/errors during a short run
+[] Package runtime to bin/dist and verify shaders included
+[] Final tidy: clang-format/tidy pass and update notes if needed
