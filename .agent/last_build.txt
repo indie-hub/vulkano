@@ -1,5 +1,5 @@
 [  3%] Built target compile_shaders
-[  5%] Built target glm
+[  4%] Built target glm
 [  5%] Built target stb
 [ 18%] Built target glfw
 [ 22%] Built target imgui
