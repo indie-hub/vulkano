@@ -7,6 +7,7 @@
 #include <cstring>
 #include <thread>
 #include <string>
+#include <glm/vec3.hpp>
 #include <imgui.h>
 
 namespace vulkano {
@@ -17,6 +18,9 @@ namespace {
     // Input sensitivities (no magic numbers in code paths)
     constexpr float kLookSensitivity {0.0025F}; // radians per pixel
     constexpr float kFovScrollStep {0.05F};     // radians per scroll step (~3 deg)
+    constexpr float kMoveSpeed {3.0F};          // world units per second
+    constexpr float kSprintMultiplier {2.0F};
+    constexpr float kMaxDeltaTime {0.1F};       // seconds, to avoid big steps on stall
 }
 
 App::App(const AppConfig& config) noexcept : config_ {config} {
@@ -106,10 +110,42 @@ void App::run() noexcept {
         glfwPollEvents();
         const auto now {Stats::clock::now()};
         stats_.on_frame(now);
+        const std::chrono::duration<float> dtDur {now - last_frame_time_};
+        float dt {dtDur.count()};
+        if (dt > kMaxDeltaTime) {
+            dt = kMaxDeltaTime;
+        }
         if (vk_ != nullptr) {
             // Begin ImGui frame and build minimal overlay
             vk_->imgui_new_frame();
             build_ui();
+            // Keyboard movement (FPS-style), gated by ImGui capture rules
+            ImGuiIO& io {ImGui::GetIO()};
+            const bool canKeys {(!lock_camera_) && (look_active_ || !io.WantCaptureKeyboard)};
+            if (canKeys) {
+                float speed {kMoveSpeed};
+                if (key_shift_) {
+                    speed *= kSprintMultiplier;
+                }
+                glm::vec3 move {0.0F, 0.0F, 0.0F};
+                if (key_w_) { move.z += 1.0F; }
+                if (key_s_) { move.z -= 1.0F; }
+                if (key_d_) { move.x += 1.0F; }
+                if (key_a_) { move.x -= 1.0F; }
+                if (key_space_) { move.y += 1.0F; }
+                if (key_ctrl_) { move.y -= 1.0F; }
+                const float lenSq {move.x * move.x + move.y * move.y + move.z * move.z};
+                if (lenSq > 0.0F) {
+                    const float invLen {1.0F / std::sqrt(lenSq)};
+                    move.x *= invLen;
+                    move.y *= invLen;
+                    move.z *= invLen;
+                    move.x *= speed * dt;
+                    move.y *= speed * dt;
+                    move.z *= speed * dt;
+                    vk_->camera_move_local(move);
+                }
+            }
             const bool ok {(vk_->draw_frame())};
             if (!ok || framebuffer_resized_) {
                 int width {0};
@@ -131,6 +167,7 @@ void App::run() noexcept {
         } else {
             std::this_thread::sleep_for(std::chrono::milliseconds {16});
         }
+        last_frame_time_ = now;
         // Drive automated resize steps on a fixed interval for stability testing
         if (enableResizeTest) {
             const auto nowR {Stats::clock::now()};
@@ -195,7 +232,7 @@ void App::cursor_pos_callback(GLFWwindow* window, double xpos, double ypos) noex
     if (appPtr->vk_ != nullptr) {
         const float dYaw {static_cast<float>(dx) * kLookSensitivity};
         const float dPitch {static_cast<float>(-dy) * kLookSensitivity};
-        appPtr->vk_->camera_orbit_delta(dYaw, dPitch);
+        appPtr->vk_->camera_look_delta(dYaw, dPitch);
     }
 }
 

@@ -2946,6 +2946,20 @@ void VulkanContext::camera_fov_delta(float dFovRadians) noexcept {
     camera_->fov_delta(dFovRadians);
 }
 
+void VulkanContext::camera_look_delta(float dYaw, float dPitch) noexcept {
+    if (!camera_) {
+        return;
+    }
+    camera_->look_delta(dYaw, dPitch);
+}
+
+void VulkanContext::camera_move_local(const glm::vec3& deltaLocal) noexcept {
+    if (!camera_) {
+        return;
+    }
+    camera_->move_local(deltaLocal);
+}
+
 glm::vec3 VulkanContext::camera_position() const noexcept {
     if (!camera_) {
         return glm::vec3 {0.0F, 0.0F, 0.0F};

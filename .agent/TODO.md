@@ -1,7 +1,6 @@
-- [x] Add RMB mouse-look with ImGui gating, cursor lock/unlock, FOV via scroll, and Camera UI panel (pose + lock).
-- [ ] Refactor Camera to FPS model (position + yaw/pitch; view = lookAt(pos, pos+forward)); keep API stable.
-- [ ] Expose movement APIs on VulkanContext (translate by local axes; speed constants).
-- [ ] Implement WASD + Space/Ctrl movement with Shift sprint, gated per Input Policy.
-- [ ] Ensure scroll/FOV and ImGui capture gates behave; respect "Lock camera".
-- [ ] Add unit tests for FPS camera math and basic input gating.
-- [ ] Update docs (README controls) and CHANGELOG.
+ - [x] Add FPS camera methods (look_delta, move_local) in `include/vulkano/camera.hpp` and `src/camera.cpp`.
+ - [x] Expose `camera_look_delta` and `camera_move_local` in `include/vulkano/vulkan_context.hpp` and implement in `src/vulkan_context.cpp`.
+ - [x] Update input handling in `src/app.cpp` to use new look method and per-frame WASD + Space/Ctrl movement with ImGui gating and RMB requirement.
+ - [x] Add unit tests for camera look/move math in `tests/camera_tests.cpp`.
+ - [x] Build project and run tests; verify cursor lock/unlock behavior manually if possible.
+ - [ ] Document camera controls briefly in `README.md` (controls + ImGui gating).

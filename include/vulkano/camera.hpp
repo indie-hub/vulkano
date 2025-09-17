@@ -32,10 +32,18 @@ public:
     void pan_delta(const glm::vec3& delta) noexcept;
     void fov_delta(float dFovRadians) noexcept;
 
+    // FPS-style controls
+    // Adjust yaw/pitch without changing the eye position (recomputes target).
+    void look_delta(float dYaw, float dPitch) noexcept;
+    // Move camera in local space: x=right, y=up, z=forward.
+    void move_local(const glm::vec3& deltaLocal) noexcept;
+
     [[nodiscard]] glm::vec3 position() const noexcept;
     [[nodiscard]] glm::mat4 view() const noexcept;
     [[nodiscard]] glm::mat4 projection() const noexcept;
     [[nodiscard]] glm::mat4 view_projection() const noexcept;
+    [[nodiscard]] glm::vec3 forward() const noexcept; // from eye to target
+    [[nodiscard]] glm::vec3 right() const noexcept;   // camera right vector (world-up referenced)
     [[nodiscard]] float yaw() const noexcept { return params_.yawRadians; }
     [[nodiscard]] float pitch() const noexcept { return params_.pitchRadians; }
     [[nodiscard]] float fov_y() const noexcept { return params_.fovYRadians; }

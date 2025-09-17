@@ -90,6 +90,9 @@ public:
     void camera_zoom_delta(float dDistance) noexcept;
     void camera_set_aspect(float aspect) noexcept;
     void camera_fov_delta(float dFovRadians) noexcept;
+    // FPS-style helpers
+    void camera_look_delta(float dYaw, float dPitch) noexcept;
+    void camera_move_local(const glm::vec3& deltaLocal) noexcept;
 
     // Camera readbacks for UI
     [[nodiscard]] glm::vec3 camera_position() const noexcept;
