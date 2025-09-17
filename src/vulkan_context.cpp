@@ -1840,6 +1840,10 @@ bool VulkanContext::create_image_2d(std::uint32_t width,
     memory = mem;
     if (debugName != nullptr) {
         set_object_name(VK_OBJECT_TYPE_IMAGE, reinterpret_cast<std::uint64_t>(image), debugName);
+        // Also name the device memory for easier tracking in validation
+        char memName[128];
+        std::snprintf(memName, sizeof(memName), "%sMemory", debugName);
+        set_object_name(VK_OBJECT_TYPE_DEVICE_MEMORY, reinterpret_cast<std::uint64_t>(memory), memName);
     }
     return true;
 }
@@ -3881,6 +3885,10 @@ void VulkanContext::create_ssao_descriptors() noexcept {
     if (ssao_ubo_buffer_ == VK_NULL_HANDLE) {
         VkDeviceSize uboSize { sizeof(glm::mat4) * 2 + sizeof(glm::vec2) + sizeof(float) * 3 + sizeof(int) + sizeof(glm::vec4) * 64 };
         (void)create_buffer(uboSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, ssao_ubo_buffer_, ssao_ubo_memory_, "SSAOUBO");
+        if (validation_enabled_) {
+            set_object_name(VK_OBJECT_TYPE_BUFFER, reinterpret_cast<std::uint64_t>(ssao_ubo_buffer_), "SSAOUBO");
+            set_object_name(VK_OBJECT_TYPE_DEVICE_MEMORY, reinterpret_cast<std::uint64_t>(ssao_ubo_memory_), "SSAOUBOMemory");
+        }
     }
     // Allocate set
     if (ssao_desc_set_ == VK_NULL_HANDLE) {
@@ -3890,6 +3898,9 @@ void VulkanContext::create_ssao_descriptors() noexcept {
         a.descriptorSetCount = 1U;
         a.pSetLayouts = &ssao_set_layout_;
         (void)vkAllocateDescriptorSets(device_, &a, &ssao_desc_set_);
+        if (validation_enabled_ && ssao_desc_set_ != VK_NULL_HANDLE) {
+            set_object_name(VK_OBJECT_TYPE_DESCRIPTOR_SET, reinterpret_cast<std::uint64_t>(ssao_desc_set_), "SSAODescriptorSet");
+        }
     }
     if (ssao_desc_set_ == VK_NULL_HANDLE) { return; }
     // Write descriptors
@@ -4054,9 +4065,14 @@ void VulkanContext::create_ssao_blur_descriptors() noexcept {
     if (ssao_blur_ubo_buffer_ == VK_NULL_HANDLE) {
         const VkDeviceSize uboSz { sizeof(glm::vec2) + sizeof(int) + sizeof(float) };
         (void)create_buffer(uboSz, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, ssao_blur_ubo_buffer_, ssao_blur_ubo_memory_, "SSAOBlurUBO");
+        if (validation_enabled_) {
+            set_object_name(VK_OBJECT_TYPE_BUFFER, reinterpret_cast<std::uint64_t>(ssao_blur_ubo_buffer_), "SSAOBlurUBO");
+            set_object_name(VK_OBJECT_TYPE_DEVICE_MEMORY, reinterpret_cast<std::uint64_t>(ssao_blur_ubo_memory_), "SSAOBlurUBOMemory");
+        }
     }
     if (ssao_blur_desc_set_ == VK_NULL_HANDLE) {
         VkDescriptorSetAllocateInfo a {}; a.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO; a.descriptorPool = ssao_blur_desc_pool_; a.descriptorSetCount = 1U; a.pSetLayouts = &ssao_blur_set_layout_; (void)vkAllocateDescriptorSets(device_, &a, &ssao_blur_desc_set_);
+        if (validation_enabled_ && ssao_blur_desc_set_ != VK_NULL_HANDLE) { set_object_name(VK_OBJECT_TYPE_DESCRIPTOR_SET, reinterpret_cast<std::uint64_t>(ssao_blur_desc_set_), "SSAOBlurDescriptorSet"); }
     }
     if (ssao_blur_desc_set_ != VK_NULL_HANDLE) {
         VkDescriptorBufferInfo ubo {}; ubo.buffer = ssao_blur_ubo_buffer_; ubo.offset = 0U; ubo.range = VK_WHOLE_SIZE;

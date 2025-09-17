@@ -5,7 +5,7 @@
   - [x] SSAO: optional Gaussian blur pass
   - [x] SSAO: compose AO with lit scene (barriers correct)
  - [x] Resize-safe: recreate G-buffer/AO targets
- - [ ] Validation: names + markers for new resources
+ - [x] Validation: names + markers for new resources
   - [x] Tests: unit (kernel/noise), e2e toggle + resize
  - [ ] Shaders/CMake: add SSAO/blur/compose shaders to build + dist
  - [ ] Docs: README controls and SSAO notes
