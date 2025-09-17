@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [0.3.0] - 2025-09-17
+### Added
+- FPS camera with RMB mouse-look (cursor hide & lock while pressed) and WASD + Space/Ctrl movement.
+- ImGui-aware input gating: camera ignores input when ImGui captures mouse/keyboard.
+- Scroll wheel FOV adjustment when ImGui does not need the wheel.
+- "Camera" panel showing position, yaw/pitch, FOV, and a "Lock camera" checkbox.
+
+### Changed
+- Input handling centralized in `src/app.cpp` with clear gates (`canLook`, `canKeys`) to avoid accidental interactions while using UI.
+
+### Fixed
+- Ensured cursor mode correctly restores on RMB release and when locking the camera.
+
 ## [0.2.0] - 2025-09-17
 ### Added
 - Per-primitive albedo (sRGB) and tangent-space normal map (UNORM) support.
@@ -30,4 +43,3 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Initial Vulkan + GLFW + GLM + ImGui application skeleton.
 - Blinn-Phong lighting with plane, cube, and icosphere primitives.
 - Basic UI with FPS, frame time, device name, and swapchain extent.
-

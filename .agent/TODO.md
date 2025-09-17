@@ -11,4 +11,4 @@
 - [ ] Manual QA on macOS: verify RMB look hides/locks cursor, ImGui gating, scroll FOV, and keyboard rules.
 - [ ] Record QA results and any follow-ups.
 - [ ] Tune look/move sensitivities based on QA feedback.
-- [ ] Update CHANGELOG with camera feature notes if needed.
+- [x] Update CHANGELOG with camera feature notes if needed.
