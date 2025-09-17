@@ -1,11 +1,10 @@
-[x] Add sampler anisotropy feature check and enable in device creation
-[] Add Texture helpers: image creation, staging upload, mipmap blits
-[] Procedural checkerboard albedo (sRGB) generation and upload
-[] Procedural blue-noise-ish normal map (UNORM) generation and upload
-[] Create samplers (albedo sRGB + anisotropy, normal UNORM)
-[] Extend descriptor set layouts: set1 for albedo/normal; allocate per-primitive
-[] Update shaders for albedo + normal mapping, normal strength, toggles via PC
-[] Bind per-primitive textures and updated push constants in draw loop
-[] Extend ImGui UI: per-primitive toggles, strength, UV tiling, base color; global texture stats
-[] stb_image loading for external textures with mipmaps and sRGB/UNORM formats
-[] Add unit tests for procedural generators; update README with new controls
+- [x] Create initial TODO plan
+- [ ] Add procedural textures module (checkerboard + blue-noise normal) with unit tests
+- [ ] Integrate stb_image via CMake FetchContent (header-only)
+- [ ] Extend shaders: albedo + normal mapping with TBN; add push constants
+- [ ] Update pipeline vertex input (add tangent), descriptors (UBO + 2 textures), samplers
+- [ ] Implement Vulkan texture creation, staging upload, mipmap generation
+- [ ] Bind textures and push constants per draw; per-primitive toggles
+- [ ] UI: per-primitive toggles, normal strength, plane UV tiling; global texture info
+- [ ] Build + run (auto-close) and validate no validation errors
+- [ ] Polish: constants/config, cleanups, docs updates
