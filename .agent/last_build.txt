@@ -1,17 +1,13 @@
 [  3%] Built target compile_shaders
-[  4%] Built target stb
 [  5%] Built target glm
+[  5%] Built target stb
 [ 18%] Built target glfw
 [ 22%] Built target imgui
-[ 23%] Building CXX object CMakeFiles/vulkano.dir/src/app.cpp.o
-[ 86%] Built target Catch2
-[ 87%] Built target Catch2WithMain
-[ 88%] Linking CXX static library /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libvulkano.a
-[ 92%] Built target vulkano
-[ 92%] Linking CXX executable /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_app
-[ 93%] Linking CXX executable /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests
-[ 94%] Built target vulkano_app
-[ 95%] Packaging runtime bundle to /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/dist
-[ 95%] Built target package_runtime
-[ 95%] Built target dist
+[ 27%] Built target vulkano
+[ 28%] Built target vulkano_app
+[ 29%] Packaging runtime bundle to /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/dist
+[ 29%] Built target package_runtime
+[ 29%] Built target dist
+[ 93%] Built target Catch2
+[ 94%] Built target Catch2WithMain
 [100%] Built target vulkano_tests
