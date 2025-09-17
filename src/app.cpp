@@ -379,7 +379,8 @@ void App::build_ui() noexcept {
             if (prim == nullptr) {
                 continue;
             }
-            // Ensure unique ImGui IDs per primitive to avoid input state collisions
+            // Ensure unique ImGui IDs per primitive to avoid input state collisions.
+            // Use the primitive pointer as a stable unique key across frames.
             ImGui::PushID(prim);
             const char* name {prim->type_name()};
             // Use explicit ID section (###) to keep visible labels readable while IDs remain unique

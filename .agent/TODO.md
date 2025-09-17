@@ -1,5 +1,3 @@
-- [x] Wrap per-primitive UI with ImGui::PushID/PopID; build and run smoke.
-- [x] Add unit test: per-primitive transform/material independence.
-- [x] Audit material/transform ownership to ensure no sharing; adjust if needed.
-- [ ] Manual check: ImGui stats visible; no validation errors.
-- [x] Optional: unique window IDs using Title###unique if multiple windows per primitive.
+- [ ] Manual check: edit cube's transform/material and verify plane/icosphere unchanged
+- [ ] Verify ImGui stats (FPS, frame ms, device, extent) visible during run
+- [ ] Run with validation layers in Debug; confirm no validation errors
