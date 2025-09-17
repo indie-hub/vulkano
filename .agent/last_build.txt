@@ -1,6 +1,6 @@
 [  2%] Built target compile_shaders
-[  3%] Built target glm
 [  4%] Built target stb
+[  4%] Built target glm
 [ 18%] Built target glfw
 [ 22%] Built target imgui
 [ 27%] Built target vulkano
