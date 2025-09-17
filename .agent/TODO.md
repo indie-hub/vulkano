@@ -1,10 +1,5 @@
-- [x] Create/refresh .agent/TODO.md with task steps
-- [x] Build Debug with tests
-- [x] Run unit + e2e tests
-- [x] Package runtime to bin/dist
-- [x] Commit changes with reasoning summary
-
-Next steps (optional improvements):
-- [ ] Fix: Position input in UI changes all objects
-- [ ] Expose camera sensitivities/speeds in UI (readonly->draggable)
-- [ ] Add config file to tweak input constants
+- [x] Ensure math header included for sqrt usage in App
+- [ ] Validate FPS camera input gating (RMB look, ImGui capture, scroll FOV, sprint)
+- [ ] Fix any input edge cases discovered during manual QA
+- [ ] Update README controls and Camera panel details
+- [ ] Package runtime to bin/dist and commit

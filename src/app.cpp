@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <thread>
+#include <cmath>
 #include <string>
 #include <glm/vec3.hpp>
 #include <imgui.h>
