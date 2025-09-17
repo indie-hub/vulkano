@@ -14,6 +14,7 @@ add_executable(vulkano_tests
     tests_main.cpp
     stats_tests.cpp
     geometry_tests.cpp
+    textures_tests.cpp
 )
 target_link_libraries(vulkano_tests PRIVATE vulkano Catch2::Catch2WithMain)
 

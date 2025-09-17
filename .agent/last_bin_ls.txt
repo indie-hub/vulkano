@@ -1,17 +1,17 @@
 Listing bin...
-total 84224
-drwxr-xr-x@ 15 bruno  staff       480 17 Sep 11:19 .
+total 103048
+drwxr-xr-x@ 15 bruno  staff       480 17 Sep 11:32 .
 drwxr-xr-x@ 20 bruno  staff       640 17 Sep 10:30 ..
-drwxr-xr-x@  5 bruno  staff       160 17 Sep 11:05 dist
+drwxr-xr-x@  5 bruno  staff       160 17 Sep 11:32 dist
 -rw-r--r--@  1 bruno  staff       129 16 Sep 16:30 imgui.ini
--rw-r--r--@  1 bruno  staff   1617624 17 Sep 11:05 libCatch2.a
--rw-r--r--@  1 bruno  staff  32482240 17 Sep 11:19 libCatch2d.a
--rw-r--r--@  1 bruno  staff      2064 17 Sep 11:05 libCatch2Main.a
--rw-r--r--@  1 bruno  staff    329312 17 Sep 10:30 libCatch2Maind.a
--rw-r--r--@  1 bruno  staff    972712 17 Sep 11:19 libglfw3.a
--rw-r--r--@  1 bruno  staff   1702312 17 Sep 11:19 libglm.a
--rw-r--r--@  1 bruno  staff   3916032 17 Sep 11:19 libimgui.a
--rw-r--r--@  1 bruno  staff    134392 17 Sep 11:05 libvulkano.a
+-rw-r--r--@  1 bruno  staff   1617624 17 Sep 11:28 libCatch2.a
+-rw-r--r--@  1 bruno  staff  32482240 17 Sep 11:32 libCatch2d.a
+-rw-r--r--@  1 bruno  staff      2064 17 Sep 11:28 libCatch2Main.a
+-rw-r--r--@  1 bruno  staff    329312 17 Sep 11:32 libCatch2Maind.a
+-rw-r--r--@  1 bruno  staff    972712 17 Sep 11:32 libglfw3.a
+-rw-r--r--@  1 bruno  staff   1702312 17 Sep 11:32 libglm.a
+-rw-r--r--@  1 bruno  staff   3916032 17 Sep 11:32 libimgui.a
+-rw-r--r--@  1 bruno  staff   4157496 17 Sep 11:32 libvulkano.a
 drwxr-xr-x@  6 bruno  staff       192 16 Sep 17:29 shaders
--rwxr-xr-x@  1 bruno  staff   1097448 17 Sep 11:05 vulkano_app
--rwxr-xr-x@  1 bruno  staff    845664 17 Sep 11:05 vulkano_tests
+-rwxr-xr-x@  1 bruno  staff   2714792 17 Sep 11:32 vulkano_app
+-rwxr-xr-x@  1 bruno  staff   4840320 17 Sep 11:32 vulkano_tests
