@@ -1,3 +1,4 @@
+ - [x] Rebuild and run tests; capture logs in `.agent/`.
  - [x] Add FPS camera methods (look_delta, move_local) in `include/vulkano/camera.hpp` and `src/camera.cpp`.
  - [x] Expose `camera_look_delta` and `camera_move_local` in `include/vulkano/vulkan_context.hpp` and implement in `src/vulkan_context.cpp`.
  - [x] Update input handling in `src/app.cpp` to use new look method and per-frame WASD + Space/Ctrl movement with ImGui gating and RMB requirement.

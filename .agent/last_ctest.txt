@@ -26,10 +26,10 @@ Test project /Users/bruno/Documents/Development/bruno/vulkano_codex/build_debug
       Start 13: camera_forward_and_right_are_orthogonal
 13/15 Test #13: camera_forward_and_right_are_orthogonal ................   Passed    0.01 sec
       Start 14: app_smoke
-14/15 Test #14: app_smoke ..............................................   Passed    1.29 sec
+14/15 Test #14: app_smoke ..............................................   Passed    1.78 sec
       Start 15: app_resize
-15/15 Test #15: app_resize .............................................   Passed    1.77 sec
+15/15 Test #15: app_resize .............................................   Passed    2.08 sec
 
 100% tests passed, 0 tests failed out of 15
 
-Total Test time (real) =   3.17 sec
+Total Test time (real) =   3.96 sec
