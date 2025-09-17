@@ -4,5 +4,5 @@
 [x] Manually run the app to confirm multi-primitive rendering
 [x] Validate ImGui controls (light, per-primitive transforms/colors/shininess)
 [x] Check for validation layer warnings/errors during a short run
-[] Package runtime to bin/dist and verify shaders included
+[x] Package runtime to bin/dist and verify shaders included
 [] Final tidy: clang-format/tidy pass and update notes if needed
