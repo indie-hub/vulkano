@@ -1,3 +1,4 @@
+- [x] Investigate crash on resize in macOS.
 - [x] Re-verify full build, unit tests, and app smoke run; update .agent logs (this run)
 - [x] Run app with VK_APP_AUTOCLOSE_MS and capture stdout/stderr logs (this run)
 - [x] Verify that Y-UP is pointing up

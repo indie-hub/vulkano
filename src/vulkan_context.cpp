@@ -2121,6 +2121,8 @@ void VulkanContext::recreate_swapchain(GLFWwindow* window) noexcept {
     vkDeviceWaitIdle(device_);
 
     // Tear down resources that depend on swapchain extent/format
+    // Rebuild sync objects as swapchain image count can change across recreations
+    destroy_sync_objects();
     destroy_command_pool_and_buffers();
     destroy_framebuffers();
     destroy_depth_resources();
@@ -2141,6 +2143,7 @@ void VulkanContext::recreate_swapchain(GLFWwindow* window) noexcept {
     create_graphics_pipeline();
     create_framebuffers();
     create_command_pool_and_buffers();
+    create_sync_objects();
 }
 
 void VulkanContext::init_imgui(GLFWwindow* window) noexcept {

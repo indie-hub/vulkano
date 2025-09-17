@@ -2,11 +2,19 @@
 [  5%] Built target glm
 [ 18%] Built target glfw
 [ 22%] Built target imgui
-[ 27%] Built target vulkano
-[ 28%] Built target vulkano_app
-[ 29%] Packaging runtime bundle to /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/dist
-[ 29%] Built target package_runtime
-[ 29%] Built target dist
-[ 96%] Built target Catch2
-[ 97%] Built target Catch2WithMain
+[ 23%] Building CXX object CMakeFiles/vulkano.dir/src/vulkan_context.cpp.o
+[ 90%] Built target Catch2
+[ 91%] Built target Catch2WithMain
+/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp:442:33: warning: comparison of array 'props.deviceName' not equal to a null pointer is always true [-Wtautological-pointer-compare]
+  442 |     device_name_cached_ = props.deviceName != nullptr ? std::string {props.deviceName} : std::string {};
+      |                           ~~~~~~^~~~~~~~~~    ~~~~~~~
+1 warning generated.
+[ 92%] Linking CXX static library /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libvulkano.a
+[ 95%] Built target vulkano
+[ 96%] Linking CXX executable /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_app
+[ 97%] Linking CXX executable /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests
+[ 97%] Built target vulkano_app
+[ 98%] Packaging runtime bundle to /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/dist
+[ 98%] Built target package_runtime
+[ 98%] Built target dist
 [100%] Built target vulkano_tests
