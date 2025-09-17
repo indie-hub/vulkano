@@ -1,4 +1,5 @@
 - [x] Audit baseline code and build status.
+- [x] Validate multi-primitive scene matches task (build, tests, smoke run).
 - [x] Implement/verify Plane, Cube, Icosphere primitives (CPU meshes).
 - [x] Implement graphics pipeline with depth testing and vertex format (pos3, normal3, uv2).
 - [x] Implement Blinn-Phong shading (UBO + push constants); compile shaders.
