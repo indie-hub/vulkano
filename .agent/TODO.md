@@ -1,6 +1,6 @@
 - [x] Initialize TODO and validate build setup
 - [x] Build + run unit tests and app e2e tests
-- [ ] Package runtime to `bin/dist` and sanity check artifacts
+- [x] Package runtime to `bin/dist` and sanity check artifacts
 - [ ] Manual QA: verify albedo/normal toggles, strength, UV tiling, and anisotropy
 - [ ] Review validation output for warnings; address any
 - [ ] Update README with texture/env usage and controls
