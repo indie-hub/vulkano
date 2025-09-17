@@ -67,11 +67,7 @@
     <configurations />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="ea5f2232-e0d5-4be9-833c-c06073c2468d" name="Changes" comment="New TODO">
-      <change beforePath="$PROJECT_DIR$/.agent/last_build.txt" beforeDir="false" afterPath="$PROJECT_DIR$/.agent/last_build.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.agent/last_cmake_config.txt" beforeDir="false" afterPath="$PROJECT_DIR$/.agent/last_cmake_config.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-    </list>
+    <list default="true" id="ea5f2232-e0d5-4be9-833c-c06073c2468d" name="Changes" comment="New TODO" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -102,6 +98,8 @@
     <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/src/app.cpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/src/geometry.cpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/src/geometry.cpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/src/geometry.cpp" root0="SKIP_HIGHLIGHTING" />
@@ -115,6 +113,7 @@
     <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp" root0="SKIP_HIGHLIGHTING" />
     <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp" root0="SKIP_HIGHLIGHTING" />
+    <setting file="mock:///Users/bruno/Documents/Development/bruno/vulkano_codex/tests/primitive_state_tests.cpp" root0="SKIP_HIGHLIGHTING" />
   </component>
   <component name="ProjectApplicationVersion">
     <option name="ide" value="CLion" />

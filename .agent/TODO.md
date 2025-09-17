@@ -1,5 +1,4 @@
-- [x] Build Debug, compile shaders, and run tests (ctest)
-- [ ] Manual check: edit cube's transform/material and verify plane/icosphere unchanged
-- [ ] Verify ImGui stats (FPS, frame ms, device, extent) visible during run
-- [ ] Run with validation layers in Debug; confirm no validation errors
-- [ ] Package bin/dist bundle and sanity-run with VK_APP_AUTOCLOSE_MS
+- [x] Ensure unique ImGui IDs per primitive UI (PushID/PopID)
+- [ ] Ensure independent per-primitive state (no shared Material/Transform)
+- [ ] Add targeted tests for per-primitive independence (already present; extend if needed)
+- [ ] Build Debug, run tests, and package to bin/dist; smoke-run with VK_APP_AUTOCLOSE_MS
