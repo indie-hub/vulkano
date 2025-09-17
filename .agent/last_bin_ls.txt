@@ -1,7 +1,7 @@
 total 104392
-drwxr-xr-x@ 16 bruno  staff       512 17 Sep 14:47 .
+drwxr-xr-x@ 16 bruno  staff       512 17 Sep 14:56 .
 drwxr-xr-x@ 23 bruno  staff       736 17 Sep 14:46 ..
-drwxr-xr-x@  5 bruno  staff       160 17 Sep 14:55 dist
+drwxr-xr-x@  5 bruno  staff       160 17 Sep 15:01 dist
 -rw-r--r--@  1 bruno  staff       129 16 Sep 16:30 imgui.ini
 -rw-r--r--@  1 bruno  staff   1617624 17 Sep 12:57 libCatch2.a
 -rw-r--r--@  1 bruno  staff  32483496 17 Sep 14:47 libCatch2d.a
@@ -11,7 +11,7 @@ drwxr-xr-x@  5 bruno  staff       160 17 Sep 14:55 dist
 -rw-r--r--@  1 bruno  staff   1702336 17 Sep 14:47 libglm.a
 -rw-r--r--@  1 bruno  staff   3916176 17 Sep 14:47 libimgui.a
 -rw-r--r--@  1 bruno  staff    246008 17 Sep 14:47 libstb.a
--rw-r--r--@  1 bruno  staff   4365136 17 Sep 14:47 libvulkano.a
+-rw-r--r--@  1 bruno  staff   4365144 17 Sep 14:56 libvulkano.a
 drwxr-xr-x@  6 bruno  staff       192 16 Sep 17:29 shaders
--rwxr-xr-x@  1 bruno  staff   2892264 17 Sep 14:47 vulkano_app
--rwxr-xr-x@  1 bruno  staff   4892528 17 Sep 14:47 vulkano_tests
+-rwxr-xr-x@  1 bruno  staff   2892264 17 Sep 14:56 vulkano_app
+-rwxr-xr-x@  1 bruno  staff   4892528 17 Sep 14:56 vulkano_tests
