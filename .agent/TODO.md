@@ -1,6 +1,5 @@
-- [x] Verify build succeeds and tests pass locally (Debug).
-- [x] Smoke-run app (autoclose) to validate launch.
-- [ ] Manual interactive QA: RMB-look, ImGui capture, scroll FOV, lock toggle.
-- [ ] Add unit test for input gating (extract pure gate helpers from App).
-- [ ] Update CHANGELOG with feat: FPS camera + ImGui gating + cursor lock.
-- [ ] Confirm macOS portability with MoltenVK; ensure no validation errors on resize/input.
+- [ ] Create/refresh .agent/TODO.md with task steps
+- [ ] Build Debug with tests
+- [ ] Run unit + e2e tests
+- [ ] Package runtime to bin/dist
+- [ ] Commit changes with reasoning summary
