@@ -5,5 +5,6 @@
 - [x] Commit changes with reasoning summary
 
 Next steps (optional improvements):
+- [ ] Fix: Position input in UI changes all objects
 - [ ] Expose camera sensitivities/speeds in UI (readonly->draggable)
 - [ ] Add config file to tweak input constants
