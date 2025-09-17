@@ -1,3 +1,5 @@
+- [ ] Investigate: Assertion failed: ((g.FrameCount == 0 || g.FrameCountEnded == g.FrameCount) && "Forgot to call Render() or EndFrame() at the end of the previous frame?"), function ErrorCheckNewFrameSanityChecks
+- [x] Fix compiler warning: device name cached from VkPhysicalDeviceProperties without null check of fixed array.
 - [x] Investigate crash on resize in macOS.
 - [x] Re-verify full build, unit tests, and app smoke run; update .agent logs (this run)
 - [x] Run app with VK_APP_AUTOCLOSE_MS and capture stdout/stderr logs (this run)

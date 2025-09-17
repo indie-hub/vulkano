@@ -436,10 +436,10 @@ void VulkanContext::pick_physical_device() noexcept {
         return;
     }
 
-    // Cache device name for UI
+    // Cache device name for UI (deviceName is a fixed-size char array)
     VkPhysicalDeviceProperties props {};
     vkGetPhysicalDeviceProperties(best, &props);
-    device_name_cached_ = props.deviceName != nullptr ? std::string {props.deviceName} : std::string {};
+    device_name_cached_ = std::string {props.deviceName};
 
     physical_device_ = best;
 }
