@@ -4,6 +4,7 @@
 - [x] Audit include style (angle brackets only) across codebase.
 - [x] Smoke run with validation enabled; confirm no validation errors in .agent/last_run_stderr.txt.
 - [x] Build Debug + run unit tests and smoke test; compile shaders to bin/shaders; all passed. Logs captured.
+- [ ] Manual acceptance verification on macOS: open app, confirm plane/cube/icosphere render with correct depth and lighting, adjust UI controls (light, transforms, color, shininess), resize window, and check no validation errors in console.
 - [ ] Confirm acceptance criteria via manual run on macOS (rendering, UI controls, resizing, no validation errors).
 - [ ] Manually verify rendering: plane/cube/icosphere depth and lighting.
 - [x] Update README: scene controls (light, transforms, colors, shininess).

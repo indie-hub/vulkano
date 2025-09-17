@@ -1,0 +1,10 @@
+-- glfw3 not found; fetching via FetchContent
+-- Including Cocoa support
+-- glm not found; fetching via FetchContent
+-- GLM: Version 1.0.1
+-- GLM: Disable -Wc++98-compat warnings
+-- GLM: Build with C++ features auto detection
+-- imgui not found; fetching via FetchContent
+-- Configuring done (2.8s)
+-- Generating done (0.1s)
+-- Build files have been written to: /Users/bruno/Documents/Development/bruno/vulkano_codex/build
