@@ -132,6 +132,12 @@ private:
     void create_framebuffers() noexcept;
     void create_depth_resources() noexcept;
     void destroy_depth_resources() noexcept;
+    // G-buffer (normal) resources for SSAO prepass
+    void create_gbuffer_render_pass() noexcept;
+    void destroy_gbuffer_render_pass() noexcept;
+    void create_gbuffer_resources() noexcept; // normal image + framebuffer
+    void destroy_gbuffer_resources() noexcept;
+    void create_gbuffer_pipeline() noexcept;
     void create_pipeline_layout() noexcept;
     void create_graphics_pipeline() noexcept;
     void create_vertex_buffer() noexcept; // legacy triangle fallback
@@ -240,6 +246,14 @@ private:
     VkDeviceMemory depth_image_memory_ {VK_NULL_HANDLE};
     VkImageView depth_image_view_ {VK_NULL_HANDLE};
     VkFormat depth_format_ {VK_FORMAT_UNDEFINED};
+
+    // G-buffer (normal) pass
+    VkRenderPass gbuffer_render_pass_ {VK_NULL_HANDLE};
+    VkImage gbuffer_normal_image_ {VK_NULL_HANDLE};
+    VkDeviceMemory gbuffer_normal_memory_ {VK_NULL_HANDLE};
+    VkImageView gbuffer_normal_view_ {VK_NULL_HANDLE};
+    VkFramebuffer gbuffer_framebuffer_ {VK_NULL_HANDLE};
+    VkPipeline gbuffer_pipeline_ {VK_NULL_HANDLE};
 
     // Command pool and buffers
     VkCommandPool command_pool_ {VK_NULL_HANDLE};

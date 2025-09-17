@@ -1,0 +1,43 @@
+Test project /Users/bruno/Documents/Development/bruno/vulkano_codex/build_debug
+      Start 19: app_resize
+      Start 18: app_smoke
+ 1/19 Test #18: app_smoke ..............................................   Passed    1.12 sec
+      Start 17: Per-primitive materials are independent
+ 2/19 Test #17: Per-primitive materials are independent ................   Passed    0.01 sec
+      Start 16: Per-primitive transforms are independent
+ 3/19 Test #16: Per-primitive transforms are independent ...............   Passed    0.01 sec
+      Start  9: Checkerboard image dimensions and pattern
+ 4/19 Test  #9: Checkerboard image dimensions and pattern ..............   Passed    0.01 sec
+      Start  1: catch2_sanity
+ 5/19 Test  #1: catch2_sanity ..........................................   Passed    0.01 sec
+      Start 10: Blue-noise-ish normal map basics
+ 6/19 Test #10: Blue-noise-ish normal map basics .......................   Passed    0.01 sec
+      Start  4: Plane generates 4 verts and 6 indices
+ 7/19 Test  #4: Plane generates 4 verts and 6 indices ..................   Passed    0.01 sec
+      Start 13: camera_forward_and_right_are_orthogonal
+ 8/19 Test #13: camera_forward_and_right_are_orthogonal ................   Passed    0.01 sec
+      Start  3: stats_smoothing_behaviour
+ 9/19 Test  #3: stats_smoothing_behaviour ..............................   Passed    0.01 sec
+      Start 15: camera_pitch_is_clamped_to_avoid_flip
+10/19 Test #15: camera_pitch_is_clamped_to_avoid_flip ..................   Passed    0.01 sec
+      Start 12: camera_move_local_changes_position
+11/19 Test #12: camera_move_local_changes_position .....................   Passed    0.01 sec
+      Start 11: camera_look_delta_keeps_eye_position
+12/19 Test #11: camera_look_delta_keeps_eye_position ...................   Passed    0.01 sec
+      Start  8: Plane UV tiling setter updates UVs
+13/19 Test  #8: Plane UV tiling setter updates UVs .....................   Passed    0.01 sec
+      Start  6: Icosphere vertex/index counts grow with subdivisions
+14/19 Test  #6: Icosphere vertex/index counts grow with subdivisions ...   Passed    0.01 sec
+      Start  5: Cube generates 24 verts and 36 indices
+15/19 Test  #5: Cube generates 24 verts and 36 indices .................   Passed    0.01 sec
+      Start  7: Icosphere set_subdivisions rebuilds geometry
+16/19 Test  #7: Icosphere set_subdivisions rebuilds geometry ...........   Passed    0.01 sec
+      Start 14: camera_fov_delta_clamps_within_limits
+17/19 Test #14: camera_fov_delta_clamps_within_limits ..................   Passed    0.01 sec
+      Start  2: stats_initial_values
+18/19 Test  #2: stats_initial_values ...................................   Passed    0.01 sec
+19/19 Test #19: app_resize .............................................   Passed    1.95 sec
+
+100% tests passed, 0 tests failed out of 19
+
+Total Test time (real) =   1.95 sec
