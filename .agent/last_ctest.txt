@@ -1,39 +1,39 @@
 Test project /Users/bruno/Documents/Development/bruno/vulkano_codex/build_debug
+      Start 17: app_resize
+      Start 16: app_smoke
+ 1/17 Test #16: app_smoke ..............................................   Passed    1.18 sec
       Start  1: catch2_sanity
- 1/17 Test  #1: catch2_sanity ..........................................   Passed    0.02 sec
-      Start  2: stats_initial_values
- 2/17 Test  #2: stats_initial_values ...................................   Passed    0.01 sec
-      Start  3: stats_smoothing_behaviour
- 3/17 Test  #3: stats_smoothing_behaviour ..............................   Passed    0.01 sec
-      Start  4: Plane generates 4 verts and 6 indices
- 4/17 Test  #4: Plane generates 4 verts and 6 indices ..................   Passed    0.01 sec
-      Start  5: Cube generates 24 verts and 36 indices
- 5/17 Test  #5: Cube generates 24 verts and 36 indices .................   Passed    0.01 sec
-      Start  6: Icosphere vertex/index counts grow with subdivisions
- 6/17 Test  #6: Icosphere vertex/index counts grow with subdivisions ...   Passed    0.01 sec
-      Start  7: Icosphere set_subdivisions rebuilds geometry
- 7/17 Test  #7: Icosphere set_subdivisions rebuilds geometry ...........   Passed    0.01 sec
-      Start  8: Plane UV tiling setter updates UVs
- 8/17 Test  #8: Plane UV tiling setter updates UVs .....................   Passed    0.01 sec
+ 2/17 Test  #1: catch2_sanity ..........................................   Passed    0.02 sec
       Start  9: Checkerboard image dimensions and pattern
- 9/17 Test  #9: Checkerboard image dimensions and pattern ..............   Passed    0.01 sec
+ 3/17 Test  #9: Checkerboard image dimensions and pattern ..............   Passed    0.01 sec
       Start 10: Blue-noise-ish normal map basics
-10/17 Test #10: Blue-noise-ish normal map basics .......................   Passed    0.01 sec
+ 4/17 Test #10: Blue-noise-ish normal map basics .......................   Passed    0.01 sec
       Start 11: camera_look_delta_keeps_eye_position
-11/17 Test #11: camera_look_delta_keeps_eye_position ...................   Passed    0.01 sec
+ 5/17 Test #11: camera_look_delta_keeps_eye_position ...................   Passed    0.01 sec
+      Start 15: camera_pitch_is_clamped_to_avoid_flip
+ 6/17 Test #15: camera_pitch_is_clamped_to_avoid_flip ..................   Passed    0.01 sec
+      Start  2: stats_initial_values
+ 7/17 Test  #2: stats_initial_values ...................................   Passed    0.01 sec
+      Start  7: Icosphere set_subdivisions rebuilds geometry
+ 8/17 Test  #7: Icosphere set_subdivisions rebuilds geometry ...........   Passed    0.01 sec
+      Start  6: Icosphere vertex/index counts grow with subdivisions
+ 9/17 Test  #6: Icosphere vertex/index counts grow with subdivisions ...   Passed    0.01 sec
       Start 12: camera_move_local_changes_position
-12/17 Test #12: camera_move_local_changes_position .....................   Passed    0.01 sec
+10/17 Test #12: camera_move_local_changes_position .....................   Passed    0.01 sec
+      Start  8: Plane UV tiling setter updates UVs
+11/17 Test  #8: Plane UV tiling setter updates UVs .....................   Passed    0.01 sec
+      Start  3: stats_smoothing_behaviour
+12/17 Test  #3: stats_smoothing_behaviour ..............................   Passed    0.01 sec
       Start 13: camera_forward_and_right_are_orthogonal
 13/17 Test #13: camera_forward_and_right_are_orthogonal ................   Passed    0.01 sec
       Start 14: camera_fov_delta_clamps_within_limits
 14/17 Test #14: camera_fov_delta_clamps_within_limits ..................   Passed    0.01 sec
-      Start 15: camera_pitch_is_clamped_to_avoid_flip
-15/17 Test #15: camera_pitch_is_clamped_to_avoid_flip ..................   Passed    0.01 sec
-      Start 16: app_smoke
-16/17 Test #16: app_smoke ..............................................   Passed    1.38 sec
-      Start 17: app_resize
-17/17 Test #17: app_resize .............................................   Passed    1.77 sec
+      Start  5: Cube generates 24 verts and 36 indices
+15/17 Test  #5: Cube generates 24 verts and 36 indices .................   Passed    0.01 sec
+      Start  4: Plane generates 4 verts and 6 indices
+16/17 Test  #4: Plane generates 4 verts and 6 indices ..................   Passed    0.01 sec
+17/17 Test #17: app_resize .............................................   Passed    1.87 sec
 
 100% tests passed, 0 tests failed out of 17
 
-Total Test time (real) =   3.27 sec
+Total Test time (real) =   1.88 sec
