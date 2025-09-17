@@ -1,5 +1,6 @@
-- [x] Configure and build (Debug), compile shaders, run unit tests and smoke test.
-- [ ] Manually verify rendering (plane, cube, icosphere) and UI controls; adjust if needed.
-- [ ] Package runtime to bin/dist and validate bundle (binary + shaders).
-- [ ] Update README with scene controls and build/run notes.
-- [ ] Light perf sanity: frame pacing, validation noise check.
+- [x] Verify build/tests and smoke run (app + shaders).
+- [ ] Manually verify rendering: plane/cube/icosphere depth and lighting.
+- [ ] Update README: scene controls (light, transforms, colors, shininess).
+- [ ] Double-check validation layers on Debug; scan runtime logs.
+- [ ] Re-enable back-face culling after confirming winding across platforms.
+- [ ] Optional: add simple perf counter/benchmark toggle.
