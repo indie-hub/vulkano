@@ -78,6 +78,21 @@ Tips:
 - ImGui overlay (imgui_impl_glfw + imgui_impl_vulkan)
 - Validation layers in Debug; VK_EXT_debug_utils names + markers
 
+## Textures & Normal Mapping
+
+- Per‑primitive albedo (sRGB) and tangent‑space normal map (UNORM) with mipmaps.
+- Procedural fallbacks when no external files are provided:
+  - Albedo: checkerboard 256×256, 8×8 squares, colors: off‑white (0.92) and dark‑grey (0.12).
+  - Normal: blue‑noise‑ish 128×128 detail normal; tangent‑space packed in RGBA8.
+- External textures (optional) via environment variables (stb_image loads, flipped vertically):
+  - `VK_ALBEDO_PATH=/path/to/albedo.png`
+  - `VK_NORMAL_PATH=/path/to/normal.png`
+- Samplers:
+  - Albedo: linear filtering, mipmapped, sRGB sampling, anisotropy if supported.
+  - Normal: linear filtering, mipmapped, UNORM sampling, no sRGB.
+- UI controls (per primitive): Use Albedo Map, Use Normal Map, Normal Strength [0..2], Plane UV tiling, Base Color and Shininess.
+- UI (global, read‑only): device name, swapchain extent, texture sizes, sampler and anisotropy support.
+
 ## Tests
 
 Unit tests (Catch2) cover FPS smoothing. A smoke test launches the app headlessly with autoclose:

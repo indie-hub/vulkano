@@ -1,6 +1,6 @@
 Test project /Users/bruno/Documents/Development/bruno/vulkano_codex/build
       Start  1: catch2_sanity
- 1/11 Test  #1: catch2_sanity ..........................................   Passed    0.01 sec
+ 1/11 Test  #1: catch2_sanity ..........................................   Passed    0.02 sec
       Start  2: stats_initial_values
  2/11 Test  #2: stats_initial_values ...................................   Passed    0.01 sec
       Start  3: stats_smoothing_behaviour
@@ -20,8 +20,8 @@ Test project /Users/bruno/Documents/Development/bruno/vulkano_codex/build
       Start 10: Blue-noise-ish normal map basics
 10/11 Test #10: Blue-noise-ish normal map basics .......................   Passed    0.01 sec
       Start 11: app_smoke
-11/11 Test #11: app_smoke ..............................................   Passed    1.46 sec
+11/11 Test #11: app_smoke ..............................................   Passed    1.26 sec
 
 100% tests passed, 0 tests failed out of 11
 
-Total Test time (real) =   1.55 sec
+Total Test time (real) =   1.36 sec
