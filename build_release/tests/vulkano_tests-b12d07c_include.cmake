@@ -1,0 +1,5 @@
+if(EXISTS "/Users/bruno/Documents/Development/bruno/vulkano_codex/build_release/tests/vulkano_tests-b12d07c_tests.cmake")
+  include("/Users/bruno/Documents/Development/bruno/vulkano_codex/build_release/tests/vulkano_tests-b12d07c_tests.cmake")
+else()
+  add_test(vulkano_tests_NOT_BUILT-b12d07c vulkano_tests_NOT_BUILT-b12d07c)
+endif()

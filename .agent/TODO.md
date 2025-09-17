@@ -1,7 +1,6 @@
-- [x] Build and run tests; verify bin/ outputs.
-- [x] Verify SRGB albedo and UNORM normal formats, mipmaps, anisotropy.
-- [ ] Confirm per-primitive UI (albedo/normal toggles, strength, UV tiling).
-- [ ] Validate procedural fallbacks upload + mipmap path (staging).
-- [ ] Manual macOS run; check swapchain resize + ImGui stats.
-- [ ] Add targeted texture unit tests for edge cases.
-- [ ] Update README with texture env vars and config constants.
+- [x] Initialize TODO and validate build setup
+- [ ] Build + run unit tests and app e2e tests
+- [ ] Package runtime to `bin/dist` and sanity check artifacts
+- [ ] Manual QA: verify albedo/normal toggles, strength, UV tiling, and anisotropy
+- [ ] Review validation output for warnings; address any
+- [ ] Update README with texture/env usage and controls

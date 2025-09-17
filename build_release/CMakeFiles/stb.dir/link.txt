@@ -1,0 +1,2 @@
+/usr/bin/ar qc /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libstb.a CMakeFiles/stb.dir/src/stb_image_impl.cpp.o
+/usr/bin/ranlib /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libstb.a

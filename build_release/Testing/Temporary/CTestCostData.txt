@@ -1,0 +1,13 @@
+catch2_sanity 1 0.00497704
+stats_initial_values 1 0.0108745
+stats_smoothing_behaviour 1 0.00357875
+Plane generates 4 verts and 6 indices 1 0.00352908
+Cube generates 24 verts and 36 indices 1 0.00315646
+Icosphere vertex/index counts grow with subdivisions 1 0.00423513
+Icosphere set_subdivisions rebuilds geometry 1 0.00305787
+Plane UV tiling setter updates UVs 1 0.00291333
+Checkerboard image dimensions and pattern 1 0.00311721
+Blue-noise-ish normal map basics 1 0.00306867
+app_smoke 1 1.83958
+app_resize 1 2.02535
+---
