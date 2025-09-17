@@ -1,4 +1,4 @@
-- [ ] Investigate: Assertion failed: ((g.FrameCount == 0 || g.FrameCountEnded == g.FrameCount) && "Forgot to call Render() or EndFrame() at the end of the previous frame?"), function ErrorCheckNewFrameSanityChecks
+- [x] Investigate: Assertion failed: ((g.FrameCount == 0 || g.FrameCountEnded == g.FrameCount) && "Forgot to call Render() or EndFrame() at the end of the previous frame?"), function ErrorCheckNewFrameSanityChecks
 - [x] Fix compiler warning: device name cached from VkPhysicalDeviceProperties without null check of fixed array.
 - [x] Investigate crash on resize in macOS.
 - [x] Re-verify full build, unit tests, and app smoke run; update .agent logs (this run)
@@ -9,6 +9,7 @@
 - [ ] Re-enable back-face culling after confirming winding across platforms.
 - [ ] Optional: add simple perf counter/benchmark toggle.
 - [ ] Investigate any depth ordering or Z-fighting anomalies across GPUs.
+- [ ] Document macOS setup notes (MoltenVK/Vulkan SDK) and run instructions.
 - [x] Verify build/tests and smoke run (app + shaders).
 - [x] Package runtime bundle to bin/dist and verify contents.
 - [x] Audit include style (angle brackets only) across codebase.
