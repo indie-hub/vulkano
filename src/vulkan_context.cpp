@@ -1136,16 +1136,17 @@ void VulkanContext::create_graphics_pipeline() noexcept {
     binding.stride = sizeof(Vertex);
     binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-    VkVertexInputAttributeDescription attribs[3] {};
+    VkVertexInputAttributeDescription attribs[4] {};
     attribs[0].location = 0U; attribs[0].binding = 0U; attribs[0].format = VK_FORMAT_R32G32B32_SFLOAT; attribs[0].offset = 0U;
     attribs[1].location = 1U; attribs[1].binding = 0U; attribs[1].format = VK_FORMAT_R32G32B32_SFLOAT; attribs[1].offset = static_cast<std::uint32_t>(offsetof(Vertex, normal));
     attribs[2].location = 2U; attribs[2].binding = 0U; attribs[2].format = VK_FORMAT_R32G32_SFLOAT;      attribs[2].offset = static_cast<std::uint32_t>(offsetof(Vertex, uv));
+    attribs[3].location = 3U; attribs[3].binding = 0U; attribs[3].format = VK_FORMAT_R32G32B32_SFLOAT; attribs[3].offset = static_cast<std::uint32_t>(offsetof(Vertex, tangent));
 
     VkPipelineVertexInputStateCreateInfo vertexInput {};
     vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     vertexInput.vertexBindingDescriptionCount = 1U;
     vertexInput.pVertexBindingDescriptions = &binding;
-    vertexInput.vertexAttributeDescriptionCount = 3U;
+    vertexInput.vertexAttributeDescriptionCount = 4U;
     vertexInput.pVertexAttributeDescriptions = attribs;
 
     VkPipelineInputAssemblyStateCreateInfo inputAssembly {};
