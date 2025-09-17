@@ -143,6 +143,15 @@ private:
     void create_ssao_resources() noexcept;   // kernel + noise image/sampler
     void destroy_ssao_resources() noexcept;
     void rebuild_ssao_kernel(std::uint32_t kernelSize) noexcept; // regen kernel only
+
+    // SSAO rendering (AO target + render pass + pipeline + descriptors)
+    void create_ssao_render_pass() noexcept;
+    void destroy_ssao_render_pass() noexcept;
+    void create_ssao_targets() noexcept; // AO image + framebuffer
+    void create_ssao_pipeline() noexcept;
+    void create_ssao_descriptors() noexcept;
+    void destroy_ssao_rendering() noexcept; // pipeline, descriptors, AO target
+    void update_ssao_ubo() noexcept;
     void create_pipeline_layout() noexcept;
     void create_graphics_pipeline() noexcept;
     void create_vertex_buffer() noexcept; // legacy triangle fallback
@@ -325,6 +334,21 @@ private:
     VkDeviceMemory ssao_noise_memory_ {VK_NULL_HANDLE};
     VkImageView ssao_noise_view_ {VK_NULL_HANDLE};
     VkSampler ssao_noise_sampler_ {VK_NULL_HANDLE};
+    VkSampler ssao_clamp_sampler_ {VK_NULL_HANDLE};
+
+    // SSAO AO target + pipeline
+    VkRenderPass ssao_render_pass_ {VK_NULL_HANDLE};
+    VkImage ssao_ao_image_ {VK_NULL_HANDLE};
+    VkDeviceMemory ssao_ao_memory_ {VK_NULL_HANDLE};
+    VkImageView ssao_ao_view_ {VK_NULL_HANDLE};
+    VkFramebuffer ssao_framebuffer_ {VK_NULL_HANDLE};
+    VkBuffer ssao_ubo_buffer_ {VK_NULL_HANDLE};
+    VkDeviceMemory ssao_ubo_memory_ {VK_NULL_HANDLE};
+    VkDescriptorSetLayout ssao_set_layout_ {VK_NULL_HANDLE};
+    VkDescriptorPool ssao_desc_pool_ {VK_NULL_HANDLE};
+    VkDescriptorSet ssao_desc_set_ {VK_NULL_HANDLE};
+    VkPipelineLayout ssao_pipeline_layout_ {VK_NULL_HANDLE};
+    VkPipeline ssao_pipeline_ {VK_NULL_HANDLE};
 
     // Scene: CPU primitives and GPU draw ranges
     std::vector<std::unique_ptr<Primitive>> primitives_ {};

@@ -1,7 +1,7 @@
  - [x] SSAO: settings model + ImGui panel
  - [x] SSAO: G-buffer + geometry pass
   - [x] SSAO: kernel + noise texture generation
- - [ ] SSAO: fullscreen SSAO pass (descriptor sets, pipeline)
+  - [x] SSAO: fullscreen SSAO pass (descriptor sets, pipeline)
  - [ ] SSAO: optional Gaussian blur pass
  - [ ] SSAO: compose AO with lit scene (barriers correct)
  - [ ] Resize-safe: recreate G-buffer/AO targets
