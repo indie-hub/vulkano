@@ -1,8 +1,7 @@
- - [x] Build project and run unit + e2e tests
- - [x] Verify shader compilation to `bin/shaders` and packaging to `bin/dist`
- - [x] Manual runtime smoke (auto-close) to confirm rendering path
- - [x] Review validation output for errors/warnings
- - [ ] Update README with texture/normal-map features
- - [ ] Run Debug build with validation layers enabled and capture logs
- - [ ] Verify sampler anisotropy usage reported in UI matches device caps
- - [ ] Verify external textures via VK_ALBEDO_PATH/VK_NORMAL_PATH update labels and mipmaps
+- [x] Build and run tests; verify bin/ outputs.
+- [ ] Verify SRGB albedo and UNORM normal formats, mipmaps, anisotropy.
+- [ ] Confirm per-primitive UI (albedo/normal toggles, strength, UV tiling).
+- [ ] Validate procedural fallbacks upload + mipmap path (staging).
+- [ ] Manual macOS run; check swapchain resize + ImGui stats.
+- [ ] Add targeted texture unit tests for edge cases.
+- [ ] Update README with texture env vars and config constants.
