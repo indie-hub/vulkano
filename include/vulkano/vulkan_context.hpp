@@ -138,6 +138,11 @@ private:
     void create_gbuffer_resources() noexcept; // normal image + framebuffer
     void destroy_gbuffer_resources() noexcept;
     void create_gbuffer_pipeline() noexcept;
+
+    // SSAO kernel and noise resources (no render yet)
+    void create_ssao_resources() noexcept;   // kernel + noise image/sampler
+    void destroy_ssao_resources() noexcept;
+    void rebuild_ssao_kernel(std::uint32_t kernelSize) noexcept; // regen kernel only
     void create_pipeline_layout() noexcept;
     void create_graphics_pipeline() noexcept;
     void create_vertex_buffer() noexcept; // legacy triangle fallback
@@ -313,6 +318,13 @@ private:
     std::unique_ptr<Camera> camera_ {};
     Light light_ {};
     SsaoSettings ssao_ {};
+
+    // SSAO CPU/GPU resources
+    std::vector<glm::vec3> ssao_kernel_ {};
+    VkImage ssao_noise_image_ {VK_NULL_HANDLE};
+    VkDeviceMemory ssao_noise_memory_ {VK_NULL_HANDLE};
+    VkImageView ssao_noise_view_ {VK_NULL_HANDLE};
+    VkSampler ssao_noise_sampler_ {VK_NULL_HANDLE};
 
     // Scene: CPU primitives and GPU draw ranges
     std::vector<std::unique_ptr<Primitive>> primitives_ {};

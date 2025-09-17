@@ -14,6 +14,7 @@
 #include <limits>
 #include <string>
 #include <vector>
+#include <random>
 
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
@@ -53,6 +54,7 @@ namespace {
     // G-buffer
     constexpr VkFormat kGBufferNormalFormat {VK_FORMAT_R8G8B8A8_UNORM};
     constexpr std::array<float, 4> kClearNormalPacked {0.5F, 0.5F, 1.0F, 1.0F};
+    constexpr VkFormat kSsaoNoiseFormat {VK_FORMAT_R8G8B8A8_UNORM};
 
     [[nodiscard]] std::vector<char> read_file_binary(const std::string& path) noexcept {
         std::vector<char> buffer {};
@@ -148,6 +150,8 @@ VulkanContext::VulkanContext(GLFWwindow* window) noexcept {
     create_gbuffer_render_pass();
     create_gbuffer_resources();
     create_gbuffer_pipeline();
+    // SSAO kernel and noise resources
+    create_ssao_resources();
     // Build scene and upload geometry; fallback to single-triangle if failed
     create_scene();
     create_scene_buffers();
@@ -304,6 +308,12 @@ const VulkanContext::SsaoSettings& VulkanContext::ssao() const noexcept {
 }
 
 void VulkanContext::set_ssao(const SsaoSettings& s) noexcept {
+    // Rebuild kernel if size changed
+    if (s.kernel_size != ssao_.kernel_size) {
+        ssao_ = s;
+        rebuild_ssao_kernel(ssao_.kernel_size);
+        return;
+    }
     ssao_ = s;
 }
 
@@ -655,6 +665,7 @@ void VulkanContext::destroy() noexcept {
     destroy_sync_objects();
     destroy_command_pool_and_buffers();
     destroy_framebuffers();
+    destroy_ssao_resources();
     destroy_depth_resources();
     destroy_render_pass();
     destroy_pipeline();
@@ -2889,6 +2900,138 @@ void VulkanContext::destroy_pipeline() noexcept {
     }
 }
 
+void VulkanContext::destroy_ssao_resources() noexcept {
+    if (device_ == VK_NULL_HANDLE) {
+        return;
+    }
+    if (ssao_noise_sampler_ != VK_NULL_HANDLE) {
+        vkDestroySampler(device_, ssao_noise_sampler_, nullptr);
+        ssao_noise_sampler_ = VK_NULL_HANDLE;
+    }
+    if (ssao_noise_view_ != VK_NULL_HANDLE) {
+        vkDestroyImageView(device_, ssao_noise_view_, nullptr);
+        ssao_noise_view_ = VK_NULL_HANDLE;
+    }
+    if (ssao_noise_image_ != VK_NULL_HANDLE) {
+        vkDestroyImage(device_, ssao_noise_image_, nullptr);
+        ssao_noise_image_ = VK_NULL_HANDLE;
+    }
+    if (ssao_noise_memory_ != VK_NULL_HANDLE) {
+        vkFreeMemory(device_, ssao_noise_memory_, nullptr);
+        ssao_noise_memory_ = VK_NULL_HANDLE;
+    }
+    ssao_kernel_.clear();
+}
+
+void VulkanContext::rebuild_ssao_kernel(std::uint32_t kernelSize) noexcept {
+    // Rebuild CPU-side kernel only
+    ssao_kernel_.clear();
+    ssao_kernel_.reserve(static_cast<std::size_t>(kernelSize));
+    std::mt19937 rng(1337U);
+    std::uniform_real_distribution<float> uni(0.0F, 1.0F);
+    for (std::uint32_t i {0U}; i < kernelSize; ++i) {
+        // Hemisphere oriented along +Z in view space
+        float x = uni(rng) * 2.0F - 1.0F;
+        float y = uni(rng) * 2.0F - 1.0F;
+        float z = uni(rng);
+        glm::vec3 sample {x, y, z};
+        sample = glm::normalize(sample);
+        float scale = static_cast<float>(i) / static_cast<float>(kernelSize);
+        // Concentrate samples near origin
+        float biasA {0.1F};
+        float biasB {1.0F};
+        float s = biasA + (biasB - biasA) * (scale * scale);
+        sample *= s;
+        ssao_kernel_.push_back(sample);
+    }
+}
+
+void VulkanContext::create_ssao_resources() noexcept {
+    if (device_ == VK_NULL_HANDLE || physical_device_ == VK_NULL_HANDLE) {
+        return;
+    }
+    destroy_ssao_resources();
+    // Kernel
+    const std::uint32_t ksize {ssao_.kernel_size > 0U ? ssao_.kernel_size : config::SsaoDefaultKernelSize};
+    rebuild_ssao_kernel(ksize);
+
+    // Noise texture (tiling)
+    const std::uint32_t nsize {ssao_.noise_texture_size > 0U ? ssao_.noise_texture_size : config::SsaoNoiseTextureSize};
+    const std::uint32_t width {nsize};
+    const std::uint32_t height {nsize};
+    const std::size_t pixelCount {static_cast<std::size_t>(width) * static_cast<std::size_t>(height)};
+    std::vector<std::uint8_t> pixels(pixelCount * 4U);
+    std::mt19937 rng(424242U);
+    std::uniform_real_distribution<float> u(-1.0F, 1.0F);
+    for (std::size_t i {0U}; i < pixelCount; ++i) {
+        float x = u(rng);
+        float y = u(rng);
+        glm::vec2 v = glm::normalize(glm::vec2 {x, y});
+        // Map from [-1,1] to [0,1]
+        float r = v.x * 0.5F + 0.5F;
+        float g = v.y * 0.5F + 0.5F;
+        pixels[i * 4U + 0U] = static_cast<std::uint8_t>(std::clamp(r, 0.0F, 1.0F) * 255.0F + 0.5F);
+        pixels[i * 4U + 1U] = static_cast<std::uint8_t>(std::clamp(g, 0.0F, 1.0F) * 255.0F + 0.5F);
+        pixels[i * 4U + 2U] = 128U; // z=0 mapped to 0.5
+        pixels[i * 4U + 3U] = 255U;
+    }
+
+    // Create image and upload
+    VkImage image {VK_NULL_HANDLE};
+    VkDeviceMemory memory {VK_NULL_HANDLE};
+    const VkFormat format {kSsaoNoiseFormat};
+    if (!create_image_2d(width, height, 1U, format, VK_IMAGE_TILING_OPTIMAL,
+                         VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, image, memory, "SSAONoiseImage")) {
+        return;
+    }
+    ssao_noise_image_ = image;
+    ssao_noise_memory_ = memory;
+
+    // Staging upload
+    const VkDeviceSize sizeBytes {static_cast<VkDeviceSize>(pixels.size())};
+    VkBuffer staging {VK_NULL_HANDLE};
+    VkDeviceMemory stagingMem {VK_NULL_HANDLE};
+    if (!create_buffer(sizeBytes, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging, stagingMem, "SSAONoiseStaging")) {
+        return;
+    }
+    void* data {nullptr};
+    if (vkMapMemory(device_, stagingMem, 0U, sizeBytes, 0U, &data) == VK_SUCCESS) {
+        std::memcpy(data, pixels.data(), static_cast<std::size_t>(sizeBytes));
+        vkUnmapMemory(device_, stagingMem);
+    }
+
+    transition_image_layout(ssao_noise_image_, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1U);
+    (void)copy_buffer_to_image(staging, ssao_noise_image_, width, height);
+    transition_image_layout(ssao_noise_image_, format, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 1U);
+
+    vkDestroyBuffer(device_, staging, nullptr);
+    vkFreeMemory(device_, stagingMem, nullptr);
+
+    // View and sampler
+    (void)create_image_view_2d(ssao_noise_image_, format, VK_IMAGE_ASPECT_COLOR_BIT, 1U, ssao_noise_view_, "SSAONoiseView");
+
+    VkSamplerCreateInfo sinfo {};
+    sinfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    sinfo.magFilter = VK_FILTER_NEAREST;
+    sinfo.minFilter = VK_FILTER_NEAREST;
+    sinfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    sinfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    sinfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    sinfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    sinfo.mipLodBias = 0.0F;
+    sinfo.anisotropyEnable = VK_FALSE;
+    sinfo.maxAnisotropy = 1.0F;
+    sinfo.compareEnable = VK_FALSE;
+    sinfo.minLod = 0.0F;
+    sinfo.maxLod = 0.0F;
+    sinfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    sinfo.unnormalizedCoordinates = VK_FALSE;
+    if (vkCreateSampler(device_, &sinfo, nullptr, &ssao_noise_sampler_) == VK_SUCCESS) {
+        set_object_name(VK_OBJECT_TYPE_SAMPLER, reinterpret_cast<std::uint64_t>(ssao_noise_sampler_), "SSAONoiseSampler");
+    }
+}
+
 void VulkanContext::destroy_vertex_buffer() noexcept {
     if (device_ == VK_NULL_HANDLE) {
         return;
@@ -3250,6 +3393,7 @@ void VulkanContext::recreate_swapchain(GLFWwindow* window) noexcept {
     destroy_gbuffer_resources();
     destroy_gbuffer_render_pass();
     destroy_depth_resources();
+    // SSAO noise independent of swapchain; keep. Kernel unaffected.
     destroy_pipeline();
     destroy_render_pass();
     destroy_swapchain_and_views();
