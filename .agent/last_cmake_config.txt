@@ -1,19 +1,4 @@
--- The CXX compiler identification is AppleClang 16.0.0.16000026
--- Detecting CXX compiler ABI info
--- Detecting CXX compiler ABI info - done
--- Check for working CXX compiler: /usr/bin/c++ - skipped
--- Detecting CXX compile features
--- Detecting CXX compile features - done
 -- glfw3 not found; fetching via FetchContent
--- The C compiler identification is AppleClang 16.0.0.16000026
--- Detecting C compiler ABI info
--- Detecting C compiler ABI info - done
--- Check for working C compiler: /usr/bin/cc - skipped
--- Detecting C compile features
--- Detecting C compile features - done
--- Performing Test CMAKE_HAVE_LIBC_PTHREAD
--- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
--- Found Threads: TRUE
 -- Including Cocoa support
 -- glm not found; fetching via FetchContent
 CMake Deprecation Warning at build/_deps/glm-src/CMakeLists.txt:1 (cmake_minimum_required):
@@ -38,8 +23,6 @@ CMake Deprecation Warning at build/_deps/glm-src/CMakeLists.txt:2 (cmake_policy)
 -- GLM: Disable -Wc++98-compat warnings
 -- GLM: Build with C++ features auto detection
 -- imgui not found; fetching via FetchContent
--- Performing Test HAVE_FLAG__ffile_prefix_map__Users_bruno_Documents_Development_bruno_vulkano_codex_build__deps_catch2_src__
--- Performing Test HAVE_FLAG__ffile_prefix_map__Users_bruno_Documents_Development_bruno_vulkano_codex_build__deps_catch2_src__ - Success
--- Configuring done (19.5s)
--- Generating done (0.1s)
+-- Configuring done (2.5s)
+-- Generating done (0.3s)
 -- Build files have been written to: /Users/bruno/Documents/Development/bruno/vulkano_codex/build
