@@ -1,6 +1,6 @@
 [  2%] Built target compile_shaders
-[  5%] Built target glm
 [  6%] Built target stb
+[  6%] Built target glm
 [ 19%] Built target glfw
 [ 23%] Built target imgui
 [ 29%] Built target vulkano
@@ -10,14 +10,6 @@
 [ 30%] Built target dist
 [ 94%] Built target Catch2
 [ 96%] Built target Catch2WithMain
+[ 97%] Building CXX object tests/CMakeFiles/vulkano_tests.dir/camera_tests.cpp.o
+[ 98%] Linking CXX executable /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests
 [100%] Built target vulkano_tests
-[  6%] Built target compile_shaders
-[ 20%] Built target stb
-[ 20%] Built target glm
-[ 63%] Built target glfw
-[ 76%] Built target imgui
-[ 96%] Built target vulkano
-[100%] Built target vulkano_app
-[100%] Packaging runtime bundle to /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/dist
-[100%] Built target package_runtime
-[100%] Built target dist

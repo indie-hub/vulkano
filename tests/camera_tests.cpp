@@ -35,3 +35,29 @@ TEST_CASE("camera_forward_and_right_are_orthogonal") {
     REQUIRE(dotFR == Catch::Approx(0.0F).margin(1e-4));
 }
 
+TEST_CASE("camera_fov_delta_clamps_within_limits") {
+    vulkano::Camera cam;
+    // Try to reduce FOV below minimum
+    cam.fov_delta(-10.0F);
+    const float fovMin {cam.fov_y()};
+    // Try to increase FOV above maximum
+    cam.fov_delta(10.0F);
+    const float fovMax {cam.fov_y()};
+    // The difference should be within a plausible range (<= ~120 deg in radians)
+    REQUIRE(fovMax > fovMin);
+    REQUIRE(fovMin > 0.5F);
+    REQUIRE(fovMax < 2.2F);
+}
+
+TEST_CASE("camera_pitch_is_clamped_to_avoid_flip") {
+    vulkano::Camera cam;
+    const float pitch0 {cam.pitch()};
+    cam.look_delta(0.0F, 100.0F);
+    const float pitchHigh {cam.pitch()};
+    cam.look_delta(0.0F, -200.0F);
+    const float pitchLow {cam.pitch()};
+    REQUIRE(pitchHigh <= Catch::Approx(1.55334303F).margin(1e-3));
+    REQUIRE(pitchLow >= Catch::Approx(-1.55334303F).margin(1e-3));
+    REQUIRE(pitch0 <= pitchHigh);
+    REQUIRE(pitch0 >= pitchLow);
+}

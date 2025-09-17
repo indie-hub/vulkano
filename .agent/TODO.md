@@ -2,7 +2,8 @@
  - [x] Add FPS camera methods (look_delta, move_local) in `include/vulkano/camera.hpp` and `src/camera.cpp`.
  - [x] Expose `camera_look_delta` and `camera_move_local` in `include/vulkano/vulkan_context.hpp` and implement in `src/vulkan_context.cpp`.
  - [x] Update input handling in `src/app.cpp` to use new look method and per-frame WASD + Space/Ctrl movement with ImGui gating and RMB requirement.
- - [x] Add unit tests for camera look/move math in `tests/camera_tests.cpp`.
+- [x] Add unit tests for camera look/move math in `tests/camera_tests.cpp`.
+- [x] Add unit tests for camera FOV and pitch clamping.
  - [x] Build project and run tests; verify cursor lock/unlock behavior manually if possible.
 - [x] Document camera controls briefly in `README.md` (controls + ImGui gating).
 - [x] Verify packaged runtime under `bin/dist` launches with shaders present.
