@@ -24,6 +24,6 @@ CMake Deprecation Warning at build_debug/_deps/glm-src/CMakeLists.txt:2 (cmake_p
 -- GLM: Build with C++ features auto detection
 -- imgui not found; fetching via FetchContent
 -- stb not found; fetching via FetchContent
--- Configuring done (2.7s)
--- Generating done (0.2s)
+-- Configuring done (2.8s)
+-- Generating done (0.3s)
 -- Build files have been written to: /Users/bruno/Documents/Development/bruno/vulkano_codex/build_debug
