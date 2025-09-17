@@ -1,5 +1,5 @@
-- [x] Ensure math header included for sqrt usage in App
-- [x] Validate FPS camera input gating (RMB look, ImGui capture, scroll FOV, sprint)
-- [ ] Fix any input edge cases discovered during manual QA
-- [x] Update README controls and Camera panel details
-- [ ] Package runtime to bin/dist and commit
+- [x] Wrap per-primitive UI with ImGui::PushID/PopID; build and run smoke.
+- [ ] Add unit test: per-primitive transform/material independence.
+- [ ] Audit material/transform ownership to ensure no sharing; adjust if needed.
+- [ ] Manual check: ImGui stats visible; no validation errors.
+- [ ] Optional: unique window IDs using Title###unique if multiple windows per primitive.

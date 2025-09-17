@@ -379,6 +379,8 @@ void App::build_ui() noexcept {
             if (prim == nullptr) {
                 continue;
             }
+            // Ensure unique ImGui IDs per primitive to avoid input state collisions
+            ImGui::PushID(prim);
             const char* name {prim->type_name()};
             const std::string header {std::string {name != nullptr ? name : "Primitive"} + " ##" + std::to_string(i)};
             if (ImGui::CollapsingHeader(header.c_str())) {
@@ -430,6 +432,7 @@ void App::build_ui() noexcept {
                     }
                 }
             }
+            ImGui::PopID();
         }
     }
     ImGui::End();
