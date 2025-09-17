@@ -3,6 +3,8 @@
 layout(location = 0) in vec3 vNormal;
 layout(location = 1) in vec2 vUV;
 layout(location = 2) in vec3 vWorldPos;
+layout(location = 3) in vec3 vTangent;
+layout(location = 4) in vec3 vBitangent;
 layout(location = 0) out vec4 outColor;
 
 layout(set = 0, binding = 0) uniform GlobalUBO {
@@ -20,12 +22,39 @@ layout(push_constant) uniform PushConstants {
     mat4 model;
     vec3 baseColor;
     float shininess;
+    int useAlbedoMap;
+    int useNormalMap;
+    float normalStrength;
+    float _pad1;
 } PC;
+
+layout(set = 0, binding = 1) uniform sampler2D albedoMap;
+layout(set = 0, binding = 2) uniform sampler2D normalMap;
 
 void main()
 {
-    // Blinn-Phong shading
+    // Build TBN from per-vertex attributes
     vec3 N = normalize(vNormal);
+    vec3 T = normalize(vTangent);
+    vec3 B = normalize(vBitangent);
+
+    // Sample normal map (tangent-space) if enabled
+    if (PC.useNormalMap != 0) {
+        vec3 n = texture(normalMap, vUV).xyz * 2.0 - 1.0;
+        n.xy *= PC.normalStrength;
+        n.z = sqrt(max(0.0, 1.0 - dot(n.xy, n.xy)));
+        // Transform to world space
+        mat3 TBN = mat3(T, B, N);
+        N = normalize(TBN * n);
+    }
+
+    // Albedo
+    vec3 albedo = PC.baseColor;
+    if (PC.useAlbedoMap != 0) {
+        albedo *= texture(albedoMap, vUV).rgb;
+    }
+
+    // Blinn-Phong shading
     vec3 L = normalize(ubo.lightPos - vWorldPos);
     vec3 V = normalize(ubo.cameraPos - vWorldPos);
     vec3 H = normalize(L + V);
@@ -36,8 +65,8 @@ void main()
         spec = pow(max(dot(N, H), 0.0), max(PC.shininess, 1.0));
     }
 
-    vec3 ambient = ubo.ambientStrength * PC.baseColor;
-    vec3 diffuse = diff * PC.baseColor * ubo.lightColor * ubo.lightIntensity;
+    vec3 ambient = ubo.ambientStrength * albedo;
+    vec3 diffuse = diff * albedo * ubo.lightColor * ubo.lightIntensity;
     vec3 specular = spec * ubo.lightColor * ubo.lightIntensity;
     vec3 color = ambient + diffuse + specular;
     outColor = vec4(color, 1.0);

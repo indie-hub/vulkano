@@ -95,6 +95,8 @@ private:
     void create_vertex_buffer() noexcept; // legacy triangle fallback
     void create_scene() noexcept;
     void create_scene_buffers() noexcept;
+    void create_default_textures() noexcept;
+    void destroy_textures() noexcept;
     // Buffer helpers (staging uploads)
     bool create_buffer(VkDeviceSize size,
                        VkBufferUsageFlags usage,
@@ -105,6 +107,37 @@ private:
     bool copy_buffer(VkBuffer src,
                      VkBuffer dst,
                      VkDeviceSize size) noexcept;
+    // Image helpers
+    bool create_image_2d(std::uint32_t width,
+                         std::uint32_t height,
+                         std::uint32_t mipLevels,
+                         VkFormat format,
+                         VkImageTiling tiling,
+                         VkImageUsageFlags usage,
+                         VkMemoryPropertyFlags properties,
+                         VkImage& image,
+                         VkDeviceMemory& memory,
+                         const char* debugName) noexcept;
+    bool create_image_view_2d(VkImage image,
+                              VkFormat format,
+                              VkImageAspectFlags aspect,
+                              std::uint32_t mipLevels,
+                              VkImageView& view,
+                              const char* debugName) noexcept;
+    void transition_image_layout(VkImage image,
+                                 VkFormat format,
+                                 VkImageLayout oldLayout,
+                                 VkImageLayout newLayout,
+                                 std::uint32_t mipLevels) noexcept;
+    bool copy_buffer_to_image(VkBuffer buffer,
+                              VkImage image,
+                              std::uint32_t width,
+                              std::uint32_t height) noexcept;
+    void generate_mipmaps(VkImage image,
+                          VkFormat imageFormat,
+                          std::uint32_t texWidth,
+                          std::uint32_t texHeight,
+                          std::uint32_t mipLevels) noexcept;
     void create_descriptor_set_layout() noexcept;
     void create_uniform_buffers_and_sets() noexcept;
     void create_command_pool_and_buffers() noexcept;
@@ -183,6 +216,22 @@ private:
     std::vector<VkDescriptorSet> descriptor_sets_ {};
     std::vector<VkBuffer> uniform_buffers_ {};
     std::vector<VkDeviceMemory> uniform_buffers_memory_ {};
+    // Textures (global defaults)
+    VkImage albedo_image_ {VK_NULL_HANDLE};
+    VkDeviceMemory albedo_image_memory_ {VK_NULL_HANDLE};
+    VkImageView albedo_image_view_ {VK_NULL_HANDLE};
+    VkSampler albedo_sampler_ {VK_NULL_HANDLE};
+    std::uint32_t albedo_width_ {0U};
+    std::uint32_t albedo_height_ {0U};
+    std::uint32_t albedo_mip_levels_ {1U};
+
+    VkImage normal_image_ {VK_NULL_HANDLE};
+    VkDeviceMemory normal_image_memory_ {VK_NULL_HANDLE};
+    VkImageView normal_image_view_ {VK_NULL_HANDLE};
+    VkSampler normal_sampler_ {VK_NULL_HANDLE};
+    std::uint32_t normal_width_ {0U};
+    std::uint32_t normal_height_ {0U};
+    std::uint32_t normal_mip_levels_ {1U};
 
     // Synchronisation
     static constexpr std::uint32_t kMaxFramesInFlight {2U};
