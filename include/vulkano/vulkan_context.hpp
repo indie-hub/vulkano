@@ -62,6 +62,8 @@ public:
 
     // ImGui per-frame hooks
     void imgui_new_frame() noexcept;
+    // End current ImGui frame build without rendering (used when skipping a frame)
+    void imgui_end_frame_build() noexcept;
 
     // Recreate swapchain and all dependent resources after a resize or format change.
     void recreate_swapchain(GLFWwindow* window) noexcept;

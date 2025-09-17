@@ -78,6 +78,25 @@ void App::run() noexcept {
     const std::chrono::milliseconds autoCloseMs {
         useAutoClose ? std::chrono::milliseconds {std::strtol(envAutoClose, nullptr, 10)} : std::chrono::milliseconds {0}
     };
+    // Optional automated resize stress test (for CI): set VK_TEST_RESIZE to any non-zero/non-empty value.
+    const char* envTestResize {std::getenv("VK_TEST_RESIZE")};
+    const bool enableResizeTest {envTestResize != nullptr && envTestResize[0] != '\0' && std::strcmp(envTestResize, "0") != 0};
+    // Interval between resizes (ms), configurable via VK_TEST_RESIZE_INTERVAL_MS; default 250ms
+    const char* envResizeInterval {std::getenv("VK_TEST_RESIZE_INTERVAL_MS")};
+    const std::chrono::milliseconds resizeIntervalMs {
+        (envResizeInterval != nullptr && envResizeInterval[0] != '\0')
+            ? std::chrono::milliseconds {std::strtol(envResizeInterval, nullptr, 10)}
+            : std::chrono::milliseconds {250}
+    };
+    struct ResizeStep final { int w {0}; int h {0}; };
+    // Named sequence to avoid magic numbers; includes current default window size
+    constexpr ResizeStep kResizeSeq[] {
+        ResizeStep {800, 600},
+        ResizeStep {1280, 720},
+        ResizeStep {960, 540},
+    };
+    std::size_t resizeIndex {0U};
+    auto lastResizeTime = Stats::clock::now();
     const auto startTime {std::chrono::steady_clock::now()};
     stats_.reset();
     last_frame_time_ = Stats::clock::now();
@@ -103,9 +122,23 @@ void App::run() noexcept {
 
                 vk_->recreate_swapchain(window_);
                 framebuffer_resized_ = false;
+                if (!ok) {
+                    // End ImGui frame build to keep ImGui state consistent when frame is skipped
+                    vk_->imgui_end_frame_build();
+                }
             }
         } else {
             std::this_thread::sleep_for(std::chrono::milliseconds {16});
+        }
+        // Drive automated resize steps on a fixed interval for stability testing
+        if (enableResizeTest) {
+            const auto nowR {Stats::clock::now()};
+            if (nowR - lastResizeTime >= resizeIntervalMs) {
+                const ResizeStep step {kResizeSeq[resizeIndex % (sizeof(kResizeSeq) / sizeof(kResizeSeq[0]))]};
+                glfwSetWindowSize(window_, step.w, step.h);
+                lastResizeTime = nowR;
+                resizeIndex = (resizeIndex + 1U);
+            }
         }
         if (useAutoClose) {
             const auto now {std::chrono::steady_clock::now()};

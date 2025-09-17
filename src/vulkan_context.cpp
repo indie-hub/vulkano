@@ -2835,6 +2835,14 @@ void VulkanContext::imgui_new_frame() noexcept {
     imgui_frame_started_ = true;
 }
 
+void VulkanContext::imgui_end_frame_build() noexcept {
+    if (!imgui_ready_ || !imgui_frame_started_) {
+        return;
+    }
+    imgui_->end_frame_build();
+    imgui_frame_started_ = false;
+}
+
 // Reserved for future UI builder hook
 
 void VulkanContext::set_object_name(VkObjectType type, std::uint64_t handle, const char* name) const noexcept {

@@ -27,3 +27,10 @@ add_test(NAME app_smoke
 set_tests_properties(app_smoke PROPERTIES
     ENVIRONMENT "VK_APP_AUTOCLOSE_MS=800;VK_SHADER_DIR=${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders"
 )
+
+# Resize stress test: run app with automated window resizes to exercise swapchain recreation
+add_test(NAME app_resize
+         COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/vulkano_app)
+set_tests_properties(app_resize PROPERTIES
+    ENVIRONMENT "VK_APP_AUTOCLOSE_MS=1500;VK_TEST_RESIZE=1;VK_TEST_RESIZE_INTERVAL_MS=250;VK_SHADER_DIR=${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders"
+)
