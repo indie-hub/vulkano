@@ -1480,6 +1480,7 @@ CMakeFiles/vulkano.dir/src/camera.cpp.o: /Users/bruno/Documents/Development/brun
   _deps/glm-src/glm/ext/matrix_clip_space.inl \
   _deps/glm-src/glm/ext/matrix_transform.hpp \
   _deps/glm-src/glm/ext/matrix_transform.inl \
+  _deps/glm-src/glm/geometric.hpp \
   _deps/glm-src/glm/mat4x4.hpp \
   _deps/glm-src/glm/vec3.hpp \
   /Users/bruno/Documents/Development/bruno/vulkano_codex/include/vulkano/camera.hpp
