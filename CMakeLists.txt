@@ -72,6 +72,28 @@ if (NOT IMGUI_INCLUDE_DIR)
   set(IMGUI_FETCHED ON)
 endif()
 
+# stb_image (header-only, but we add a single TU to provide implementation)
+set(STB_FETCHED OFF)
+find_path(STB_INCLUDE_DIR stb/stb_image.h)
+if (NOT STB_INCLUDE_DIR)
+  message(STATUS "stb not found; fetching via FetchContent")
+  FetchContent_Declare(
+    stb
+    GIT_REPOSITORY https://github.com/nothings/stb.git
+    GIT_TAG master
+  )
+  FetchContent_MakeAvailable(stb)
+  set(STB_FETCHED ON)
+endif()
+
+if (STB_FETCHED)
+  add_library(stb STATIC
+    src/stb_image_impl.cpp
+  )
+  # The fetched repo root contains stb_image.h under stb/
+  target_include_directories(stb PUBLIC ${stb_SOURCE_DIR})
+endif()
+
 if (IMGUI_FETCHED)
   # Build a minimal imgui static library including required backends
   add_library(imgui STATIC
@@ -158,6 +180,10 @@ endif()
 
 if (TARGET imgui)
   target_link_libraries(vulkano PUBLIC imgui)
+endif()
+
+if (TARGET stb)
+  target_link_libraries(vulkano PUBLIC stb)
 endif()
 
 add_executable(vulkano_app src/main.cpp)

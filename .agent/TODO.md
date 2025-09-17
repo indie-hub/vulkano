@@ -1,6 +1,6 @@
 - [x] Create initial TODO plan
 - [x] Add procedural textures module (checkerboard + blue-noise normal) with unit tests
-- [ ] Integrate stb_image via CMake FetchContent (header-only)
+- [x] Integrate stb_image via CMake FetchContent (header-only)
 - [ ] Extend shaders: albedo + normal mapping with TBN; add push constants
 - [ ] Update pipeline vertex input (add tangent), descriptors (UBO + 2 textures), samplers
 - [ ] Implement Vulkan texture creation, staging upload, mipmap generation
