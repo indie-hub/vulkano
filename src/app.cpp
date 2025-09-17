@@ -211,8 +211,12 @@ void App::build_ui() noexcept {
         const std::uint32_t nw {vk_->normal_width()};
         const std::uint32_t nh {vk_->normal_height()};
         ImGui::SeparatorText("Textures");
+        const std::string& alLabel {vk_->albedo_label()};
+        const std::string& nmLabel {vk_->normal_label()};
         ImGui::Text("Albedo: %u x %u (sRGB RGBA8)", aw, ah);
+        ImGui::Text("  Source: %s", alLabel.c_str());
         ImGui::Text("Normal: %u x %u (UNORM RGBA8)", nw, nh);
+        ImGui::Text("  Source: %s", nmLabel.c_str());
         ImGui::Text("Sampler: Linear + Mipmaps");
         if (vk_->sampler_anisotropy_supported()) {
             ImGui::Text("Anisotropy: On (max %.1f)", static_cast<double>(vk_->max_sampler_anisotropy()));

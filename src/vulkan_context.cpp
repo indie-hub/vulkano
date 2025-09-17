@@ -230,6 +230,14 @@ std::uint32_t VulkanContext::normal_height() const noexcept {
     return normal_height_;
 }
 
+const std::string& VulkanContext::albedo_label() const noexcept {
+    return albedo_label_;
+}
+
+const std::string& VulkanContext::normal_label() const noexcept {
+    return normal_label_;
+}
+
 const VulkanContext::Light& VulkanContext::light() const noexcept {
     return light_;
 }
@@ -1771,16 +1779,26 @@ void VulkanContext::create_default_textures() noexcept {
 
     ImageRGBA8 albedo {};
     ImageRGBA8 normal {};
+    bool albedoFromFile {false};
+    bool normalFromFile {false};
     if (albedoPath != nullptr && std::strlen(albedoPath) > 0U) {
-        albedo = load_rgba8_from_file(albedoPath, flipY);
+        const ImageRGBA8 tmp {load_rgba8_from_file(albedoPath, flipY)};
+        if (tmp.width != 0U && tmp.height != 0U && !tmp.pixels.empty()) {
+            albedo = tmp;
+            albedoFromFile = true;
+        }
     }
-    if (normalPath != nullptr && std::strlen(normalPath) > 0U) {
-        normal = load_rgba8_from_file(normalPath, flipY);
-    }
-    if (albedo.width == 0U || albedo.height == 0U || albedo.pixels.empty()) {
+    if (!albedoFromFile) {
         albedo = make_checkerboard_rgba(kAlbedoSize, kAlbedoSquares, kAlbedoLight, kAlbedoDark);
     }
-    if (normal.width == 0U || normal.height == 0U || normal.pixels.empty()) {
+    if (normalPath != nullptr && std::strlen(normalPath) > 0U) {
+        const ImageRGBA8 tmp {load_rgba8_from_file(normalPath, flipY)};
+        if (tmp.width != 0U && tmp.height != 0U && !tmp.pixels.empty()) {
+            normal = tmp;
+            normalFromFile = true;
+        }
+    }
+    if (!normalFromFile) {
         normal = make_blue_noise_normal_rgba(kNormalSize, kNormalAmp);
     }
 
@@ -1887,6 +1905,11 @@ void VulkanContext::create_default_textures() noexcept {
     albedo_width_ = albedo.width;
     albedo_height_ = albedo.height;
     albedo_mip_levels_ = 1U; // will be set by creator
+    if (albedoFromFile) {
+        albedo_label_ = std::string {"External ("} + (albedoPath != nullptr ? albedoPath : "?") + ")";
+    } else {
+        albedo_label_ = std::string {"Procedural Checkerboard"};
+    }
     if (createTexture(albedo, VK_FORMAT_R8G8B8A8_SRGB, albedo_image_, albedo_image_memory_, albedo_image_view_, albedo_sampler_, "Albedo", true)) {
         // NOTE: mip levels set inside creator via sampler max LOD; keep cached level count conservative
     }
@@ -1894,6 +1917,11 @@ void VulkanContext::create_default_textures() noexcept {
     normal_width_ = normal.width;
     normal_height_ = normal.height;
     normal_mip_levels_ = 1U;
+    if (normalFromFile) {
+        normal_label_ = std::string {"External ("} + (normalPath != nullptr ? normalPath : "?") + ")";
+    } else {
+        normal_label_ = std::string {"Procedural Blue-noise"};
+    }
     (void)createTexture(normal, VK_FORMAT_R8G8B8A8_UNORM, normal_image_, normal_image_memory_, normal_image_view_, normal_sampler_, "Normal", false);
 }
 

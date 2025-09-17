@@ -2,6 +2,7 @@
 - [x] Add per-primitive material controls (toggles, normal strength, UV tiling)
 - [x] Optional external texture loading via stb_image (RGBA8 + flip)
 - [x] Add README docs for textures, env vars, samplers, UI
+- [x] Show which textures are bound in UI (labels per map)
 - [ ] Stress‑test resize: verify swapchain recreation stability
 - [ ] Name constants audit: centralize texture sizes/colors as named constants
 - [ ] Optional: file dialog for loading textures

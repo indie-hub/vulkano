@@ -1,27 +1,27 @@
 Test project /Users/bruno/Documents/Development/bruno/vulkano_codex/build
+      Start 11: app_smoke
+      Start 10: Blue-noise-ish normal map basics
+ 1/11 Test #10: Blue-noise-ish normal map basics .......................   Passed    0.01 sec
+      Start  8: Plane UV tiling setter updates UVs
+ 2/11 Test  #8: Plane UV tiling setter updates UVs .....................   Passed    0.01 sec
+      Start  9: Checkerboard image dimensions and pattern
+ 3/11 Test  #9: Checkerboard image dimensions and pattern ..............   Passed    0.01 sec
       Start  1: catch2_sanity
- 1/11 Test  #1: catch2_sanity ..........................................   Passed    0.02 sec
+ 4/11 Test  #1: catch2_sanity ..........................................   Passed    0.01 sec
       Start  2: stats_initial_values
- 2/11 Test  #2: stats_initial_values ...................................   Passed    0.01 sec
+ 5/11 Test  #2: stats_initial_values ...................................   Passed    0.01 sec
       Start  3: stats_smoothing_behaviour
- 3/11 Test  #3: stats_smoothing_behaviour ..............................   Passed    0.01 sec
-      Start  4: Plane generates 4 verts and 6 indices
- 4/11 Test  #4: Plane generates 4 verts and 6 indices ..................   Passed    0.01 sec
-      Start  5: Cube generates 24 verts and 36 indices
- 5/11 Test  #5: Cube generates 24 verts and 36 indices .................   Passed    0.01 sec
-      Start  6: Icosphere vertex/index counts grow with subdivisions
- 6/11 Test  #6: Icosphere vertex/index counts grow with subdivisions ...   Passed    0.01 sec
+ 6/11 Test  #3: stats_smoothing_behaviour ..............................   Passed    0.01 sec
       Start  7: Icosphere set_subdivisions rebuilds geometry
  7/11 Test  #7: Icosphere set_subdivisions rebuilds geometry ...........   Passed    0.01 sec
-      Start  8: Plane UV tiling setter updates UVs
- 8/11 Test  #8: Plane UV tiling setter updates UVs .....................   Passed    0.01 sec
-      Start  9: Checkerboard image dimensions and pattern
- 9/11 Test  #9: Checkerboard image dimensions and pattern ..............   Passed    0.01 sec
-      Start 10: Blue-noise-ish normal map basics
-10/11 Test #10: Blue-noise-ish normal map basics .......................   Passed    0.01 sec
-      Start 11: app_smoke
-11/11 Test #11: app_smoke ..............................................   Passed    1.26 sec
+      Start  4: Plane generates 4 verts and 6 indices
+ 8/11 Test  #4: Plane generates 4 verts and 6 indices ..................   Passed    0.01 sec
+      Start  6: Icosphere vertex/index counts grow with subdivisions
+ 9/11 Test  #6: Icosphere vertex/index counts grow with subdivisions ...   Passed    0.01 sec
+      Start  5: Cube generates 24 verts and 36 indices
+10/11 Test  #5: Cube generates 24 verts and 36 indices .................   Passed    0.01 sec
+11/11 Test #11: app_smoke ..............................................   Passed    1.46 sec
 
 100% tests passed, 0 tests failed out of 11
 
-Total Test time (real) =   1.36 sec
+Total Test time (real) =   1.46 sec
