@@ -68,7 +68,6 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="ea5f2232-e0d5-4be9-833c-c06073c2468d" name="Changes" comment="New TODO">
-      <change beforePath="$PROJECT_DIR$/.agent/last_run_stderr.txt" beforeDir="false" afterPath="$PROJECT_DIR$/.agent/last_run_stderr.txt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/CMakeLists.txt" beforeDir="false" afterPath="$PROJECT_DIR$/CMakeLists.txt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/include/vulkano/vulkan_context.hpp" beforeDir="false" afterPath="$PROJECT_DIR$/include/vulkano/vulkan_context.hpp" afterDir="false" />

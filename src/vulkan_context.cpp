@@ -159,6 +159,11 @@ VulkanContext::VulkanContext(GLFWwindow* window) noexcept {
     create_ssao_targets();
     create_ssao_descriptors();
     create_ssao_pipeline();
+    // Blur resources
+    create_ssao_blur_render_pass();
+    create_ssao_blur_targets();
+    create_ssao_blur_descriptors();
+    create_ssao_blur_pipeline();
     // Build scene and upload geometry; fallback to single-triangle if failed
     create_scene();
     create_scene_buffers();
@@ -672,6 +677,10 @@ void VulkanContext::destroy() noexcept {
     destroy_sync_objects();
     destroy_command_pool_and_buffers();
     destroy_framebuffers();
+    destroy_ssao_blur_pipeline();
+    destroy_ssao_blur_descriptors();
+    destroy_ssao_blur_targets();
+    destroy_ssao_blur_render_pass();
     destroy_ssao_rendering();
     destroy_ssao_render_pass();
     destroy_ssao_resources();
@@ -3267,6 +3276,29 @@ bool VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
         vkCmdEndRenderPass(cmd);
     }
 
+    // Optional blur pass
+    if (ssao_.blur && ssao_blur_render_pass_ != VK_NULL_HANDLE && ssao_blur_framebuffer_ != VK_NULL_HANDLE && ssao_blur_pipeline_ != VK_NULL_HANDLE && ssao_blur_desc_set_ != VK_NULL_HANDLE) {
+        update_ssao_blur_ubo();
+        // Ensure blur reads AO produced by previous pass (already SHADER_READ_ONLY_OPTIMAL from RP finalLayout)
+        VkClearValue clearAO {};
+        clearAO.color.float32[0] = 1.0F;
+        VkRenderPassBeginInfo bInfo {};
+        bInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        bInfo.renderPass = ssao_blur_render_pass_;
+        bInfo.framebuffer = ssao_blur_framebuffer_;
+        bInfo.renderArea.offset = {0,0};
+        bInfo.renderArea.extent = swapchain_extent_;
+        bInfo.clearValueCount = 1U;
+        bInfo.pClearValues = &clearAO;
+        vkCmdBeginRenderPass(cmd, &bInfo, VK_SUBPASS_CONTENTS_INLINE);
+        begin_label(cmd, "SSAO Blur");
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, ssao_blur_pipeline_);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, ssao_blur_pipeline_layout_, 0U, 1U, &ssao_blur_desc_set_, 0U, nullptr);
+        vkCmdDraw(cmd, 3U, 1U, 0U, 0U);
+        end_label(cmd);
+        vkCmdEndRenderPass(cmd);
+    }
+
     // Transition depth back to attachment for main pass
     if (depth_image_ != VK_NULL_HANDLE) {
         VkImageMemoryBarrier barrier {};
@@ -3498,6 +3530,10 @@ void VulkanContext::recreate_swapchain(GLFWwindow* window) noexcept {
     destroy_gbuffer_render_pass();
     destroy_ssao_rendering();
     destroy_ssao_render_pass();
+    destroy_ssao_blur_pipeline();
+    destroy_ssao_blur_descriptors();
+    destroy_ssao_blur_targets();
+    destroy_ssao_blur_render_pass();
     destroy_depth_resources();
     // SSAO noise independent of swapchain; keep. Kernel unaffected.
     destroy_pipeline();
@@ -3515,6 +3551,10 @@ void VulkanContext::recreate_swapchain(GLFWwindow* window) noexcept {
     create_ssao_targets();
     create_ssao_descriptors();
     create_ssao_pipeline();
+    create_ssao_blur_render_pass();
+    create_ssao_blur_targets();
+    create_ssao_blur_descriptors();
+    create_ssao_blur_pipeline();
     if (imgui_ready_) {
         // ImGui needs to be re-initialized with the new render pass
         const std::uint32_t minImages {static_cast<std::uint32_t>(swapchain_images_.size() > 1U ? swapchain_images_.size() : 2U)};
@@ -3924,6 +3964,140 @@ void VulkanContext::create_ssao_pipeline() noexcept {
     if (ssao_pipeline_ != VK_NULL_HANDLE) { set_object_name(VK_OBJECT_TYPE_PIPELINE, reinterpret_cast<std::uint64_t>(ssao_pipeline_), "SSAOPipeline"); }
     vkDestroyShaderModule(device_, vs, nullptr);
     vkDestroyShaderModule(device_, fs, nullptr);
+}
+
+} // namespace vulkano
+
+namespace vulkano {
+void VulkanContext::create_ssao_blur_render_pass() noexcept {
+    if (device_ == VK_NULL_HANDLE) { return; }
+    VkAttachmentDescription att {};
+    att.format = kSsaoAOFormat;
+    att.samples = VK_SAMPLE_COUNT_1_BIT;
+    att.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    att.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    att.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    att.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    att.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    att.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    VkAttachmentReference ref {}; ref.attachment = 0U; ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    VkSubpassDescription sub {}; sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1U; sub.pColorAttachments = &ref;
+    VkRenderPassCreateInfo info {}; info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO; info.attachmentCount = 1U; info.pAttachments = &att; info.subpassCount = 1U; info.pSubpasses = &sub;
+    (void)vkCreateRenderPass(device_, &info, nullptr, &ssao_blur_render_pass_);
+    if (ssao_blur_render_pass_ != VK_NULL_HANDLE) { set_object_name(VK_OBJECT_TYPE_RENDER_PASS, reinterpret_cast<std::uint64_t>(ssao_blur_render_pass_), "SSAOBlurRenderPass"); }
+}
+
+void VulkanContext::destroy_ssao_blur_render_pass() noexcept {
+    if (device_ == VK_NULL_HANDLE) { return; }
+    if (ssao_blur_render_pass_ != VK_NULL_HANDLE) { vkDestroyRenderPass(device_, ssao_blur_render_pass_, nullptr); ssao_blur_render_pass_ = VK_NULL_HANDLE; }
+}
+
+void VulkanContext::create_ssao_blur_targets() noexcept {
+    if (device_ == VK_NULL_HANDLE || physical_device_ == VK_NULL_HANDLE || ssao_blur_render_pass_ == VK_NULL_HANDLE) { return; }
+    (void)create_image_2d(swapchain_extent_.width, swapchain_extent_.height, 1U, kSsaoAOFormat, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, ssao_blur_image_, ssao_blur_memory_, "SSAOBlurImage");
+    (void)create_image_view_2d(ssao_blur_image_, kSsaoAOFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1U, ssao_blur_view_, "SSAOBlurView");
+    VkImageView atts[1] { ssao_blur_view_ };
+    VkFramebufferCreateInfo fb {}; fb.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO; fb.renderPass = ssao_blur_render_pass_; fb.attachmentCount = 1U; fb.pAttachments = atts; fb.width = swapchain_extent_.width; fb.height = swapchain_extent_.height; fb.layers = 1U;
+    (void)vkCreateFramebuffer(device_, &fb, nullptr, &ssao_blur_framebuffer_);
+    if (ssao_blur_framebuffer_ != VK_NULL_HANDLE) { set_object_name(VK_OBJECT_TYPE_FRAMEBUFFER, reinterpret_cast<std::uint64_t>(ssao_blur_framebuffer_), "SSAOBlurFramebuffer"); }
+}
+
+void VulkanContext::destroy_ssao_blur_targets() noexcept {
+    if (device_ == VK_NULL_HANDLE) { return; }
+    if (ssao_blur_framebuffer_ != VK_NULL_HANDLE) { vkDestroyFramebuffer(device_, ssao_blur_framebuffer_, nullptr); ssao_blur_framebuffer_ = VK_NULL_HANDLE; }
+    if (ssao_blur_view_ != VK_NULL_HANDLE) { vkDestroyImageView(device_, ssao_blur_view_, nullptr); ssao_blur_view_ = VK_NULL_HANDLE; }
+    if (ssao_blur_image_ != VK_NULL_HANDLE) { vkDestroyImage(device_, ssao_blur_image_, nullptr); ssao_blur_image_ = VK_NULL_HANDLE; }
+    if (ssao_blur_memory_ != VK_NULL_HANDLE) { vkFreeMemory(device_, ssao_blur_memory_, nullptr); ssao_blur_memory_ = VK_NULL_HANDLE; }
+}
+
+void VulkanContext::create_ssao_blur_descriptors() noexcept {
+    if (device_ == VK_NULL_HANDLE) { return; }
+    if (ssao_blur_set_layout_ == VK_NULL_HANDLE) {
+        VkDescriptorSetLayoutBinding b[2] {};
+        b[0].binding = 0U; b[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; b[0].descriptorCount = 1U; b[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        b[1].binding = 1U; b[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; b[1].descriptorCount = 1U; b[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        VkDescriptorSetLayoutCreateInfo info {}; info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO; info.bindingCount = 2U; info.pBindings = b;
+        (void)vkCreateDescriptorSetLayout(device_, &info, nullptr, &ssao_blur_set_layout_);
+        if (ssao_blur_set_layout_ != VK_NULL_HANDLE) { set_object_name(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, reinterpret_cast<std::uint64_t>(ssao_blur_set_layout_), "SSAOBlurSetLayout"); }
+    }
+    if (ssao_blur_desc_pool_ == VK_NULL_HANDLE) {
+        VkDescriptorPoolSize sizes[2] {}; sizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; sizes[0].descriptorCount = 1U; sizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; sizes[1].descriptorCount = 1U;
+        VkDescriptorPoolCreateInfo p {}; p.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO; p.poolSizeCount = 2U; p.pPoolSizes = sizes; p.maxSets = 1U; (void)vkCreateDescriptorPool(device_, &p, nullptr, &ssao_blur_desc_pool_);
+        if (ssao_blur_desc_pool_ != VK_NULL_HANDLE) { set_object_name(VK_OBJECT_TYPE_DESCRIPTOR_POOL, reinterpret_cast<std::uint64_t>(ssao_blur_desc_pool_), "SSAOBlurPool"); }
+    }
+    if (ssao_blur_ubo_buffer_ == VK_NULL_HANDLE) {
+        const VkDeviceSize uboSz { sizeof(glm::vec2) + sizeof(int) + sizeof(float) };
+        (void)create_buffer(uboSz, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, ssao_blur_ubo_buffer_, ssao_blur_ubo_memory_, "SSAOBlurUBO");
+    }
+    if (ssao_blur_desc_set_ == VK_NULL_HANDLE) {
+        VkDescriptorSetAllocateInfo a {}; a.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO; a.descriptorPool = ssao_blur_desc_pool_; a.descriptorSetCount = 1U; a.pSetLayouts = &ssao_blur_set_layout_; (void)vkAllocateDescriptorSets(device_, &a, &ssao_blur_desc_set_);
+    }
+    if (ssao_blur_desc_set_ != VK_NULL_HANDLE) {
+        VkDescriptorBufferInfo ubo {}; ubo.buffer = ssao_blur_ubo_buffer_; ubo.offset = 0U; ubo.range = VK_WHOLE_SIZE;
+        VkDescriptorImageInfo aoIn {}; aoIn.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; aoIn.imageView = ssao_ao_view_; aoIn.sampler = ssao_clamp_sampler_;
+        VkWriteDescriptorSet ws[2] {};
+        ws[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; ws[0].dstSet = ssao_blur_desc_set_; ws[0].dstBinding = 0U; ws[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; ws[0].descriptorCount = 1U; ws[0].pBufferInfo = &ubo;
+        ws[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; ws[1].dstSet = ssao_blur_desc_set_; ws[1].dstBinding = 1U; ws[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; ws[1].descriptorCount = 1U; ws[1].pImageInfo = &aoIn;
+        vkUpdateDescriptorSets(device_, 2U, ws, 0U, nullptr);
+    }
+}
+
+void VulkanContext::destroy_ssao_blur_descriptors() noexcept {
+    if (device_ == VK_NULL_HANDLE) { return; }
+    if (ssao_blur_desc_pool_ != VK_NULL_HANDLE) { vkDestroyDescriptorPool(device_, ssao_blur_desc_pool_, nullptr); ssao_blur_desc_pool_ = VK_NULL_HANDLE; }
+    if (ssao_blur_set_layout_ != VK_NULL_HANDLE) { vkDestroyDescriptorSetLayout(device_, ssao_blur_set_layout_, nullptr); ssao_blur_set_layout_ = VK_NULL_HANDLE; }
+    if (ssao_blur_ubo_buffer_ != VK_NULL_HANDLE) { vkDestroyBuffer(device_, ssao_blur_ubo_buffer_, nullptr); ssao_blur_ubo_buffer_ = VK_NULL_HANDLE; }
+    if (ssao_blur_ubo_memory_ != VK_NULL_HANDLE) { vkFreeMemory(device_, ssao_blur_ubo_memory_, nullptr); ssao_blur_ubo_memory_ = VK_NULL_HANDLE; }
+    ssao_blur_desc_set_ = VK_NULL_HANDLE;
+}
+
+void VulkanContext::update_ssao_blur_ubo() noexcept {
+    if (device_ == VK_NULL_HANDLE || ssao_blur_ubo_memory_ == VK_NULL_HANDLE) { return; }
+    const glm::vec2 invExtent { swapchain_extent_.width > 0U ? 1.0F / static_cast<float>(swapchain_extent_.width) : 0.0F,
+                                swapchain_extent_.height > 0U ? 1.0F / static_cast<float>(swapchain_extent_.height) : 0.0F };
+    const int radius = static_cast<int>(ssao_.blur_radius);
+    const float sigma = ssao_.blur_sigma;
+    struct Blob { glm::vec2 inv; int radius; float sigma; } data { invExtent, radius, sigma };
+    void* ptr {nullptr};
+    if (vkMapMemory(device_, ssao_blur_ubo_memory_, 0U, sizeof(Blob), 0U, &ptr) == VK_SUCCESS) { std::memcpy(ptr, &data, sizeof(Blob)); vkUnmapMemory(device_, ssao_blur_ubo_memory_); }
+}
+
+void VulkanContext::create_ssao_blur_pipeline() noexcept {
+    if (device_ == VK_NULL_HANDLE || ssao_blur_render_pass_ == VK_NULL_HANDLE || ssao_blur_set_layout_ == VK_NULL_HANDLE) { return; }
+    const std::string dir {shader_dir_guess()};
+    const std::vector<char> vertCode {read_file_binary(dir + "/blur.vert.spv")};
+    const std::vector<char> fragCode {read_file_binary(dir + "/blur.frag.spv")};
+    if (vertCode.empty() || fragCode.empty()) { return; }
+    VkShaderModule vs = create_shader_module(device_, vertCode);
+    VkShaderModule fs = create_shader_module(device_, fragCode);
+    if (!vs || !fs) { if (vs) vkDestroyShaderModule(device_, vs, nullptr); if (fs) vkDestroyShaderModule(device_, fs, nullptr); return; }
+    if (ssao_blur_pipeline_layout_ == VK_NULL_HANDLE) {
+        VkPipelineLayoutCreateInfo pl {}; pl.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO; pl.setLayoutCount = 1U; pl.pSetLayouts = &ssao_blur_set_layout_;
+        (void)vkCreatePipelineLayout(device_, &pl, nullptr, &ssao_blur_pipeline_layout_);
+        if (ssao_blur_pipeline_layout_ != VK_NULL_HANDLE) { set_object_name(VK_OBJECT_TYPE_PIPELINE_LAYOUT, reinterpret_cast<std::uint64_t>(ssao_blur_pipeline_layout_), "SSAOBlurPipelineLayout"); }
+    }
+    VkPipelineShaderStageCreateInfo stages[2] {};
+    stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT; stages[0].module = vs; stages[0].pName = "main";
+    stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT; stages[1].module = fs; stages[1].pName = "main";
+    VkPipelineVertexInputStateCreateInfo vi {}; vi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    VkPipelineInputAssemblyStateCreateInfo ia {}; ia.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO; ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    VkViewport viewport {}; viewport.x = 0.0F; viewport.y = 0.0F; viewport.width = static_cast<float>(swapchain_extent_.width); viewport.height = static_cast<float>(swapchain_extent_.height); viewport.minDepth = 0.0F; viewport.maxDepth = 1.0F;
+    VkRect2D scissor {}; scissor.offset = {0,0}; scissor.extent = swapchain_extent_;
+    VkPipelineViewportStateCreateInfo vp {}; vp.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO; vp.viewportCount = 1U; vp.pViewports = &viewport; vp.scissorCount = 1U; vp.pScissors = &scissor;
+    VkPipelineRasterizationStateCreateInfo rs {}; rs.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO; rs.polygonMode = VK_POLYGON_MODE_FILL; rs.cullMode = VK_CULL_MODE_NONE; rs.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE; rs.lineWidth = 1.0F;
+    VkPipelineMultisampleStateCreateInfo ms {}; ms.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO; ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    VkPipelineColorBlendAttachmentState cbA {}; cbA.colorWriteMask = VK_COLOR_COMPONENT_R_BIT; cbA.blendEnable = VK_FALSE;
+    VkPipelineColorBlendStateCreateInfo cb {}; cb.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO; cb.attachmentCount = 1U; cb.pAttachments = &cbA;
+    VkGraphicsPipelineCreateInfo info {}; info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO; info.stageCount = 2U; info.pStages = stages; info.pVertexInputState = &vi; info.pInputAssemblyState = &ia; info.pViewportState = &vp; info.pRasterizationState = &rs; info.pMultisampleState = &ms; info.pColorBlendState = &cb; info.layout = ssao_blur_pipeline_layout_; info.renderPass = ssao_blur_render_pass_; info.subpass = 0U;
+    (void)vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1U, &info, nullptr, &ssao_blur_pipeline_);
+    if (ssao_blur_pipeline_ != VK_NULL_HANDLE) { set_object_name(VK_OBJECT_TYPE_PIPELINE, reinterpret_cast<std::uint64_t>(ssao_blur_pipeline_), "SSAOBlurPipeline"); }
+    vkDestroyShaderModule(device_, vs, nullptr); vkDestroyShaderModule(device_, fs, nullptr);
+}
+
+void VulkanContext::destroy_ssao_blur_pipeline() noexcept {
+    if (device_ == VK_NULL_HANDLE) { return; }
+    if (ssao_blur_pipeline_ != VK_NULL_HANDLE) { vkDestroyPipeline(device_, ssao_blur_pipeline_, nullptr); ssao_blur_pipeline_ = VK_NULL_HANDLE; }
+    if (ssao_blur_pipeline_layout_ != VK_NULL_HANDLE) { vkDestroyPipelineLayout(device_, ssao_blur_pipeline_layout_, nullptr); ssao_blur_pipeline_layout_ = VK_NULL_HANDLE; }
 }
 
 } // namespace vulkano

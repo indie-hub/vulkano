@@ -350,6 +350,30 @@ private:
     VkPipelineLayout ssao_pipeline_layout_ {VK_NULL_HANDLE};
     VkPipeline ssao_pipeline_ {VK_NULL_HANDLE};
 
+    // SSAO blur (optional)
+    VkRenderPass ssao_blur_render_pass_ {VK_NULL_HANDLE};
+    VkImage ssao_blur_image_ {VK_NULL_HANDLE};
+    VkDeviceMemory ssao_blur_memory_ {VK_NULL_HANDLE};
+    VkImageView ssao_blur_view_ {VK_NULL_HANDLE};
+    VkFramebuffer ssao_blur_framebuffer_ {VK_NULL_HANDLE};
+    VkBuffer ssao_blur_ubo_buffer_ {VK_NULL_HANDLE};
+    VkDeviceMemory ssao_blur_ubo_memory_ {VK_NULL_HANDLE};
+    VkDescriptorSetLayout ssao_blur_set_layout_ {VK_NULL_HANDLE};
+    VkDescriptorPool ssao_blur_desc_pool_ {VK_NULL_HANDLE};
+    VkDescriptorSet ssao_blur_desc_set_ {VK_NULL_HANDLE};
+    VkPipelineLayout ssao_blur_pipeline_layout_ {VK_NULL_HANDLE};
+    VkPipeline ssao_blur_pipeline_ {VK_NULL_HANDLE};
+
+    void create_ssao_blur_render_pass() noexcept;
+    void destroy_ssao_blur_render_pass() noexcept;
+    void create_ssao_blur_targets() noexcept;
+    void destroy_ssao_blur_targets() noexcept;
+    void create_ssao_blur_descriptors() noexcept;
+    void destroy_ssao_blur_descriptors() noexcept;
+    void update_ssao_blur_ubo() noexcept;
+    void create_ssao_blur_pipeline() noexcept;
+    void destroy_ssao_blur_pipeline() noexcept;
+
     // Scene: CPU primitives and GPU draw ranges
     std::vector<std::unique_ptr<Primitive>> primitives_ {};
     struct DrawRange final {

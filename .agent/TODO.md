@@ -2,7 +2,7 @@
  - [x] SSAO: G-buffer + geometry pass
   - [x] SSAO: kernel + noise texture generation
   - [x] SSAO: fullscreen SSAO pass (descriptor sets, pipeline)
- - [ ] SSAO: optional Gaussian blur pass
+  - [x] SSAO: optional Gaussian blur pass
  - [ ] SSAO: compose AO with lit scene (barriers correct)
  - [ ] Resize-safe: recreate G-buffer/AO targets
  - [ ] Validation: names + markers for new resources
