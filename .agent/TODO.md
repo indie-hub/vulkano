@@ -1,3 +1,5 @@
+- [ ] Verify that Y-UP is pointing up
+- [ ] Have the cube and sphere render on top of the plane (it is under the plane)
 - [ ] Manual acceptance verification on macOS: open app, confirm plane/cube/icosphere render with correct depth and lighting, adjust UI controls (light, transforms, color, shininess), resize window, and check no validation errors in console.
 - [ ] Re-enable back-face culling after confirming winding across platforms.
 - [ ] Optional: add simple perf counter/benchmark toggle.
