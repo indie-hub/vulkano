@@ -15,8 +15,8 @@ namespace {
     constexpr int glfw_context_version_major {3};
     constexpr int glfw_context_version_minor {3};
     // Input sensitivities (no magic numbers in code paths)
-    constexpr float kOrbitSensitivity {0.005F}; // radians per pixel
-    constexpr float kZoomSensitivity {0.25F};   // distance units per scroll step
+    constexpr float kLookSensitivity {0.0025F}; // radians per pixel
+    constexpr float kFovScrollStep {0.05F};     // radians per scroll step (~3 deg)
 }
 
 App::App(const AppConfig& config) noexcept : config_ {config} {
@@ -46,6 +46,7 @@ void App::init_glfw() noexcept {
         glfwSetCursorPosCallback(window_, &App::cursor_pos_callback);
         glfwSetMouseButtonCallback(window_, &App::mouse_button_callback);
         glfwSetScrollCallback(window_, &App::scroll_callback);
+        glfwSetKeyCallback(window_, &App::key_callback);
     }
 }
 
@@ -173,9 +174,18 @@ void App::cursor_pos_callback(GLFWwindow* window, double xpos, double ypos) noex
     if (appPtr == nullptr) {
         return;
     }
-    if (!appPtr->mouse_left_pressed_) {
+    ImGuiIO& io {ImGui::GetIO()};
+    const bool canLook {appPtr->look_active_ && !appPtr->lock_camera_ && !io.WantCaptureMouse};
+    if (!canLook) {
         appPtr->last_cursor_x_ = xpos;
         appPtr->last_cursor_y_ = ypos;
+        appPtr->first_mouse_ = true;
+        return;
+    }
+    if (appPtr->first_mouse_) {
+        appPtr->last_cursor_x_ = xpos;
+        appPtr->last_cursor_y_ = ypos;
+        appPtr->first_mouse_ = false;
         return;
     }
     const double dx {xpos - appPtr->last_cursor_x_};
@@ -183,8 +193,8 @@ void App::cursor_pos_callback(GLFWwindow* window, double xpos, double ypos) noex
     appPtr->last_cursor_x_ = xpos;
     appPtr->last_cursor_y_ = ypos;
     if (appPtr->vk_ != nullptr) {
-        const float dYaw {static_cast<float>(dx) * kOrbitSensitivity};
-        const float dPitch {static_cast<float>(-dy) * kOrbitSensitivity};
+        const float dYaw {static_cast<float>(dx) * kLookSensitivity};
+        const float dPitch {static_cast<float>(-dy) * kLookSensitivity};
         appPtr->vk_->camera_orbit_delta(dYaw, dPitch);
     }
 }
@@ -198,16 +208,22 @@ void App::mouse_button_callback(GLFWwindow* window, int button, int action, int 
     if (appPtr == nullptr) {
         return;
     }
-    if (button == GLFW_MOUSE_BUTTON_LEFT) {
+    ImGuiIO& io {ImGui::GetIO()};
+    if (button == GLFW_MOUSE_BUTTON_RIGHT) {
         if (action == GLFW_PRESS) {
-            appPtr->mouse_left_pressed_ = true;
-            double x {0.0};
-            double y {0.0};
-            glfwGetCursorPos(window, &x, &y);
-            appPtr->last_cursor_x_ = x;
-            appPtr->last_cursor_y_ = y;
+            if (!io.WantCaptureMouse && !appPtr->lock_camera_) {
+                appPtr->look_active_ = true;
+                appPtr->first_mouse_ = true;
+                glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+                double x {0.0};
+                double y {0.0};
+                glfwGetCursorPos(window, &x, &y);
+                appPtr->last_cursor_x_ = x;
+                appPtr->last_cursor_y_ = y;
+            }
         } else if (action == GLFW_RELEASE) {
-            appPtr->mouse_left_pressed_ = false;
+            appPtr->look_active_ = false;
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
         }
     }
 }
@@ -221,9 +237,35 @@ void App::scroll_callback(GLFWwindow* window, double xoffset, double yoffset) no
     if (appPtr == nullptr) {
         return;
     }
-    if (appPtr->vk_ != nullptr) {
-        const float dDist {static_cast<float>(-yoffset) * kZoomSensitivity};
-        appPtr->vk_->camera_zoom_delta(dDist);
+    ImGuiIO& io {ImGui::GetIO()};
+    if (appPtr->vk_ != nullptr && !io.WantCaptureMouse) {
+        const float dFov {static_cast<float>(-yoffset) * kFovScrollStep};
+        appPtr->vk_->camera_fov_delta(dFov);
+    }
+}
+
+void App::key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) noexcept {
+    (void)scancode;
+    (void)mods;
+    if (window == nullptr) {
+        return;
+    }
+    auto* appPtr {static_cast<App*>(glfwGetWindowUserPointer(window))};
+    if (appPtr == nullptr) {
+        return;
+    }
+    const bool pressed {action != GLFW_RELEASE};
+    switch (key) {
+        case GLFW_KEY_W: { appPtr->key_w_ = pressed; break; }
+        case GLFW_KEY_A: { appPtr->key_a_ = pressed; break; }
+        case GLFW_KEY_S: { appPtr->key_s_ = pressed; break; }
+        case GLFW_KEY_D: { appPtr->key_d_ = pressed; break; }
+        case GLFW_KEY_SPACE: { appPtr->key_space_ = pressed; break; }
+        case GLFW_KEY_LEFT_CONTROL: { appPtr->key_ctrl_ = pressed; break; }
+        case GLFW_KEY_RIGHT_CONTROL: { appPtr->key_ctrl_ = pressed; break; }
+        case GLFW_KEY_LEFT_SHIFT: { appPtr->key_shift_ = pressed; break; }
+        case GLFW_KEY_RIGHT_SHIFT: { appPtr->key_shift_ = pressed; break; }
+        default: { break; }
     }
 }
 
@@ -351,6 +393,31 @@ void App::build_ui() noexcept {
                 }
             }
         }
+    }
+    ImGui::End();
+
+    // Camera panel
+    ImGui::Begin("Camera");
+    ImGui::Text("Hold RMB to look. WASD to move. Shift to sprint.");
+    bool lockCam {lock_camera_};
+    if (ImGui::Checkbox("Lock camera", &lockCam)) {
+        lock_camera_ = lockCam;
+        if (lock_camera_) {
+            look_active_ = false;
+            if (window_ != nullptr) {
+                glfwSetInputMode(window_, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            }
+        }
+    }
+    if (vk_ != nullptr) {
+        const glm::vec3 pos {vk_->camera_position()};
+        const glm::vec2 ang {vk_->camera_angles()};
+        const float fov {vk_->camera_fov()};
+        ImGui::SeparatorText("Pose");
+        ImGui::Text("Pos: (%.3f, %.3f, %.3f)", static_cast<double>(pos.x), static_cast<double>(pos.y), static_cast<double>(pos.z));
+        ImGui::Text("Yaw: %.3f rad", static_cast<double>(ang.x));
+        ImGui::Text("Pitch: %.3f rad", static_cast<double>(ang.y));
+        ImGui::Text("FOV Y: %.3f rad", static_cast<double>(fov));
     }
     ImGui::End();
 }

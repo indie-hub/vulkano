@@ -1,5 +1,7 @@
-- [x] Build Debug; compile shaders; run unit + e2e tests
-- [x] Verify runtime package in bin/dist contains app and shaders
-- [x] Review code for AGENTS.md compliance; fix nits if any
-- [ ] Update README with texture usage and env vars
-- [ ] Tag acceptance checklist in CHANGELOG.md
+- [x] Add RMB mouse-look with ImGui gating, cursor lock/unlock, FOV via scroll, and Camera UI panel (pose + lock).
+- [ ] Refactor Camera to FPS model (position + yaw/pitch; view = lookAt(pos, pos+forward)); keep API stable.
+- [ ] Expose movement APIs on VulkanContext (translate by local axes; speed constants).
+- [ ] Implement WASD + Space/Ctrl movement with Shift sprint, gated per Input Policy.
+- [ ] Ensure scroll/FOV and ImGui capture gates behave; respect "Lock camera".
+- [ ] Add unit tests for FPS camera math and basic input gating.
+- [ ] Update docs (README controls) and CHANGELOG.

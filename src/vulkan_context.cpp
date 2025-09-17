@@ -2926,6 +2926,7 @@ void VulkanContext::camera_zoom_delta(float dDistance) noexcept {
     if (!camera_) {
         return;
     }
+    // For FPS-style controls, interpret zoom as FOV change when bound from input
     camera_->orbit_delta(0.0F, 0.0F, dDistance);
 }
 
@@ -2936,6 +2937,34 @@ void VulkanContext::camera_set_aspect(float aspect) noexcept {
     if (aspect > 0.0F) {
         camera_->set_aspect(aspect);
     }
+}
+
+void VulkanContext::camera_fov_delta(float dFovRadians) noexcept {
+    if (!camera_) {
+        return;
+    }
+    camera_->fov_delta(dFovRadians);
+}
+
+glm::vec3 VulkanContext::camera_position() const noexcept {
+    if (!camera_) {
+        return glm::vec3 {0.0F, 0.0F, 0.0F};
+    }
+    return camera_->position();
+}
+
+glm::vec2 VulkanContext::camera_angles() const noexcept {
+    if (!camera_) {
+        return glm::vec2 {0.0F, 0.0F};
+    }
+    return glm::vec2 {camera_->yaw(), camera_->pitch()};
+}
+
+float VulkanContext::camera_fov() const noexcept {
+    if (!camera_) {
+        return 0.0F;
+    }
+    return camera_->fov_y();
 }
 
 } // namespace vulkano

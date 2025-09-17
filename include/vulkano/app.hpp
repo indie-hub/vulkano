@@ -47,14 +47,24 @@ private:
     static void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos) noexcept;
     static void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) noexcept;
     static void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) noexcept;
+    static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) noexcept;
 
     // UI callback per frame
     void build_ui() noexcept;
 
     // Input state
-    bool mouse_left_pressed_ {false};
+    bool look_active_ {false};
+    bool first_mouse_ {true};
+    bool lock_camera_ {false};
     double last_cursor_x_ {0.0};
     double last_cursor_y_ {0.0};
+    bool key_w_ {false};
+    bool key_a_ {false};
+    bool key_s_ {false};
+    bool key_d_ {false};
+    bool key_space_ {false};
+    bool key_ctrl_ {false};
+    bool key_shift_ {false};
 };
 
 } // namespace vulkano

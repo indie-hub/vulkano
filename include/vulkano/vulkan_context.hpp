@@ -89,6 +89,12 @@ public:
     void camera_orbit_delta(float dYaw, float dPitch) noexcept;
     void camera_zoom_delta(float dDistance) noexcept;
     void camera_set_aspect(float aspect) noexcept;
+    void camera_fov_delta(float dFovRadians) noexcept;
+
+    // Camera readbacks for UI
+    [[nodiscard]] glm::vec3 camera_position() const noexcept;
+    [[nodiscard]] glm::vec2 camera_angles() const noexcept; // x=yaw, y=pitch
+    [[nodiscard]] float camera_fov() const noexcept;
 
     // Scene editing helpers
     [[nodiscard]] std::size_t primitive_count() const noexcept;

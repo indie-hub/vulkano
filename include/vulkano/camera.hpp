@@ -30,15 +30,18 @@ public:
     void set_aspect(float aspect) noexcept;
     void orbit_delta(float dYaw, float dPitch, float dDistance) noexcept;
     void pan_delta(const glm::vec3& delta) noexcept;
+    void fov_delta(float dFovRadians) noexcept;
 
     [[nodiscard]] glm::vec3 position() const noexcept;
     [[nodiscard]] glm::mat4 view() const noexcept;
     [[nodiscard]] glm::mat4 projection() const noexcept;
     [[nodiscard]] glm::mat4 view_projection() const noexcept;
+    [[nodiscard]] float yaw() const noexcept { return params_.yawRadians; }
+    [[nodiscard]] float pitch() const noexcept { return params_.pitchRadians; }
+    [[nodiscard]] float fov_y() const noexcept { return params_.fovYRadians; }
 
 private:
     Params params_ {};
 };
 
 } // namespace vulkano
-

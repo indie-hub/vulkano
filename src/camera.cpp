@@ -48,6 +48,19 @@ void Camera::pan_delta(const glm::vec3& delta) noexcept {
     params_.target = glm::vec3 {params_.target.x + delta.x, params_.target.y + delta.y, params_.target.z + delta.z};
 }
 
+void Camera::fov_delta(float dFovRadians) noexcept {
+    // Clamp FOV to sensible limits (approx 30..120 degrees)
+    constexpr float kMinFov {0.5235987756F};  // 30 deg
+    constexpr float kMaxFov {2.09439510239F}; // 120 deg
+    params_.fovYRadians += dFovRadians;
+    if (params_.fovYRadians < kMinFov) {
+        params_.fovYRadians = kMinFov;
+    }
+    if (params_.fovYRadians > kMaxFov) {
+        params_.fovYRadians = kMaxFov;
+    }
+}
+
 glm::vec3 Camera::position() const noexcept {
     const float cp {std::cos(params_.pitchRadians)};
     const float sp {std::sin(params_.pitchRadians)};
@@ -75,4 +88,3 @@ glm::mat4 Camera::view_projection() const noexcept {
 }
 
 } // namespace vulkano
-
