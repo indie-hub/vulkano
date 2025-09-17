@@ -1,5 +1,5 @@
 - [x] Wrap per-primitive UI with ImGui::PushID/PopID; build and run smoke.
 - [x] Add unit test: per-primitive transform/material independence.
-- [ ] Audit material/transform ownership to ensure no sharing; adjust if needed.
+- [x] Audit material/transform ownership to ensure no sharing; adjust if needed.
 - [ ] Manual check: ImGui stats visible; no validation errors.
-- [ ] Optional: unique window IDs using Title###unique if multiple windows per primitive.
+- [x] Optional: unique window IDs using Title###unique if multiple windows per primitive.

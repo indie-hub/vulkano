@@ -382,7 +382,10 @@ void App::build_ui() noexcept {
             // Ensure unique ImGui IDs per primitive to avoid input state collisions
             ImGui::PushID(prim);
             const char* name {prim->type_name()};
-            const std::string header {std::string {name != nullptr ? name : "Primitive"} + " ##" + std::to_string(i)};
+            // Use explicit ID section (###) to keep visible labels readable while IDs remain unique
+            // Pointer value offers stable uniqueness across frames within process lifetime
+            const std::uintptr_t uniq {reinterpret_cast<std::uintptr_t>(prim)};
+            const std::string header {std::string {name != nullptr ? name : "Primitive"} + "###" + std::to_string(uniq)};
             if (ImGui::CollapsingHeader(header.c_str())) {
                 Transform t {prim->transform()};
                 Material m {prim->material()};
