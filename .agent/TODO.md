@@ -1,6 +1,7 @@
 - [x] Review repo and confirm OO primitives (Plane, Cube, Icosphere) with Vertex(pos3, normal3, uv2) and materials/transforms exist.
 - [x] Configure and build (Release) with CMake to bin/ and generate shaders.
 - [x] Run unit tests and app smoke test to validate functionality.
+- [x] Verify bin/dist contains the app binary and compiled shaders.
 - [ ] Manual visual verification: open app and confirm plane, cube, icosphere render with depth; ImGui controls adjust transforms, color, shininess, light.
 - [ ] Debug build: run with validation layers enabled; confirm no validation errors during resize and interaction.
 - [ ] Optional: extend end-to-end tests to tweak ImGui parameters programmatically (if feasible in CI).
