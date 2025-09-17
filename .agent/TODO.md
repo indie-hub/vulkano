@@ -3,7 +3,7 @@
   - [x] SSAO: kernel + noise texture generation
   - [x] SSAO: fullscreen SSAO pass (descriptor sets, pipeline)
   - [x] SSAO: optional Gaussian blur pass
- - [ ] SSAO: compose AO with lit scene (barriers correct)
+  - [x] SSAO: compose AO with lit scene (barriers correct)
  - [ ] Resize-safe: recreate G-buffer/AO targets
  - [ ] Validation: names + markers for new resources
  - [ ] Tests: unit (kernel/noise), e2e toggle + resize

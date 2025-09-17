@@ -10,6 +10,7 @@ layout(location = 1) out vec2 vUV;
 layout(location = 2) out vec3 vWorldPos;
 layout(location = 3) out vec3 vTangent;
 layout(location = 4) out vec3 vBitangent;
+layout(location = 5) out vec2 vScreenUV;
 
 layout(set = 0, binding = 0) uniform GlobalUBO {
     mat4 view;
@@ -41,5 +42,8 @@ void main()
     vUV = inUV;
     vec4 worldPos = PC.model * vec4(inPos, 1.0);
     vWorldPos = worldPos.xyz;
-    gl_Position = ubo.proj * ubo.view * worldPos;
+    vec4 clip = ubo.proj * ubo.view * worldPos;
+    gl_Position = clip;
+    vec2 ndc = clip.xy / clip.w;
+    vScreenUV = ndc * 0.5 + 0.5;
 }

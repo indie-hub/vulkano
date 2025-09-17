@@ -321,12 +321,30 @@ const VulkanContext::SsaoSettings& VulkanContext::ssao() const noexcept {
 
 void VulkanContext::set_ssao(const SsaoSettings& s) noexcept {
     // Rebuild kernel if size changed
-    if (s.kernel_size != ssao_.kernel_size) {
-        ssao_ = s;
-        rebuild_ssao_kernel(ssao_.kernel_size);
-        return;
-    }
+    const bool kernelChanged = (s.kernel_size != ssao_.kernel_size);
+    const bool blurChanged = (s.blur != ssao_.blur);
     ssao_ = s;
+    if (kernelChanged) {
+        rebuild_ssao_kernel(ssao_.kernel_size);
+    }
+    if (blurChanged && device_ != VK_NULL_HANDLE && !descriptor_sets_.empty()) {
+        // Update AO binding in forward descriptor sets to point to blurred/raw AO
+        for (std::size_t i {0U}; i < descriptor_sets_.size(); ++i) {
+            VkDescriptorImageInfo aoInfo {};
+            aoInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            aoInfo.imageView = (ssao_.blur && ssao_blur_view_ != VK_NULL_HANDLE) ? ssao_blur_view_ : ssao_ao_view_;
+            aoInfo.sampler = ssao_clamp_sampler_;
+            VkWriteDescriptorSet w {};
+            w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            w.dstSet = descriptor_sets_[i];
+            w.dstBinding = 3U;
+            w.dstArrayElement = 0U;
+            w.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            w.descriptorCount = 1U;
+            w.pImageInfo = &aoInfo;
+            vkUpdateDescriptorSets(device_, 1U, &w, 0U, nullptr);
+        }
+    }
 }
 
 std::size_t VulkanContext::primitive_count() const noexcept {
@@ -2590,7 +2608,7 @@ void VulkanContext::create_descriptor_set_layout() noexcept {
     if (descriptor_set_layout_ != VK_NULL_HANDLE) {
         return;
     }
-    VkDescriptorSetLayoutBinding bindings[3] {};
+    VkDescriptorSetLayoutBinding bindings[4] {};
     // Binding 0: global UBO
     bindings[0].binding = 0U;
     bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -2612,7 +2630,14 @@ void VulkanContext::create_descriptor_set_layout() noexcept {
 
     VkDescriptorSetLayoutCreateInfo info {};
     info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    info.bindingCount = 3U;
+    // Binding 3: SSAO AO combined image sampler (selected blurred/raw)
+    bindings[3].binding = 3U;
+    bindings[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    bindings[3].descriptorCount = 1U;
+    bindings[3].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    bindings[3].pImmutableSamplers = nullptr;
+
+    info.bindingCount = 4U;
     info.pBindings = bindings;
 
     VkDescriptorSetLayout layout {VK_NULL_HANDLE};
@@ -2631,6 +2656,8 @@ namespace {
         glm::vec3 lightPos;
         float lightIntensity;
         glm::vec3 lightColor;
+        float aoStrength;
+        float ssaoEnabled;
         float _pad0;
     };
 }
@@ -2645,7 +2672,7 @@ void VulkanContext::create_uniform_buffers_and_sets() noexcept {
         poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         poolSizes[0].descriptorCount = static_cast<std::uint32_t>(swapchain_images_.size());
         poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        poolSizes[1].descriptorCount = static_cast<std::uint32_t>(swapchain_images_.size() * 2U);
+        poolSizes[1].descriptorCount = static_cast<std::uint32_t>(swapchain_images_.size() * 3U);
 
         VkDescriptorPoolCreateInfo poolInfo {};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -2738,7 +2765,12 @@ void VulkanContext::create_uniform_buffers_and_sets() noexcept {
         normalInfo.imageView = normal_image_view_;
         normalInfo.sampler = normal_sampler_;
 
-        VkWriteDescriptorSet writes[3] {};
+        VkDescriptorImageInfo aoInfo {};
+        aoInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        aoInfo.imageView = (ssao_.blur && ssao_blur_view_ != VK_NULL_HANDLE) ? ssao_blur_view_ : ssao_ao_view_;
+        aoInfo.sampler = ssao_clamp_sampler_;
+
+        VkWriteDescriptorSet writes[4] {};
         writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         writes[0].dstSet = descriptor_sets_[i];
         writes[0].dstBinding = 0U;
@@ -2763,7 +2795,15 @@ void VulkanContext::create_uniform_buffers_and_sets() noexcept {
         writes[2].descriptorCount = 1U;
         writes[2].pImageInfo = &normalInfo;
 
-        vkUpdateDescriptorSets(device_, 3U, writes, 0U, nullptr);
+        writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[3].dstSet = descriptor_sets_[i];
+        writes[3].dstBinding = 3U;
+        writes[3].dstArrayElement = 0U;
+        writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        writes[3].descriptorCount = 1U;
+        writes[3].pImageInfo = &aoInfo;
+
+        vkUpdateDescriptorSets(device_, 4U, writes, 0U, nullptr);
     }
 }
 
@@ -3163,6 +3203,8 @@ bool VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
             u.lightPos = light_.position;
             u.lightIntensity = light_.intensity;
             u.lightColor = light_.color;
+            u.aoStrength = ssao_.strength;
+            u.ssaoEnabled = ssao_.enabled ? 1.0F : 0.0F;
             u._pad0 = 0.0F;
             void* data {nullptr};
             if (vkMapMemory(device_, uniform_buffers_memory_[imageIndex], 0U, sizeof(GlobalUBO), 0U, &data) == VK_SUCCESS) {
@@ -3355,6 +3397,8 @@ bool VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
         u.lightPos = light_.position;
         u.lightIntensity = light_.intensity;
         u.lightColor = light_.color;
+        u.aoStrength = ssao_.strength;
+        u.ssaoEnabled = ssao_.enabled ? 1.0F : 0.0F;
         u._pad0 = 0.0F;
         void* data {nullptr};
         if (vkMapMemory(device_, uniform_buffers_memory_[imageIndex], 0U, sizeof(GlobalUBO), 0U, &data) == VK_SUCCESS) {
