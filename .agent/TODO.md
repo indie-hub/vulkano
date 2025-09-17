@@ -1,16 +1,9 @@
- - [x] Rebuild Debug, run tests, and capture logs in `.agent/` (current iteration).
- - [x] Add FPS camera methods (look_delta, move_local) in `include/vulkano/camera.hpp` and `src/camera.cpp`.
- - [x] Expose `camera_look_delta` and `camera_move_local` in `include/vulkano/vulkan_context.hpp` and implement in `src/vulkan_context.cpp`.
- - [x] Update input handling in `src/app.cpp` to use new look method and per-frame WASD + Space/Ctrl movement with ImGui gating and RMB requirement.
-- [x] Add unit tests for camera look/move math in `tests/camera_tests.cpp`.
-- [x] Add unit tests for camera FOV and pitch clamping.
- - [x] Build project and run tests; verify cursor lock/unlock behavior manually if possible.
-- [x] Document camera controls briefly in `README.md` (controls + ImGui gating).
-- [x] Verify packaged runtime under `bin/dist` launches with shaders present.
-- [x] Build `dist` bundle and smoke-run packaged app (`bin/dist/vulkano_app`) with `VK_APP_AUTOCLOSE_MS` and `VK_SHADER_DIR`.
-- [x] Re-run Debug build, tests, and dist packaging; capture logs under `.agent/` and verify 100% tests pass.
-- [x] Confirm ImGui input gating matches policy (RMB look, WantCaptureMouse/Keyboard, cursor lock/restore).
-- [ ] Manual QA on macOS: verify RMB look hides/locks cursor, ImGui gating, scroll FOV, and keyboard rules.
-- [ ] Record QA results and any follow-ups.
-- [ ] Tune look/move sensitivities based on QA feedback.
-- [x] Update CHANGELOG with camera feature notes if needed.
+// Task: Extend Vulkan app with FPS camera controls, ImGui gating, cursor lock
+
+- [x] Verify build succeeds and tests pass locally (Debug).
+- [x] Sanity-check code for FPS camera: RMB look gating, keyboard movement gating, FOV scroll when not captured, cursor hide/lock toggling, and Camera panel in ImGui.
+- [ ] Manual QA: Run the app and verify acceptance criteria interactively (RMB look, ImGui not affecting camera, scroll FOV, lock toggle).
+- [ ] Add a focused unit test for input gating logic (extract minimal gate helpers from `vulkano::App` for pure tests without GLFW).
+- [ ] Update CHANGELOG with “feat: FPS camera with ImGui gating and cursor lock”.
+- [ ] Confirm portability on macOS: run app with MoltenVK installed; validate no validation errors during resize and input.
+
