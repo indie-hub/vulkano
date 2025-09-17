@@ -4,7 +4,8 @@
  - [x] Update input handling in `src/app.cpp` to use new look method and per-frame WASD + Space/Ctrl movement with ImGui gating and RMB requirement.
  - [x] Add unit tests for camera look/move math in `tests/camera_tests.cpp`.
  - [x] Build project and run tests; verify cursor lock/unlock behavior manually if possible.
- - [x] Document camera controls briefly in `README.md` (controls + ImGui gating).
+- [x] Document camera controls briefly in `README.md` (controls + ImGui gating).
+- [ ] Verify packaged runtime under `bin/dist` launches with shaders present.
 - [ ] Manual QA on macOS: verify RMB look hides/locks cursor, ImGui gating, scroll FOV, and keyboard rules.
 - [ ] Record QA results and any follow-ups.
 - [ ] Tune look/move sensitivities based on QA feedback.
