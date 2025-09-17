@@ -48,6 +48,19 @@ Controls (ImGui):
 - Per primitive (Plane, Cube, Icosphere): position, rotation (radians), scale, base color, shininess
 - Icosphere: optional subdivisions slider (rebuilds CPU mesh + re‑uploads GPU buffers)
 
+## Camera Controls (FPS)
+
+- Mouse look: Hold Right Mouse Button to hide/lock cursor and look around.
+- Movement: W/A/S/D to move, Space = up, Left Ctrl = down.
+- Sprint: Hold Shift to increase movement speed.
+- FOV: Mouse wheel adjusts field‑of‑view when ImGui is not using the wheel.
+- ImGui gating: When ImGui wants the mouse/keyboard, camera input is ignored.
+- Lock: The “Camera” panel has a “Lock camera” checkbox to disable look/move and restore normal cursor.
+
+Notes:
+- Cursor lock toggles only while RMB is pressed; released restores normal cursor.
+- Keyboard movement works when RMB is pressed, or when ImGui is not capturing the keyboard.
+
 Acceptance criteria (what you should see):
 - Window opens on a black clear background
 - Ground plane at y=0 with a cube (left) and icosphere (right) above it
