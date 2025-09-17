@@ -1,4 +1,5 @@
 - [x] Verify build/tests and smoke run (app + shaders).
+- [ ] Confirm acceptance criteria via manual run on macOS (rendering, UI controls, resizing, no validation errors).
 - [ ] Manually verify rendering: plane/cube/icosphere depth and lighting.
 - [ ] Update README: scene controls (light, transforms, colors, shininess).
 - [ ] Double-check validation layers on Debug; scan runtime logs.
