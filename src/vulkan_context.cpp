@@ -4060,13 +4060,16 @@ void VulkanContext::create_ssao_pipeline() noexcept {
     VkShaderModule vs = create_shader_module(device_, vertCode);
     VkShaderModule fs = create_shader_module(device_, fragCode);
     if (vs == VK_NULL_HANDLE || fs == VK_NULL_HANDLE) {
-        if (vs) vkDestroyShaderModule(device_, vs, nullptr);
-        if (fs) vkDestroyShaderModule(device_, fs, nullptr);
+        if (vs) {
+            vkDestroyShaderModule(device_, vs, nullptr);
+        }
+        if (fs) {
+            vkDestroyShaderModule(device_, fs, nullptr);
+        }
         return;
     }
     // Pipeline layout for SSAO set
     if (ssao_pipeline_layout_ == VK_NULL_HANDLE) {
-        VkPushConstantRange none {};
         VkPipelineLayoutCreateInfo pl {};
         pl.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         pl.setLayoutCount = 1U; pl.pSetLayouts = &ssao_set_layout_;
@@ -4208,7 +4211,15 @@ void VulkanContext::create_ssao_blur_pipeline() noexcept {
     if (vertCode.empty() || fragCode.empty()) { return; }
     VkShaderModule vs = create_shader_module(device_, vertCode);
     VkShaderModule fs = create_shader_module(device_, fragCode);
-    if (!vs || !fs) { if (vs) vkDestroyShaderModule(device_, vs, nullptr); if (fs) vkDestroyShaderModule(device_, fs, nullptr); return; }
+    if (!vs || !fs) {
+        if (vs) {
+            vkDestroyShaderModule(device_, vs, nullptr);
+        }
+        if (fs) {
+            vkDestroyShaderModule(device_, fs, nullptr);
+        }
+        return;
+    }
     if (ssao_blur_pipeline_layout_ == VK_NULL_HANDLE) {
         VkPipelineLayoutCreateInfo pl {}; pl.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO; pl.setLayoutCount = 1U; pl.pSetLayouts = &ssao_blur_set_layout_;
         (void)vkCreatePipelineLayout(device_, &pl, nullptr, &ssao_blur_pipeline_layout_);

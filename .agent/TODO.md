@@ -1,12 +1,7 @@
- - [x] Build + run tests to verify baseline
- - [x] Rework AO descriptor binding on resize; update forward binding after SSAO/blur targets exist
- - [x] End ImGui frame before swapchain recreate to avoid backend shutdown during active frame
- - [x] Skip draw when resized; recreate swapchain first for safety
- - [x] Re-run resize e2e and capture outcome; still segfaults
- - [x] Guard submit/present against null signal semaphores to avoid invalid waits
- - [x] Add swapchain lifecycle logging (toggle via VK_DEBUG_LOG) to trace recreate/present/acquire
- - [x] Harden draw_frame to skip submit/present if any required resource is missing for the acquired image
- - [ ] Fix resize crash fully and validate with app_resize
- - [ ] Verify SSAO visual controls (radius/bias/power/blur) affect AO clearly
- - [ ] Clean up warnings; update README (SSAO panel + runtime notes)
- - [ ] Package: ensure bin/dist contains binary + shaders
+# TODO
+
+- [x] Enforce braces, remove unused var, build/tests, package runtime
+- [ ] Validate ImGui SSAO controls update Vulkan settings and AO binding
+- [ ] Run with validation layers on resize; check for errors; note fixes
+- [ ] Minor tidy: run clang-tidy, address warnings if any
+- [ ] Confirm macOS MoltenVK path works; document run flags
