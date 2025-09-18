@@ -1,18 +1,18 @@
-Start testing: Sep 18 09:39 BST
+Start testing: Sep 18 09:45 BST
 ----------------------------------------------------------
-21/21 Testing: app_resize
-21/21 Test: app_resize
+20/21 Testing: app_smoke
+20/21 Test: app_smoke
 Command: "/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_app"
 Directory: /Users/bruno/Documents/Development/bruno/vulkano_codex/build_release/tests
-"app_resize" start time: Sep 18 09:39 BST
+"app_smoke" start time: Sep 18 09:45 BST
 Output:
 ----------------------------------------------------------
 <end of output>
-Test time =   0.83 sec
+Test time =   1.04 sec
 ----------------------------------------------------------
-Test Failed.
-"app_resize" end time: Sep 18 09:39 BST
-"app_resize" time elapsed: 00:00:00
+Test Passed.
+"app_smoke" end time: Sep 18 09:45 BST
+"app_smoke" time elapsed: 00:00:01
 ----------------------------------------------------------
 
-End testing: Sep 18 09:39 BST
+End testing: Sep 18 09:45 BST

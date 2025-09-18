@@ -3541,9 +3541,16 @@ bool VulkanContext::draw_frame() noexcept {
     submitInfo.commandBufferCount = 1U;
     const VkCommandBuffer cmdBuf {command_buffers_[imageIndex]};
     submitInfo.pCommandBuffers = &cmdBuf;
-    submitInfo.signalSemaphoreCount = 1U;
-    VkSemaphore signalSem = render_finished_semaphores_.empty() ? VK_NULL_HANDLE : render_finished_semaphores_[imageIndex];
-    submitInfo.pSignalSemaphores = &signalSem;
+    VkSemaphore signalSem = (!render_finished_semaphores_.empty() && imageIndex < render_finished_semaphores_.size())
+                                ? render_finished_semaphores_[imageIndex]
+                                : VK_NULL_HANDLE;
+    if (signalSem != VK_NULL_HANDLE) {
+        submitInfo.signalSemaphoreCount = 1U;
+        submitInfo.pSignalSemaphores = &signalSem;
+    } else {
+        submitInfo.signalSemaphoreCount = 0U;
+        submitInfo.pSignalSemaphores = nullptr;
+    }
 
     if (vkQueueSubmit(graphics_queue_, 1U, &submitInfo, in_flight_fences_[frameIndex]) != VK_SUCCESS) {
         return false;
@@ -3551,8 +3558,13 @@ bool VulkanContext::draw_frame() noexcept {
 
     VkPresentInfoKHR presentInfo {};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    presentInfo.waitSemaphoreCount = 1U;
-    presentInfo.pWaitSemaphores = &signalSem;
+    if (signalSem != VK_NULL_HANDLE) {
+        presentInfo.waitSemaphoreCount = 1U;
+        presentInfo.pWaitSemaphores = &signalSem;
+    } else {
+        presentInfo.waitSemaphoreCount = 0U;
+        presentInfo.pWaitSemaphores = nullptr;
+    }
     presentInfo.swapchainCount = 1U;
     presentInfo.pSwapchains = &swapchain_;
     presentInfo.pImageIndices = &imageIndex;

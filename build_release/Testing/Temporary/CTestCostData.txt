@@ -8,7 +8,7 @@ Icosphere set_subdivisions rebuilds geometry 8 0.0020104
 Plane UV tiling setter updates UVs 8 0.0019093
 Checkerboard image dimensions and pattern 8 0.00209071
 Blue-noise-ish normal map basics 8 0.00204981
-app_smoke 8 11.0469
+app_smoke 9 0.115004
 app_resize 3 0
 camera_look_delta_keeps_eye_position 7 0.00221137
 camera_move_local_changes_position 7 0.00223679
@@ -20,4 +20,3 @@ Per-primitive materials are independent 5 0.00306758
 SSAO kernel sizes and hemisphere 5 0.00466395
 SSAO noise vectors unit length and distribution 5 0.00619695
 ---
-app_resize

@@ -67,17 +67,7 @@
     <configurations />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="ea5f2232-e0d5-4be9-833c-c06073c2468d" name="Changes" comment="New TODO">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build_release/CMakeFiles/vulkano.dir/compiler_depend.internal" beforeDir="false" afterPath="$PROJECT_DIR$/build_release/CMakeFiles/vulkano.dir/compiler_depend.internal" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build_release/CMakeFiles/vulkano.dir/compiler_depend.make" beforeDir="false" afterPath="$PROJECT_DIR$/build_release/CMakeFiles/vulkano.dir/compiler_depend.make" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build_release/Testing/Temporary/CTestCostData.txt" beforeDir="false" afterPath="$PROJECT_DIR$/build_release/Testing/Temporary/CTestCostData.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build_release/Testing/Temporary/LastTest.log" beforeDir="false" afterPath="$PROJECT_DIR$/build_release/Testing/Temporary/LastTest.log" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build_release/tests/CMakeFiles/vulkano_tests.dir/compiler_depend.internal" beforeDir="false" afterPath="$PROJECT_DIR$/build_release/tests/CMakeFiles/vulkano_tests.dir/compiler_depend.internal" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build_release/tests/CMakeFiles/vulkano_tests.dir/compiler_depend.make" beforeDir="false" afterPath="$PROJECT_DIR$/build_release/tests/CMakeFiles/vulkano_tests.dir/compiler_depend.make" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/include/vulkano/vulkan_context.hpp" beforeDir="false" afterPath="$PROJECT_DIR$/include/vulkano/vulkan_context.hpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/vulkan_context.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/vulkan_context.cpp" afterDir="false" />
-    </list>
+    <list default="true" id="ea5f2232-e0d5-4be9-833c-c06073c2468d" name="Changes" comment="New TODO" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -213,7 +203,7 @@
       <workItem from="1757930372426" duration="26134000" />
       <workItem from="1758017569975" duration="12202000" />
       <workItem from="1758032482488" duration="15911000" />
-      <workItem from="1758180978655" duration="1910000" />
+      <workItem from="1758180978655" duration="2226000" />
     </task>
     <task id="LOCAL-00001" summary="New TODO">
       <option name="closed" value="true" />
