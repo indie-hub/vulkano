@@ -11,6 +11,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/vulkano.dir/src/geometry.cpp.o.d"
   "CMakeFiles/vulkano.dir/src/imgui_overlay.cpp.o"
   "CMakeFiles/vulkano.dir/src/imgui_overlay.cpp.o.d"
+  "CMakeFiles/vulkano.dir/src/ssao.cpp.o"
+  "CMakeFiles/vulkano.dir/src/ssao.cpp.o.d"
   "CMakeFiles/vulkano.dir/src/stats.cpp.o"
   "CMakeFiles/vulkano.dir/src/stats.cpp.o.d"
   "CMakeFiles/vulkano.dir/src/textures.cpp.o"

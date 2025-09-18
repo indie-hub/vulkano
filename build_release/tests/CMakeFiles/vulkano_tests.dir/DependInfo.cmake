@@ -10,6 +10,8 @@ set(CMAKE_DEPENDS_LANGUAGES
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "/Users/bruno/Documents/Development/bruno/vulkano_codex/tests/camera_tests.cpp" "tests/CMakeFiles/vulkano_tests.dir/camera_tests.cpp.o" "gcc" "tests/CMakeFiles/vulkano_tests.dir/camera_tests.cpp.o.d"
   "/Users/bruno/Documents/Development/bruno/vulkano_codex/tests/geometry_tests.cpp" "tests/CMakeFiles/vulkano_tests.dir/geometry_tests.cpp.o" "gcc" "tests/CMakeFiles/vulkano_tests.dir/geometry_tests.cpp.o.d"
+  "/Users/bruno/Documents/Development/bruno/vulkano_codex/tests/primitive_state_tests.cpp" "tests/CMakeFiles/vulkano_tests.dir/primitive_state_tests.cpp.o" "gcc" "tests/CMakeFiles/vulkano_tests.dir/primitive_state_tests.cpp.o.d"
+  "/Users/bruno/Documents/Development/bruno/vulkano_codex/tests/ssao_tests.cpp" "tests/CMakeFiles/vulkano_tests.dir/ssao_tests.cpp.o" "gcc" "tests/CMakeFiles/vulkano_tests.dir/ssao_tests.cpp.o.d"
   "/Users/bruno/Documents/Development/bruno/vulkano_codex/tests/stats_tests.cpp" "tests/CMakeFiles/vulkano_tests.dir/stats_tests.cpp.o" "gcc" "tests/CMakeFiles/vulkano_tests.dir/stats_tests.cpp.o.d"
   "/Users/bruno/Documents/Development/bruno/vulkano_codex/tests/tests_main.cpp" "tests/CMakeFiles/vulkano_tests.dir/tests_main.cpp.o" "gcc" "tests/CMakeFiles/vulkano_tests.dir/tests_main.cpp.o.d"
   "/Users/bruno/Documents/Development/bruno/vulkano_codex/tests/textures_tests.cpp" "tests/CMakeFiles/vulkano_tests.dir/textures_tests.cpp.o" "gcc" "tests/CMakeFiles/vulkano_tests.dir/textures_tests.cpp.o.d"

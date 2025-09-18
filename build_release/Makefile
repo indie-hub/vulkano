@@ -1005,6 +1005,30 @@ src/main.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/vulkano_app.dir/build.make CMakeFiles/vulkano_app.dir/src/main.cpp.s
 .PHONY : src/main.cpp.s
 
+src/ssao.o: src/ssao.cpp.o
+.PHONY : src/ssao.o
+
+# target to build an object file
+src/ssao.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/vulkano.dir/build.make CMakeFiles/vulkano.dir/src/ssao.cpp.o
+.PHONY : src/ssao.cpp.o
+
+src/ssao.i: src/ssao.cpp.i
+.PHONY : src/ssao.i
+
+# target to preprocess a source file
+src/ssao.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/vulkano.dir/build.make CMakeFiles/vulkano.dir/src/ssao.cpp.i
+.PHONY : src/ssao.cpp.i
+
+src/ssao.s: src/ssao.cpp.s
+.PHONY : src/ssao.s
+
+# target to generate assembly for a file
+src/ssao.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/vulkano.dir/build.make CMakeFiles/vulkano.dir/src/ssao.cpp.s
+.PHONY : src/ssao.cpp.s
+
 src/stats.o: src/stats.cpp.o
 .PHONY : src/stats.o
 
@@ -1192,6 +1216,9 @@ help:
 	@echo "... src/main.o"
 	@echo "... src/main.i"
 	@echo "... src/main.s"
+	@echo "... src/ssao.o"
+	@echo "... src/ssao.i"
+	@echo "... src/ssao.s"
 	@echo "... src/stats.o"
 	@echo "... src/stats.i"
 	@echo "... src/stats.s"

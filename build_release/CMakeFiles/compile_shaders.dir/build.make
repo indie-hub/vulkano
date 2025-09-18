@@ -70,32 +70,74 @@ CMakeFiles/compile_shaders: /Users/bruno/Documents/Development/bruno/vulkano_cod
 CMakeFiles/compile_shaders: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/triangle.frag.spv
 CMakeFiles/compile_shaders: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/mesh.vert.spv
 CMakeFiles/compile_shaders: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/mesh.frag.spv
+CMakeFiles/compile_shaders: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/gbuffer.vert.spv
+CMakeFiles/compile_shaders: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/gbuffer.frag.spv
+CMakeFiles/compile_shaders: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/ssao.vert.spv
+CMakeFiles/compile_shaders: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/ssao.frag.spv
+CMakeFiles/compile_shaders: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/blur.vert.spv
+CMakeFiles/compile_shaders: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/blur.frag.spv
+
+/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/blur.frag.spv: /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/blur.frag
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build_release/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Compiling blur.frag -> /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/blur.frag.spv with glslc"
+	/Applications/CMake.app/Contents/bin/cmake -E make_directory /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders
+	/usr/local/bin/glslc -fshader-stage=frag -O -o /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/blur.frag.spv /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/blur.frag
+
+/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/blur.vert.spv: /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/blur.vert
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build_release/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Compiling blur.vert -> /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/blur.vert.spv with glslc"
+	/Applications/CMake.app/Contents/bin/cmake -E make_directory /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders
+	/usr/local/bin/glslc -fshader-stage=vert -O -o /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/blur.vert.spv /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/blur.vert
+
+/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/gbuffer.frag.spv: /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/gbuffer.frag
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build_release/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Compiling gbuffer.frag -> /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/gbuffer.frag.spv with glslc"
+	/Applications/CMake.app/Contents/bin/cmake -E make_directory /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders
+	/usr/local/bin/glslc -fshader-stage=frag -O -o /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/gbuffer.frag.spv /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/gbuffer.frag
+
+/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/gbuffer.vert.spv: /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/gbuffer.vert
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build_release/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Compiling gbuffer.vert -> /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/gbuffer.vert.spv with glslc"
+	/Applications/CMake.app/Contents/bin/cmake -E make_directory /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders
+	/usr/local/bin/glslc -fshader-stage=vert -O -o /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/gbuffer.vert.spv /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/gbuffer.vert
 
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/mesh.frag.spv: /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/mesh.frag
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build_release/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Compiling mesh.frag -> /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/mesh.frag.spv with glslc"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build_release/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Compiling mesh.frag -> /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/mesh.frag.spv with glslc"
 	/Applications/CMake.app/Contents/bin/cmake -E make_directory /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders
 	/usr/local/bin/glslc -fshader-stage=frag -O -o /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/mesh.frag.spv /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/mesh.frag
 
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/mesh.vert.spv: /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/mesh.vert
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build_release/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Compiling mesh.vert -> /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/mesh.vert.spv with glslc"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build_release/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Compiling mesh.vert -> /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/mesh.vert.spv with glslc"
 	/Applications/CMake.app/Contents/bin/cmake -E make_directory /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders
 	/usr/local/bin/glslc -fshader-stage=vert -O -o /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/mesh.vert.spv /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/mesh.vert
 
+/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/ssao.frag.spv: /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/ssao.frag
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build_release/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Compiling ssao.frag -> /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/ssao.frag.spv with glslc"
+	/Applications/CMake.app/Contents/bin/cmake -E make_directory /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders
+	/usr/local/bin/glslc -fshader-stage=frag -O -o /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/ssao.frag.spv /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/ssao.frag
+
+/Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/ssao.vert.spv: /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/ssao.vert
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build_release/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Compiling ssao.vert -> /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/ssao.vert.spv with glslc"
+	/Applications/CMake.app/Contents/bin/cmake -E make_directory /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders
+	/usr/local/bin/glslc -fshader-stage=vert -O -o /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/ssao.vert.spv /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/ssao.vert
+
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/triangle.frag.spv: /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/triangle.frag
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build_release/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Compiling triangle.frag -> /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/triangle.frag.spv with glslc"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build_release/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Compiling triangle.frag -> /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/triangle.frag.spv with glslc"
 	/Applications/CMake.app/Contents/bin/cmake -E make_directory /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders
 	/usr/local/bin/glslc -fshader-stage=frag -O -o /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/triangle.frag.spv /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/triangle.frag
 
 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/triangle.vert.spv: /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/triangle.vert
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build_release/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Compiling triangle.vert -> /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/triangle.vert.spv with glslc"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold --progress-dir=/Users/bruno/Documents/Development/bruno/vulkano_codex/build_release/CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Compiling triangle.vert -> /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/triangle.vert.spv with glslc"
 	/Applications/CMake.app/Contents/bin/cmake -E make_directory /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders
 	/usr/local/bin/glslc -fshader-stage=vert -O -o /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/triangle.vert.spv /Users/bruno/Documents/Development/bruno/vulkano_codex/shaders/triangle.vert
 
 CMakeFiles/compile_shaders.dir/codegen:
 .PHONY : CMakeFiles/compile_shaders.dir/codegen
 
+compile_shaders: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/blur.frag.spv
+compile_shaders: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/blur.vert.spv
+compile_shaders: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/gbuffer.frag.spv
+compile_shaders: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/gbuffer.vert.spv
 compile_shaders: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/mesh.frag.spv
 compile_shaders: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/mesh.vert.spv
+compile_shaders: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/ssao.frag.spv
+compile_shaders: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/ssao.vert.spv
 compile_shaders: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/triangle.frag.spv
 compile_shaders: /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/triangle.vert.spv
 compile_shaders: CMakeFiles/compile_shaders

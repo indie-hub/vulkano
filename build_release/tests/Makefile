@@ -233,6 +233,54 @@ geometry_tests.cpp.s:
 	cd /Users/bruno/Documents/Development/bruno/vulkano_codex/build_release && $(MAKE) $(MAKESILENT) -f tests/CMakeFiles/vulkano_tests.dir/build.make tests/CMakeFiles/vulkano_tests.dir/geometry_tests.cpp.s
 .PHONY : geometry_tests.cpp.s
 
+primitive_state_tests.o: primitive_state_tests.cpp.o
+.PHONY : primitive_state_tests.o
+
+# target to build an object file
+primitive_state_tests.cpp.o:
+	cd /Users/bruno/Documents/Development/bruno/vulkano_codex/build_release && $(MAKE) $(MAKESILENT) -f tests/CMakeFiles/vulkano_tests.dir/build.make tests/CMakeFiles/vulkano_tests.dir/primitive_state_tests.cpp.o
+.PHONY : primitive_state_tests.cpp.o
+
+primitive_state_tests.i: primitive_state_tests.cpp.i
+.PHONY : primitive_state_tests.i
+
+# target to preprocess a source file
+primitive_state_tests.cpp.i:
+	cd /Users/bruno/Documents/Development/bruno/vulkano_codex/build_release && $(MAKE) $(MAKESILENT) -f tests/CMakeFiles/vulkano_tests.dir/build.make tests/CMakeFiles/vulkano_tests.dir/primitive_state_tests.cpp.i
+.PHONY : primitive_state_tests.cpp.i
+
+primitive_state_tests.s: primitive_state_tests.cpp.s
+.PHONY : primitive_state_tests.s
+
+# target to generate assembly for a file
+primitive_state_tests.cpp.s:
+	cd /Users/bruno/Documents/Development/bruno/vulkano_codex/build_release && $(MAKE) $(MAKESILENT) -f tests/CMakeFiles/vulkano_tests.dir/build.make tests/CMakeFiles/vulkano_tests.dir/primitive_state_tests.cpp.s
+.PHONY : primitive_state_tests.cpp.s
+
+ssao_tests.o: ssao_tests.cpp.o
+.PHONY : ssao_tests.o
+
+# target to build an object file
+ssao_tests.cpp.o:
+	cd /Users/bruno/Documents/Development/bruno/vulkano_codex/build_release && $(MAKE) $(MAKESILENT) -f tests/CMakeFiles/vulkano_tests.dir/build.make tests/CMakeFiles/vulkano_tests.dir/ssao_tests.cpp.o
+.PHONY : ssao_tests.cpp.o
+
+ssao_tests.i: ssao_tests.cpp.i
+.PHONY : ssao_tests.i
+
+# target to preprocess a source file
+ssao_tests.cpp.i:
+	cd /Users/bruno/Documents/Development/bruno/vulkano_codex/build_release && $(MAKE) $(MAKESILENT) -f tests/CMakeFiles/vulkano_tests.dir/build.make tests/CMakeFiles/vulkano_tests.dir/ssao_tests.cpp.i
+.PHONY : ssao_tests.cpp.i
+
+ssao_tests.s: ssao_tests.cpp.s
+.PHONY : ssao_tests.s
+
+# target to generate assembly for a file
+ssao_tests.cpp.s:
+	cd /Users/bruno/Documents/Development/bruno/vulkano_codex/build_release && $(MAKE) $(MAKESILENT) -f tests/CMakeFiles/vulkano_tests.dir/build.make tests/CMakeFiles/vulkano_tests.dir/ssao_tests.cpp.s
+.PHONY : ssao_tests.cpp.s
+
 stats_tests.o: stats_tests.cpp.o
 .PHONY : stats_tests.o
 
@@ -325,6 +373,12 @@ help:
 	@echo "... geometry_tests.o"
 	@echo "... geometry_tests.i"
 	@echo "... geometry_tests.s"
+	@echo "... primitive_state_tests.o"
+	@echo "... primitive_state_tests.i"
+	@echo "... primitive_state_tests.s"
+	@echo "... ssao_tests.o"
+	@echo "... ssao_tests.i"
+	@echo "... ssao_tests.s"
 	@echo "... stats_tests.o"
 	@echo "... stats_tests.i"
 	@echo "... stats_tests.s"

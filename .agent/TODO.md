@@ -1,11 +1,5 @@
- - [x] SSAO: settings model + ImGui panel
- - [x] SSAO: G-buffer + geometry pass
-  - [x] SSAO: kernel + noise texture generation
-  - [x] SSAO: fullscreen SSAO pass (descriptor sets, pipeline)
-  - [x] SSAO: optional Gaussian blur pass
-  - [x] SSAO: compose AO with lit scene (barriers correct)
- - [x] Resize-safe: recreate G-buffer/AO targets
- - [x] Validation: names + markers for new resources
-  - [x] Tests: unit (kernel/noise), e2e toggle + resize
- - [x] Shaders/CMake: add SSAO/blur/compose shaders to build + dist
- - [x] Docs: README controls and SSAO notes
+ - [x] Build + run tests to verify baseline
+ - [ ] Fix resize crash (app_resize segfault)
+ - [ ] Verify SSAO is visible and UI toggles (radius/bias/power/blur) affect AO
+ - [ ] Clean up warnings; update README (SSAO panel + runtime notes)
+ - [ ] Package: ensure bin/dist contains binary + shaders

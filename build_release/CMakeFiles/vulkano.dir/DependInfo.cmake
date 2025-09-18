@@ -13,6 +13,7 @@ set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "/Users/bruno/Documents/Development/bruno/vulkano_codex/src/config.cpp" "CMakeFiles/vulkano.dir/src/config.cpp.o" "gcc" "CMakeFiles/vulkano.dir/src/config.cpp.o.d"
   "/Users/bruno/Documents/Development/bruno/vulkano_codex/src/geometry.cpp" "CMakeFiles/vulkano.dir/src/geometry.cpp.o" "gcc" "CMakeFiles/vulkano.dir/src/geometry.cpp.o.d"
   "/Users/bruno/Documents/Development/bruno/vulkano_codex/src/imgui_overlay.cpp" "CMakeFiles/vulkano.dir/src/imgui_overlay.cpp.o" "gcc" "CMakeFiles/vulkano.dir/src/imgui_overlay.cpp.o.d"
+  "/Users/bruno/Documents/Development/bruno/vulkano_codex/src/ssao.cpp" "CMakeFiles/vulkano.dir/src/ssao.cpp.o" "gcc" "CMakeFiles/vulkano.dir/src/ssao.cpp.o.d"
   "/Users/bruno/Documents/Development/bruno/vulkano_codex/src/stats.cpp" "CMakeFiles/vulkano.dir/src/stats.cpp.o" "gcc" "CMakeFiles/vulkano.dir/src/stats.cpp.o.d"
   "/Users/bruno/Documents/Development/bruno/vulkano_codex/src/textures.cpp" "CMakeFiles/vulkano.dir/src/textures.cpp.o" "gcc" "CMakeFiles/vulkano.dir/src/textures.cpp.o.d"
   "/Users/bruno/Documents/Development/bruno/vulkano_codex/src/vulkan_context.cpp" "CMakeFiles/vulkano.dir/src/vulkan_context.cpp.o" "gcc" "CMakeFiles/vulkano.dir/src/vulkan_context.cpp.o.d"

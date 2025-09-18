@@ -1,6 +1,12 @@
 # Hashes of file build rules.
+35c7f8e8ca4b5fa40a6ecf6a4cbde808 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/blur.frag.spv
+faec9682ad210684c369a30072d43854 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/blur.vert.spv
+bcb6788c7d67ca55c90197ef61bb8bc5 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/gbuffer.frag.spv
+eeda53a1f7b26b716fbac6bc21c6789f /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/gbuffer.vert.spv
 0590a749752c86fc2f8fa3014e59dbea /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/mesh.frag.spv
 089051b4f68fbbdf1a2ef7d239f999a9 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/mesh.vert.spv
+b959d39cc84dbb23b8911b193e1e7911 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/ssao.frag.spv
+c98c760f36c7fe34441b22789bd385c0 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/ssao.vert.spv
 1f884f7d8dcdb3d10e006ffba7531b1e /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/triangle.frag.spv
 1f1098a72f1f75aced1490703585eee9 /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/triangle.vert.spv
 884ba5390d7fdc4b976cca51bc02f4af CMakeFiles/Continuous
