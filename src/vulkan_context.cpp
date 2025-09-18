@@ -328,23 +328,37 @@ void VulkanContext::set_ssao(const SsaoSettings& s) noexcept {
     if (kernelChanged) {
         rebuild_ssao_kernel(ssao_.kernel_size);
     }
-    if (blurChanged && device_ != VK_NULL_HANDLE && !descriptor_sets_.empty()) {
-        // Update AO binding in forward descriptor sets to point to blurred/raw AO
-        for (std::size_t i {0U}; i < descriptor_sets_.size(); ++i) {
-            VkDescriptorImageInfo aoInfo {};
-            aoInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            aoInfo.imageView = (ssao_.blur && ssao_blur_view_ != VK_NULL_HANDLE) ? ssao_blur_view_ : ssao_ao_view_;
-            aoInfo.sampler = ssao_clamp_sampler_;
-            VkWriteDescriptorSet w {};
-            w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            w.dstSet = descriptor_sets_[i];
-            w.dstBinding = 3U;
-            w.dstArrayElement = 0U;
-            w.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-            w.descriptorCount = 1U;
-            w.pImageInfo = &aoInfo;
-            vkUpdateDescriptorSets(device_, 1U, &w, 0U, nullptr);
+    if (blurChanged) {
+        update_forward_ao_binding();
+    }
+}
+
+void VulkanContext::update_forward_ao_binding() noexcept {
+    if (device_ == VK_NULL_HANDLE || descriptor_sets_.empty()) {
+        return;
+    }
+    // Choose appropriate AO view: blurred if enabled and available, else raw
+    const VkImageView aoView { (ssao_.blur && ssao_blur_view_ != VK_NULL_HANDLE) ? ssao_blur_view_ : ssao_ao_view_ };
+    if (aoView == VK_NULL_HANDLE || ssao_clamp_sampler_ == VK_NULL_HANDLE) {
+        return; // Not ready yet
+    }
+    for (std::size_t i {0U}; i < descriptor_sets_.size(); ++i) {
+        if (descriptor_sets_[i] == VK_NULL_HANDLE) {
+            continue;
         }
+        VkDescriptorImageInfo aoInfo {};
+        aoInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        aoInfo.imageView = aoView;
+        aoInfo.sampler = ssao_clamp_sampler_;
+        VkWriteDescriptorSet w {};
+        w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        w.dstSet = descriptor_sets_[i];
+        w.dstBinding = 3U;
+        w.dstArrayElement = 0U;
+        w.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        w.descriptorCount = 1U;
+        w.pImageInfo = &aoInfo;
+        vkUpdateDescriptorSets(device_, 1U, &w, 0U, nullptr);
     }
 }
 
@@ -937,9 +951,6 @@ void VulkanContext::create_swapchain_and_views(GLFWwindow* window) noexcept {
             swapchain_image_views_[i] = VK_NULL_HANDLE;
         }
     }
-    // Recreate uniform buffers/descriptors to match swapchain image count
-    destroy_uniform_buffers_and_sets();
-    create_uniform_buffers_and_sets();
 }
 
 void VulkanContext::destroy_swapchain_and_views() noexcept {
@@ -2755,6 +2766,9 @@ void VulkanContext::create_uniform_buffers_and_sets() noexcept {
     }
 
     for (std::size_t i {0U}; i < descriptor_sets_.size(); ++i) {
+        if (descriptor_sets_[i] == VK_NULL_HANDLE) {
+            continue;
+        }
         VkDescriptorBufferInfo bufInfo {};
         bufInfo.buffer = uniform_buffers_[i];
         bufInfo.offset = 0U;
@@ -2770,45 +2784,55 @@ void VulkanContext::create_uniform_buffers_and_sets() noexcept {
         normalInfo.imageView = normal_image_view_;
         normalInfo.sampler = normal_sampler_;
 
+        const VkImageView aoView { (ssao_.blur && ssao_blur_view_ != VK_NULL_HANDLE) ? ssao_blur_view_ : ssao_ao_view_ };
         VkDescriptorImageInfo aoInfo {};
-        aoInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        aoInfo.imageView = (ssao_.blur && ssao_blur_view_ != VK_NULL_HANDLE) ? ssao_blur_view_ : ssao_ao_view_;
-        aoInfo.sampler = ssao_clamp_sampler_;
+        if (aoView != VK_NULL_HANDLE && ssao_clamp_sampler_ != VK_NULL_HANDLE) {
+            aoInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            aoInfo.imageView = aoView;
+            aoInfo.sampler = ssao_clamp_sampler_;
+        }
 
         VkWriteDescriptorSet writes[4] {};
-        writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        writes[0].dstSet = descriptor_sets_[i];
-        writes[0].dstBinding = 0U;
-        writes[0].dstArrayElement = 0U;
-        writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        writes[0].descriptorCount = 1U;
-        writes[0].pBufferInfo = &bufInfo;
+        std::uint32_t writeCount {0U};
+        writes[writeCount].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[writeCount].dstSet = descriptor_sets_[i];
+        writes[writeCount].dstBinding = 0U;
+        writes[writeCount].dstArrayElement = 0U;
+        writes[writeCount].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        writes[writeCount].descriptorCount = 1U;
+        writes[writeCount].pBufferInfo = &bufInfo;
+        ++writeCount;
 
-        writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        writes[1].dstSet = descriptor_sets_[i];
-        writes[1].dstBinding = 1U;
-        writes[1].dstArrayElement = 0U;
-        writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        writes[1].descriptorCount = 1U;
-        writes[1].pImageInfo = &albedoInfo;
+        writes[writeCount].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[writeCount].dstSet = descriptor_sets_[i];
+        writes[writeCount].dstBinding = 1U;
+        writes[writeCount].dstArrayElement = 0U;
+        writes[writeCount].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        writes[writeCount].descriptorCount = 1U;
+        writes[writeCount].pImageInfo = &albedoInfo;
+        ++writeCount;
 
-        writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        writes[2].dstSet = descriptor_sets_[i];
-        writes[2].dstBinding = 2U;
-        writes[2].dstArrayElement = 0U;
-        writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        writes[2].descriptorCount = 1U;
-        writes[2].pImageInfo = &normalInfo;
+        writes[writeCount].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[writeCount].dstSet = descriptor_sets_[i];
+        writes[writeCount].dstBinding = 2U;
+        writes[writeCount].dstArrayElement = 0U;
+        writes[writeCount].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        writes[writeCount].descriptorCount = 1U;
+        writes[writeCount].pImageInfo = &normalInfo;
+        ++writeCount;
 
-        writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        writes[3].dstSet = descriptor_sets_[i];
-        writes[3].dstBinding = 3U;
-        writes[3].dstArrayElement = 0U;
-        writes[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        writes[3].descriptorCount = 1U;
-        writes[3].pImageInfo = &aoInfo;
+        if (aoView != VK_NULL_HANDLE && ssao_clamp_sampler_ != VK_NULL_HANDLE) {
+            writes[writeCount].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            writes[writeCount].dstSet = descriptor_sets_[i];
+            writes[writeCount].dstBinding = 3U;
+            writes[writeCount].dstArrayElement = 0U;
+            writes[writeCount].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            writes[writeCount].descriptorCount = 1U;
+            writes[writeCount].pImageInfo = &aoInfo;
+            ++writeCount;
+        }
 
-        vkUpdateDescriptorSets(device_, 4U, writes, 0U, nullptr);
+        vkUpdateDescriptorSets(device_, writeCount, writes, 0U, nullptr);
     }
 }
 
@@ -3585,6 +3609,11 @@ void VulkanContext::recreate_swapchain(GLFWwindow* window) noexcept {
     create_ssao_blur_targets();
     create_ssao_blur_descriptors();
     create_ssao_blur_pipeline();
+    // Recreate global descriptor sets to match new swapchain image count and refreshed resources
+    destroy_uniform_buffers_and_sets();
+    create_uniform_buffers_and_sets();
+    // After (re)creating AO and optional blur targets, ensure the forward pass AO binding is up to date
+    update_forward_ao_binding();
     if (imgui_ready_) {
         // ImGui needs to be re-initialized with the new render pass
         const std::uint32_t minImages {static_cast<std::uint32_t>(swapchain_images_.size() > 1U ? swapchain_images_.size() : 2U)};

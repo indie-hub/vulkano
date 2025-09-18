@@ -1,23 +1,23 @@
-catch2_sanity 4 0.000892729
-stats_initial_values 4 0.000759396
-stats_smoothing_behaviour 4 0.000726042
-Plane generates 4 verts and 6 indices 4 0.000710677
-Cube generates 24 verts and 36 indices 4 0.000665885
-Icosphere vertex/index counts grow with subdivisions 4 0.000722667
-Icosphere set_subdivisions rebuilds geometry 4 0.000793177
-Plane UV tiling setter updates UVs 4 0.000790438
-Checkerboard image dimensions and pattern 4 0.000913802
-Blue-noise-ish normal map basics 4 0.000898156
-app_smoke 4 0.343642
+catch2_sanity 7 0.00169399
+stats_initial_values 7 0.00166494
+stats_smoothing_behaviour 7 0.00235359
+Plane generates 4 verts and 6 indices 7 0.00176139
+Cube generates 24 verts and 36 indices 7 0.00165896
+Icosphere vertex/index counts grow with subdivisions 7 0.00173591
+Icosphere set_subdivisions rebuilds geometry 7 0.0017325
+Plane UV tiling setter updates UVs 7 0.00169841
+Checkerboard image dimensions and pattern 7 0.00193955
+Blue-noise-ish normal map basics 7 0.00189285
+app_smoke 7 0.739362
 app_resize 3 0
-camera_look_delta_keeps_eye_position 3 0.0010109
-camera_move_local_changes_position 3 0.00100882
-camera_forward_and_right_are_orthogonal 3 0.000984222
-camera_fov_delta_clamps_within_limits 1 0.00300542
-camera_pitch_is_clamped_to_avoid_flip 1 0.00289346
-Per-primitive transforms are independent 1 0.00306546
-Per-primitive materials are independent 1 0.00301088
-SSAO kernel sizes and hemisphere 1 0.003571
-SSAO noise vectors unit length and distribution 1 0.00323
+camera_look_delta_keeps_eye_position 6 0.00206032
+camera_move_local_changes_position 6 0.00207951
+camera_forward_and_right_are_orthogonal 6 0.00201287
+camera_fov_delta_clamps_within_limits 4 0.00350914
+camera_pitch_is_clamped_to_avoid_flip 4 0.0029372
+Per-primitive transforms are independent 4 0.00325881
+Per-primitive materials are independent 4 0.00312493
+SSAO kernel sizes and hemisphere 4 0.00493885
+SSAO noise vectors unit length and distribution 4 0.00600937
 ---
 app_resize

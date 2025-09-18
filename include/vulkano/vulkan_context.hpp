@@ -389,6 +389,9 @@ private:
     PFN_vkCmdBeginDebugUtilsLabelEXT pfn_cmd_begin_label_ {nullptr};
     PFN_vkCmdEndDebugUtilsLabelEXT pfn_cmd_end_label_ {nullptr};
     // Reserved for future per-frame UI callback
+
+    // Rebind AO image (raw or blurred) into the forward pass descriptor sets (binding 3).
+    void update_forward_ao_binding() noexcept;
 };
 
 } // namespace vulkano

@@ -1,5 +1,6 @@
  - [x] Build + run tests to verify baseline
- - [ ] Fix resize crash (app_resize segfault)
+ - [x] Rework AO descriptor binding on resize; update forward binding after SSAO/blur targets exist
+ - [ ] Fix resize crash (app_resize segfault): eliminate invalid descriptor updates; validate ImGui reinit
  - [ ] Verify SSAO is visible and UI toggles (radius/bias/power/blur) affect AO
  - [ ] Clean up warnings; update README (SSAO panel + runtime notes)
  - [ ] Package: ensure bin/dist contains binary + shaders
