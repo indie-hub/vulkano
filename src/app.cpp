@@ -120,6 +120,23 @@ void App::run() noexcept {
             // Begin ImGui frame and build minimal overlay
             vk_->imgui_new_frame();
             build_ui();
+            // If framebuffer was resized, perform swapchain recreation before attempting to draw
+            if (framebuffer_resized_) {
+                int width {0};
+                int height {0};
+                do {
+                    glfwGetFramebufferSize(window_, &width, &height);
+                    if (width == 0 || height == 0) {
+                        glfwWaitEvents();
+                    }
+                } while (width == 0 || height == 0);
+                vk_->imgui_end_frame_build();
+                vk_->recreate_swapchain(window_);
+                framebuffer_resized_ = false;
+                // Skip this iteration; next loop will start a fresh frame with new resources
+                last_frame_time_ = now;
+                continue;
+            }
             // Keyboard movement (FPS-style), gated by ImGui capture rules
             ImGuiIO& io {ImGui::GetIO()};
             const bool canKeys {(!lock_camera_) && (look_active_ || !io.WantCaptureKeyboard)};
@@ -157,13 +174,13 @@ void App::run() noexcept {
                         glfwWaitEvents();
                     }
                 } while (width == 0 || height == 0);
+                // Ensure any in-progress ImGui frame is properly ended before tearing down/recreating render resources.
+                // This avoids backend shutdown while a frame is active (can cause crashes on resize).
+                vk_->imgui_end_frame_build();
 
                 vk_->recreate_swapchain(window_);
                 framebuffer_resized_ = false;
-                if (!ok) {
-                    // End ImGui frame build to keep ImGui state consistent when frame is skipped
-                    vk_->imgui_end_frame_build();
-                }
+                // No need to end ImGui frame again; a new frame will start next loop iteration.
             }
         } else {
             std::this_thread::sleep_for(std::chrono::milliseconds {16});
