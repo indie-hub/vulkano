@@ -3204,6 +3204,14 @@ bool VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
     if (cmd == VK_NULL_HANDLE) {
         return false;
     }
+    if (framebuffers_[imageIndex] == VK_NULL_HANDLE) {
+        dbg("record_commands: framebuffer null for acquired image; skipping");
+        return false;
+    }
+    if (!(imageIndex < descriptor_sets_.size()) || descriptor_sets_[imageIndex] == VK_NULL_HANDLE) {
+        dbg("record_commands: descriptor set missing/null; skipping");
+        return false;
+    }
 
     vkResetCommandBuffer(cmd, 0U);
 
@@ -3255,9 +3263,14 @@ bool VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
         vkCmdBeginRenderPass(cmd, &gbInfo, VK_SUBPASS_CONTENTS_INLINE);
         begin_label(cmd, "G-Buffer");
 
-        if (imageIndex < descriptor_sets_.size()) {
+        if (imageIndex < descriptor_sets_.size() && descriptor_sets_[imageIndex] != VK_NULL_HANDLE) {
             const VkDescriptorSet set {descriptor_sets_[imageIndex]};
             vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 0U, 1U, &set, 0U, nullptr);
+        } else {
+            // Required global set missing; abort this frame
+            vkCmdEndRenderPass(cmd);
+            end_label(cmd);
+            return false;
         }
         if (vertex_buffer_ != VK_NULL_HANDLE && !draw_ranges_.empty()) {
             const VkBuffer buffers[1] {vertex_buffer_};
@@ -3430,9 +3443,14 @@ bool VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
             vkUnmapMemory(device_, uniform_buffers_memory_[imageIndex]);
         }
     }
-    if (imageIndex < descriptor_sets_.size()) {
+    if (imageIndex < descriptor_sets_.size() && descriptor_sets_[imageIndex] != VK_NULL_HANDLE) {
         const VkDescriptorSet set {descriptor_sets_[imageIndex]};
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 0U, 1U, &set, 0U, nullptr);
+    } else {
+        vkCmdEndRenderPass(cmd);
+        end_label(cmd);
+        if (vkEndCommandBuffer(cmd) != VK_SUCCESS) { return false; }
+        return false;
     }
 
     // Compute camera matrices per-frame (not yet bound to shaders in this step)
