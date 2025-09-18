@@ -1,7 +1,4 @@
-# TODO
-
-- [x] Enforce braces, remove unused var, build/tests, package runtime
-- [ ] Validate ImGui SSAO controls update Vulkan settings and AO binding
-- [ ] Run with validation layers on resize; check for errors; note fixes
-- [ ] Minor tidy: run clang-tidy, address warnings if any
-- [ ] Confirm macOS MoltenVK path works; document run flags
+ - [x] Configure & build (Debug), compile shaders, package dist
+ - [ ] Run tests (unit + e2e)
+ - [ ] Verify SSAO passes and AO composition at runtime
+ - [ ] Clean up minor polish if needed; finalize docs
