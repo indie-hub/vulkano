@@ -392,6 +392,11 @@ private:
 
     // Rebind AO image (raw or blurred) into the forward pass descriptor sets (binding 3).
     void update_forward_ao_binding() noexcept;
+
+    // Debug logging (enabled when VK_DEBUG_LOG is set)
+    bool debug_log_enabled_ {false};
+    void dbg(const char* msg) const noexcept;
+    void dbgf(const char* fmt, std::uint64_t a, std::uint64_t b = 0U) const noexcept;
 };
 
 } // namespace vulkano

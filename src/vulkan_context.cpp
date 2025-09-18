@@ -25,6 +25,7 @@
 #include <glm/gtc/matrix_inverse.hpp>
 // No experimental headers; build rotation from axis angles
 #include <imgui.h>
+#include <cstdio>
 
 #include <vulkano/imgui_overlay.hpp>
 // Optional external image loading
@@ -132,6 +133,9 @@ namespace {
 }
 
 VulkanContext::VulkanContext(GLFWwindow* window) noexcept {
+    // Environment toggle for lightweight debug logging
+    const char* envDbg {std::getenv("VK_DEBUG_LOG")};
+    debug_log_enabled_ = (envDbg != nullptr && envDbg[0] != '\0' && std::strcmp(envDbg, "0") != 0);
     create_instance(window);
     setup_debug_utils();
     create_surface(window);
@@ -188,6 +192,7 @@ VulkanContext::VulkanContext(GLFWwindow* window) noexcept {
     ssao_.blur_sigma = config::SsaoDefaultBlurSigma;
     ssao_.strength = config::SsaoDefaultStrength;
     ssao_.noise_texture_size = config::SsaoNoiseTextureSize;
+    dbg("VulkanContext initialized");
 }
 
 VulkanContext::~VulkanContext() noexcept {
@@ -696,6 +701,7 @@ void VulkanContext::create_logical_device() noexcept {
 }
 
 void VulkanContext::destroy() noexcept {
+    dbg("VulkanContext::destroy()");
     if (device_ != VK_NULL_HANDLE) {
         vkDeviceWaitIdle(device_);
     }
@@ -840,6 +846,8 @@ void VulkanContext::create_swapchain_and_views(GLFWwindow* window) noexcept {
     if (physical_device_ == VK_NULL_HANDLE || device_ == VK_NULL_HANDLE || surface_ == VK_NULL_HANDLE) {
         return;
     }
+    dbgf("create_swapchain_and_views begin extent=%llu,%llu",
+         static_cast<std::uint64_t>(swapchain_extent_.width), static_cast<std::uint64_t>(swapchain_extent_.height));
 
     const SwapchainSupportDetails support {query_swapchain_support(physical_device_, surface_)};
     if (support.formats.empty() || support.presentModes.empty()) {
@@ -951,12 +959,14 @@ void VulkanContext::create_swapchain_and_views(GLFWwindow* window) noexcept {
             swapchain_image_views_[i] = VK_NULL_HANDLE;
         }
     }
+    dbgf("create_swapchain_and_views done images=%llu", static_cast<std::uint64_t>(swapchain_images_.size()));
 }
 
 void VulkanContext::destroy_swapchain_and_views() noexcept {
     if (device_ == VK_NULL_HANDLE) {
         return;
     }
+    dbg("destroy_swapchain_and_views");
     destroy_framebuffers();
     for (auto& view : swapchain_image_views_) {
         if (view != VK_NULL_HANDLE) {
@@ -1155,6 +1165,7 @@ void VulkanContext::create_framebuffers() noexcept {
             framebuffers_[i] = VK_NULL_HANDLE;
         }
     }
+    dbgf("create_framebuffers count=%llu", static_cast<std::uint64_t>(framebuffers_.size()));
 }
 
 void VulkanContext::create_depth_resources() noexcept {
@@ -2874,12 +2885,14 @@ void VulkanContext::create_command_pool_and_buffers() noexcept {
             set_object_name(VK_OBJECT_TYPE_COMMAND_BUFFER, reinterpret_cast<std::uint64_t>(command_buffers_[i]), "PrimaryCmdBuffer");
         }
     }
+    dbgf("create_command_pool_and_buffers count=%llu", static_cast<std::uint64_t>(command_buffers_.size()));
 }
 
 void VulkanContext::create_sync_objects() noexcept {
     if (device_ == VK_NULL_HANDLE) {
         return;
     }
+    dbg("create_sync_objects");
     VkSemaphoreCreateInfo semInfo {};
     semInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     VkFenceCreateInfo fenceInfo {};
@@ -3200,6 +3213,7 @@ bool VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
     if (vkBeginCommandBuffer(cmd, &beginInfo) != VK_SUCCESS) {
         return false;
     }
+    dbgf("record_commands image=%llu", static_cast<std::uint64_t>(imageIndex));
 
     // Pass 1: G-buffer (normals)
     if (gbuffer_render_pass_ != VK_NULL_HANDLE && gbuffer_framebuffer_ != VK_NULL_HANDLE && gbuffer_pipeline_ != VK_NULL_HANDLE) {
@@ -3503,6 +3517,7 @@ bool VulkanContext::draw_frame() noexcept {
     if (device_ == VK_NULL_HANDLE || swapchain_ == VK_NULL_HANDLE) {
         return false;
     }
+    dbg("draw_frame begin");
 
     const std::uint32_t frameIndex {current_frame_ % kMaxFramesInFlight};
     if (in_flight_fences_[frameIndex] != VK_NULL_HANDLE) {
@@ -3518,6 +3533,7 @@ bool VulkanContext::draw_frame() noexcept {
     if (acquireRes != VK_SUBOPTIMAL_KHR && acquireRes != VK_SUCCESS) {
         return false;
     }
+    dbgf("acquired image=%llu", static_cast<std::uint64_t>(imageIndex));
 
     if (!images_in_flight_.empty() && images_in_flight_[imageIndex] != VK_NULL_HANDLE) {
         (void)vkWaitForFences(device_, 1U, &images_in_flight_[imageIndex], VK_TRUE, UINT64_MAX);
@@ -3578,6 +3594,7 @@ bool VulkanContext::draw_frame() noexcept {
     }
 
     current_frame_ = (current_frame_ + 1U) % kMaxFramesInFlight;
+    dbg("draw_frame end");
     return true;
 }
 
@@ -3585,6 +3602,7 @@ void VulkanContext::recreate_swapchain(GLFWwindow* window) noexcept {
     if (device_ == VK_NULL_HANDLE || surface_ == VK_NULL_HANDLE) {
         return;
     }
+    dbg("recreate_swapchain begin");
     vkDeviceWaitIdle(device_);
 
     // Tear down resources that depend on swapchain extent/format
@@ -3636,6 +3654,7 @@ void VulkanContext::recreate_swapchain(GLFWwindow* window) noexcept {
     create_framebuffers();
     create_command_pool_and_buffers();
     create_sync_objects();
+    dbg("recreate_swapchain end");
 }
 
 void VulkanContext::init_imgui(GLFWwindow* window) noexcept {
@@ -3694,6 +3713,24 @@ void VulkanContext::end_label(VkCommandBuffer cmd) const noexcept {
         return;
     }
     pfn_cmd_end_label_(cmd);
+}
+
+void VulkanContext::dbg(const char* msg) const noexcept {
+    if (!debug_log_enabled_ || msg == nullptr) {
+        return;
+    }
+    std::fputs("[VK] ", stderr);
+    std::fputs(msg, stderr);
+    std::fputc('\n', stderr);
+}
+
+void VulkanContext::dbgf(const char* fmt, std::uint64_t a, std::uint64_t b) const noexcept {
+    if (!debug_log_enabled_ || fmt == nullptr) {
+        return;
+    }
+    char buf[256];
+    std::snprintf(buf, sizeof(buf), fmt, static_cast<unsigned long long>(a), static_cast<unsigned long long>(b));
+    dbg(buf);
 }
 
 // --- Camera interaction helpers ---

@@ -4,7 +4,7 @@
  - [x] Skip draw when resized; recreate swapchain first for safety
  - [x] Re-run resize e2e and capture outcome; still segfaults
  - [x] Guard submit/present against null signal semaphores to avoid invalid waits
- - [ ] Add swapchain lifecycle logging (toggle via VK_DEBUG_LOG) to trace recreate/present/acquire
+ - [x] Add swapchain lifecycle logging (toggle via VK_DEBUG_LOG) to trace recreate/present/acquire
  - [ ] Harden draw_frame to skip submit/present if any required resource is missing for the acquired image
  - [ ] Fix resize crash fully and validate with app_resize
  - [ ] Verify SSAO visual controls (radius/bias/power/blur) affect AO clearly
