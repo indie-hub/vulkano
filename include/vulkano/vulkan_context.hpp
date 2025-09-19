@@ -158,6 +158,16 @@ private:
     void destroy_compose_descriptor_set_layout() noexcept;
     void create_compose_pipeline() noexcept; // fullscreen to swapchain
     void destroy_compose_pipeline() noexcept;
+    void create_compose_resources() noexcept; // descriptors + UBOs
+    void destroy_compose_resources() noexcept;
+
+    // Offscreen lit color (forward) resources
+    void create_lit_render_pass() noexcept;
+    void destroy_lit_render_pass() noexcept;
+    void create_lit_targets() noexcept;
+    void destroy_lit_targets() noexcept;
+    void create_lit_pipeline() noexcept;
+    void destroy_lit_pipeline() noexcept;
     void create_vertex_buffer() noexcept; // legacy triangle fallback
     void create_scene() noexcept;
     void create_scene_buffers() noexcept;
@@ -316,6 +326,7 @@ private:
     VkPipeline blur_pipeline_ {VK_NULL_HANDLE};
     VkPipelineLayout compose_pipeline_layout_ {VK_NULL_HANDLE};
     VkPipeline compose_pipeline_ {VK_NULL_HANDLE};
+    VkPipeline lit_pipeline_ {VK_NULL_HANDLE};
     VkBuffer vertex_buffer_ {VK_NULL_HANDLE};
     VkDeviceMemory vertex_buffer_memory_ {VK_NULL_HANDLE};
     VkBuffer index_buffer_ {VK_NULL_HANDLE};
@@ -345,6 +356,18 @@ private:
     std::vector<VkDeviceMemory> blur_uniform_memory_ {};
     // Compose descriptors (layout only for now)
     VkDescriptorSetLayout compose_set_layout_ {VK_NULL_HANDLE};
+    VkDescriptorPool compose_descriptor_pool_ {VK_NULL_HANDLE};
+    std::vector<VkDescriptorSet> compose_descriptor_sets_ {};
+    std::vector<VkBuffer> compose_uniform_buffers_ {};
+    std::vector<VkDeviceMemory> compose_uniform_memory_ {};
+
+    // Offscreen lit color target
+    VkRenderPass lit_render_pass_ {VK_NULL_HANDLE};
+    VkFramebuffer lit_framebuffer_ {VK_NULL_HANDLE};
+    VkImage lit_image_ {VK_NULL_HANDLE};
+    VkDeviceMemory lit_memory_ {VK_NULL_HANDLE};
+    VkImageView lit_view_ {VK_NULL_HANDLE};
+    VkFormat lit_format_ {VK_FORMAT_UNDEFINED};
     // Textures (global defaults)
     VkImage albedo_image_ {VK_NULL_HANDLE};
     VkDeviceMemory albedo_image_memory_ {VK_NULL_HANDLE};

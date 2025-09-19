@@ -1,6 +1,6 @@
-Build with SSAO pass recording
+Rebuild after fixing else brace
 [  4%] Built target compile_shaders
-[  5%] Built target stb
+[  6%] Built target stb
 [  6%] Built target glm
 [ 19%] Built target glfw
 [ 24%] Built target imgui

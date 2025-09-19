@@ -398,6 +398,9 @@ void VulkanContext::set_ssao_settings(const SsaoSettings& s) noexcept {
     if (oldEnabled != ssao_.enabled) {
         if (ssao_.enabled) {
             // Enabling SSAO: create stacks if missing
+            if (lit_render_pass_ == VK_NULL_HANDLE) { create_lit_render_pass(); }
+            if (lit_framebuffer_ == VK_NULL_HANDLE) { create_lit_targets(); }
+            if (lit_pipeline_ == VK_NULL_HANDLE) { create_lit_pipeline(); }
             if (gbuffer_render_pass_ == VK_NULL_HANDLE) { create_gbuffer_render_pass(); }
             if (gbuffer_framebuffer_ == VK_NULL_HANDLE) { create_gbuffer_resources(); }
             if (ssao_set_layout_ == VK_NULL_HANDLE) { create_ssao_descriptor_set_layout(); }
@@ -407,6 +410,7 @@ void VulkanContext::set_ssao_settings(const SsaoSettings& s) noexcept {
             if (ssao_pipeline_ == VK_NULL_HANDLE) { create_ssao_pipeline(); }
             // Compose resources
             if (compose_set_layout_ == VK_NULL_HANDLE) { create_compose_descriptor_set_layout(); }
+            if (compose_descriptor_sets_.empty()) { create_compose_resources(); }
             if (compose_pipeline_ == VK_NULL_HANDLE) { create_compose_pipeline(); }
             // Blur if enabled
             if (ssao_.blurEnabled) {
@@ -418,12 +422,16 @@ void VulkanContext::set_ssao_settings(const SsaoSettings& s) noexcept {
             }
         } else {
             // Disabling SSAO: tear down stacks
+            destroy_lit_pipeline();
+            destroy_lit_targets();
+            destroy_lit_render_pass();
             destroy_blur_pipeline();
             destroy_blur_targets();
             destroy_blur_render_pass();
             destroy_blur_resources();
             destroy_blur_descriptor_set_layout();
             destroy_compose_pipeline();
+            destroy_compose_resources();
             destroy_compose_descriptor_set_layout();
             destroy_ssao_pipeline();
             destroy_ssao_targets();
@@ -3569,6 +3577,48 @@ bool VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
         return false;
     }
 
+    // --- When SSAO enabled: render lit scene offscreen, then AO passes ---
+    if (ssao_.enabled && lit_pipeline_ != VK_NULL_HANDLE && lit_framebuffer_ != VK_NULL_HANDLE) {
+        begin_label(cmd, "LitForward");
+        VkClearValue c {};
+        c.color.float32[0] = kClearColorBlack[0];
+        c.color.float32[1] = kClearColorBlack[1];
+        c.color.float32[2] = kClearColorBlack[2];
+        c.color.float32[3] = kClearColorBlack[3];
+        VkRenderPassBeginInfo litRp {};
+        litRp.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        litRp.renderPass = lit_render_pass_;
+        litRp.framebuffer = lit_framebuffer_;
+        litRp.renderArea.offset = {0,0};
+        litRp.renderArea.extent = swapchain_extent_;
+        litRp.clearValueCount = 1U;
+        litRp.pClearValues = &c;
+        vkCmdBeginRenderPass(cmd, &litRp, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, lit_pipeline_);
+        // Reuse the same global UBO binding set (set=0)
+        if (imageIndex < descriptor_sets_.size()) { const VkDescriptorSet set {descriptor_sets_[imageIndex]}; vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 0U, 1U, &set, 0U, nullptr); }
+        // Draw scene (same loop as main pass)
+        if (vertex_buffer_ != VK_NULL_HANDLE && !draw_ranges_.empty()) {
+            const VkBuffer buffers[1] {vertex_buffer_}; const VkDeviceSize offsets[1] {0U};
+            vkCmdBindVertexBuffers(cmd, 0U, 1U, buffers, offsets);
+            if (index_buffer_ != VK_NULL_HANDLE) { vkCmdBindIndexBuffer(cmd, index_buffer_, 0U, VK_INDEX_TYPE_UINT32); }
+            PushConstants pc {};
+            for (const auto& dr : draw_ranges_) {
+                if (dr.prim == nullptr) { continue; }
+                const Transform& tr = dr.prim->transform(); const Material& mat = dr.prim->material();
+                glm::mat4 model {1.0F}; model = glm::translate(model, tr.position); model = glm::rotate(model, tr.rotationEuler.y, glm::vec3 {0.0F, 1.0F, 0.0F}); model = glm::rotate(model, tr.rotationEuler.x, glm::vec3 {1.0F, 0.0F, 0.0F}); model = glm::rotate(model, tr.rotationEuler.z, glm::vec3 {0.0F, 0.0F, 1.0F}); model = glm::scale(model, tr.scale);
+                pc.model = model; pc.baseColor = mat.baseColor; pc.shininess = mat.shininess; pc.useAlbedoMap = (mat.useAlbedo ? 1 : 0); pc.useNormalMap = (mat.useNormal ? 1 : 0); pc.normalStrength = std::clamp(mat.normalStrength, 0.0F, 2.0F); pc._pad1 = 0.0F;
+                vkCmdPushConstants(cmd, pipeline_layout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0U, sizeof(PushConstants), &pc);
+                if (index_buffer_ != VK_NULL_HANDLE) { vkCmdDrawIndexed(cmd, dr.indexCount, 1U, dr.firstIndex, 0, 0); } else { vkCmdDraw(cmd, dr.indexCount, 1U, dr.firstVertex, 0U); }
+            }
+        }
+        vkCmdEndRenderPass(cmd);
+        end_label(cmd);
+        // Transition lit to shader read
+        VkImageMemoryBarrier litToRead {};
+        litToRead.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER; litToRead.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT; litToRead.dstAccessMask = VK_ACCESS_SHADER_READ_BIT; litToRead.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; litToRead.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL; litToRead.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED; litToRead.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED; litToRead.image = lit_image_; litToRead.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT; litToRead.subresourceRange.baseMipLevel = 0U; litToRead.subresourceRange.levelCount = 1U; litToRead.subresourceRange.baseArrayLayer = 0U; litToRead.subresourceRange.layerCount = 1U;
+        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0U, 0U, nullptr, 0U, nullptr, 1U, &litToRead);
+    }
     // --- AO passes before main swapchain pass ---
     if (ssao_.enabled && ssao_pipeline_ != VK_NULL_HANDLE && ssao_framebuffer_ != VK_NULL_HANDLE) {
         begin_label(cmd, "SSAO");
@@ -3749,7 +3799,41 @@ bool VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
     vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
     begin_label(cmd, "Frame");
 
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_);
+    if (ssao_.enabled && compose_pipeline_ != VK_NULL_HANDLE && !compose_descriptor_sets_.empty()) {
+        // Compose litColor with AO to swapchain
+        // Update compose UBO
+        if (imageIndex < compose_uniform_memory_.size()) {
+            struct ComposeParams { float aoStrength; float gamma; float exposure; float _pad; } p {};
+            p.aoStrength = ssao_.aoStrength; p.gamma = 2.2F; p.exposure = 1.0F; p._pad = 0.0F;
+            void* data {nullptr};
+            if (vkMapMemory(device_, compose_uniform_memory_[imageIndex], 0U, sizeof(ComposeParams), 0U, &data) == VK_SUCCESS) {
+                std::memcpy(data, &p, sizeof(ComposeParams));
+                vkUnmapMemory(device_, compose_uniform_memory_[imageIndex]);
+            }
+        }
+        // Retarget AO to blurred or raw
+        if (imageIndex < compose_descriptor_sets_.size()) {
+            VkDescriptorImageInfo aoInfo {};
+            aoInfo.sampler = ssao_clamp_sampler_;
+            aoInfo.imageView = (ssao_.blurEnabled ? ao_blur_view_ : ao_raw_view_);
+            aoInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            VkWriteDescriptorSet write {};
+            write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            write.dstSet = compose_descriptor_sets_[imageIndex];
+            write.dstBinding = 1U;
+            write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            write.descriptorCount = 1U;
+            write.pImageInfo = &aoInfo;
+            vkUpdateDescriptorSets(device_, 1U, &write, 0U, nullptr);
+        }
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, compose_pipeline_);
+        const VkDescriptorSet set {compose_descriptor_sets_[imageIndex]};
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, compose_pipeline_layout_, 0U, 1U, &set, 0U, nullptr);
+        vkCmdDraw(cmd, 3U, 1U, 0U, 0U);
+    } else {
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_);
+    }
+
 
     // Update and bind global UBO for this image
     if (imageIndex < uniform_buffers_memory_.size() && camera_) {
@@ -3778,7 +3862,7 @@ bool VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
         (void)camera_->view_projection();
     }
 
-    if (vertex_buffer_ != VK_NULL_HANDLE && !draw_ranges_.empty()) {
+    if (!(ssao_.enabled && compose_pipeline_ != VK_NULL_HANDLE) && vertex_buffer_ != VK_NULL_HANDLE && !draw_ranges_.empty()) {
         const VkBuffer buffers[1] {vertex_buffer_};
         const VkDeviceSize offsets[1] {0U};
         vkCmdBindVertexBuffers(cmd, 0U, 1U, buffers, offsets);
@@ -3815,7 +3899,7 @@ bool VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
             }
             end_label(cmd);
         }
-    } else if (vertex_buffer_ != VK_NULL_HANDLE) {
+    } else if (!(ssao_.enabled && compose_pipeline_ != VK_NULL_HANDLE) && vertex_buffer_ != VK_NULL_HANDLE) {
         // Fallback single triangle vertex buffer
         const VkBuffer buffers[1] {vertex_buffer_};
         const VkDeviceSize offsets[1] {0U};
@@ -4078,8 +4162,7 @@ float VulkanContext::camera_fov() const noexcept {
     return camera_->fov_y();
 }
 
-} // namespace vulkano
-namespace vulkano {
+// continue in namespace vulkano
 void VulkanContext::create_blur_render_pass() noexcept {
     if (device_ == VK_NULL_HANDLE) {
         return;
@@ -4384,6 +4467,79 @@ void VulkanContext::destroy_compose_descriptor_set_layout() noexcept {
     if (compose_set_layout_ != VK_NULL_HANDLE) { vkDestroyDescriptorSetLayout(device_, compose_set_layout_, nullptr); compose_set_layout_ = VK_NULL_HANDLE; }
 }
 
+void VulkanContext::create_compose_resources() noexcept {
+    if (device_ == VK_NULL_HANDLE || compose_set_layout_ == VK_NULL_HANDLE) { return; }
+    const std::uint32_t imageCount {static_cast<std::uint32_t>(swapchain_images_.size())};
+    struct ComposeParams { float aoStrength; float gamma; float exposure; float _pad; };
+    compose_uniform_buffers_.resize(imageCount);
+    compose_uniform_memory_.resize(imageCount);
+    for (std::uint32_t i {0U}; i < imageCount; ++i) {
+        if (compose_uniform_buffers_[i] == VK_NULL_HANDLE) {
+            create_buffer(static_cast<VkDeviceSize>(sizeof(ComposeParams)), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                          compose_uniform_buffers_[i], compose_uniform_memory_[i], "ComposeUBO");
+        }
+        ComposeParams p {};
+        p.aoStrength = ssao_.aoStrength;
+        p.gamma = 2.2F;
+        p.exposure = 1.0F;
+        p._pad = 0.0F;
+        void* data {nullptr};
+        if (vkMapMemory(device_, compose_uniform_memory_[i], 0U, sizeof(ComposeParams), 0U, &data) == VK_SUCCESS) {
+            std::memcpy(data, &p, sizeof(ComposeParams));
+            vkUnmapMemory(device_, compose_uniform_memory_[i]);
+        }
+    }
+    if (compose_descriptor_pool_ == VK_NULL_HANDLE) {
+        VkDescriptorPoolSize sizes[2] {};
+        sizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; sizes[0].descriptorCount = imageCount * 2U;
+        sizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; sizes[1].descriptorCount = imageCount;
+        VkDescriptorPoolCreateInfo info {};
+        info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        info.maxSets = imageCount;
+        info.poolSizeCount = 2U;
+        info.pPoolSizes = sizes;
+        vkCreateDescriptorPool(device_, &info, nullptr, &compose_descriptor_pool_);
+    }
+    compose_descriptor_sets_.assign(imageCount, VK_NULL_HANDLE);
+    if (compose_descriptor_pool_ != VK_NULL_HANDLE) {
+        std::vector<VkDescriptorSetLayout> layouts(imageCount, compose_set_layout_);
+        VkDescriptorSetAllocateInfo alloc {};
+        alloc.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        alloc.descriptorPool = compose_descriptor_pool_;
+        alloc.descriptorSetCount = imageCount;
+        alloc.pSetLayouts = layouts.data();
+        if (vkAllocateDescriptorSets(device_, &alloc, compose_descriptor_sets_.data()) != VK_SUCCESS) {
+            return;
+        }
+        for (std::uint32_t i {0U}; i < imageCount; ++i) {
+            VkDescriptorImageInfo litInfo {};
+            litInfo.sampler = ssao_clamp_sampler_;
+            litInfo.imageView = lit_view_;
+            litInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            VkDescriptorImageInfo aoInfo {};
+            aoInfo.sampler = ssao_clamp_sampler_;
+            aoInfo.imageView = (ssao_.blurEnabled ? ao_blur_view_ : ao_raw_view_);
+            aoInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            VkDescriptorBufferInfo bufInfo {};
+            bufInfo.buffer = compose_uniform_buffers_[i]; bufInfo.offset = 0U; bufInfo.range = sizeof(ComposeParams);
+            VkWriteDescriptorSet writes[3] {};
+            writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[0].dstSet = compose_descriptor_sets_[i]; writes[0].dstBinding = 0U; writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[0].descriptorCount = 1U; writes[0].pImageInfo = &litInfo;
+            writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[1].dstSet = compose_descriptor_sets_[i]; writes[1].dstBinding = 1U; writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; writes[1].descriptorCount = 1U; writes[1].pImageInfo = &aoInfo;
+            writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET; writes[2].dstSet = compose_descriptor_sets_[i]; writes[2].dstBinding = 2U; writes[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; writes[2].descriptorCount = 1U; writes[2].pBufferInfo = &bufInfo;
+            vkUpdateDescriptorSets(device_, 3U, writes, 0U, nullptr);
+        }
+    }
+}
+
+void VulkanContext::destroy_compose_resources() noexcept {
+    if (device_ == VK_NULL_HANDLE) { return; }
+    if (compose_descriptor_pool_ != VK_NULL_HANDLE) { vkDestroyDescriptorPool(device_, compose_descriptor_pool_, nullptr); compose_descriptor_pool_ = VK_NULL_HANDLE; }
+    compose_descriptor_sets_.clear();
+    for (auto& b : compose_uniform_buffers_) { if (b != VK_NULL_HANDLE) { vkDestroyBuffer(device_, b, nullptr); b = VK_NULL_HANDLE; } }
+    for (auto& m : compose_uniform_memory_) { if (m != VK_NULL_HANDLE) { vkFreeMemory(device_, m, nullptr); m = VK_NULL_HANDLE; } }
+}
+
 void VulkanContext::create_compose_pipeline() noexcept {
     if (device_ == VK_NULL_HANDLE || render_pass_ == VK_NULL_HANDLE || compose_set_layout_ == VK_NULL_HANDLE) {
         return;
@@ -4437,5 +4593,94 @@ void VulkanContext::destroy_compose_pipeline() noexcept {
     if (device_ == VK_NULL_HANDLE) { return; }
     if (compose_pipeline_ != VK_NULL_HANDLE) { vkDestroyPipeline(device_, compose_pipeline_, nullptr); compose_pipeline_ = VK_NULL_HANDLE; }
     if (compose_pipeline_layout_ != VK_NULL_HANDLE) { vkDestroyPipelineLayout(device_, compose_pipeline_layout_, nullptr); compose_pipeline_layout_ = VK_NULL_HANDLE; }
+}
+
+void VulkanContext::create_lit_render_pass() noexcept {
+    if (device_ == VK_NULL_HANDLE) { return; }
+    // Single color attachment, cleared and stored for sampling
+    if (lit_format_ == VK_FORMAT_UNDEFINED) { lit_format_ = swapchain_image_format_; }
+    VkAttachmentDescription a0 {};
+    a0.format = lit_format_;
+    a0.samples = VK_SAMPLE_COUNT_1_BIT;
+    a0.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    a0.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    a0.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    a0.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    a0.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    a0.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    VkAttachmentReference colorRef {};
+    colorRef.attachment = 0U; colorRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    VkSubpassDescription sub {};
+    sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; sub.colorAttachmentCount = 1U; sub.pColorAttachments = &colorRef;
+    VkRenderPassCreateInfo rp {};
+    rp.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO; rp.attachmentCount = 1U; rp.pAttachments = &a0; rp.subpassCount = 1U; rp.pSubpasses = &sub;
+    vkCreateRenderPass(device_, &rp, nullptr, &lit_render_pass_);
+    if (lit_render_pass_ != VK_NULL_HANDLE) { set_object_name(VK_OBJECT_TYPE_RENDER_PASS, reinterpret_cast<std::uint64_t>(lit_render_pass_), "LitPass"); }
+}
+
+void VulkanContext::destroy_lit_render_pass() noexcept {
+    if (device_ == VK_NULL_HANDLE) { return; }
+    if (lit_render_pass_ != VK_NULL_HANDLE) { vkDestroyRenderPass(device_, lit_render_pass_, nullptr); lit_render_pass_ = VK_NULL_HANDLE; }
+}
+
+void VulkanContext::create_lit_targets() noexcept {
+    if (device_ == VK_NULL_HANDLE || lit_render_pass_ == VK_NULL_HANDLE) { return; }
+    if (swapchain_extent_.width == 0U || swapchain_extent_.height == 0U) { return; }
+    const std::uint32_t w {swapchain_extent_.width}; const std::uint32_t h {swapchain_extent_.height};
+    create_image_2d(w, h, 1U, lit_format_, VK_IMAGE_TILING_OPTIMAL,
+                    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                    lit_image_, lit_memory_, "LitImage");
+    create_image_view_2d(lit_image_, lit_format_, VK_IMAGE_ASPECT_COLOR_BIT, 1U, lit_view_, "LitView");
+    VkImageView atts[1] {lit_view_};
+    VkFramebufferCreateInfo fb {};
+    fb.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO; fb.renderPass = lit_render_pass_; fb.attachmentCount = 1U; fb.pAttachments = atts; fb.width = w; fb.height = h; fb.layers = 1U;
+    vkCreateFramebuffer(device_, &fb, nullptr, &lit_framebuffer_);
+    if (lit_framebuffer_ != VK_NULL_HANDLE) { set_object_name(VK_OBJECT_TYPE_FRAMEBUFFER, reinterpret_cast<std::uint64_t>(lit_framebuffer_), "LitFB"); }
+}
+
+void VulkanContext::destroy_lit_targets() noexcept {
+    if (device_ == VK_NULL_HANDLE) { return; }
+    if (lit_framebuffer_ != VK_NULL_HANDLE) { vkDestroyFramebuffer(device_, lit_framebuffer_, nullptr); lit_framebuffer_ = VK_NULL_HANDLE; }
+    if (lit_view_ != VK_NULL_HANDLE) { vkDestroyImageView(device_, lit_view_, nullptr); lit_view_ = VK_NULL_HANDLE; }
+    if (lit_image_ != VK_NULL_HANDLE) { vkDestroyImage(device_, lit_image_, nullptr); lit_image_ = VK_NULL_HANDLE; }
+    if (lit_memory_ != VK_NULL_HANDLE) { vkFreeMemory(device_, lit_memory_, nullptr); lit_memory_ = VK_NULL_HANDLE; }
+}
+
+void VulkanContext::create_lit_pipeline() noexcept {
+    if (device_ == VK_NULL_HANDLE || lit_render_pass_ == VK_NULL_HANDLE || pipeline_layout_ == VK_NULL_HANDLE) { return; }
+    const std::string dir {shader_dir_guess()};
+    const std::vector<char> vertCode {read_file_binary(dir + "/mesh.vert.spv")};
+    const std::vector<char> fragCode {read_file_binary(dir + "/mesh.frag.spv")};
+    if (vertCode.empty() || fragCode.empty()) { return; }
+    const VkShaderModule vertModule {create_shader_module(device_, vertCode)}; const VkShaderModule fragModule {create_shader_module(device_, fragCode)};
+    if (vertModule == VK_NULL_HANDLE || fragModule == VK_NULL_HANDLE) { if (vertModule != VK_NULL_HANDLE) vkDestroyShaderModule(device_, vertModule, nullptr); if (fragModule != VK_NULL_HANDLE) vkDestroyShaderModule(device_, fragModule, nullptr); return; }
+    VkPipelineShaderStageCreateInfo stages[2] {};
+    stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT; stages[0].module = vertModule; stages[0].pName = "main";
+    stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT; stages[1].module = fragModule; stages[1].pName = "main";
+    VkVertexInputBindingDescription binding {}; binding.binding = 0U; binding.stride = sizeof(Vertex); binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+    VkVertexInputAttributeDescription attribs[4] {};
+    attribs[0].location = 0U; attribs[0].binding = 0U; attribs[0].format = VK_FORMAT_R32G32B32_SFLOAT; attribs[0].offset = 0U;
+    attribs[1].location = 1U; attribs[1].binding = 0U; attribs[1].format = VK_FORMAT_R32G32B32_SFLOAT; attribs[1].offset = static_cast<std::uint32_t>(offsetof(Vertex, normal));
+    attribs[2].location = 2U; attribs[2].binding = 0U; attribs[2].format = VK_FORMAT_R32G32_SFLOAT; attribs[2].offset = static_cast<std::uint32_t>(offsetof(Vertex, uv));
+    attribs[3].location = 3U; attribs[3].binding = 0U; attribs[3].format = VK_FORMAT_R32G32B32_SFLOAT; attribs[3].offset = static_cast<std::uint32_t>(offsetof(Vertex, tangent));
+    VkPipelineVertexInputStateCreateInfo vi {}; vi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO; vi.vertexBindingDescriptionCount = 1U; vi.pVertexBindingDescriptions = &binding; vi.vertexAttributeDescriptionCount = 4U; vi.pVertexAttributeDescriptions = attribs;
+    VkPipelineInputAssemblyStateCreateInfo ia {}; ia.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO; ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    VkViewport vp {}; vp.x = 0.0F; vp.y = 0.0F; vp.width = static_cast<float>(swapchain_extent_.width); vp.height = static_cast<float>(swapchain_extent_.height); vp.minDepth = 0.0F; vp.maxDepth = 1.0F;
+    VkRect2D sc {}; sc.offset = {0,0}; sc.extent = swapchain_extent_;
+    VkPipelineViewportStateCreateInfo vpst {}; vpst.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO; vpst.viewportCount = 1U; vpst.pViewports = &vp; vpst.scissorCount = 1U; vpst.pScissors = &sc;
+    VkPipelineRasterizationStateCreateInfo rs {}; rs.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO; rs.polygonMode = VK_POLYGON_MODE_FILL; rs.cullMode = VK_CULL_MODE_BACK_BIT; rs.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE; rs.lineWidth = 1.0F;
+    VkPipelineMultisampleStateCreateInfo ms {}; ms.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO; ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    VkPipelineDepthStencilStateCreateInfo ds {}; ds.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO; ds.depthTestEnable = VK_TRUE; ds.depthWriteEnable = VK_TRUE;
+    VkPipelineColorBlendAttachmentState att {}; att.colorWriteMask = VK_COLOR_COMPONENT_R_BIT|VK_COLOR_COMPONENT_G_BIT|VK_COLOR_COMPONENT_B_BIT|VK_COLOR_COMPONENT_A_BIT; att.blendEnable = VK_FALSE;
+    VkPipelineColorBlendStateCreateInfo cb {}; cb.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO; cb.attachmentCount = 1U; cb.pAttachments = &att;
+    VkGraphicsPipelineCreateInfo gp {}; gp.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO; gp.stageCount = 2U; gp.pStages = stages; gp.pVertexInputState = &vi; gp.pInputAssemblyState = &ia; gp.pViewportState = &vpst; gp.pRasterizationState = &rs; gp.pMultisampleState = &ms; gp.pDepthStencilState = &ds; gp.pColorBlendState = &cb; gp.layout = pipeline_layout_; gp.renderPass = lit_render_pass_; gp.subpass = 0U;
+    if (vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1U, &gp, nullptr, &lit_pipeline_) == VK_SUCCESS) { set_object_name(VK_OBJECT_TYPE_PIPELINE, reinterpret_cast<std::uint64_t>(lit_pipeline_), "LitPipeline"); }
+    vkDestroyShaderModule(device_, vertModule, nullptr); vkDestroyShaderModule(device_, fragModule, nullptr);
+}
+
+void VulkanContext::destroy_lit_pipeline() noexcept {
+    if (device_ == VK_NULL_HANDLE) { return; }
+    if (lit_pipeline_ != VK_NULL_HANDLE) { vkDestroyPipeline(device_, lit_pipeline_, nullptr); lit_pipeline_ = VK_NULL_HANDLE; }
 }
 } // namespace vulkano
