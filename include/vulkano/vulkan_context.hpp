@@ -154,6 +154,10 @@ private:
     void destroy_blur_resources() noexcept;
     void create_blur_pipeline() noexcept;
     void destroy_blur_pipeline() noexcept;
+    void create_compose_descriptor_set_layout() noexcept;
+    void destroy_compose_descriptor_set_layout() noexcept;
+    void create_compose_pipeline() noexcept; // fullscreen to swapchain
+    void destroy_compose_pipeline() noexcept;
     void create_vertex_buffer() noexcept; // legacy triangle fallback
     void create_scene() noexcept;
     void create_scene_buffers() noexcept;
@@ -310,6 +314,8 @@ private:
     VkPipeline ssao_pipeline_ {VK_NULL_HANDLE};
     VkPipelineLayout blur_pipeline_layout_ {VK_NULL_HANDLE};
     VkPipeline blur_pipeline_ {VK_NULL_HANDLE};
+    VkPipelineLayout compose_pipeline_layout_ {VK_NULL_HANDLE};
+    VkPipeline compose_pipeline_ {VK_NULL_HANDLE};
     VkBuffer vertex_buffer_ {VK_NULL_HANDLE};
     VkDeviceMemory vertex_buffer_memory_ {VK_NULL_HANDLE};
     VkBuffer index_buffer_ {VK_NULL_HANDLE};
@@ -337,6 +343,8 @@ private:
     std::vector<VkDescriptorSet> blur_descriptor_sets_ {};
     std::vector<VkBuffer> blur_uniform_buffers_ {};
     std::vector<VkDeviceMemory> blur_uniform_memory_ {};
+    // Compose descriptors (layout only for now)
+    VkDescriptorSetLayout compose_set_layout_ {VK_NULL_HANDLE};
     // Textures (global defaults)
     VkImage albedo_image_ {VK_NULL_HANDLE};
     VkDeviceMemory albedo_image_memory_ {VK_NULL_HANDLE};

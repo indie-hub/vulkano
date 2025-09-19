@@ -3,7 +3,7 @@
 - [x] Add SSAO pass resources (noise tex, kernel, descriptors) guarded by enable flag
 - [x] Add SSAO fullscreen pipeline + shader; write aoRaw (resources only)
 - [x] Add blur (H+V) pipelines + shader; write aoBlur (resources only)
-- [ ] Add compose pipeline + shader; final = litColor * mix(1, ao, aoStrength)
+- [x] Add compose pipeline + shader; final = litColor * mix(1, ao, aoStrength) (resources only)
 - [ ] Handle resize: recreate AO/G-buffer and framebuffers; proper barriers
 - [ ] Wire SSAO UBO updates and toggles; sampling clamps and repeat for noise
 - [ ] Add unit tests (kernel gen, param clamp); keep e2e passing

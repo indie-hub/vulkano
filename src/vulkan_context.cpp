@@ -218,6 +218,9 @@ VulkanContext::VulkanContext(GLFWwindow* window) noexcept {
             create_blur_resources();
             create_blur_pipeline();
         }
+        // Compose uses swapchain render pass; build layout/pipeline now (resources only)
+        create_compose_descriptor_set_layout();
+        create_compose_pipeline();
     }
 }
 
@@ -740,6 +743,8 @@ void VulkanContext::destroy() noexcept {
     destroy_blur_render_pass();
     destroy_blur_resources();
     destroy_blur_descriptor_set_layout();
+    destroy_compose_pipeline();
+    destroy_compose_descriptor_set_layout();
     destroy_depth_resources();
     destroy_render_pass();
     destroy_pipeline();
@@ -1018,6 +1023,8 @@ void VulkanContext::destroy_swapchain_and_views() noexcept {
     destroy_blur_render_pass();
     destroy_blur_resources();
     destroy_blur_descriptor_set_layout();
+    destroy_compose_pipeline();
+    destroy_compose_descriptor_set_layout();
     for (auto& view : swapchain_image_views_) {
         if (view != VK_NULL_HANDLE) {
             vkDestroyImageView(device_, view, nullptr);
@@ -4130,5 +4137,82 @@ void VulkanContext::destroy_blur_pipeline() noexcept {
     if (device_ == VK_NULL_HANDLE) { return; }
     if (blur_pipeline_ != VK_NULL_HANDLE) { vkDestroyPipeline(device_, blur_pipeline_, nullptr); blur_pipeline_ = VK_NULL_HANDLE; }
     if (blur_pipeline_layout_ != VK_NULL_HANDLE) { vkDestroyPipelineLayout(device_, blur_pipeline_layout_, nullptr); blur_pipeline_layout_ = VK_NULL_HANDLE; }
+}
+
+void VulkanContext::create_compose_descriptor_set_layout() noexcept {
+    if (device_ == VK_NULL_HANDLE) { return; }
+    // set=4: litTex, aoTex, ComposeParams UBO
+    VkDescriptorSetLayoutBinding b0 {};
+    b0.binding = 0U; b0.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; b0.descriptorCount = 1U; b0.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    VkDescriptorSetLayoutBinding b1 {b0}; b1.binding = 1U;
+    VkDescriptorSetLayoutBinding b2 {};
+    b2.binding = 2U; b2.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; b2.descriptorCount = 1U; b2.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    VkDescriptorSetLayoutBinding bindings[3] {b0, b1, b2};
+    VkDescriptorSetLayoutCreateInfo info {};
+    info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO; info.bindingCount = 3U; info.pBindings = bindings;
+    vkCreateDescriptorSetLayout(device_, &info, nullptr, &compose_set_layout_);
+    if (compose_set_layout_ != VK_NULL_HANDLE) {
+        set_object_name(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, reinterpret_cast<std::uint64_t>(compose_set_layout_), "ComposeSetLayout");
+    }
+}
+
+void VulkanContext::destroy_compose_descriptor_set_layout() noexcept {
+    if (device_ == VK_NULL_HANDLE) { return; }
+    if (compose_set_layout_ != VK_NULL_HANDLE) { vkDestroyDescriptorSetLayout(device_, compose_set_layout_, nullptr); compose_set_layout_ = VK_NULL_HANDLE; }
+}
+
+void VulkanContext::create_compose_pipeline() noexcept {
+    if (device_ == VK_NULL_HANDLE || render_pass_ == VK_NULL_HANDLE || compose_set_layout_ == VK_NULL_HANDLE) {
+        return;
+    }
+    VkPipelineLayoutCreateInfo pl {};
+    pl.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pl.setLayoutCount = 1U;
+    const VkDescriptorSetLayout setLayouts[1] {compose_set_layout_};
+    pl.pSetLayouts = setLayouts;
+    if (vkCreatePipelineLayout(device_, &pl, nullptr, &compose_pipeline_layout_) != VK_SUCCESS) {
+        return;
+    }
+    set_object_name(VK_OBJECT_TYPE_PIPELINE_LAYOUT, reinterpret_cast<std::uint64_t>(compose_pipeline_layout_), "ComposePipelineLayout");
+
+    const std::string dir {shader_dir_guess()};
+    const std::vector<char> vertCode {read_file_binary(dir + "/ssao.vert.spv")};
+    const std::vector<char> fragCode {read_file_binary(dir + "/compose.frag.spv")};
+    if (vertCode.empty() || fragCode.empty()) { return; }
+    const VkShaderModule vertModule {create_shader_module(device_, vertCode)};
+    const VkShaderModule fragModule {create_shader_module(device_, fragCode)};
+    if (vertModule == VK_NULL_HANDLE || fragModule == VK_NULL_HANDLE) {
+        if (vertModule != VK_NULL_HANDLE) { vkDestroyShaderModule(device_, vertModule, nullptr); }
+        if (fragModule != VK_NULL_HANDLE) { vkDestroyShaderModule(device_, fragModule, nullptr); }
+        return;
+    }
+    VkPipelineShaderStageCreateInfo vs {};
+    vs.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; vs.stage = VK_SHADER_STAGE_VERTEX_BIT; vs.module = vertModule; vs.pName = "main";
+    VkPipelineShaderStageCreateInfo fs {};
+    fs.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO; fs.stage = VK_SHADER_STAGE_FRAGMENT_BIT; fs.module = fragModule; fs.pName = "main";
+    const VkPipelineShaderStageCreateInfo stages[2] {vs, fs};
+    VkPipelineVertexInputStateCreateInfo vi { }; vi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    VkPipelineInputAssemblyStateCreateInfo ia { }; ia.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO; ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    VkViewport vp { }; vp.x = 0.0F; vp.y = 0.0F; vp.width = static_cast<float>(swapchain_extent_.width); vp.height = static_cast<float>(swapchain_extent_.height); vp.minDepth = 0.0F; vp.maxDepth = 1.0F;
+    VkRect2D sc { }; sc.offset = {0,0}; sc.extent = swapchain_extent_;
+    VkPipelineViewportStateCreateInfo vpst { }; vpst.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO; vpst.viewportCount = 1U; vpst.pViewports = &vp; vpst.scissorCount = 1U; vpst.pScissors = &sc;
+    VkPipelineRasterizationStateCreateInfo rs { }; rs.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO; rs.polygonMode = VK_POLYGON_MODE_FILL; rs.cullMode = VK_CULL_MODE_NONE; rs.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE; rs.lineWidth = 1.0F;
+    VkPipelineMultisampleStateCreateInfo ms { }; ms.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO; ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    VkPipelineDepthStencilStateCreateInfo ds { }; ds.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO; ds.depthTestEnable = VK_FALSE; ds.depthWriteEnable = VK_FALSE;
+    VkPipelineColorBlendAttachmentState att { }; att.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT; att.blendEnable = VK_FALSE;
+    VkPipelineColorBlendStateCreateInfo cb { }; cb.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO; cb.attachmentCount = 1U; cb.pAttachments = &att;
+    VkGraphicsPipelineCreateInfo gp { };
+    gp.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO; gp.stageCount = 2U; gp.pStages = stages; gp.pVertexInputState = &vi; gp.pInputAssemblyState = &ia; gp.pViewportState = &vpst; gp.pRasterizationState = &rs; gp.pMultisampleState = &ms; gp.pDepthStencilState = &ds; gp.pColorBlendState = &cb; gp.layout = compose_pipeline_layout_; gp.renderPass = render_pass_; gp.subpass = 0U;
+    if (vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1U, &gp, nullptr, &compose_pipeline_) == VK_SUCCESS) {
+        set_object_name(VK_OBJECT_TYPE_PIPELINE, reinterpret_cast<std::uint64_t>(compose_pipeline_), "ComposePipeline");
+    }
+    vkDestroyShaderModule(device_, vertModule, nullptr);
+    vkDestroyShaderModule(device_, fragModule, nullptr);
+}
+
+void VulkanContext::destroy_compose_pipeline() noexcept {
+    if (device_ == VK_NULL_HANDLE) { return; }
+    if (compose_pipeline_ != VK_NULL_HANDLE) { vkDestroyPipeline(device_, compose_pipeline_, nullptr); compose_pipeline_ = VK_NULL_HANDLE; }
+    if (compose_pipeline_layout_ != VK_NULL_HANDLE) { vkDestroyPipelineLayout(device_, compose_pipeline_layout_, nullptr); compose_pipeline_layout_ = VK_NULL_HANDLE; }
 }
 } // namespace vulkano
