@@ -99,6 +99,21 @@ public:
     [[nodiscard]] glm::vec2 camera_angles() const noexcept; // x=yaw, y=pitch
     [[nodiscard]] float camera_fov() const noexcept;
 
+    // SSAO parameters and toggles (UI-controlled)
+    struct SsaoParams final {
+        bool enabled {false};
+        std::int32_t kernelSize {32};
+        float radius {0.5F};
+        float bias {0.025F};
+        float power {1.0F};
+        bool blur_enabled {true};
+        float blur_radius {2.0F};
+        float blur_sigma {1.0F};
+        float strength {1.0F};
+    };
+    [[nodiscard]] const SsaoParams& ssao_params() const noexcept;
+    void set_ssao_params(const SsaoParams& p) noexcept;
+
     // Scene editing helpers
     [[nodiscard]] std::size_t primitive_count() const noexcept;
     [[nodiscard]] Primitive* primitive_at(std::size_t index) noexcept;
@@ -298,6 +313,9 @@ private:
     PFN_vkCmdBeginDebugUtilsLabelEXT pfn_cmd_begin_label_ {nullptr};
     PFN_vkCmdEndDebugUtilsLabelEXT pfn_cmd_end_label_ {nullptr};
     // Reserved for future per-frame UI callback
+
+    // SSAO runtime parameters (resources will be created in subsequent steps)
+    SsaoParams ssao_ {};
 };
 
 } // namespace vulkano

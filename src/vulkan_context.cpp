@@ -2981,4 +2981,23 @@ float VulkanContext::camera_fov() const noexcept {
     return camera_->fov_y();
 }
 
+const VulkanContext::SsaoParams& VulkanContext::ssao_params() const noexcept {
+    return ssao_;
+}
+
+void VulkanContext::set_ssao_params(const SsaoParams& p) noexcept {
+    SsaoParams fixed {p};
+    // Clamp and sanitize inputs to avoid invalid states
+    if (fixed.kernelSize != 16 && fixed.kernelSize != 32 && fixed.kernelSize != 64) {
+        fixed.kernelSize = 32;
+    }
+    fixed.radius = std::clamp(fixed.radius, 0.01F, 10.0F);
+    fixed.bias = std::clamp(fixed.bias, 0.0F, 0.2F);
+    fixed.power = std::clamp(fixed.power, 0.1F, 4.0F);
+    fixed.blur_radius = std::clamp(fixed.blur_radius, 1.0F, 10.0F);
+    fixed.blur_sigma = std::clamp(fixed.blur_sigma, 0.1F, 10.0F);
+    fixed.strength = std::clamp(fixed.strength, 0.0F, 3.0F);
+    ssao_ = fixed;
+}
+
 } // namespace vulkano
