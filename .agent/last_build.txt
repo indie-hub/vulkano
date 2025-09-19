@@ -1,13 +1,48 @@
+Configuring + building (Debug)
+-- glfw3 not found; fetching via FetchContent
+-- Including Cocoa support
+-- glm not found; fetching via FetchContent
+CMake Deprecation Warning at build_debug/_deps/glm-src/CMakeLists.txt:1 (cmake_minimum_required):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+
+
+CMake Deprecation Warning at build_debug/_deps/glm-src/CMakeLists.txt:2 (cmake_policy):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+
+
+-- GLM: Version 1.0.1
+-- GLM: Disable -Wc++98-compat warnings
+-- GLM: Build with C++ features auto detection
+-- imgui not found; fetching via FetchContent
+-- stb not found; fetching via FetchContent
+-- Configuring done (3.0s)
+-- Generating done (0.1s)
+-- Build files have been written to: /Users/bruno/Documents/Development/bruno/vulkano_codex/build_debug
 [  3%] Built target compile_shaders
-[  4%] Built target glm
 [  5%] Built target stb
+[  5%] Built target glm
 [ 18%] Built target glfw
 [ 22%] Built target imgui
-[ 27%] Built target vulkano
-[ 28%] Built target vulkano_app
-[ 29%] Packaging runtime bundle to /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/dist
-[ 29%] Built target package_runtime
-[ 29%] Built target dist
-[ 93%] Built target Catch2
-[ 94%] Built target Catch2WithMain
+[ 22%] Building CXX object CMakeFiles/vulkano.dir/src/app.cpp.o
+[ 23%] Building CXX object CMakeFiles/vulkano.dir/src/vulkan_context.cpp.o
+[ 87%] Built target Catch2
+[ 88%] Built target Catch2WithMain
+[ 89%] Linking CXX static library /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libvulkano.a
+[ 92%] Built target vulkano
+[ 92%] Linking CXX executable /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_app
+[ 93%] Linking CXX executable /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/vulkano_tests
+[ 94%] Built target vulkano_app
+[ 95%] Packaging runtime bundle to /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/dist
+[ 95%] Built target package_runtime
+[ 95%] Built target dist
 [100%] Built target vulkano_tests

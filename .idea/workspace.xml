@@ -67,7 +67,10 @@
     <configurations />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="ea5f2232-e0d5-4be9-833c-c06073c2468d" name="Changes" comment="New TODO" />
+    <list default="true" id="ea5f2232-e0d5-4be9-833c-c06073c2468d" name="Changes" comment="New TODO">
+      <change beforePath="$PROJECT_DIR$/.agent/TODO.md" beforeDir="false" afterPath="$PROJECT_DIR$/.agent/TODO.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -80,7 +83,7 @@
   <component name="Git.Settings">
     <option name="RECENT_BRANCH_BY_REPOSITORY">
       <map>
-        <entry key="$PROJECT_DIR$" value="personal/codex/4th-first-attempt" />
+        <entry key="$PROJECT_DIR$" value="personal/codex/6th-second-attempt" />
       </map>
     </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -150,7 +153,7 @@
     "cf.first.check.clang-format": "false",
     "cidr.known.project.marker": "true",
     "ctest.advertisement.all.test.configuration.is.created": "true",
-    "git-widget-placeholder": "personal/codex/5th-first-attempt",
+    "git-widget-placeholder": "personal/codex/6th-third-attempt",
     "last_opened_file_path": "/Users/bruno/Documents/Development/bruno/vulkano_codex/.agent",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",

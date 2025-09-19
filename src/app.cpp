@@ -465,6 +465,44 @@ void App::build_ui() noexcept {
         ImGui::Text("FOV Y: %.3f rad", static_cast<double>(fov));
     }
     ImGui::End();
+
+    // SSAO controls panel (UI-only in this step)
+    ImGui::Begin("SSAO");
+    if (vk_ != nullptr) {
+        vulkano::VulkanContext::SsaoSettings s {vk_->ssao_settings()};
+        bool changed {false};
+        if (ImGui::Checkbox("Enabled", &s.enabled)) {
+            changed = true;
+        }
+        // Kernel size options
+        const char* kKernelItems[] {"16", "32", "64"};
+        int kernelIndex {1}; // default 32
+        if (s.kernelSize <= 16) { kernelIndex = 0; }
+        else if (s.kernelSize >= 64) { kernelIndex = 2; }
+        if (ImGui::Combo("Kernel Size", &kernelIndex, kKernelItems, static_cast<int>(sizeof(kKernelItems) / sizeof(kKernelItems[0])))) {
+            s.kernelSize = (kernelIndex == 0) ? 16 : ((kernelIndex == 1) ? 32 : 64);
+            changed = true;
+        }
+        if (ImGui::SliderFloat("Radius", &s.radius, 0.05F, 2.0F)) { changed = true; }
+        if (ImGui::SliderFloat("Bias", &s.bias, 0.001F, 0.1F)) { changed = true; }
+        if (ImGui::SliderFloat("Power", &s.power, 0.5F, 2.5F)) { changed = true; }
+        if (ImGui::Checkbox("Blur", &s.blurEnabled)) { changed = true; }
+        if (ImGui::SliderInt("Blur Radius", &s.blurRadius, 1, 5)) { changed = true; }
+        if (ImGui::SliderFloat("Blur Sigma", &s.blurSigma, 0.5F, 3.0F)) { changed = true; }
+        if (ImGui::SliderFloat("AO Strength", &s.aoStrength, 0.0F, 1.5F)) { changed = true; }
+
+        // Read-only info
+        const auto extent {vk_->swapchain_extent()};
+        ImGui::SeparatorText("Info");
+        ImGui::Text("Kernel: %d", s.kernelSize);
+        ImGui::Text("Noise: %ux%u", s.noiseTexSize, s.noiseTexSize);
+        ImGui::Text("Framebuffer: %ux%u", extent.width, extent.height);
+
+        if (changed) {
+            vk_->set_ssao_settings(s);
+        }
+    }
+    ImGui::End();
 }
 
 } // namespace vulkano

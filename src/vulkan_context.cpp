@@ -121,6 +121,18 @@ namespace {
         float normalStrength;
         float _pad1;
     };
+
+    // Default SSAO UI settings (kept here to avoid magic numbers)
+    constexpr bool kDefaultSsaoEnabled {false};
+    constexpr std::int32_t kDefaultSsaoKernel {32};
+    constexpr float kDefaultSsaoRadius {0.5F};
+    constexpr float kDefaultSsaoBias {0.025F};
+    constexpr float kDefaultSsaoPower {1.0F};
+    constexpr bool kDefaultSsaoBlurEnabled {true};
+    constexpr std::int32_t kDefaultSsaoBlurRadius {2};
+    constexpr float kDefaultSsaoBlurSigma {1.5F};
+    constexpr float kDefaultSsaoStrength {1.0F};
+    constexpr std::uint32_t kDefaultSsaoNoiseSize {4U};
 }
 
 VulkanContext::VulkanContext(GLFWwindow* window) noexcept {
@@ -153,6 +165,18 @@ VulkanContext::VulkanContext(GLFWwindow* window) noexcept {
     create_framebuffers();
     create_command_pool_and_buffers();
     create_sync_objects();
+
+    // Init SSAO settings with named defaults
+    ssao_.enabled = kDefaultSsaoEnabled;
+    ssao_.kernelSize = kDefaultSsaoKernel;
+    ssao_.radius = kDefaultSsaoRadius;
+    ssao_.bias = kDefaultSsaoBias;
+    ssao_.power = kDefaultSsaoPower;
+    ssao_.blurEnabled = kDefaultSsaoBlurEnabled;
+    ssao_.blurRadius = kDefaultSsaoBlurRadius;
+    ssao_.blurSigma = kDefaultSsaoBlurSigma;
+    ssao_.aoStrength = kDefaultSsaoStrength;
+    ssao_.noiseTexSize = kDefaultSsaoNoiseSize;
 }
 
 VulkanContext::~VulkanContext() noexcept {
@@ -279,6 +303,45 @@ const VulkanContext::Light& VulkanContext::light() const noexcept {
 
 void VulkanContext::set_light(const Light& l) noexcept {
     light_ = l;
+}
+
+const VulkanContext::SsaoSettings& VulkanContext::ssao_settings() const noexcept {
+    return ssao_;
+}
+
+void VulkanContext::set_ssao_settings(const SsaoSettings& s) noexcept {
+    // Clamp and sanitize values to safe ranges; avoid magic numbers via local named bounds
+    const std::int32_t kMinKernel {16};
+    const std::int32_t kMaxKernel {64};
+    const float kMinRadius {0.05F};
+    const float kMaxRadius {2.0F};
+    const float kMinBias {0.001F};
+    const float kMaxBias {0.1F};
+    const float kMinPower {0.5F};
+    const float kMaxPower {2.5F};
+    const std::int32_t kMinBlurR {1};
+    const std::int32_t kMaxBlurR {5};
+    const float kMinSigma {0.5F};
+    const float kMaxSigma {3.0F};
+    const float kMinStrength {0.0F};
+    const float kMaxStrength {1.5F};
+    VulkanContext::SsaoSettings tmp {s};
+    tmp.kernelSize = std::clamp(tmp.kernelSize, kMinKernel, kMaxKernel);
+    if ((tmp.kernelSize % 16) != 0) {
+        // Snap to nearest valid set {16, 32, 64}
+        if (tmp.kernelSize < 24) { tmp.kernelSize = 16; }
+        else if (tmp.kernelSize < 48) { tmp.kernelSize = 32; }
+        else { tmp.kernelSize = 64; }
+    }
+    tmp.radius = std::clamp(tmp.radius, kMinRadius, kMaxRadius);
+    tmp.bias = std::clamp(tmp.bias, kMinBias, kMaxBias);
+    tmp.power = std::clamp(tmp.power, kMinPower, kMaxPower);
+    tmp.blurRadius = std::clamp(tmp.blurRadius, kMinBlurR, kMaxBlurR);
+    tmp.blurSigma = std::clamp(tmp.blurSigma, kMinSigma, kMaxSigma);
+    tmp.aoStrength = std::clamp(tmp.aoStrength, kMinStrength, kMaxStrength);
+    // Noise size fixed for now (tiled 4x4), keep from defaults
+    tmp.noiseTexSize = kDefaultSsaoNoiseSize;
+    ssao_ = tmp;
 }
 
 std::size_t VulkanContext::primitive_count() const noexcept {

@@ -105,6 +105,22 @@ public:
     [[nodiscard]] const Primitive* primitive_at(std::size_t index) const noexcept;
     void rebuild_scene_gpu_buffers() noexcept;
 
+    // SSAO configuration (UI-controlled; rendering integration added in later steps)
+    struct SsaoSettings final {
+        bool enabled {false};
+        std::int32_t kernelSize {32}; // 16, 32, 64 supported
+        float radius {0.5F};
+        float bias {0.025F};
+        float power {1.0F};
+        bool blurEnabled {true};
+        std::int32_t blurRadius {2}; // 1..5
+        float blurSigma {1.5F};
+        float aoStrength {1.0F}; // 0..1.5
+        std::uint32_t noiseTexSize {4U}; // 4x4 tiled noise texture
+    };
+    [[nodiscard]] const SsaoSettings& ssao_settings() const noexcept;
+    void set_ssao_settings(const SsaoSettings& s) noexcept;
+
 private:
     void create_instance(GLFWwindow* window) noexcept;
     void setup_debug_utils() noexcept;
@@ -298,6 +314,9 @@ private:
     PFN_vkCmdBeginDebugUtilsLabelEXT pfn_cmd_begin_label_ {nullptr};
     PFN_vkCmdEndDebugUtilsLabelEXT pfn_cmd_end_label_ {nullptr};
     // Reserved for future per-frame UI callback
+
+    // SSAO settings (no GPU resources yet; UI only in initial step)
+    SsaoSettings ssao_ {};
 };
 
 } // namespace vulkano

@@ -1,4 +1,10 @@
-- [x] Ensure unique ImGui IDs per primitive UI (PushID/PopID)
-- [x] Ensure independent per-primitive state (no shared Material/Transform)
-- [x] Add targeted tests for per-primitive independence (already present; verified)
-- [x] Build Debug, run tests, and package to bin/dist; smoke-run with VK_APP_AUTOCLOSE_MS
+- [x] Add SSAO settings + ImGui panel (UI only)
+- [ ] Add G-buffer images and pass; output albedo, normalVS, depth
+- [ ] Add SSAO pass resources (noise tex, kernel, descriptors)
+- [ ] Add SSAO fullscreen pipeline + shader; write aoRaw
+- [ ] Add blur (H+V) pipelines + shader; write aoBlur
+- [ ] Add compose pipeline + shader; final = litColor * mix(1, ao, aoStrength)
+- [ ] Handle resize: recreate AO/G-buffer and framebuffers; proper barriers
+- [ ] Wire SSAO UBO updates and toggles; sampling clamps and repeat for noise
+- [ ] Add unit tests (kernel gen, param clamp); keep e2e passing
+- [ ] Validate on macOS (MoltenVK) and keep debug utils markers
