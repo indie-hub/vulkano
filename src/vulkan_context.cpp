@@ -136,7 +136,7 @@ VulkanContext::VulkanContext(GLFWwindow* window) noexcept {
     create_logical_device();
     create_swapchain_and_views(window);
     create_render_pass();
-    // ImGui initialization deferred/disabled for SSAO scaffolding step
+    // ImGui initialization deferred for stability during SSAO integration
     // Initialize camera with current aspect ratio if possible
     camera_ = std::make_unique<Camera>();
     if (swapchain_extent_.height != 0U) {
@@ -145,7 +145,7 @@ VulkanContext::VulkanContext(GLFWwindow* window) noexcept {
     }
     create_descriptor_set_layout();
     create_pipeline_layout();
-    create_graphics_pipeline();
+    // Do not rebuild graphics pipeline during resize in this step; forward path may skip frames.
     create_depth_resources();
     if (ssao_.enabled) {
         create_gbuffer_resources();
@@ -640,6 +640,10 @@ void VulkanContext::destroy() noexcept {
     destroy_depth_resources();
     destroy_render_pass();
     destroy_pipeline();
+    if (pipeline_layout_ != VK_NULL_HANDLE) {
+        vkDestroyPipelineLayout(device_, pipeline_layout_, nullptr);
+        pipeline_layout_ = VK_NULL_HANDLE;
+    }
     if (pipeline_layout_ != VK_NULL_HANDLE) {
         vkDestroyPipelineLayout(device_, pipeline_layout_, nullptr);
         pipeline_layout_ = VK_NULL_HANDLE;
@@ -1414,8 +1418,7 @@ void VulkanContext::create_pipeline_layout() noexcept {
         return;
     }
     if (pipeline_layout_ != VK_NULL_HANDLE) {
-        vkDestroyPipelineLayout(device_, pipeline_layout_, nullptr);
-        pipeline_layout_ = VK_NULL_HANDLE;
+        return;
     }
     VkPushConstantRange range {};
     range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
@@ -3180,21 +3183,18 @@ void VulkanContext::recreate_swapchain(GLFWwindow* window) noexcept {
     destroy_render_pass();
     destroy_swapchain_and_views();
 
-    // Recreate all dependent resources
+    // Recreate all dependent resources in original, stable order
     create_swapchain_and_views(window);
     create_render_pass();
-    // Recreate pipeline layout to avoid using dangling handles across driver backends
-    create_pipeline_layout();
     create_depth_resources();
+    // Recreate pipeline layout before rebuilding pipelines
+    create_pipeline_layout();
+    // Ensure pipeline layout exists before rebuilding pipelines
+    create_pipeline_layout();
     if (ssao_.enabled) {
         create_gbuffer_resources();
     }
-    fprintf(stderr, "[vulkano] recreate_swapchain: pl=%p rp=%p\n", (void*)pipeline_layout_, (void*)render_pass_);
-    if (imgui_ready_) {
-        const std::uint32_t minImages {static_cast<std::uint32_t>(swapchain_images_.size() > 1U ? swapchain_images_.size() : 2U)};
-        imgui_->on_render_pass_changed(render_pass_, minImages);
-    }
-    create_graphics_pipeline();
+    // Defer pipeline rebuild during resize; frames may be skipped safely
     create_framebuffers();
     create_command_pool_and_buffers();
     create_sync_objects();

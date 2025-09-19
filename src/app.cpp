@@ -158,7 +158,7 @@ void App::run() noexcept {
                     }
                 } while (width == 0 || height == 0);
 
-                // Temporarily skip swapchain recreation to keep the app running during SSAO scaffolding.
+                // Temporarily skip swapchain recreation to keep the app running during SSAO integration.
                 // End ImGui frame build to keep ImGui state consistent when frame is skipped.
                 framebuffer_resized_ = false;
                 vk_->imgui_end_frame_build();
