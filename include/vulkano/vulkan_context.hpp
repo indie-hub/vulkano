@@ -196,6 +196,9 @@ private:
     void destroy_sync_objects() noexcept;
     void destroy_command_pool_and_buffers() noexcept;
     void destroy_render_pass() noexcept;
+    // G-buffer resources (normal + depth) and pipeline for geometry pass
+    void create_gbuffer_resources() noexcept;
+    void destroy_gbuffer_resources() noexcept;
     void destroy() noexcept;
 
     // Debug utils helpers
@@ -240,6 +243,18 @@ private:
     VkImageView depth_image_view_ {VK_NULL_HANDLE};
     VkFormat depth_format_ {VK_FORMAT_UNDEFINED};
 
+    // G-buffer: normal (float RGB) + depth (sampled)
+    VkRenderPass gbuffer_render_pass_ {VK_NULL_HANDLE};
+    VkFramebuffer gbuffer_framebuffer_ {VK_NULL_HANDLE};
+    VkImage gbuf_normal_image_ {VK_NULL_HANDLE};
+    VkDeviceMemory gbuf_normal_memory_ {VK_NULL_HANDLE};
+    VkImageView gbuf_normal_view_ {VK_NULL_HANDLE};
+    VkFormat gbuf_normal_format_ {VK_FORMAT_R16G16B16A16_SFLOAT};
+    VkImage gbuf_depth_image_ {VK_NULL_HANDLE};
+    VkDeviceMemory gbuf_depth_memory_ {VK_NULL_HANDLE};
+    VkImageView gbuf_depth_view_ {VK_NULL_HANDLE};
+    VkFormat gbuf_depth_format_ {VK_FORMAT_D32_SFLOAT};
+
     // Command pool and buffers
     VkCommandPool command_pool_ {VK_NULL_HANDLE};
     std::vector<VkCommandBuffer> command_buffers_ {};
@@ -247,6 +262,7 @@ private:
     // Pipeline and mesh buffers
     VkPipelineLayout pipeline_layout_ {VK_NULL_HANDLE};
     VkPipeline graphics_pipeline_ {VK_NULL_HANDLE};
+    VkPipeline gbuffer_pipeline_ {VK_NULL_HANDLE};
     VkBuffer vertex_buffer_ {VK_NULL_HANDLE};
     VkDeviceMemory vertex_buffer_memory_ {VK_NULL_HANDLE};
     VkBuffer index_buffer_ {VK_NULL_HANDLE};

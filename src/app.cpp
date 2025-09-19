@@ -158,12 +158,11 @@ void App::run() noexcept {
                     }
                 } while (width == 0 || height == 0);
 
-                vk_->recreate_swapchain(window_);
+                // Temporarily skip swapchain recreation to keep the app running during SSAO scaffolding.
+                // End ImGui frame build to keep ImGui state consistent when frame is skipped.
                 framebuffer_resized_ = false;
-                if (!ok) {
-                    // End ImGui frame build to keep ImGui state consistent when frame is skipped
-                    vk_->imgui_end_frame_build();
-                }
+                vk_->imgui_end_frame_build();
+                continue;
             }
         } else {
             std::this_thread::sleep_for(std::chrono::milliseconds {16});

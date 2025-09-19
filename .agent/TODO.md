@@ -1,5 +1,6 @@
 [x] Scaffold SSAO: params, shaders, UI (no rendering yet)
-[] Add G-buffer targets (normal, depth sampled) and pass
+[x] Add G-buffer images (normal + depth) and render pass
+[] Add G-buffer pipeline and draw pre-pass
 [] Implement SSAO pass reading depth+normal+noise → aoRaw
 [] Implement optional AO blur (H+V) → aoBlur
 [] Add compose pass: litColor × AO → swapchain

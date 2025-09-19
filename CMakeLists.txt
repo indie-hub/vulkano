@@ -207,6 +207,7 @@ set(SHADER_SOURCES
     ${CMAKE_SOURCE_DIR}/shaders/triangle.frag
     ${CMAKE_SOURCE_DIR}/shaders/mesh.vert
     ${CMAKE_SOURCE_DIR}/shaders/mesh.frag
+    ${CMAKE_SOURCE_DIR}/shaders/gbuffer.frag
     ${CMAKE_SOURCE_DIR}/shaders/ssao.vert
     ${CMAKE_SOURCE_DIR}/shaders/ssao.frag
     ${CMAKE_SOURCE_DIR}/shaders/blur.frag

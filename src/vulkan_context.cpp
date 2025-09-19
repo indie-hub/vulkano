@@ -121,6 +121,11 @@ namespace {
         float normalStrength;
         float _pad1;
     };
+
+    // Forward declarations for helpers defined later in this TU
+    [[nodiscard]] std::uint32_t find_memory_type(VkPhysicalDevice phys, std::uint32_t typeFilter, VkMemoryPropertyFlags props) noexcept;
+    [[nodiscard]] std::string shader_dir_guess() noexcept;
+    [[nodiscard]] VkShaderModule create_shader_module(VkDevice device, const std::vector<char>& code) noexcept;
 }
 
 VulkanContext::VulkanContext(GLFWwindow* window) noexcept {
@@ -131,7 +136,7 @@ VulkanContext::VulkanContext(GLFWwindow* window) noexcept {
     create_logical_device();
     create_swapchain_and_views(window);
     create_render_pass();
-    init_imgui(window);
+    // ImGui initialization deferred/disabled for SSAO scaffolding step
     // Initialize camera with current aspect ratio if possible
     camera_ = std::make_unique<Camera>();
     if (swapchain_extent_.height != 0U) {
@@ -142,6 +147,7 @@ VulkanContext::VulkanContext(GLFWwindow* window) noexcept {
     create_pipeline_layout();
     create_graphics_pipeline();
     create_depth_resources();
+    create_gbuffer_resources();
     // Build scene and upload geometry; fallback to single-triangle if failed
     create_scene();
     create_scene_buffers();
@@ -626,9 +632,14 @@ void VulkanContext::destroy() noexcept {
     destroy_sync_objects();
     destroy_command_pool_and_buffers();
     destroy_framebuffers();
+    destroy_gbuffer_resources();
     destroy_depth_resources();
     destroy_render_pass();
     destroy_pipeline();
+    if (pipeline_layout_ != VK_NULL_HANDLE) {
+        vkDestroyPipelineLayout(device_, pipeline_layout_, nullptr);
+        pipeline_layout_ = VK_NULL_HANDLE;
+    }
     destroy_textures();
     destroy_uniform_buffers_and_sets();
     destroy_descriptor_set_layout();
@@ -964,6 +975,257 @@ void VulkanContext::create_render_pass() noexcept {
     if (vkCreateRenderPass(device_, &renderPassInfo, nullptr, &rp) == VK_SUCCESS) {
         render_pass_ = rp;
         set_object_name(VK_OBJECT_TYPE_RENDER_PASS, reinterpret_cast<std::uint64_t>(render_pass_), "RenderPass");
+    }
+}
+
+void VulkanContext::create_gbuffer_resources() noexcept {
+    if (device_ == VK_NULL_HANDLE || physical_device_ == VK_NULL_HANDLE || swapchain_extent_.width == 0U) {
+        return;
+    }
+    destroy_gbuffer_resources();
+
+    // Choose depth format for G-buffer (prefer D32_SFLOAT)
+    gbuf_depth_format_ = VK_FORMAT_D32_SFLOAT;
+    {
+        const VkFormat candidates[] = { VK_FORMAT_D32_SFLOAT, VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D16_UNORM };
+        for (VkFormat fmt : candidates) {
+            VkFormatProperties props {};
+            vkGetPhysicalDeviceFormatProperties(physical_device_, fmt, &props);
+            if ((props.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) == VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) {
+                gbuf_depth_format_ = fmt;
+                break;
+            }
+        }
+    }
+
+    // Create normal image (color attachment + sampled)
+    {
+        VkImageCreateInfo img {};
+        img.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        img.imageType = VK_IMAGE_TYPE_2D;
+        img.extent = { swapchain_extent_.width, swapchain_extent_.height, 1U };
+        img.mipLevels = 1U;
+        img.arrayLayers = 1U;
+        img.format = gbuf_normal_format_;
+        img.tiling = VK_IMAGE_TILING_OPTIMAL;
+        img.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        img.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+        img.samples = VK_SAMPLE_COUNT_1_BIT;
+        img.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        if (vkCreateImage(device_, &img, nullptr, &gbuf_normal_image_) != VK_SUCCESS) {
+            gbuf_normal_image_ = VK_NULL_HANDLE;
+            return;
+        }
+        VkMemoryRequirements req {};
+        vkGetImageMemoryRequirements(device_, gbuf_normal_image_, &req);
+        const std::uint32_t typeIndex {find_memory_type(physical_device_, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)};
+        if (typeIndex == UINT32_MAX) {
+            vkDestroyImage(device_, gbuf_normal_image_, nullptr);
+            gbuf_normal_image_ = VK_NULL_HANDLE;
+            return;
+        }
+        VkMemoryAllocateInfo alloc {};
+        alloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        alloc.allocationSize = req.size;
+        alloc.memoryTypeIndex = typeIndex;
+        if (vkAllocateMemory(device_, &alloc, nullptr, &gbuf_normal_memory_) != VK_SUCCESS) {
+            vkDestroyImage(device_, gbuf_normal_image_, nullptr);
+            gbuf_normal_image_ = VK_NULL_HANDLE;
+            return;
+        }
+        vkBindImageMemory(device_, gbuf_normal_image_, gbuf_normal_memory_, 0U);
+        set_object_name(VK_OBJECT_TYPE_IMAGE, reinterpret_cast<std::uint64_t>(gbuf_normal_image_), "GbufNormalImage");
+        set_object_name(VK_OBJECT_TYPE_DEVICE_MEMORY, reinterpret_cast<std::uint64_t>(gbuf_normal_memory_), "GbufNormalMemory");
+
+        if (!create_image_view_2d(gbuf_normal_image_, gbuf_normal_format_, VK_IMAGE_ASPECT_COLOR_BIT, 1U, gbuf_normal_view_, "GbufNormalView")) {
+            vkFreeMemory(device_, gbuf_normal_memory_, nullptr);
+            vkDestroyImage(device_, gbuf_normal_image_, nullptr);
+            gbuf_normal_memory_ = VK_NULL_HANDLE;
+            gbuf_normal_image_ = VK_NULL_HANDLE;
+            return;
+        }
+    }
+
+    // Create depth image (depth attachment + sampled)
+    {
+        VkImageCreateInfo img {};
+        img.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        img.imageType = VK_IMAGE_TYPE_2D;
+        img.extent = { swapchain_extent_.width, swapchain_extent_.height, 1U };
+        img.mipLevels = 1U;
+        img.arrayLayers = 1U;
+        img.format = gbuf_depth_format_;
+        img.tiling = VK_IMAGE_TILING_OPTIMAL;
+        img.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        img.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+        img.samples = VK_SAMPLE_COUNT_1_BIT;
+        img.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        if (vkCreateImage(device_, &img, nullptr, &gbuf_depth_image_) != VK_SUCCESS) {
+            gbuf_depth_image_ = VK_NULL_HANDLE;
+            return;
+        }
+        VkMemoryRequirements req {};
+        vkGetImageMemoryRequirements(device_, gbuf_depth_image_, &req);
+        const std::uint32_t typeIndex {find_memory_type(physical_device_, req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)};
+        if (typeIndex == UINT32_MAX) {
+            vkDestroyImage(device_, gbuf_depth_image_, nullptr);
+            gbuf_depth_image_ = VK_NULL_HANDLE;
+            return;
+        }
+        VkMemoryAllocateInfo alloc {};
+        alloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        alloc.allocationSize = req.size;
+        alloc.memoryTypeIndex = typeIndex;
+        if (vkAllocateMemory(device_, &alloc, nullptr, &gbuf_depth_memory_) != VK_SUCCESS) {
+            vkDestroyImage(device_, gbuf_depth_image_, nullptr);
+            gbuf_depth_image_ = VK_NULL_HANDLE;
+            return;
+        }
+        vkBindImageMemory(device_, gbuf_depth_image_, gbuf_depth_memory_, 0U);
+        set_object_name(VK_OBJECT_TYPE_IMAGE, reinterpret_cast<std::uint64_t>(gbuf_depth_image_), "GbufDepthImage");
+        set_object_name(VK_OBJECT_TYPE_DEVICE_MEMORY, reinterpret_cast<std::uint64_t>(gbuf_depth_memory_), "GbufDepthMemory");
+
+        // Depth aspect
+        VkImageViewCreateInfo viewInfo {};
+        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        viewInfo.image = gbuf_depth_image_;
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.format = gbuf_depth_format_;
+        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+        viewInfo.subresourceRange.baseMipLevel = 0U;
+        viewInfo.subresourceRange.levelCount = 1U;
+        viewInfo.subresourceRange.baseArrayLayer = 0U;
+        viewInfo.subresourceRange.layerCount = 1U;
+        if (vkCreateImageView(device_, &viewInfo, nullptr, &gbuf_depth_view_) != VK_SUCCESS) {
+            vkFreeMemory(device_, gbuf_depth_memory_, nullptr);
+            vkDestroyImage(device_, gbuf_depth_image_, nullptr);
+            gbuf_depth_memory_ = VK_NULL_HANDLE;
+            gbuf_depth_image_ = VK_NULL_HANDLE;
+            return;
+        }
+        set_object_name(VK_OBJECT_TYPE_IMAGE_VIEW, reinterpret_cast<std::uint64_t>(gbuf_depth_view_), "GbufDepthView");
+    }
+
+    // Render pass for G-buffer
+    {
+        VkAttachmentDescription colorAtt {};
+        colorAtt.format = gbuf_normal_format_;
+        colorAtt.samples = VK_SAMPLE_COUNT_1_BIT;
+        colorAtt.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        colorAtt.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        colorAtt.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        colorAtt.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        colorAtt.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        colorAtt.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+        VkAttachmentDescription depthAtt {};
+        depthAtt.format = gbuf_depth_format_;
+        depthAtt.samples = VK_SAMPLE_COUNT_1_BIT;
+        depthAtt.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        depthAtt.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        depthAtt.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        depthAtt.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        depthAtt.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        depthAtt.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+
+        VkAttachmentReference colorRef {};
+        colorRef.attachment = 0U;
+        colorRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+        VkAttachmentReference depthRef {};
+        depthRef.attachment = 1U;
+        depthRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+        VkSubpassDescription subpass {};
+        subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        subpass.colorAttachmentCount = 1U;
+        subpass.pColorAttachments = &colorRef;
+        subpass.pDepthStencilAttachment = &depthRef;
+
+        VkSubpassDependency dep {};
+        dep.srcSubpass = VK_SUBPASS_EXTERNAL;
+        dep.dstSubpass = 0U;
+        dep.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        dep.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        dep.srcAccessMask = 0U;
+        dep.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+        VkAttachmentDescription attachments[2] { colorAtt, depthAtt };
+        VkRenderPassCreateInfo rpInfo {};
+        rpInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+        rpInfo.attachmentCount = 2U;
+        rpInfo.pAttachments = attachments;
+        rpInfo.subpassCount = 1U;
+        rpInfo.pSubpasses = &subpass;
+        rpInfo.dependencyCount = 1U;
+        rpInfo.pDependencies = &dep;
+        if (vkCreateRenderPass(device_, &rpInfo, nullptr, &gbuffer_render_pass_) != VK_SUCCESS) {
+            gbuffer_render_pass_ = VK_NULL_HANDLE;
+            return;
+        }
+        set_object_name(VK_OBJECT_TYPE_RENDER_PASS, reinterpret_cast<std::uint64_t>(gbuffer_render_pass_), "GbufferRenderPass");
+    }
+
+    // Framebuffer
+    {
+        VkImageView atts[2] { gbuf_normal_view_, gbuf_depth_view_ };
+        VkFramebufferCreateInfo fb {};
+        fb.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        fb.renderPass = gbuffer_render_pass_;
+        fb.attachmentCount = 2U;
+        fb.pAttachments = atts;
+        fb.width = swapchain_extent_.width;
+        fb.height = swapchain_extent_.height;
+        fb.layers = 1U;
+        if (vkCreateFramebuffer(device_, &fb, nullptr, &gbuffer_framebuffer_) != VK_SUCCESS) {
+            gbuffer_framebuffer_ = VK_NULL_HANDLE;
+            return;
+        }
+        set_object_name(VK_OBJECT_TYPE_FRAMEBUFFER, reinterpret_cast<std::uint64_t>(gbuffer_framebuffer_), "GbufferFramebuffer");
+    }
+
+    // Pipeline is created later; SSAO step will enable drawing into G-buffer
+}
+
+void VulkanContext::destroy_gbuffer_resources() noexcept {
+    if (device_ == VK_NULL_HANDLE) {
+        return;
+    }
+    if (gbuffer_pipeline_ != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device_, gbuffer_pipeline_, nullptr);
+        gbuffer_pipeline_ = VK_NULL_HANDLE;
+    }
+    if (gbuffer_framebuffer_ != VK_NULL_HANDLE) {
+        vkDestroyFramebuffer(device_, gbuffer_framebuffer_, nullptr);
+        gbuffer_framebuffer_ = VK_NULL_HANDLE;
+    }
+    if (gbuffer_render_pass_ != VK_NULL_HANDLE) {
+        vkDestroyRenderPass(device_, gbuffer_render_pass_, nullptr);
+        gbuffer_render_pass_ = VK_NULL_HANDLE;
+    }
+    if (gbuf_normal_view_ != VK_NULL_HANDLE) {
+        vkDestroyImageView(device_, gbuf_normal_view_, nullptr);
+        gbuf_normal_view_ = VK_NULL_HANDLE;
+    }
+    if (gbuf_normal_image_ != VK_NULL_HANDLE) {
+        vkDestroyImage(device_, gbuf_normal_image_, nullptr);
+        gbuf_normal_image_ = VK_NULL_HANDLE;
+    }
+    if (gbuf_normal_memory_ != VK_NULL_HANDLE) {
+        vkFreeMemory(device_, gbuf_normal_memory_, nullptr);
+        gbuf_normal_memory_ = VK_NULL_HANDLE;
+    }
+    if (gbuf_depth_view_ != VK_NULL_HANDLE) {
+        vkDestroyImageView(device_, gbuf_depth_view_, nullptr);
+        gbuf_depth_view_ = VK_NULL_HANDLE;
+    }
+    if (gbuf_depth_image_ != VK_NULL_HANDLE) {
+        vkDestroyImage(device_, gbuf_depth_image_, nullptr);
+        gbuf_depth_image_ = VK_NULL_HANDLE;
+    }
+    if (gbuf_depth_memory_ != VK_NULL_HANDLE) {
+        vkFreeMemory(device_, gbuf_depth_memory_, nullptr);
+        gbuf_depth_memory_ = VK_NULL_HANDLE;
     }
 }
 
@@ -2547,13 +2809,13 @@ void VulkanContext::destroy_pipeline() noexcept {
     if (device_ == VK_NULL_HANDLE) {
         return;
     }
+    if (gbuffer_pipeline_ != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device_, gbuffer_pipeline_, nullptr);
+        gbuffer_pipeline_ = VK_NULL_HANDLE;
+    }
     if (graphics_pipeline_ != VK_NULL_HANDLE) {
         vkDestroyPipeline(device_, graphics_pipeline_, nullptr);
         graphics_pipeline_ = VK_NULL_HANDLE;
-    }
-    if (pipeline_layout_ != VK_NULL_HANDLE) {
-        vkDestroyPipelineLayout(device_, pipeline_layout_, nullptr);
-        pipeline_layout_ = VK_NULL_HANDLE;
     }
 }
 
@@ -2633,6 +2895,89 @@ bool VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
         return false;
     }
 
+    // Update and bind global UBO for this image (before any pass uses it)
+    if (imageIndex < uniform_buffers_memory_.size() && camera_) {
+        GlobalUBO u {};
+        u.view = camera_->view();
+        u.proj = camera_->projection();
+        u.cameraPos = camera_->position();
+        u.ambientStrength = light_.ambient;
+        u.lightPos = light_.position;
+        u.lightIntensity = light_.intensity;
+        u.lightColor = light_.color;
+        u._pad0 = 0.0F;
+        void* data {nullptr};
+        if (vkMapMemory(device_, uniform_buffers_memory_[imageIndex], 0U, sizeof(GlobalUBO), 0U, &data) == VK_SUCCESS) {
+            std::memcpy(data, &u, sizeof(GlobalUBO));
+            vkUnmapMemory(device_, uniform_buffers_memory_[imageIndex]);
+        }
+    }
+
+    // Optional pre-pass: G-buffer (normal VS + depth)
+    if (gbuffer_render_pass_ != VK_NULL_HANDLE && gbuffer_pipeline_ != VK_NULL_HANDLE && gbuffer_framebuffer_ != VK_NULL_HANDLE) {
+        VkClearValue gbufClears[2] {};
+        gbufClears[0].color.float32[0] = kClearColorBlack[0];
+        gbufClears[0].color.float32[1] = kClearColorBlack[1];
+        gbufClears[0].color.float32[2] = kClearColorBlack[2];
+        gbufClears[0].color.float32[3] = kClearColorBlack[3];
+        gbufClears[1].depthStencil.depth = kClearDepthOne;
+        gbufClears[1].depthStencil.stencil = 0U;
+
+        VkRenderPassBeginInfo gbufRp {};
+        gbufRp.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        gbufRp.renderPass = gbuffer_render_pass_;
+        gbufRp.framebuffer = gbuffer_framebuffer_;
+        gbufRp.renderArea.offset = {0, 0};
+        gbufRp.renderArea.extent = swapchain_extent_;
+        gbufRp.clearValueCount = 2U;
+        gbufRp.pClearValues = gbufClears;
+        vkCmdBeginRenderPass(cmd, &gbufRp, VK_SUBPASS_CONTENTS_INLINE);
+        begin_label(cmd, "G-Buffer");
+
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, gbuffer_pipeline_);
+        if (imageIndex < descriptor_sets_.size()) {
+            const VkDescriptorSet set {descriptor_sets_[imageIndex]};
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 0U, 1U, &set, 0U, nullptr);
+        }
+        if (vertex_buffer_ != VK_NULL_HANDLE && !draw_ranges_.empty()) {
+            const VkBuffer buffers[1] {vertex_buffer_};
+            const VkDeviceSize offsets[1] {0U};
+            vkCmdBindVertexBuffers(cmd, 0U, 1U, buffers, offsets);
+            if (index_buffer_ != VK_NULL_HANDLE) {
+                vkCmdBindIndexBuffer(cmd, index_buffer_, 0U, VK_INDEX_TYPE_UINT32);
+            }
+            PushConstants pc {};
+            for (const auto& dr : draw_ranges_) {
+                if (dr.prim == nullptr) { continue; }
+                const Transform& tr = dr.prim->transform();
+                const Material& mat = dr.prim->material();
+                glm::mat4 model {1.0F};
+                model = glm::translate(model, tr.position);
+                model = glm::rotate(model, tr.rotationEuler.y, glm::vec3 {0.0F, 1.0F, 0.0F});
+                model = glm::rotate(model, tr.rotationEuler.x, glm::vec3 {1.0F, 0.0F, 0.0F});
+                model = glm::rotate(model, tr.rotationEuler.z, glm::vec3 {0.0F, 0.0F, 1.0F});
+                model = glm::scale(model, tr.scale);
+                pc.model = model;
+                pc.baseColor = mat.baseColor;
+                pc.shininess = mat.shininess;
+                pc.useAlbedoMap = (mat.useAlbedo ? 1 : 0);
+                pc.useNormalMap = (mat.useNormal ? 1 : 0);
+                pc.normalStrength = std::clamp(mat.normalStrength, 0.0F, 2.0F);
+                pc._pad1 = 0.0F;
+                begin_label(cmd, "G-Prim");
+                vkCmdPushConstants(cmd, pipeline_layout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0U, sizeof(PushConstants), &pc);
+                if (index_buffer_ != VK_NULL_HANDLE) {
+                    vkCmdDrawIndexed(cmd, dr.indexCount, 1U, dr.firstIndex, 0, 0);
+                } else {
+                    vkCmdDraw(cmd, dr.indexCount, 1U, dr.firstVertex, 0U);
+                }
+                end_label(cmd);
+            }
+        }
+        end_label(cmd);
+        vkCmdEndRenderPass(cmd);
+    }
+
     VkClearValue clears[2] {};
     clears[0].color.float32[0] = kClearColorBlack[0];
     clears[0].color.float32[1] = kClearColorBlack[1];
@@ -2654,23 +2999,7 @@ bool VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_);
 
-    // Update and bind global UBO for this image
-    if (imageIndex < uniform_buffers_memory_.size() && camera_) {
-        GlobalUBO u {};
-        u.view = camera_->view();
-        u.proj = camera_->projection();
-        u.cameraPos = camera_->position();
-        u.ambientStrength = light_.ambient;
-        u.lightPos = light_.position;
-        u.lightIntensity = light_.intensity;
-        u.lightColor = light_.color;
-        u._pad0 = 0.0F;
-        void* data {nullptr};
-        if (vkMapMemory(device_, uniform_buffers_memory_[imageIndex], 0U, sizeof(GlobalUBO), 0U, &data) == VK_SUCCESS) {
-            std::memcpy(data, &u, sizeof(GlobalUBO));
-            vkUnmapMemory(device_, uniform_buffers_memory_[imageIndex]);
-        }
-    }
+    // Rebind descriptor set before main pass (UBO already updated)
     if (imageIndex < descriptor_sets_.size()) {
         const VkDescriptorSet set {descriptor_sets_[imageIndex]};
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 0U, 1U, &set, 0U, nullptr);
@@ -2835,6 +3164,7 @@ void VulkanContext::recreate_swapchain(GLFWwindow* window) noexcept {
     destroy_sync_objects();
     destroy_command_pool_and_buffers();
     destroy_framebuffers();
+    destroy_gbuffer_resources();
     destroy_depth_resources();
     destroy_pipeline();
     destroy_render_pass();
@@ -2842,15 +3172,15 @@ void VulkanContext::recreate_swapchain(GLFWwindow* window) noexcept {
 
     // Recreate
     create_swapchain_and_views(window);
+    // Recreate
+    create_swapchain_and_views(window);
     create_render_pass();
     create_depth_resources();
+    create_gbuffer_resources();
     if (imgui_ready_) {
-        // ImGui needs to be re-initialized with the new render pass
         const std::uint32_t minImages {static_cast<std::uint32_t>(swapchain_images_.size() > 1U ? swapchain_images_.size() : 2U)};
         imgui_->on_render_pass_changed(render_pass_, minImages);
     }
-    // Pipeline layout (push constants) unchanged; reuse
-    create_graphics_pipeline();
     create_framebuffers();
     create_command_pool_and_buffers();
     create_sync_objects();
