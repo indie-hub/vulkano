@@ -1,7 +1,8 @@
-Rebuild after fixing else brace
-[  4%] Built target compile_shaders
-[  6%] Built target stb
-[  6%] Built target glm
+Build with SSAO shader
+[  1%] Compiling ssao.frag -> /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/ssao.frag.spv with glslc
+[  3%] Built target stb
+[  3%] Built target glm
+[  6%] Built target compile_shaders
 [ 19%] Built target glfw
 [ 24%] Built target imgui
 [ 24%] Building CXX object CMakeFiles/vulkano.dir/src/vulkan_context.cpp.o

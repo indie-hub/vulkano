@@ -3621,6 +3621,22 @@ bool VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
     }
     // --- AO passes before main swapchain pass ---
     if (ssao_.enabled && ssao_pipeline_ != VK_NULL_HANDLE && ssao_framebuffer_ != VK_NULL_HANDLE) {
+        // Update SSAO UBO per frame with current camera and params
+        if (imageIndex < ssao_uniform_memory_.size() && camera_) {
+            struct SsaoParamsUBO { glm::mat4 proj; glm::mat4 invProj; glm::vec2 noiseScale; float radius; float bias; float power; int kernelSize; glm::vec4 kernel[64]; };
+            SsaoParamsUBO p {};
+            p.proj = camera_->projection();
+            p.invProj = glm::inverse(p.proj);
+            p.noiseScale = glm::vec2 {static_cast<float>(swapchain_extent_.width) / static_cast<float>(ssao_.noiseTexSize), static_cast<float>(swapchain_extent_.height) / static_cast<float>(ssao_.noiseTexSize)};
+            p.radius = ssao_.radius; p.bias = ssao_.bias; p.power = ssao_.power; p.kernelSize = ssao_.kernelSize;
+            // Preserve existing kernel vectors written at creation time
+            // No-op: kernel values remain from initial upload
+            void* data {nullptr};
+            if (vkMapMemory(device_, ssao_uniform_memory_[imageIndex], 0U, sizeof(SsaoParamsUBO), 0U, &data) == VK_SUCCESS) {
+                std::memcpy(data, &p, sizeof(glm::mat4) * 2 + sizeof(glm::vec2) + sizeof(float) * 3 + sizeof(int));
+                vkUnmapMemory(device_, ssao_uniform_memory_[imageIndex]);
+            }
+        }
         begin_label(cmd, "SSAO");
         VkClearValue aoClear {};
         aoClear.color.float32[0] = 1.0F;
