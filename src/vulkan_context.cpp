@@ -147,7 +147,9 @@ VulkanContext::VulkanContext(GLFWwindow* window) noexcept {
     create_pipeline_layout();
     create_graphics_pipeline();
     create_depth_resources();
-    create_gbuffer_resources();
+    if (ssao_.enabled) {
+        create_gbuffer_resources();
+    }
     // Build scene and upload geometry; fallback to single-triangle if failed
     create_scene();
     create_scene_buffers();
@@ -632,7 +634,9 @@ void VulkanContext::destroy() noexcept {
     destroy_sync_objects();
     destroy_command_pool_and_buffers();
     destroy_framebuffers();
-    destroy_gbuffer_resources();
+    if (ssao_.enabled) {
+        destroy_gbuffer_resources();
+    }
     destroy_depth_resources();
     destroy_render_pass();
     destroy_pipeline();
@@ -1409,6 +1413,10 @@ void VulkanContext::create_pipeline_layout() noexcept {
     if (device_ == VK_NULL_HANDLE) {
         return;
     }
+    if (pipeline_layout_ != VK_NULL_HANDLE) {
+        vkDestroyPipelineLayout(device_, pipeline_layout_, nullptr);
+        pipeline_layout_ = VK_NULL_HANDLE;
+    }
     VkPushConstantRange range {};
     range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     range.offset = 0U;
@@ -1431,8 +1439,10 @@ void VulkanContext::create_pipeline_layout() noexcept {
 
 void VulkanContext::create_graphics_pipeline() noexcept {
     if (device_ == VK_NULL_HANDLE || render_pass_ == VK_NULL_HANDLE || pipeline_layout_ == VK_NULL_HANDLE) {
+        fprintf(stderr, "[vulkano] create_graphics_pipeline skipped: device=%p rp=%p pl=%p\n", (void*)device_, (void*)render_pass_, (void*)pipeline_layout_);
         return;
     }
+    fprintf(stderr, "[vulkano] create_graphics_pipeline: rp=%p pl=%p\n", (void*)render_pass_, (void*)pipeline_layout_);
     const std::string dir {shader_dir_guess()};
     // Use new mesh shaders with pos3/normal3/uv2
     const std::vector<char> vertCode {read_file_binary(dir + "/mesh.vert.spv")};
@@ -3170,17 +3180,21 @@ void VulkanContext::recreate_swapchain(GLFWwindow* window) noexcept {
     destroy_render_pass();
     destroy_swapchain_and_views();
 
-    // Recreate
-    create_swapchain_and_views(window);
-    // Recreate
+    // Recreate all dependent resources
     create_swapchain_and_views(window);
     create_render_pass();
+    // Recreate pipeline layout to avoid using dangling handles across driver backends
+    create_pipeline_layout();
     create_depth_resources();
-    create_gbuffer_resources();
+    if (ssao_.enabled) {
+        create_gbuffer_resources();
+    }
+    fprintf(stderr, "[vulkano] recreate_swapchain: pl=%p rp=%p\n", (void*)pipeline_layout_, (void*)render_pass_);
     if (imgui_ready_) {
         const std::uint32_t minImages {static_cast<std::uint32_t>(swapchain_images_.size() > 1U ? swapchain_images_.size() : 2U)};
         imgui_->on_render_pass_changed(render_pass_, minImages);
     }
+    create_graphics_pipeline();
     create_framebuffers();
     create_command_pool_and_buffers();
     create_sync_objects();
