@@ -208,6 +208,9 @@ VulkanContext::VulkanContext(GLFWwindow* window) noexcept {
         create_gbuffer_resources();
         create_ssao_descriptor_set_layout();
         create_ssao_resources();
+        create_ssao_render_pass();
+        create_ssao_targets();
+        create_ssao_pipeline();
     }
 }
 
@@ -973,6 +976,9 @@ void VulkanContext::create_swapchain_and_views(GLFWwindow* window) noexcept {
         create_gbuffer_resources();
         create_ssao_descriptor_set_layout();
         create_ssao_resources();
+        create_ssao_render_pass();
+        create_ssao_targets();
+        create_ssao_pipeline();
     }
 }
 
@@ -983,6 +989,9 @@ void VulkanContext::destroy_swapchain_and_views() noexcept {
     destroy_framebuffers();
     destroy_gbuffer_resources();
     destroy_gbuffer_render_pass();
+    destroy_ssao_pipeline();
+    destroy_ssao_targets();
+    destroy_ssao_render_pass();
     destroy_ssao_resources();
     destroy_ssao_descriptor_set_layout();
     for (auto& view : swapchain_image_views_) {
@@ -1185,6 +1194,65 @@ void VulkanContext::destroy_gbuffer_render_pass() noexcept {
     }
 }
 
+void VulkanContext::create_ssao_render_pass() noexcept {
+    if (device_ == VK_NULL_HANDLE) {
+        return;
+    }
+    if (ao_raw_format_ == VK_FORMAT_UNDEFINED) {
+        ao_raw_format_ = VK_FORMAT_R8_UNORM;
+    }
+    VkAttachmentDescription a0 {};
+    a0.format = ao_raw_format_;
+    a0.samples = VK_SAMPLE_COUNT_1_BIT;
+    a0.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    a0.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    a0.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    a0.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    a0.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    a0.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkAttachmentReference colorRef {};
+    colorRef.attachment = 0U;
+    colorRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkSubpassDescription subpass {};
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount = 1U;
+    subpass.pColorAttachments = &colorRef;
+
+    VkSubpassDependency dep {};
+    dep.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dep.dstSubpass = 0U;
+    dep.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dep.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dep.srcAccessMask = 0U;
+    dep.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+    VkRenderPassCreateInfo rp {};
+    rp.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    rp.attachmentCount = 1U;
+    rp.pAttachments = &a0;
+    rp.subpassCount = 1U;
+    rp.pSubpasses = &subpass;
+    rp.dependencyCount = 1U;
+    rp.pDependencies = &dep;
+    VkRenderPass pass {VK_NULL_HANDLE};
+    if (vkCreateRenderPass(device_, &rp, nullptr, &pass) == VK_SUCCESS) {
+        ssao_render_pass_ = pass;
+        set_object_name(VK_OBJECT_TYPE_RENDER_PASS, reinterpret_cast<std::uint64_t>(ssao_render_pass_), "SSAOPass");
+    }
+}
+
+void VulkanContext::destroy_ssao_render_pass() noexcept {
+    if (device_ == VK_NULL_HANDLE) {
+        return;
+    }
+    if (ssao_render_pass_ != VK_NULL_HANDLE) {
+        vkDestroyRenderPass(device_, ssao_render_pass_, nullptr);
+        ssao_render_pass_ = VK_NULL_HANDLE;
+    }
+}
+
 void VulkanContext::create_framebuffers() noexcept {
     if (device_ == VK_NULL_HANDLE || render_pass_ == VK_NULL_HANDLE || swapchain_extent_.width == 0U || swapchain_image_views_.empty()) {
         return;
@@ -1382,6 +1450,141 @@ void VulkanContext::create_pipeline_layout() noexcept {
     if (vkCreatePipelineLayout(device_, &info, nullptr, &layout) == VK_SUCCESS) {
         pipeline_layout_ = layout;
         set_object_name(VK_OBJECT_TYPE_PIPELINE_LAYOUT, reinterpret_cast<std::uint64_t>(pipeline_layout_), "PipelineLayout");
+    }
+}
+
+void VulkanContext::create_ssao_pipeline() noexcept {
+    if (device_ == VK_NULL_HANDLE || ssao_render_pass_ == VK_NULL_HANDLE || ssao_set_layout_ == VK_NULL_HANDLE) {
+        return;
+    }
+    // Layout: only set 2, no push constants
+    VkPipelineLayoutCreateInfo pl {};
+    pl.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pl.setLayoutCount = 1U;
+    const VkDescriptorSetLayout setLayouts[1] {ssao_set_layout_};
+    pl.pSetLayouts = setLayouts;
+    if (vkCreatePipelineLayout(device_, &pl, nullptr, &ssao_pipeline_layout_) != VK_SUCCESS) {
+        ssao_pipeline_layout_ = VK_NULL_HANDLE;
+        return;
+    }
+    set_object_name(VK_OBJECT_TYPE_PIPELINE_LAYOUT, reinterpret_cast<std::uint64_t>(ssao_pipeline_layout_), "SSAOPipelineLayout");
+
+    const std::string dir {shader_dir_guess()};
+    const std::vector<char> vertCode {read_file_binary(dir + "/ssao.vert.spv")};
+    const std::vector<char> fragCode {read_file_binary(dir + "/ssao.frag.spv")};
+    if (vertCode.empty() || fragCode.empty()) {
+        return;
+    }
+    const VkShaderModule vertModule {create_shader_module(device_, vertCode)};
+    const VkShaderModule fragModule {create_shader_module(device_, fragCode)};
+    if (vertModule == VK_NULL_HANDLE || fragModule == VK_NULL_HANDLE) {
+        if (vertModule != VK_NULL_HANDLE) { vkDestroyShaderModule(device_, vertModule, nullptr); }
+        if (fragModule != VK_NULL_HANDLE) { vkDestroyShaderModule(device_, fragModule, nullptr); }
+        return;
+    }
+
+    VkPipelineShaderStageCreateInfo vertStage {};
+    vertStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    vertStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    vertStage.module = vertModule;
+    vertStage.pName = "main";
+
+    VkPipelineShaderStageCreateInfo fragStage {};
+    fragStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    fragStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    fragStage.module = fragModule;
+    fragStage.pName = "main";
+
+    const VkPipelineShaderStageCreateInfo stages[2] {vertStage, fragStage};
+
+    VkPipelineVertexInputStateCreateInfo vertexInput {};
+    vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vertexInput.vertexBindingDescriptionCount = 0U;
+    vertexInput.pVertexBindingDescriptions = nullptr;
+    vertexInput.vertexAttributeDescriptionCount = 0U;
+    vertexInput.pVertexAttributeDescriptions = nullptr;
+
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly {};
+    inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    inputAssembly.primitiveRestartEnable = VK_FALSE;
+
+    VkViewport viewport {};
+    viewport.x = 0.0F; viewport.y = 0.0F;
+    viewport.width = static_cast<float>(swapchain_extent_.width);
+    viewport.height = static_cast<float>(swapchain_extent_.height);
+    viewport.minDepth = 0.0F; viewport.maxDepth = 1.0F;
+    VkRect2D scissor {};
+    scissor.offset = {0, 0};
+    scissor.extent = swapchain_extent_;
+    VkPipelineViewportStateCreateInfo viewportState {};
+    viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewportState.viewportCount = 1U;
+    viewportState.pViewports = &viewport;
+    viewportState.scissorCount = 1U;
+    viewportState.pScissors = &scissor;
+
+    VkPipelineRasterizationStateCreateInfo raster {};
+    raster.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    raster.depthClampEnable = VK_FALSE;
+    raster.rasterizerDiscardEnable = VK_FALSE;
+    raster.polygonMode = VK_POLYGON_MODE_FILL;
+    raster.cullMode = VK_CULL_MODE_NONE;
+    raster.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    raster.depthBiasEnable = VK_FALSE;
+    raster.lineWidth = 1.0F;
+
+    VkPipelineMultisampleStateCreateInfo msaa {};
+    msaa.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    msaa.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    VkPipelineDepthStencilStateCreateInfo depthStencil {};
+    depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depthStencil.depthTestEnable = VK_FALSE;
+    depthStencil.depthWriteEnable = VK_FALSE;
+
+    VkPipelineColorBlendAttachmentState blendAtt {};
+    blendAtt.colorWriteMask = VK_COLOR_COMPONENT_R_BIT;
+    blendAtt.blendEnable = VK_FALSE;
+    VkPipelineColorBlendStateCreateInfo blend {};
+    blend.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    blend.logicOpEnable = VK_FALSE;
+    blend.attachmentCount = 1U;
+    blend.pAttachments = &blendAtt;
+
+    VkGraphicsPipelineCreateInfo info {};
+    info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    info.stageCount = 2U;
+    info.pStages = stages;
+    info.pVertexInputState = &vertexInput;
+    info.pInputAssemblyState = &inputAssembly;
+    info.pViewportState = &viewportState;
+    info.pRasterizationState = &raster;
+    info.pMultisampleState = &msaa;
+    info.pDepthStencilState = &depthStencil;
+    info.pColorBlendState = &blend;
+    info.layout = ssao_pipeline_layout_;
+    info.renderPass = ssao_render_pass_;
+    info.subpass = 0U;
+
+    if (vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1U, &info, nullptr, &ssao_pipeline_) == VK_SUCCESS) {
+        set_object_name(VK_OBJECT_TYPE_PIPELINE, reinterpret_cast<std::uint64_t>(ssao_pipeline_), "SSAOPipeline");
+    }
+    vkDestroyShaderModule(device_, vertModule, nullptr);
+    vkDestroyShaderModule(device_, fragModule, nullptr);
+}
+
+void VulkanContext::destroy_ssao_pipeline() noexcept {
+    if (device_ == VK_NULL_HANDLE) {
+        return;
+    }
+    if (ssao_pipeline_ != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device_, ssao_pipeline_, nullptr);
+        ssao_pipeline_ = VK_NULL_HANDLE;
+    }
+    if (ssao_pipeline_layout_ != VK_NULL_HANDLE) {
+        vkDestroyPipelineLayout(device_, ssao_pipeline_layout_, nullptr);
+        ssao_pipeline_layout_ = VK_NULL_HANDLE;
     }
 }
 
@@ -2846,6 +3049,59 @@ void VulkanContext::destroy_gbuffer_resources() noexcept {
     if (gbuf_depth_memory_ != VK_NULL_HANDLE) {
         vkFreeMemory(device_, gbuf_depth_memory_, nullptr);
         gbuf_depth_memory_ = VK_NULL_HANDLE;
+    }
+}
+
+void VulkanContext::create_ssao_targets() noexcept {
+    if (device_ == VK_NULL_HANDLE || ssao_render_pass_ == VK_NULL_HANDLE) {
+        return;
+    }
+    if (swapchain_extent_.width == 0U || swapchain_extent_.height == 0U) {
+        return;
+    }
+    const std::uint32_t w {swapchain_extent_.width};
+    const std::uint32_t h {swapchain_extent_.height};
+    create_image_2d(w, h, 1U, ao_raw_format_, VK_IMAGE_TILING_OPTIMAL,
+                    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                    ao_raw_image_, ao_raw_memory_, "AoRawImage");
+    create_image_view_2d(ao_raw_image_, ao_raw_format_, VK_IMAGE_ASPECT_COLOR_BIT, 1U, ao_raw_view_, "AoRawView");
+
+    VkImageView atts[1] {ao_raw_view_};
+    VkFramebufferCreateInfo fb {};
+    fb.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+    fb.renderPass = ssao_render_pass_;
+    fb.attachmentCount = 1U;
+    fb.pAttachments = atts;
+    fb.width = w;
+    fb.height = h;
+    fb.layers = 1U;
+    VkFramebuffer fbH {VK_NULL_HANDLE};
+    if (vkCreateFramebuffer(device_, &fb, nullptr, &fbH) == VK_SUCCESS) {
+        ssao_framebuffer_ = fbH;
+        set_object_name(VK_OBJECT_TYPE_FRAMEBUFFER, reinterpret_cast<std::uint64_t>(ssao_framebuffer_), "SSAO_FB");
+    }
+}
+
+void VulkanContext::destroy_ssao_targets() noexcept {
+    if (device_ == VK_NULL_HANDLE) {
+        return;
+    }
+    if (ssao_framebuffer_ != VK_NULL_HANDLE) {
+        vkDestroyFramebuffer(device_, ssao_framebuffer_, nullptr);
+        ssao_framebuffer_ = VK_NULL_HANDLE;
+    }
+    if (ao_raw_view_ != VK_NULL_HANDLE) {
+        vkDestroyImageView(device_, ao_raw_view_, nullptr);
+        ao_raw_view_ = VK_NULL_HANDLE;
+    }
+    if (ao_raw_image_ != VK_NULL_HANDLE) {
+        vkDestroyImage(device_, ao_raw_image_, nullptr);
+        ao_raw_image_ = VK_NULL_HANDLE;
+    }
+    if (ao_raw_memory_ != VK_NULL_HANDLE) {
+        vkFreeMemory(device_, ao_raw_memory_, nullptr);
+        ao_raw_memory_ = VK_NULL_HANDLE;
     }
 }
 

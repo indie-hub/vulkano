@@ -1,7 +1,7 @@
 - [x] Add SSAO settings + ImGui panel (UI only)
 - [x] Add G-buffer images and pass; output albedo, normalVS, depth (resources only)
 - [x] Add SSAO pass resources (noise tex, kernel, descriptors) guarded by enable flag
-- [ ] Add SSAO fullscreen pipeline + shader; write aoRaw
+- [x] Add SSAO fullscreen pipeline + shader; write aoRaw (resources only)
 - [ ] Add blur (H+V) pipelines + shader; write aoBlur
 - [ ] Add compose pipeline + shader; final = litColor * mix(1, ao, aoStrength)
 - [ ] Handle resize: recreate AO/G-buffer and framebuffers; proper barriers

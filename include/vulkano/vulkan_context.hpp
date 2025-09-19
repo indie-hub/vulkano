@@ -138,6 +138,12 @@ private:
     void destroy_depth_resources() noexcept;
     void create_pipeline_layout() noexcept;
     void create_graphics_pipeline() noexcept;
+    void create_ssao_render_pass() noexcept;
+    void destroy_ssao_render_pass() noexcept;
+    void create_ssao_targets() noexcept; // aoRaw image/view + framebuffer
+    void destroy_ssao_targets() noexcept;
+    void create_ssao_pipeline() noexcept;
+    void destroy_ssao_pipeline() noexcept;
     void create_vertex_buffer() noexcept; // legacy triangle fallback
     void create_scene() noexcept;
     void create_scene_buffers() noexcept;
@@ -259,6 +265,13 @@ private:
     VkDeviceMemory gbuf_depth_memory_ {VK_NULL_HANDLE};
     VkImageView gbuf_depth_view_ {VK_NULL_HANDLE};
     VkFormat gbuf_depth_format_ {VK_FORMAT_D32_SFLOAT};
+    // SSAO pass
+    VkRenderPass ssao_render_pass_ {VK_NULL_HANDLE};
+    VkFramebuffer ssao_framebuffer_ {VK_NULL_HANDLE};
+    VkImage ao_raw_image_ {VK_NULL_HANDLE};
+    VkDeviceMemory ao_raw_memory_ {VK_NULL_HANDLE};
+    VkImageView ao_raw_view_ {VK_NULL_HANDLE};
+    VkFormat ao_raw_format_ {VK_FORMAT_R8_UNORM};
     // Depth resources
     VkImage depth_image_ {VK_NULL_HANDLE};
     VkDeviceMemory depth_image_memory_ {VK_NULL_HANDLE};
@@ -272,6 +285,8 @@ private:
     // Pipeline and mesh buffers
     VkPipelineLayout pipeline_layout_ {VK_NULL_HANDLE};
     VkPipeline graphics_pipeline_ {VK_NULL_HANDLE};
+    VkPipelineLayout ssao_pipeline_layout_ {VK_NULL_HANDLE};
+    VkPipeline ssao_pipeline_ {VK_NULL_HANDLE};
     VkBuffer vertex_buffer_ {VK_NULL_HANDLE};
     VkDeviceMemory vertex_buffer_memory_ {VK_NULL_HANDLE};
     VkBuffer index_buffer_ {VK_NULL_HANDLE};
