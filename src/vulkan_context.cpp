@@ -386,7 +386,69 @@ void VulkanContext::set_ssao_settings(const SsaoSettings& s) noexcept {
     tmp.aoStrength = std::clamp(tmp.aoStrength, kMinStrength, kMaxStrength);
     // Noise size fixed for now (tiled 4x4), keep from defaults
     tmp.noiseTexSize = kDefaultSsaoNoiseSize;
+    const bool oldEnabled {ssao_.enabled};
+    const bool oldBlur {ssao_.blurEnabled};
     ssao_ = tmp;
+
+    // React to toggles by (re)creating/destroying dependent resources.
+    // Keep operations conservative: only touch SSAO/blur/compose/G-buffer stacks.
+    if (device_ == VK_NULL_HANDLE || swapchain_ == VK_NULL_HANDLE) {
+        return;
+    }
+    if (oldEnabled != ssao_.enabled) {
+        if (ssao_.enabled) {
+            // Enabling SSAO: create stacks if missing
+            if (gbuffer_render_pass_ == VK_NULL_HANDLE) { create_gbuffer_render_pass(); }
+            if (gbuffer_framebuffer_ == VK_NULL_HANDLE) { create_gbuffer_resources(); }
+            if (ssao_set_layout_ == VK_NULL_HANDLE) { create_ssao_descriptor_set_layout(); }
+            if (ssao_descriptor_sets_.empty()) { create_ssao_resources(); }
+            if (ssao_render_pass_ == VK_NULL_HANDLE) { create_ssao_render_pass(); }
+            if (ssao_framebuffer_ == VK_NULL_HANDLE) { create_ssao_targets(); }
+            if (ssao_pipeline_ == VK_NULL_HANDLE) { create_ssao_pipeline(); }
+            // Compose resources
+            if (compose_set_layout_ == VK_NULL_HANDLE) { create_compose_descriptor_set_layout(); }
+            if (compose_pipeline_ == VK_NULL_HANDLE) { create_compose_pipeline(); }
+            // Blur if enabled
+            if (ssao_.blurEnabled) {
+                if (blur_render_pass_ == VK_NULL_HANDLE) { create_blur_render_pass(); }
+                if (blur_h_framebuffer_ == VK_NULL_HANDLE || blur_v_framebuffer_ == VK_NULL_HANDLE) { create_blur_targets(); }
+                if (blur_set_layout_ == VK_NULL_HANDLE) { create_blur_descriptor_set_layout(); }
+                if (blur_descriptor_sets_.empty()) { create_blur_resources(); }
+                if (blur_pipeline_ == VK_NULL_HANDLE) { create_blur_pipeline(); }
+            }
+        } else {
+            // Disabling SSAO: tear down stacks
+            destroy_blur_pipeline();
+            destroy_blur_targets();
+            destroy_blur_render_pass();
+            destroy_blur_resources();
+            destroy_blur_descriptor_set_layout();
+            destroy_compose_pipeline();
+            destroy_compose_descriptor_set_layout();
+            destroy_ssao_pipeline();
+            destroy_ssao_targets();
+            destroy_ssao_render_pass();
+            destroy_ssao_resources();
+            destroy_ssao_descriptor_set_layout();
+            destroy_gbuffer_resources();
+            destroy_gbuffer_render_pass();
+        }
+    } else if (oldBlur != ssao_.blurEnabled && ssao_.enabled) {
+        // Blur toggled while SSAO remains enabled
+        if (ssao_.blurEnabled) {
+            if (blur_render_pass_ == VK_NULL_HANDLE) { create_blur_render_pass(); }
+            if (blur_h_framebuffer_ == VK_NULL_HANDLE || blur_v_framebuffer_ == VK_NULL_HANDLE) { create_blur_targets(); }
+            if (blur_set_layout_ == VK_NULL_HANDLE) { create_blur_descriptor_set_layout(); }
+            if (blur_descriptor_sets_.empty()) { create_blur_resources(); }
+            if (blur_pipeline_ == VK_NULL_HANDLE) { create_blur_pipeline(); }
+        } else {
+            destroy_blur_pipeline();
+            destroy_blur_targets();
+            destroy_blur_render_pass();
+            destroy_blur_resources();
+            destroy_blur_descriptor_set_layout();
+        }
+    }
 }
 
 std::size_t VulkanContext::primitive_count() const noexcept {
