@@ -185,7 +185,9 @@ private:
                           std::uint32_t texHeight,
                           std::uint32_t mipLevels) noexcept;
     void create_descriptor_set_layout() noexcept;
+    void create_ssao_descriptor_set_layout() noexcept;
     void create_uniform_buffers_and_sets() noexcept;
+    void create_ssao_resources() noexcept; // noise image, UBOs, descriptors
     void create_command_pool_and_buffers() noexcept;
     void create_sync_objects() noexcept;
     // Returns true if commands were recorded successfully for the image.
@@ -197,6 +199,8 @@ private:
     void destroy_vertex_buffer() noexcept;
     void destroy_index_buffer() noexcept;
     void destroy_descriptor_set_layout() noexcept;
+    void destroy_ssao_descriptor_set_layout() noexcept;
+    void destroy_ssao_resources() noexcept;
     void destroy_uniform_buffers_and_sets() noexcept;
     void destroy_sync_objects() noexcept;
     void destroy_command_pool_and_buffers() noexcept;
@@ -278,6 +282,17 @@ private:
     std::vector<VkDescriptorSet> descriptor_sets_ {};
     std::vector<VkBuffer> uniform_buffers_ {};
     std::vector<VkDeviceMemory> uniform_buffers_memory_ {};
+    // SSAO descriptors and resources
+    VkDescriptorSetLayout ssao_set_layout_ {VK_NULL_HANDLE};
+    VkDescriptorPool ssao_descriptor_pool_ {VK_NULL_HANDLE};
+    std::vector<VkDescriptorSet> ssao_descriptor_sets_ {};
+    std::vector<VkBuffer> ssao_uniform_buffers_ {};
+    std::vector<VkDeviceMemory> ssao_uniform_memory_ {};
+    VkImage ssao_noise_image_ {VK_NULL_HANDLE};
+    VkDeviceMemory ssao_noise_memory_ {VK_NULL_HANDLE};
+    VkImageView ssao_noise_view_ {VK_NULL_HANDLE};
+    VkSampler ssao_noise_sampler_ {VK_NULL_HANDLE};
+    VkSampler ssao_clamp_sampler_ {VK_NULL_HANDLE};
     // Textures (global defaults)
     VkImage albedo_image_ {VK_NULL_HANDLE};
     VkDeviceMemory albedo_image_memory_ {VK_NULL_HANDLE};

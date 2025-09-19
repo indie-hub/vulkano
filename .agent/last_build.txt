@@ -1,12 +1,11 @@
-Configuring + building (Debug)
+Rebuild with conditional resource creation
 [  3%] Built target compile_shaders
-[  4%] Built target stb
+[  5%] Built target stb
 [  5%] Built target glm
 [ 18%] Built target glfw
 [ 22%] Built target imgui
-[ 77%] Building CXX object CMakeFiles/vulkano.dir/src/app.cpp.o
-[ 86%] Built target Catch2
-[ 87%] Building CXX object CMakeFiles/vulkano.dir/src/vulkan_context.cpp.o
+[ 23%] Building CXX object CMakeFiles/vulkano.dir/src/vulkan_context.cpp.o
+[ 87%] Built target Catch2
 [ 88%] Built target Catch2WithMain
 [ 89%] Linking CXX static library /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libvulkano.a
 [ 92%] Built target vulkano

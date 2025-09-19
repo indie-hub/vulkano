@@ -14,6 +14,7 @@
 #include <limits>
 #include <string>
 #include <vector>
+#include <random>
 
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
@@ -133,6 +134,29 @@ namespace {
     constexpr float kDefaultSsaoBlurSigma {1.5F};
     constexpr float kDefaultSsaoStrength {1.0F};
     constexpr std::uint32_t kDefaultSsaoNoiseSize {4U};
+
+    struct SsaoParams final {
+        glm::mat4 proj {1.0F};
+        glm::mat4 invProj {1.0F};
+        glm::vec2 noiseScale {1.0F, 1.0F};
+        float radius {kDefaultSsaoRadius};
+        float bias {kDefaultSsaoBias};
+        float power {kDefaultSsaoPower};
+        std::int32_t kernelSize {kDefaultSsaoKernel};
+        glm::vec4 kernel[64] {};
+    };
+
+    [[nodiscard]] glm::vec3 rand_vec3_xy_hemisphere(std::mt19937& rng, std::uniform_real_distribution<float>& dist) noexcept {
+        const float x {dist(rng) * 2.0F - 1.0F};
+        const float y {dist(rng) * 2.0F - 1.0F};
+        const float z {dist(rng)}; // [0,1]
+        glm::vec3 v {x, y, z};
+        const float len {std::sqrt(std::max(0.0F, v.x * v.x + v.y * v.y + v.z * v.z))};
+        if (len > 0.0F) {
+            v.x /= len; v.y /= len; v.z /= len;
+        }
+        return v;
+    }
 }
 
 VulkanContext::VulkanContext(GLFWwindow* window) noexcept {
@@ -177,6 +201,14 @@ VulkanContext::VulkanContext(GLFWwindow* window) noexcept {
     ssao_.blurSigma = kDefaultSsaoBlurSigma;
     ssao_.aoStrength = kDefaultSsaoStrength;
     ssao_.noiseTexSize = kDefaultSsaoNoiseSize;
+
+    // Prepare G-buffer and SSAO resources only when SSAO is enabled
+    if (ssao_.enabled) {
+        create_gbuffer_render_pass();
+        create_gbuffer_resources();
+        create_ssao_descriptor_set_layout();
+        create_ssao_resources();
+    }
 }
 
 VulkanContext::~VulkanContext() noexcept {
@@ -691,6 +723,8 @@ void VulkanContext::destroy() noexcept {
     destroy_framebuffers();
     destroy_gbuffer_resources();
     destroy_gbuffer_render_pass();
+    destroy_ssao_resources();
+    destroy_ssao_descriptor_set_layout();
     destroy_depth_resources();
     destroy_render_pass();
     destroy_pipeline();
@@ -929,11 +963,17 @@ void VulkanContext::create_swapchain_and_views(GLFWwindow* window) noexcept {
     destroy_uniform_buffers_and_sets();
     create_uniform_buffers_and_sets();
 
-    // G-buffer resources depend on extent; recreate them on swapchain changes
+    // Recreate offscreen resources only if SSAO is enabled
+    destroy_ssao_resources();
+    destroy_ssao_descriptor_set_layout();
     destroy_gbuffer_resources();
     destroy_gbuffer_render_pass();
-    create_gbuffer_render_pass();
-    create_gbuffer_resources();
+    if (ssao_.enabled) {
+        create_gbuffer_render_pass();
+        create_gbuffer_resources();
+        create_ssao_descriptor_set_layout();
+        create_ssao_resources();
+    }
 }
 
 void VulkanContext::destroy_swapchain_and_views() noexcept {
@@ -943,6 +983,8 @@ void VulkanContext::destroy_swapchain_and_views() noexcept {
     destroy_framebuffers();
     destroy_gbuffer_resources();
     destroy_gbuffer_render_pass();
+    destroy_ssao_resources();
+    destroy_ssao_descriptor_set_layout();
     for (auto& view : swapchain_image_views_) {
         if (view != VK_NULL_HANDLE) {
             vkDestroyImageView(device_, view, nullptr);
@@ -2437,6 +2479,46 @@ void VulkanContext::create_descriptor_set_layout() noexcept {
     }
 }
 
+void VulkanContext::create_ssao_descriptor_set_layout() noexcept {
+    if (device_ == VK_NULL_HANDLE) {
+        return;
+    }
+    VkDescriptorSetLayoutBinding b0 {};
+    b0.binding = 0U;
+    b0.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    b0.descriptorCount = 1U;
+    b0.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    VkDescriptorSetLayoutBinding b1 {b0};
+    b1.binding = 1U;
+    VkDescriptorSetLayoutBinding b2 {b0};
+    b2.binding = 2U;
+    VkDescriptorSetLayoutBinding b3 {};
+    b3.binding = 3U;
+    b3.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    b3.descriptorCount = 1U;
+    b3.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    VkDescriptorSetLayoutBinding bindings[4] {b0, b1, b2, b3};
+    VkDescriptorSetLayoutCreateInfo info {};
+    info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    info.bindingCount = 4U;
+    info.pBindings = bindings;
+    VkDescriptorSetLayout layout {VK_NULL_HANDLE};
+    if (vkCreateDescriptorSetLayout(device_, &info, nullptr, &layout) == VK_SUCCESS) {
+        ssao_set_layout_ = layout;
+        set_object_name(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT, reinterpret_cast<std::uint64_t>(ssao_set_layout_), "SSAOSetLayout");
+    }
+}
+
+void VulkanContext::destroy_ssao_descriptor_set_layout() noexcept {
+    if (device_ == VK_NULL_HANDLE) {
+        return;
+    }
+    if (ssao_set_layout_ != VK_NULL_HANDLE) {
+        vkDestroyDescriptorSetLayout(device_, ssao_set_layout_, nullptr);
+        ssao_set_layout_ = VK_NULL_HANDLE;
+    }
+}
+
 namespace {
     struct GlobalUBO final {
         glm::mat4 view;
@@ -2853,6 +2935,240 @@ void VulkanContext::destroy_descriptor_set_layout() noexcept {
     if (descriptor_set_layout_ != VK_NULL_HANDLE) {
         vkDestroyDescriptorSetLayout(device_, descriptor_set_layout_, nullptr);
         descriptor_set_layout_ = VK_NULL_HANDLE;
+    }
+}
+
+void VulkanContext::create_ssao_resources() noexcept {
+    if (device_ == VK_NULL_HANDLE || ssao_set_layout_ == VK_NULL_HANDLE) {
+        return;
+    }
+    if (swapchain_extent_.width == 0U || swapchain_extent_.height == 0U) {
+        return;
+    }
+    const std::uint32_t imageCount {static_cast<std::uint32_t>(swapchain_images_.size())};
+
+    // Create noise texture (4x4) in RGBA8 UNORM with XY in [0,1]
+    if (ssao_noise_image_ == VK_NULL_HANDLE) {
+        const std::uint32_t n {ssao_.noiseTexSize};
+        const std::size_t pixelCount {static_cast<std::size_t>(n) * static_cast<std::size_t>(n)};
+        std::vector<std::uint8_t> pixels(pixelCount * 4U, 255U);
+        std::mt19937 rng {1234567U};
+        std::uniform_real_distribution<float> dist {0.0F, 1.0F};
+        for (std::uint32_t y {0U}; y < n; ++y) {
+            for (std::uint32_t x {0U}; x < n; ++x) {
+                const std::size_t idx {static_cast<std::size_t>((y * n + x) * 4U)};
+                const float rx {-1.0F + 2.0F * dist(rng)};
+                const float ry {-1.0F + 2.0F * dist(rng)};
+                const std::uint8_t r {static_cast<std::uint8_t>(std::clamp((rx * 0.5F + 0.5F) * 255.0F, 0.0F, 255.0F))};
+                const std::uint8_t g {static_cast<std::uint8_t>(std::clamp((ry * 0.5F + 0.5F) * 255.0F, 0.0F, 255.0F))};
+                pixels[idx + 0U] = r;
+                pixels[idx + 1U] = g;
+                pixels[idx + 2U] = 128U;
+                pixels[idx + 3U] = 255U;
+            }
+        }
+
+        const VkDeviceSize size {static_cast<VkDeviceSize>(pixels.size())};
+        VkBuffer staging {VK_NULL_HANDLE};
+        VkDeviceMemory stagingMem {VK_NULL_HANDLE};
+        if (create_buffer(size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                          staging, stagingMem, "SsaoNoiseStaging")) {
+            void* data {nullptr};
+            if (vkMapMemory(device_, stagingMem, 0U, size, 0U, &data) == VK_SUCCESS) {
+                std::memcpy(data, pixels.data(), pixels.size());
+                vkUnmapMemory(device_, stagingMem);
+            }
+            create_image_2d(n, n, 1U, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL,
+                            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                            ssao_noise_image_, ssao_noise_memory_, "SsaoNoiseImage");
+            transition_image_layout(ssao_noise_image_, VK_FORMAT_R8G8B8A8_UNORM,
+                                    VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1U);
+            copy_buffer_to_image(staging, ssao_noise_image_, n, n);
+            transition_image_layout(ssao_noise_image_, VK_FORMAT_R8G8B8A8_UNORM,
+                                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 1U);
+            create_image_view_2d(ssao_noise_image_, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, 1U, ssao_noise_view_, "SsaoNoiseView");
+            if (staging != VK_NULL_HANDLE) { vkDestroyBuffer(device_, staging, nullptr); }
+            if (stagingMem != VK_NULL_HANDLE) { vkFreeMemory(device_, stagingMem, nullptr); }
+        }
+        // Noise sampler (repeat)
+        VkSamplerCreateInfo si {};
+        si.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        si.magFilter = VK_FILTER_NEAREST;
+        si.minFilter = VK_FILTER_NEAREST;
+        si.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+        si.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        si.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        si.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        si.maxAnisotropy = 1.0F;
+        si.maxLod = 0.0F;
+        vkCreateSampler(device_, &si, nullptr, &ssao_noise_sampler_);
+        if (ssao_noise_sampler_ != VK_NULL_HANDLE) {
+            set_object_name(VK_OBJECT_TYPE_SAMPLER, reinterpret_cast<std::uint64_t>(ssao_noise_sampler_), "SsaoNoiseSampler");
+        }
+        // Clamp sampler for depth/normal
+        VkSamplerCreateInfo sci {si};
+        sci.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        sci.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        sci.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        sci.magFilter = VK_FILTER_LINEAR;
+        sci.minFilter = VK_FILTER_LINEAR;
+        vkCreateSampler(device_, &sci, nullptr, &ssao_clamp_sampler_);
+        if (ssao_clamp_sampler_ != VK_NULL_HANDLE) {
+            set_object_name(VK_OBJECT_TYPE_SAMPLER, reinterpret_cast<std::uint64_t>(ssao_clamp_sampler_), "SsaoClampSampler");
+        }
+    }
+
+    // Create SSAO UBOs per swapchain image
+    ssao_uniform_buffers_.resize(imageCount);
+    ssao_uniform_memory_.resize(imageCount);
+    for (std::uint32_t i {0U}; i < imageCount; ++i) {
+        if (ssao_uniform_buffers_[i] == VK_NULL_HANDLE) {
+            create_buffer(static_cast<VkDeviceSize>(sizeof(SsaoParams)),
+                          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                          ssao_uniform_buffers_[i], ssao_uniform_memory_[i], "SsaoUBO");
+        }
+        SsaoParams p {};
+        if (camera_) {
+            p.proj = camera_->projection();
+            p.invProj = glm::inverse(p.proj);
+        }
+        p.noiseScale = glm::vec2 {static_cast<float>(swapchain_extent_.width) / static_cast<float>(ssao_.noiseTexSize),
+                                   static_cast<float>(swapchain_extent_.height) / static_cast<float>(ssao_.noiseTexSize)};
+        p.radius = ssao_.radius;
+        p.bias = ssao_.bias;
+        p.power = ssao_.power;
+        p.kernelSize = ssao_.kernelSize;
+        std::mt19937 rng {i + 42U};
+        std::uniform_real_distribution<float> dist {0.0F, 1.0F};
+        for (int k {0}; k < p.kernelSize && k < 64; ++k) {
+            glm::vec3 sample = rand_vec3_xy_hemisphere(rng, dist);
+            float scale = static_cast<float>(k) / static_cast<float>(p.kernelSize);
+            const float scaleLerp = 0.1F + 0.9F * (scale * scale);
+            sample *= scaleLerp;
+            p.kernel[k] = glm::vec4 {sample, 0.0F};
+        }
+        void* data {nullptr};
+        if (vkMapMemory(device_, ssao_uniform_memory_[i], 0U, sizeof(SsaoParams), 0U, &data) == VK_SUCCESS) {
+            std::memcpy(data, &p, sizeof(SsaoParams));
+            vkUnmapMemory(device_, ssao_uniform_memory_[i]);
+        }
+    }
+
+    // Descriptor pool for SSAO
+    if (ssao_descriptor_pool_ == VK_NULL_HANDLE) {
+        VkDescriptorPoolSize poolSizes[2] {};
+        poolSizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        poolSizes[0].descriptorCount = imageCount * 3U;
+        poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        poolSizes[1].descriptorCount = imageCount;
+        VkDescriptorPoolCreateInfo poolInfo {};
+        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        poolInfo.maxSets = imageCount;
+        poolInfo.poolSizeCount = 2U;
+        poolInfo.pPoolSizes = poolSizes;
+        vkCreateDescriptorPool(device_, &poolInfo, nullptr, &ssao_descriptor_pool_);
+    }
+
+    // Allocate and update descriptor sets
+    ssao_descriptor_sets_.assign(imageCount, VK_NULL_HANDLE);
+    if (ssao_descriptor_pool_ != VK_NULL_HANDLE) {
+        std::vector<VkDescriptorSetLayout> layouts(imageCount, ssao_set_layout_);
+        VkDescriptorSetAllocateInfo alloc {};
+        alloc.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        alloc.descriptorPool = ssao_descriptor_pool_;
+        alloc.descriptorSetCount = imageCount;
+        alloc.pSetLayouts = layouts.data();
+        const VkResult allocRes {vkAllocateDescriptorSets(device_, &alloc, ssao_descriptor_sets_.data())};
+        if (allocRes != VK_SUCCESS) {
+            return;
+        }
+        for (std::uint32_t i {0U}; i < imageCount; ++i) {
+            if (ssao_descriptor_sets_[i] == VK_NULL_HANDLE) {
+                continue;
+            }
+            VkDescriptorImageInfo depthInfo {};
+            depthInfo.sampler = ssao_clamp_sampler_;
+            depthInfo.imageView = gbuf_depth_view_;
+            depthInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            VkDescriptorImageInfo normalInfo {};
+            normalInfo.sampler = ssao_clamp_sampler_;
+            normalInfo.imageView = gbuf_normal_view_;
+            normalInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            VkDescriptorImageInfo noiseInfo {};
+            noiseInfo.sampler = ssao_noise_sampler_;
+            noiseInfo.imageView = ssao_noise_view_;
+            noiseInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            VkDescriptorBufferInfo bufInfo {};
+            bufInfo.buffer = ssao_uniform_buffers_[i];
+            bufInfo.offset = 0U;
+            bufInfo.range = sizeof(SsaoParams);
+            VkWriteDescriptorSet writes[4] {};
+            writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            writes[0].dstSet = ssao_descriptor_sets_[i];
+            writes[0].dstBinding = 0U;
+            writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            writes[0].descriptorCount = 1U;
+            writes[0].pImageInfo = &depthInfo;
+            writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            writes[1].dstSet = ssao_descriptor_sets_[i];
+            writes[1].dstBinding = 1U;
+            writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            writes[1].descriptorCount = 1U;
+            writes[1].pImageInfo = &normalInfo;
+            writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            writes[2].dstSet = ssao_descriptor_sets_[i];
+            writes[2].dstBinding = 2U;
+            writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            writes[2].descriptorCount = 1U;
+            writes[2].pImageInfo = &noiseInfo;
+            writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            writes[3].dstSet = ssao_descriptor_sets_[i];
+            writes[3].dstBinding = 3U;
+            writes[3].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            writes[3].descriptorCount = 1U;
+            writes[3].pBufferInfo = &bufInfo;
+            vkUpdateDescriptorSets(device_, 4U, writes, 0U, nullptr);
+        }
+    }
+}
+
+void VulkanContext::destroy_ssao_resources() noexcept {
+    if (device_ == VK_NULL_HANDLE) {
+        return;
+    }
+    if (ssao_descriptor_pool_ != VK_NULL_HANDLE) {
+        vkDestroyDescriptorPool(device_, ssao_descriptor_pool_, nullptr);
+        ssao_descriptor_pool_ = VK_NULL_HANDLE;
+    }
+    ssao_descriptor_sets_.clear();
+    for (auto& b : ssao_uniform_buffers_) {
+        if (b != VK_NULL_HANDLE) { vkDestroyBuffer(device_, b, nullptr); b = VK_NULL_HANDLE; }
+    }
+    for (auto& m : ssao_uniform_memory_) {
+        if (m != VK_NULL_HANDLE) { vkFreeMemory(device_, m, nullptr); m = VK_NULL_HANDLE; }
+    }
+    if (ssao_noise_view_ != VK_NULL_HANDLE) {
+        vkDestroyImageView(device_, ssao_noise_view_, nullptr);
+        ssao_noise_view_ = VK_NULL_HANDLE;
+    }
+    if (ssao_noise_image_ != VK_NULL_HANDLE) {
+        vkDestroyImage(device_, ssao_noise_image_, nullptr);
+        ssao_noise_image_ = VK_NULL_HANDLE;
+    }
+    if (ssao_noise_memory_ != VK_NULL_HANDLE) {
+        vkFreeMemory(device_, ssao_noise_memory_, nullptr);
+        ssao_noise_memory_ = VK_NULL_HANDLE;
+    }
+    if (ssao_noise_sampler_ != VK_NULL_HANDLE) {
+        vkDestroySampler(device_, ssao_noise_sampler_, nullptr);
+        ssao_noise_sampler_ = VK_NULL_HANDLE;
+    }
+    if (ssao_clamp_sampler_ != VK_NULL_HANDLE) {
+        vkDestroySampler(device_, ssao_clamp_sampler_, nullptr);
+        ssao_clamp_sampler_ = VK_NULL_HANDLE;
     }
 }
 
