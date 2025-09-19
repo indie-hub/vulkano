@@ -4,10 +4,10 @@ layout(location = 0) in vec2 vUV;
 layout(location = 0) out vec4 outColor;
 
 // Compose set = 4
-layout(set = 4, binding = 0) uniform sampler2D litTex;
-layout(set = 4, binding = 1) uniform sampler2D aoTex;
+layout(set = 0, binding = 0) uniform sampler2D litTex;
+layout(set = 0, binding = 1) uniform sampler2D aoTex;
 
-layout(std140, set = 4, binding = 2) uniform ComposeParams {
+layout(std140, set = 0, binding = 2) uniform ComposeParams {
     float aoStrength;
     float gamma;
     float exposure;
@@ -24,4 +24,3 @@ void main()
     color = pow(max(color, vec3(0.0)), vec3(1.0 / max(U.gamma, 0.0001)));
     outColor = vec4(color, 1.0);
 }
-

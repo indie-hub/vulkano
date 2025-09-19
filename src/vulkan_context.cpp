@@ -3569,6 +3569,167 @@ bool VulkanContext::record_commands(std::uint32_t imageIndex) noexcept {
         return false;
     }
 
+    // --- AO passes before main swapchain pass ---
+    if (ssao_.enabled && ssao_pipeline_ != VK_NULL_HANDLE && ssao_framebuffer_ != VK_NULL_HANDLE) {
+        begin_label(cmd, "SSAO");
+        VkClearValue aoClear {};
+        aoClear.color.float32[0] = 1.0F;
+        aoClear.color.float32[1] = 1.0F;
+        aoClear.color.float32[2] = 1.0F;
+        aoClear.color.float32[3] = 1.0F;
+        VkRenderPassBeginInfo ssaoRp {};
+        ssaoRp.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        ssaoRp.renderPass = ssao_render_pass_;
+        ssaoRp.framebuffer = ssao_framebuffer_;
+        ssaoRp.renderArea.offset = {0, 0};
+        ssaoRp.renderArea.extent = swapchain_extent_;
+        ssaoRp.clearValueCount = 1U;
+        ssaoRp.pClearValues = &aoClear;
+        vkCmdBeginRenderPass(cmd, &ssaoRp, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, ssao_pipeline_);
+        if (imageIndex < ssao_descriptor_sets_.size() && ssao_descriptor_sets_[imageIndex] != VK_NULL_HANDLE) {
+            const VkDescriptorSet set {ssao_descriptor_sets_[imageIndex]};
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, ssao_pipeline_layout_, 0U, 1U, &set, 0U, nullptr);
+        }
+        vkCmdDraw(cmd, 3U, 1U, 0U, 0U);
+        vkCmdEndRenderPass(cmd);
+        end_label(cmd);
+
+        // Transition aoRaw to shader-read for blur/compose
+        VkImageMemoryBarrier toRead {};
+        toRead.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        toRead.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        toRead.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        toRead.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        toRead.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        toRead.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        toRead.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        toRead.image = ao_raw_image_;
+        toRead.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        toRead.subresourceRange.baseMipLevel = 0U;
+        toRead.subresourceRange.levelCount = 1U;
+        toRead.subresourceRange.baseArrayLayer = 0U;
+        toRead.subresourceRange.layerCount = 1U;
+        vkCmdPipelineBarrier(cmd,
+                             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                             0U,
+                             0U, nullptr,
+                             0U, nullptr,
+                             1U, &toRead);
+
+        if (ssao_.blurEnabled && blur_pipeline_ != VK_NULL_HANDLE && blur_h_framebuffer_ != VK_NULL_HANDLE && blur_v_framebuffer_ != VK_NULL_HANDLE) {
+            // Horizontal blur: sample aoRaw -> write aoTemp
+            begin_label(cmd, "BlurH");
+            // Update blur UBO (dir = (1,0))
+            if (imageIndex < blur_uniform_memory_.size()) {
+                struct BlurParams { glm::vec2 dir; float radius; float sigma; } p {};
+                p.dir = glm::vec2 {1.0F, 0.0F};
+                p.radius = static_cast<float>(ssao_.blurRadius);
+                p.sigma = ssao_.blurSigma;
+                void* data {nullptr};
+                if (vkMapMemory(device_, blur_uniform_memory_[imageIndex], 0U, sizeof(BlurParams), 0U, &data) == VK_SUCCESS) {
+                    std::memcpy(data, &p, sizeof(BlurParams));
+                    vkUnmapMemory(device_, blur_uniform_memory_[imageIndex]);
+                }
+            }
+            // Ensure descriptor samples aoRaw
+            if (imageIndex < blur_descriptor_sets_.size() && blur_descriptor_sets_[imageIndex] != VK_NULL_HANDLE) {
+                VkDescriptorImageInfo aoInfo {};
+                aoInfo.sampler = ssao_clamp_sampler_;
+                aoInfo.imageView = ao_raw_view_;
+                aoInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                VkWriteDescriptorSet write {};
+                write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                write.dstSet = blur_descriptor_sets_[imageIndex];
+                write.dstBinding = 0U;
+                write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                write.descriptorCount = 1U;
+                write.pImageInfo = &aoInfo;
+                vkUpdateDescriptorSets(device_, 1U, &write, 0U, nullptr);
+            }
+            VkClearValue blurClear {}; blurClear.color.float32[0] = 1.0F; blurClear.color.float32[1] = 1.0F; blurClear.color.float32[2] = 1.0F; blurClear.color.float32[3] = 1.0F;
+            VkRenderPassBeginInfo blurRp {};
+            blurRp.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+            blurRp.renderPass = blur_render_pass_;
+            blurRp.framebuffer = blur_h_framebuffer_;
+            blurRp.renderArea.offset = {0,0};
+            blurRp.renderArea.extent = swapchain_extent_;
+            blurRp.clearValueCount = 1U;
+            blurRp.pClearValues = &blurClear;
+            vkCmdBeginRenderPass(cmd, &blurRp, VK_SUBPASS_CONTENTS_INLINE);
+            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, blur_pipeline_);
+            if (imageIndex < blur_descriptor_sets_.size() && blur_descriptor_sets_[imageIndex] != VK_NULL_HANDLE) {
+                const VkDescriptorSet set {blur_descriptor_sets_[imageIndex]};
+                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, blur_pipeline_layout_, 0U, 1U, &set, 0U, nullptr);
+            }
+            vkCmdDraw(cmd, 3U, 1U, 0U, 0U);
+            vkCmdEndRenderPass(cmd);
+            end_label(cmd);
+
+            // Transition aoTemp to shader read for vertical pass
+            VkImageMemoryBarrier tempToRead {toRead};
+            tempToRead.image = ao_temp_image_;
+            vkCmdPipelineBarrier(cmd,
+                                 VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                                 VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                                 0U,
+                                 0U, nullptr,
+                                 0U, nullptr,
+                                 1U, &tempToRead);
+
+            // Vertical blur: sample aoTemp -> write aoBlur
+            begin_label(cmd, "BlurV");
+            if (imageIndex < blur_uniform_memory_.size()) {
+                struct BlurParams { glm::vec2 dir; float radius; float sigma; } p {};
+                p.dir = glm::vec2 {0.0F, 1.0F};
+                p.radius = static_cast<float>(ssao_.blurRadius);
+                p.sigma = ssao_.blurSigma;
+                void* data {nullptr};
+                if (vkMapMemory(device_, blur_uniform_memory_[imageIndex], 0U, sizeof(BlurParams), 0U, &data) == VK_SUCCESS) {
+                    std::memcpy(data, &p, sizeof(BlurParams));
+                    vkUnmapMemory(device_, blur_uniform_memory_[imageIndex]);
+                }
+            }
+            // Point descriptor to aoTemp
+            if (imageIndex < blur_descriptor_sets_.size() && blur_descriptor_sets_[imageIndex] != VK_NULL_HANDLE) {
+                VkDescriptorImageInfo aoInfo {};
+                aoInfo.sampler = ssao_clamp_sampler_;
+                aoInfo.imageView = ao_temp_view_;
+                aoInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                VkWriteDescriptorSet write {};
+                write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                write.dstSet = blur_descriptor_sets_[imageIndex];
+                write.dstBinding = 0U;
+                write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                write.descriptorCount = 1U;
+                write.pImageInfo = &aoInfo;
+                vkUpdateDescriptorSets(device_, 1U, &write, 0U, nullptr);
+            }
+            blurRp.framebuffer = blur_v_framebuffer_;
+            vkCmdBeginRenderPass(cmd, &blurRp, VK_SUBPASS_CONTENTS_INLINE);
+            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, blur_pipeline_);
+            if (imageIndex < blur_descriptor_sets_.size() && blur_descriptor_sets_[imageIndex] != VK_NULL_HANDLE) {
+                const VkDescriptorSet set {blur_descriptor_sets_[imageIndex]};
+                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, blur_pipeline_layout_, 0U, 1U, &set, 0U, nullptr);
+            }
+            vkCmdDraw(cmd, 3U, 1U, 0U, 0U);
+            vkCmdEndRenderPass(cmd);
+            end_label(cmd);
+
+            // Transition aoBlur to shader read for compose (future)
+            VkImageMemoryBarrier blurToRead {toRead};
+            blurToRead.image = ao_blur_image_;
+            vkCmdPipelineBarrier(cmd,
+                                 VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                                 VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                                 0U,
+                                 0U, nullptr,
+                                 0U, nullptr,
+                                 1U, &blurToRead);
+        }
+    }
+
     VkClearValue clears[2] {};
     clears[0].color.float32[0] = kClearColorBlack[0];
     clears[0].color.float32[1] = kClearColorBlack[1];

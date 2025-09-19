@@ -5,7 +5,8 @@
 - [x] Add blur (H+V) pipelines + shader; write aoBlur (resources only)
 - [x] Add compose pipeline + shader; final = litColor * mix(1, ao, aoStrength) (resources only)
 - [x] Handle resize: recreate AO/G-buffer/SSAO/Blur targets and framebuffers (resources only)
-- [ ] Record SSAO → Blur → Compose passes with proper barriers and layouts
+- [x] Record SSAO → Blur passes with proper barriers and layouts (no compose yet)
+- [ ] Record Compose pass (sample litColor offscreen or restructure forward)
 - [x] Wire SSAO toggles to create/destroy resources; UBO param updates remain
 - [ ] Add unit tests (kernel gen, param clamp); keep e2e passing
 - [ ] Validate on macOS (MoltenVK) and keep debug utils markers

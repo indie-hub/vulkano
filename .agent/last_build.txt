@@ -1,11 +1,11 @@
-Build after SSAO toggle wiring
+Build with SSAO pass recording
 [  4%] Built target compile_shaders
+[  5%] Built target stb
 [  6%] Built target glm
-[  6%] Built target stb
 [ 19%] Built target glfw
 [ 24%] Built target imgui
+[ 24%] Building CXX object CMakeFiles/vulkano.dir/src/vulkan_context.cpp.o
 [ 86%] Built target Catch2
-[ 86%] Building CXX object CMakeFiles/vulkano.dir/src/vulkan_context.cpp.o
 [ 88%] Built target Catch2WithMain
 [ 88%] Linking CXX static library /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/libvulkano.a
 [ 93%] Built target vulkano
