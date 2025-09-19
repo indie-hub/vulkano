@@ -209,6 +209,7 @@ set(SHADER_SOURCES
     ${CMAKE_SOURCE_DIR}/shaders/mesh.frag
     ${CMAKE_SOURCE_DIR}/shaders/ssao.vert
     ${CMAKE_SOURCE_DIR}/shaders/ssao.frag
+    ${CMAKE_SOURCE_DIR}/shaders/blur.frag
 )
 
 set(SHADER_OUTPUT_DIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders)

@@ -1,41 +1,9 @@
-Build SSAO pipeline step
--- glfw3 not found; fetching via FetchContent
--- Including Cocoa support
--- glm not found; fetching via FetchContent
-CMake Deprecation Warning at build_debug/_deps/glm-src/CMakeLists.txt:1 (cmake_minimum_required):
-  Compatibility with CMake < 3.10 will be removed from a future version of
-  CMake.
-
-  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
-  to tell CMake that the project requires at least <min> but has been updated
-  to work with policies introduced by <max> or earlier.
-
-
-CMake Deprecation Warning at build_debug/_deps/glm-src/CMakeLists.txt:2 (cmake_policy):
-  Compatibility with CMake < 3.10 will be removed from a future version of
-  CMake.
-
-  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
-  to tell CMake that the project requires at least <min> but has been updated
-  to work with policies introduced by <max> or earlier.
-
-
--- GLM: Version 1.0.1
--- GLM: Disable -Wc++98-compat warnings
--- GLM: Build with C++ features auto detection
--- imgui not found; fetching via FetchContent
--- stb not found; fetching via FetchContent
--- Configuring done (2.1s)
--- Generating done (0.1s)
--- Build files have been written to: /Users/bruno/Documents/Development/bruno/vulkano_codex/build_debug
-[  1%] Compiling ssao.vert -> /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/ssao.vert.spv with glslc
-[  1%] Compiling ssao.frag -> /Users/bruno/Documents/Development/bruno/vulkano_codex/bin/shaders/ssao.frag.spv with glslc
-[  2%] Built target stb
-[  3%] Built target glm
-[  6%] Built target compile_shaders
+Rebuild after namespace fix
+[  4%] Built target compile_shaders
+[  5%] Built target stb
+[  6%] Built target glm
 [ 19%] Built target glfw
 [ 23%] Built target imgui
-[ 23%] Building CXX object CMakeFiles/vulkano.dir/src/app.cpp.o
 [ 24%] Building CXX object CMakeFiles/vulkano.dir/src/vulkan_context.cpp.o
 [ 87%] Built target Catch2
 [ 88%] Built target Catch2WithMain

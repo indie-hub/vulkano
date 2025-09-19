@@ -144,6 +144,16 @@ private:
     void destroy_ssao_targets() noexcept;
     void create_ssao_pipeline() noexcept;
     void destroy_ssao_pipeline() noexcept;
+    void create_blur_render_pass() noexcept;
+    void destroy_blur_render_pass() noexcept;
+    void create_blur_targets() noexcept;
+    void destroy_blur_targets() noexcept;
+    void create_blur_descriptor_set_layout() noexcept;
+    void destroy_blur_descriptor_set_layout() noexcept;
+    void create_blur_resources() noexcept;
+    void destroy_blur_resources() noexcept;
+    void create_blur_pipeline() noexcept;
+    void destroy_blur_pipeline() noexcept;
     void create_vertex_buffer() noexcept; // legacy triangle fallback
     void create_scene() noexcept;
     void create_scene_buffers() noexcept;
@@ -272,6 +282,17 @@ private:
     VkDeviceMemory ao_raw_memory_ {VK_NULL_HANDLE};
     VkImageView ao_raw_view_ {VK_NULL_HANDLE};
     VkFormat ao_raw_format_ {VK_FORMAT_R8_UNORM};
+    // Blur pass
+    VkRenderPass blur_render_pass_ {VK_NULL_HANDLE};
+    VkFramebuffer blur_h_framebuffer_ {VK_NULL_HANDLE};
+    VkFramebuffer blur_v_framebuffer_ {VK_NULL_HANDLE};
+    VkImage ao_temp_image_ {VK_NULL_HANDLE};
+    VkDeviceMemory ao_temp_memory_ {VK_NULL_HANDLE};
+    VkImageView ao_temp_view_ {VK_NULL_HANDLE};
+    VkImage ao_blur_image_ {VK_NULL_HANDLE};
+    VkDeviceMemory ao_blur_memory_ {VK_NULL_HANDLE};
+    VkImageView ao_blur_view_ {VK_NULL_HANDLE};
+    VkFormat ao_blur_format_ {VK_FORMAT_R8_UNORM};
     // Depth resources
     VkImage depth_image_ {VK_NULL_HANDLE};
     VkDeviceMemory depth_image_memory_ {VK_NULL_HANDLE};
@@ -287,6 +308,8 @@ private:
     VkPipeline graphics_pipeline_ {VK_NULL_HANDLE};
     VkPipelineLayout ssao_pipeline_layout_ {VK_NULL_HANDLE};
     VkPipeline ssao_pipeline_ {VK_NULL_HANDLE};
+    VkPipelineLayout blur_pipeline_layout_ {VK_NULL_HANDLE};
+    VkPipeline blur_pipeline_ {VK_NULL_HANDLE};
     VkBuffer vertex_buffer_ {VK_NULL_HANDLE};
     VkDeviceMemory vertex_buffer_memory_ {VK_NULL_HANDLE};
     VkBuffer index_buffer_ {VK_NULL_HANDLE};
@@ -308,6 +331,12 @@ private:
     VkImageView ssao_noise_view_ {VK_NULL_HANDLE};
     VkSampler ssao_noise_sampler_ {VK_NULL_HANDLE};
     VkSampler ssao_clamp_sampler_ {VK_NULL_HANDLE};
+    // Blur descriptors
+    VkDescriptorSetLayout blur_set_layout_ {VK_NULL_HANDLE};
+    VkDescriptorPool blur_descriptor_pool_ {VK_NULL_HANDLE};
+    std::vector<VkDescriptorSet> blur_descriptor_sets_ {};
+    std::vector<VkBuffer> blur_uniform_buffers_ {};
+    std::vector<VkDeviceMemory> blur_uniform_memory_ {};
     // Textures (global defaults)
     VkImage albedo_image_ {VK_NULL_HANDLE};
     VkDeviceMemory albedo_image_memory_ {VK_NULL_HANDLE};
