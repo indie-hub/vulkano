@@ -129,7 +129,11 @@ private:
     void create_logical_device() noexcept;
     void create_swapchain_and_views(GLFWwindow* window) noexcept;
     void create_render_pass() noexcept;
+    void create_gbuffer_render_pass() noexcept;
     void create_framebuffers() noexcept;
+    void create_gbuffer_resources() noexcept; // images, views, framebuffer
+    void destroy_gbuffer_resources() noexcept;
+    void destroy_gbuffer_render_pass() noexcept;
     void create_depth_resources() noexcept;
     void destroy_depth_resources() noexcept;
     void create_pipeline_layout() noexcept;
@@ -235,6 +239,22 @@ private:
     // Render pass and framebuffers
     VkRenderPass render_pass_ {VK_NULL_HANDLE};
     std::vector<VkFramebuffer> framebuffers_ {};
+    // G-buffer pass (offscreen)
+    VkRenderPass gbuffer_render_pass_ {VK_NULL_HANDLE};
+    VkFramebuffer gbuffer_framebuffer_ {VK_NULL_HANDLE};
+    // G-buffer attachments: albedo, normal (view-space packed), depth
+    VkImage gbuf_albedo_image_ {VK_NULL_HANDLE};
+    VkDeviceMemory gbuf_albedo_memory_ {VK_NULL_HANDLE};
+    VkImageView gbuf_albedo_view_ {VK_NULL_HANDLE};
+    VkFormat gbuf_albedo_format_ {VK_FORMAT_R8G8B8A8_SRGB};
+    VkImage gbuf_normal_image_ {VK_NULL_HANDLE};
+    VkDeviceMemory gbuf_normal_memory_ {VK_NULL_HANDLE};
+    VkImageView gbuf_normal_view_ {VK_NULL_HANDLE};
+    VkFormat gbuf_normal_format_ {VK_FORMAT_A2R10G10B10_UNORM_PACK32};
+    VkImage gbuf_depth_image_ {VK_NULL_HANDLE};
+    VkDeviceMemory gbuf_depth_memory_ {VK_NULL_HANDLE};
+    VkImageView gbuf_depth_view_ {VK_NULL_HANDLE};
+    VkFormat gbuf_depth_format_ {VK_FORMAT_D32_SFLOAT};
     // Depth resources
     VkImage depth_image_ {VK_NULL_HANDLE};
     VkDeviceMemory depth_image_memory_ {VK_NULL_HANDLE};

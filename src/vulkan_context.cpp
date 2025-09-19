@@ -689,6 +689,8 @@ void VulkanContext::destroy() noexcept {
     destroy_sync_objects();
     destroy_command_pool_and_buffers();
     destroy_framebuffers();
+    destroy_gbuffer_resources();
+    destroy_gbuffer_render_pass();
     destroy_depth_resources();
     destroy_render_pass();
     destroy_pipeline();
@@ -926,6 +928,12 @@ void VulkanContext::create_swapchain_and_views(GLFWwindow* window) noexcept {
     // Recreate uniform buffers/descriptors to match swapchain image count
     destroy_uniform_buffers_and_sets();
     create_uniform_buffers_and_sets();
+
+    // G-buffer resources depend on extent; recreate them on swapchain changes
+    destroy_gbuffer_resources();
+    destroy_gbuffer_render_pass();
+    create_gbuffer_render_pass();
+    create_gbuffer_resources();
 }
 
 void VulkanContext::destroy_swapchain_and_views() noexcept {
@@ -933,6 +941,8 @@ void VulkanContext::destroy_swapchain_and_views() noexcept {
         return;
     }
     destroy_framebuffers();
+    destroy_gbuffer_resources();
+    destroy_gbuffer_render_pass();
     for (auto& view : swapchain_image_views_) {
         if (view != VK_NULL_HANDLE) {
             vkDestroyImageView(device_, view, nullptr);
@@ -1027,6 +1037,109 @@ void VulkanContext::create_render_pass() noexcept {
     if (vkCreateRenderPass(device_, &renderPassInfo, nullptr, &rp) == VK_SUCCESS) {
         render_pass_ = rp;
         set_object_name(VK_OBJECT_TYPE_RENDER_PASS, reinterpret_cast<std::uint64_t>(render_pass_), "RenderPass");
+    }
+}
+
+void VulkanContext::create_gbuffer_render_pass() noexcept {
+    if (device_ == VK_NULL_HANDLE) {
+        return;
+    }
+    // Choose formats lazily if undefined
+    if (gbuf_albedo_format_ == VK_FORMAT_UNDEFINED) {
+        gbuf_albedo_format_ = VK_FORMAT_R8G8B8A8_SRGB;
+    }
+    if (gbuf_normal_format_ == VK_FORMAT_UNDEFINED) {
+        // Prefer A2R10G10B10 UNORM; fallback to R16G16B16A16_SFLOAT
+        VkFormat candidate {VK_FORMAT_A2R10G10B10_UNORM_PACK32};
+        VkFormatProperties props {};
+        vkGetPhysicalDeviceFormatProperties(physical_device_, candidate, &props);
+        if ((props.optimalTilingFeatures & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT) == 0U ||
+            (props.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT) == 0U) {
+            candidate = VK_FORMAT_R16G16B16A16_SFLOAT;
+        }
+        gbuf_normal_format_ = candidate;
+    }
+    if (gbuf_depth_format_ == VK_FORMAT_UNDEFINED) {
+        // Reuse selected depth format when possible
+        gbuf_depth_format_ = depth_format_ != VK_FORMAT_UNDEFINED ? depth_format_ : VK_FORMAT_D32_SFLOAT;
+    }
+
+    VkAttachmentDescription a0 {};
+    a0.format = gbuf_albedo_format_;
+    a0.samples = VK_SAMPLE_COUNT_1_BIT;
+    a0.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    a0.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    a0.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    a0.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    a0.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    a0.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkAttachmentDescription a1 {};
+    a1.format = gbuf_normal_format_;
+    a1.samples = VK_SAMPLE_COUNT_1_BIT;
+    a1.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    a1.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    a1.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    a1.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    a1.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    a1.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkAttachmentDescription ad {};
+    ad.format = gbuf_depth_format_;
+    ad.samples = VK_SAMPLE_COUNT_1_BIT;
+    ad.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    ad.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    ad.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    ad.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    ad.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    ad.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+
+    VkAttachmentReference colorRefs[2];
+    colorRefs[0].attachment = 0U;
+    colorRefs[0].layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorRefs[1].attachment = 1U;
+    colorRefs[1].layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    VkAttachmentReference depthRef {};
+    depthRef.attachment = 2U;
+    depthRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    VkSubpassDescription subpass {};
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount = 2U;
+    subpass.pColorAttachments = colorRefs;
+    subpass.pDepthStencilAttachment = &depthRef;
+
+    VkSubpassDependency dep {};
+    dep.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dep.dstSubpass = 0U;
+    dep.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dep.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dep.srcAccessMask = 0U;
+    dep.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+    VkAttachmentDescription atts[3] {a0, a1, ad};
+    VkRenderPassCreateInfo rp {};
+    rp.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    rp.attachmentCount = 3U;
+    rp.pAttachments = atts;
+    rp.subpassCount = 1U;
+    rp.pSubpasses = &subpass;
+    rp.dependencyCount = 1U;
+    rp.pDependencies = &dep;
+    VkRenderPass rpH {VK_NULL_HANDLE};
+    if (vkCreateRenderPass(device_, &rp, nullptr, &rpH) == VK_SUCCESS) {
+        gbuffer_render_pass_ = rpH;
+        set_object_name(VK_OBJECT_TYPE_RENDER_PASS, reinterpret_cast<std::uint64_t>(gbuffer_render_pass_), "GBufferPass");
+    }
+}
+
+void VulkanContext::destroy_gbuffer_render_pass() noexcept {
+    if (device_ == VK_NULL_HANDLE) {
+        return;
+    }
+    if (gbuffer_render_pass_ != VK_NULL_HANDLE) {
+        vkDestroyRenderPass(device_, gbuffer_render_pass_, nullptr);
+        gbuffer_render_pass_ = VK_NULL_HANDLE;
     }
 }
 
@@ -2557,6 +2670,101 @@ void VulkanContext::destroy_framebuffers() noexcept {
         }
     }
     framebuffers_.clear();
+}
+
+void VulkanContext::create_gbuffer_resources() noexcept {
+    if (device_ == VK_NULL_HANDLE || gbuffer_render_pass_ == VK_NULL_HANDLE) {
+        return;
+    }
+    if (swapchain_extent_.width == 0U || swapchain_extent_.height == 0U) {
+        return;
+    }
+    // Create images
+    const std::uint32_t w {swapchain_extent_.width};
+    const std::uint32_t h {swapchain_extent_.height};
+
+    // Albedo
+    create_image_2d(w, h, 1U, gbuf_albedo_format_, VK_IMAGE_TILING_OPTIMAL,
+                    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                    gbuf_albedo_image_, gbuf_albedo_memory_, "GbufAlbedoImage");
+    create_image_view_2d(gbuf_albedo_image_, gbuf_albedo_format_, VK_IMAGE_ASPECT_COLOR_BIT, 1U, gbuf_albedo_view_, "GbufAlbedoView");
+
+    // Normal (view-space packed)
+    create_image_2d(w, h, 1U, gbuf_normal_format_, VK_IMAGE_TILING_OPTIMAL,
+                    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                    gbuf_normal_image_, gbuf_normal_memory_, "GbufNormalImage");
+    create_image_view_2d(gbuf_normal_image_, gbuf_normal_format_, VK_IMAGE_ASPECT_COLOR_BIT, 1U, gbuf_normal_view_, "GbufNormalView");
+
+    // Depth (sampled later by SSAO)
+    create_image_2d(w, h, 1U, gbuf_depth_format_, VK_IMAGE_TILING_OPTIMAL,
+                    VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                    gbuf_depth_image_, gbuf_depth_memory_, "GbufDepthImage");
+    create_image_view_2d(gbuf_depth_image_, gbuf_depth_format_, VK_IMAGE_ASPECT_DEPTH_BIT, 1U, gbuf_depth_view_, "GbufDepthView");
+
+    // Framebuffer
+    VkImageView atts[3] {gbuf_albedo_view_, gbuf_normal_view_, gbuf_depth_view_};
+    VkFramebufferCreateInfo fb {};
+    fb.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+    fb.renderPass = gbuffer_render_pass_;
+    fb.attachmentCount = 3U;
+    fb.pAttachments = atts;
+    fb.width = w;
+    fb.height = h;
+    fb.layers = 1U;
+    VkFramebuffer fbH {VK_NULL_HANDLE};
+    if (vkCreateFramebuffer(device_, &fb, nullptr, &fbH) == VK_SUCCESS) {
+        gbuffer_framebuffer_ = fbH;
+        set_object_name(VK_OBJECT_TYPE_FRAMEBUFFER, reinterpret_cast<std::uint64_t>(gbuffer_framebuffer_), "GBufferFB");
+    }
+}
+
+void VulkanContext::destroy_gbuffer_resources() noexcept {
+    if (device_ == VK_NULL_HANDLE) {
+        return;
+    }
+    if (gbuffer_framebuffer_ != VK_NULL_HANDLE) {
+        vkDestroyFramebuffer(device_, gbuffer_framebuffer_, nullptr);
+        gbuffer_framebuffer_ = VK_NULL_HANDLE;
+    }
+    if (gbuf_albedo_view_ != VK_NULL_HANDLE) {
+        vkDestroyImageView(device_, gbuf_albedo_view_, nullptr);
+        gbuf_albedo_view_ = VK_NULL_HANDLE;
+    }
+    if (gbuf_albedo_image_ != VK_NULL_HANDLE) {
+        vkDestroyImage(device_, gbuf_albedo_image_, nullptr);
+        gbuf_albedo_image_ = VK_NULL_HANDLE;
+    }
+    if (gbuf_albedo_memory_ != VK_NULL_HANDLE) {
+        vkFreeMemory(device_, gbuf_albedo_memory_, nullptr);
+        gbuf_albedo_memory_ = VK_NULL_HANDLE;
+    }
+    if (gbuf_normal_view_ != VK_NULL_HANDLE) {
+        vkDestroyImageView(device_, gbuf_normal_view_, nullptr);
+        gbuf_normal_view_ = VK_NULL_HANDLE;
+    }
+    if (gbuf_normal_image_ != VK_NULL_HANDLE) {
+        vkDestroyImage(device_, gbuf_normal_image_, nullptr);
+        gbuf_normal_image_ = VK_NULL_HANDLE;
+    }
+    if (gbuf_normal_memory_ != VK_NULL_HANDLE) {
+        vkFreeMemory(device_, gbuf_normal_memory_, nullptr);
+        gbuf_normal_memory_ = VK_NULL_HANDLE;
+    }
+    if (gbuf_depth_view_ != VK_NULL_HANDLE) {
+        vkDestroyImageView(device_, gbuf_depth_view_, nullptr);
+        gbuf_depth_view_ = VK_NULL_HANDLE;
+    }
+    if (gbuf_depth_image_ != VK_NULL_HANDLE) {
+        vkDestroyImage(device_, gbuf_depth_image_, nullptr);
+        gbuf_depth_image_ = VK_NULL_HANDLE;
+    }
+    if (gbuf_depth_memory_ != VK_NULL_HANDLE) {
+        vkFreeMemory(device_, gbuf_depth_memory_, nullptr);
+        gbuf_depth_memory_ = VK_NULL_HANDLE;
+    }
 }
 
 void VulkanContext::destroy_sync_objects() noexcept {

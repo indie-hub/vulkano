@@ -1,5 +1,5 @@
 - [x] Add SSAO settings + ImGui panel (UI only)
-- [ ] Add G-buffer images and pass; output albedo, normalVS, depth
+- [x] Add G-buffer images and pass; output albedo, normalVS, depth (resources only)
 - [ ] Add SSAO pass resources (noise tex, kernel, descriptors)
 - [ ] Add SSAO fullscreen pipeline + shader; write aoRaw
 - [ ] Add blur (H+V) pipelines + shader; write aoBlur
