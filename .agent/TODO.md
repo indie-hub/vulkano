@@ -1,5 +1,5 @@
 - [x] Review existing Vulkan application structure and current rendering pipeline components.
-- [ ] Draft updated design for primitive system, vertex layout, and rendering resources.
+- [x] Draft updated design for primitive system, vertex layout, and rendering resources.
 - [ ] Implement primitive hierarchy and CPU mesh generation (plane, cube, icosphere).
 - [ ] Implement GPU resource uploads (vertex/index buffers, descriptors) and integrate rendering loop with primitives.
 - [ ] Update shaders and graphics pipeline for lighting, depth testing, and camera transforms.
