@@ -25,12 +25,41 @@ Buffer::~Buffer() noexcept {
     cleanup();
 }
 
-auto Buffer::create_vertex_buffer(const VulkanContext& context, std::span<const Vertex> vertices) -> Buffer {
-    const VkDeviceSize bufferSize = static_cast<VkDeviceSize>(vertices.size() * sizeof(Vertex));
+auto Buffer::create_vertex_buffer(const VulkanContext& context, std::span<const MeshVertex> vertices) -> Buffer {
+    const VkDeviceSize bufferSize = static_cast<VkDeviceSize>(vertices.size() * sizeof(MeshVertex));
     Buffer buffer {context, bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT};
-    buffer.copy_data(context, vertices.data(), bufferSize);
-    context.set_object_name(VK_OBJECT_TYPE_BUFFER, reinterpret_cast<std::uint64_t>(buffer.m_buffer), "Vertex Buffer");
+    if(!vertices.empty()) {
+        buffer.copy_data(context, vertices.data(), bufferSize);
+    }
     return buffer;
+}
+
+auto Buffer::create_device_local_vertex_buffer(const VulkanContext& context, std::span<const MeshVertex> vertices) -> Buffer {
+    const VkDeviceSize bufferSize = static_cast<VkDeviceSize>(vertices.size() * sizeof(MeshVertex));
+    if(bufferSize == 0U) {
+        throw std::runtime_error {"Vertex buffer requires at least one vertex"};
+    }
+
+    Buffer staging {context, bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT};
+    staging.copy_data(context, vertices.data(), bufferSize);
+
+    Buffer deviceBuffer {context, bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT};
+    copy_buffer(context, staging.handle(), deviceBuffer.handle(), bufferSize);
+    return deviceBuffer;
+}
+
+auto Buffer::create_device_local_index_buffer(const VulkanContext& context, std::span<const std::uint32_t> indices) -> Buffer {
+    const VkDeviceSize bufferSize = static_cast<VkDeviceSize>(indices.size() * sizeof(std::uint32_t));
+    if(bufferSize == 0U) {
+        throw std::runtime_error {"Index buffer requires at least one index"};
+    }
+
+    Buffer staging {context, bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT};
+    staging.copy_data(context, indices.data(), bufferSize);
+
+    Buffer deviceBuffer {context, bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT};
+    copy_buffer(context, staging.handle(), deviceBuffer.handle(), bufferSize);
+    return deviceBuffer;
 }
 
 auto Buffer::handle() const noexcept -> VkBuffer {
@@ -82,7 +111,7 @@ void Buffer::copy_data(const VulkanContext& context, const void* data, VkDeviceS
     }
     std::memcpy(mappedMemory, data, static_cast<std::size_t>(size));
     vkUnmapMemory(m_device, m_memory);
-    context.set_object_name(VK_OBJECT_TYPE_DEVICE_MEMORY, reinterpret_cast<std::uint64_t>(m_memory), "Vertex Buffer Memory");
+    context.set_object_name(VK_OBJECT_TYPE_DEVICE_MEMORY, reinterpret_cast<std::uint64_t>(m_memory), "Buffer Memory");
 }
 
 void Buffer::cleanup() noexcept {
@@ -122,6 +151,73 @@ auto Buffer::find_memory_type(const VulkanContext& context, std::uint32_t typeFi
         }
     }
     throw std::runtime_error {"Failed to find suitable memory type"};
+}
+
+void Buffer::copy_buffer(const VulkanContext& context, VkBuffer source, VkBuffer destination, VkDeviceSize size) {
+    VkCommandPoolCreateInfo poolInfo {};
+    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    poolInfo.queueFamilyIndex = context.graphics_queue_index();
+    poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+
+    VkCommandPool commandPool {VK_NULL_HANDLE};
+    if(vkCreateCommandPool(context.device(), &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create command pool for buffer copy"};
+    }
+
+    VkCommandBufferAllocateInfo allocateInfo {};
+    allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocateInfo.commandPool = commandPool;
+    allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocateInfo.commandBufferCount = 1U;
+
+    VkCommandBuffer commandBuffer {VK_NULL_HANDLE};
+    if(vkAllocateCommandBuffers(context.device(), &allocateInfo, &commandBuffer) != VK_SUCCESS) {
+        vkDestroyCommandPool(context.device(), commandPool, nullptr);
+        throw std::runtime_error {"Failed to allocate command buffer for buffer copy"};
+    }
+
+    VkCommandBufferBeginInfo beginInfo {};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    if(vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
+        vkFreeCommandBuffers(context.device(), commandPool, 1U, &commandBuffer);
+        vkDestroyCommandPool(context.device(), commandPool, nullptr);
+        throw std::runtime_error {"Failed to begin command buffer for buffer copy"};
+    }
+
+    VkBufferCopy copyRegion {};
+    copyRegion.srcOffset = 0U;
+    copyRegion.dstOffset = 0U;
+    copyRegion.size = size;
+    vkCmdCopyBuffer(commandBuffer, source, destination, 1U, &copyRegion);
+
+    if(vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
+        vkFreeCommandBuffers(context.device(), commandPool, 1U, &commandBuffer);
+        vkDestroyCommandPool(context.device(), commandPool, nullptr);
+        throw std::runtime_error {"Failed to record buffer copy command"};
+    }
+
+    VkSubmitInfo submitInfo {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1U;
+    submitInfo.pCommandBuffers = &commandBuffer;
+
+    const VkQueue queue = context.graphics_queue();
+    if(vkQueueSubmit(queue, 1U, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
+        vkFreeCommandBuffers(context.device(), commandPool, 1U, &commandBuffer);
+        vkDestroyCommandPool(context.device(), commandPool, nullptr);
+        throw std::runtime_error {"Failed to submit buffer copy command"};
+    }
+
+    if(vkQueueWaitIdle(queue) != VK_SUCCESS) {
+        vkFreeCommandBuffers(context.device(), commandPool, 1U, &commandBuffer);
+        vkDestroyCommandPool(context.device(), commandPool, nullptr);
+        throw std::runtime_error {"Failed to wait for queue idle after buffer copy"};
+    }
+
+    vkFreeCommandBuffers(context.device(), commandPool, 1U, &commandBuffer);
+    vkDestroyCommandPool(context.device(), commandPool, nullptr);
 }
 
 } // namespace vulkano

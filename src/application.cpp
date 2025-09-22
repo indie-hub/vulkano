@@ -31,7 +31,13 @@ VulkanApplication::VulkanApplication(const AppConfig& config)
     , m_syncManager {SyncManager::create(m_context, maxFramesInFlight)}
     , m_deviceName {m_context.device_properties().deviceName} {
     const auto vertices = default_triangle_vertices();
-    m_vertexBuffer = Buffer::create_vertex_buffer(m_context, std::span<const Vertex>(vertices.data(), vertices.size()));
+    std::array<MeshVertex, vertices.size()> meshVertices {};
+    for(std::size_t index {0U}; index < vertices.size(); ++index) {
+        meshVertices[index].position = vertices[index].position;
+        meshVertices[index].normal = glm::vec3 {0.0F, 1.0F, 0.0F};
+        meshVertices[index].uv = glm::vec2 {0.0F, 0.0F};
+    }
+    m_vertexBuffer = Buffer::create_vertex_buffer(m_context, std::span<const MeshVertex>(meshVertices.data(), meshVertices.size()));
     m_pipeline = GraphicsPipeline::create(m_context, m_renderPass);
     create_render_finished_semaphores();
     m_imagesInFlight.resize(m_swapchain.image_views().size(), VK_NULL_HANDLE);
@@ -351,18 +357,20 @@ void VulkanApplication::record_command_buffer(std::uint32_t imageIndex) {
 
     vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
+    const VkExtent2D extent = m_swapchain.extent();
+
     VkViewport viewport {};
     viewport.x = 0.0F;
-    viewport.y = 0.0F;
-    viewport.width = static_cast<float>(m_swapchain.extent().width);
-    viewport.height = static_cast<float>(m_swapchain.extent().height);
+    viewport.y = static_cast<float>(extent.height);
+    viewport.width = static_cast<float>(extent.width);
+    viewport.height = -static_cast<float>(extent.height);
     viewport.minDepth = 0.0F;
     viewport.maxDepth = 1.0F;
     vkCmdSetViewport(commandBuffer, 0U, 1U, &viewport);
 
     VkRect2D scissor {};
     scissor.offset = {0, 0};
-    scissor.extent = m_swapchain.extent();
+    scissor.extent = extent;
     vkCmdSetScissor(commandBuffer, 0U, 1U, &scissor);
 
     m_context.begin_debug_label(commandBuffer, "Draw Triangle");

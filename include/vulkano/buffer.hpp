@@ -1,7 +1,7 @@
 #pragma once
 
+#include <vulkano/mesh.hpp>
 #include <vulkano/vulkan_context.hpp>
-#include <vulkano/vertex.hpp>
 
 #include <span>
 #include <vulkan/vulkan.h>
@@ -17,7 +17,9 @@ public:
     auto operator=(Buffer&& other) noexcept -> Buffer&;
     ~Buffer() noexcept;
 
-    [[nodiscard]] static auto create_vertex_buffer(const VulkanContext& context, std::span<const Vertex> vertices) -> Buffer;
+    [[nodiscard]] static auto create_vertex_buffer(const VulkanContext& context, std::span<const MeshVertex> vertices) -> Buffer;
+    [[nodiscard]] static auto create_device_local_vertex_buffer(const VulkanContext& context, std::span<const MeshVertex> vertices) -> Buffer;
+    [[nodiscard]] static auto create_device_local_index_buffer(const VulkanContext& context, std::span<const std::uint32_t> indices) -> Buffer;
 
     [[nodiscard]] auto handle() const noexcept -> VkBuffer;
     [[nodiscard]] auto size() const noexcept -> VkDeviceSize;
@@ -30,6 +32,7 @@ private:
     void cleanup() noexcept;
     void move_from(Buffer&& other) noexcept;
     [[nodiscard]] auto find_memory_type(const VulkanContext& context, std::uint32_t typeFilter, VkMemoryPropertyFlags properties) -> std::uint32_t;
+    static void copy_buffer(const VulkanContext& context, VkBuffer source, VkBuffer destination, VkDeviceSize size);
 
     VkDevice m_device {VK_NULL_HANDLE};
     VkBuffer m_buffer {VK_NULL_HANDLE};
