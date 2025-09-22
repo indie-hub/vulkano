@@ -34,6 +34,10 @@ public:
     [[nodiscard]] auto graphics_queue_index() const noexcept -> std::uint32_t;
     [[nodiscard]] auto present_queue_index() const noexcept -> std::uint32_t;
     [[nodiscard]] auto device_properties() const noexcept -> VkPhysicalDeviceProperties;
+    [[nodiscard]] auto validation_enabled() const noexcept -> bool;
+    void set_object_name(VkObjectType type, std::uint64_t handle, const std::string& name) const;
+    void begin_debug_label(VkCommandBuffer commandBuffer, const std::string& label) const;
+    void end_debug_label(VkCommandBuffer commandBuffer) const;
 
 private:
     friend class VulkanContextBuilder;
@@ -45,6 +49,7 @@ private:
     void create_surface();
     void pick_physical_device();
     void create_logical_device();
+    void load_debug_functions();
 
     [[nodiscard]] auto required_instance_extensions() const -> std::vector<const char*>;
     [[nodiscard]] auto check_validation_layer_support() const -> bool;
@@ -66,6 +71,9 @@ private:
     std::uint32_t m_graphicsQueueIndex {0U};
     std::uint32_t m_presentQueueIndex {0U};
     VkPhysicalDeviceProperties m_deviceProperties {};
+    PFN_vkSetDebugUtilsObjectNameEXT m_setObjectName {nullptr};
+    PFN_vkCmdBeginDebugUtilsLabelEXT m_cmdBeginLabel {nullptr};
+    PFN_vkCmdEndDebugUtilsLabelEXT m_cmdEndLabel {nullptr};
 };
 
 class VulkanContextBuilder final {

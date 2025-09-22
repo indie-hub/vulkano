@@ -144,6 +144,43 @@ auto VulkanContext::device_properties() const noexcept -> VkPhysicalDeviceProper
     return m_deviceProperties;
 }
 
+auto VulkanContext::validation_enabled() const noexcept -> bool {
+    return m_config.validation_enabled();
+}
+
+void VulkanContext::set_object_name(VkObjectType type, std::uint64_t handle, const std::string& name) const {
+    if(m_setObjectName == nullptr || m_device == VK_NULL_HANDLE) {
+        return;
+    }
+    VkDebugUtilsObjectNameInfoEXT info {};
+    info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
+    info.objectType = type;
+    info.objectHandle = handle;
+    info.pObjectName = name.c_str();
+    m_setObjectName(m_device, &info);
+}
+
+void VulkanContext::begin_debug_label(VkCommandBuffer commandBuffer, const std::string& label) const {
+    if(m_cmdBeginLabel == nullptr) {
+        return;
+    }
+    VkDebugUtilsLabelEXT labelInfo {};
+    labelInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT;
+    labelInfo.pLabelName = label.c_str();
+    labelInfo.color[0] = 1.0F;
+    labelInfo.color[1] = 1.0F;
+    labelInfo.color[2] = 1.0F;
+    labelInfo.color[3] = 1.0F;
+    m_cmdBeginLabel(commandBuffer, &labelInfo);
+}
+
+void VulkanContext::end_debug_label(VkCommandBuffer commandBuffer) const {
+    if(m_cmdEndLabel == nullptr) {
+        return;
+    }
+    m_cmdEndLabel(commandBuffer);
+}
+
 void VulkanContext::create_instance() {
     if(m_config.validation_enabled() && !check_validation_layer_support()) {
         throw std::runtime_error {"Requested validation layers are unavailable"};
@@ -199,6 +236,7 @@ void VulkanContext::setup_debug_messenger() {
     if(result != VK_SUCCESS) {
         throw std::runtime_error {"Failed to create debug messenger"};
     }
+    load_debug_functions();
 }
 
 void VulkanContext::create_surface() {
@@ -388,6 +426,9 @@ void VulkanContext::cleanup() noexcept {
     m_graphicsQueueIndex = 0U;
     m_presentQueueIndex = 0U;
     m_window = nullptr;
+    m_setObjectName = nullptr;
+    m_cmdBeginLabel = nullptr;
+    m_cmdEndLabel = nullptr;
 }
 
 void VulkanContext::move_from(VulkanContext&& other) noexcept {
@@ -403,6 +444,9 @@ void VulkanContext::move_from(VulkanContext&& other) noexcept {
     m_graphicsQueueIndex = other.m_graphicsQueueIndex;
     m_presentQueueIndex = other.m_presentQueueIndex;
     m_deviceProperties = other.m_deviceProperties;
+    m_setObjectName = other.m_setObjectName;
+    m_cmdBeginLabel = other.m_cmdBeginLabel;
+    m_cmdEndLabel = other.m_cmdEndLabel;
 
     other.m_window = nullptr;
     other.m_instance = VK_NULL_HANDLE;
@@ -415,6 +459,21 @@ void VulkanContext::move_from(VulkanContext&& other) noexcept {
     other.m_graphicsQueueIndex = 0U;
     other.m_presentQueueIndex = 0U;
     other.m_deviceProperties = {};
+    other.m_setObjectName = nullptr;
+    other.m_cmdBeginLabel = nullptr;
+    other.m_cmdEndLabel = nullptr;
+}
+
+void VulkanContext::load_debug_functions() {
+    if(!m_config.validation_enabled()) {
+        return;
+    }
+    m_setObjectName = reinterpret_cast<PFN_vkSetDebugUtilsObjectNameEXT>(
+        vkGetInstanceProcAddr(m_instance, "vkSetDebugUtilsObjectNameEXT"));
+    m_cmdBeginLabel = reinterpret_cast<PFN_vkCmdBeginDebugUtilsLabelEXT>(
+        vkGetInstanceProcAddr(m_instance, "vkCmdBeginDebugUtilsLabelEXT"));
+    m_cmdEndLabel = reinterpret_cast<PFN_vkCmdEndDebugUtilsLabelEXT>(
+        vkGetInstanceProcAddr(m_instance, "vkCmdEndDebugUtilsLabelEXT"));
 }
 
 } // namespace vulkano

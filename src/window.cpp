@@ -33,6 +33,10 @@ auto Window::extent() const noexcept -> WindowExtent {
     return m_extent;
 }
 
+auto Window::should_close() const noexcept -> bool {
+    return glfwWindowShouldClose(m_window.get()) == GLFW_TRUE;
+}
+
 auto Window::create_surface(VkInstance instance) const -> VkSurfaceKHR {
     VkSurfaceKHR surface {VK_NULL_HANDLE};
     const VkResult result {glfwCreateWindowSurface(instance, m_window.get(), nullptr, &surface)};

@@ -3,6 +3,6 @@
 - [x] Implement Vulkan core initialization (instance, surface, physical device, logical device)
 - [x] Implement swapchain and image view management
 - [x] Add render pass, framebuffers, command pools, and synchronization
-- [ ] Render white triangle with configurable pipeline resources
+- [x] Render white triangle with configurable pipeline resources
 - [ ] Integrate ImGui overlay with runtime stats collection
 - [ ] Add tests, build packaging, and final verification

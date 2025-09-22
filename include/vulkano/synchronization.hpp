@@ -25,6 +25,7 @@ public:
 
     [[nodiscard]] static auto create(const VulkanContext& context, std::uint32_t framesInFlight) -> SyncManager;
 
+    [[nodiscard]] auto frames() noexcept -> std::vector<FrameSync>&;
     [[nodiscard]] auto frames() const noexcept -> const std::vector<FrameSync>&;
     [[nodiscard]] auto frame_count() const noexcept -> std::uint32_t;
 

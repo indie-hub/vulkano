@@ -1,6 +1,7 @@
 #include <vulkano/framebuffers.hpp>
 
 #include <stdexcept>
+#include <string>
 
 namespace vulkano {
 
@@ -63,6 +64,8 @@ void FramebufferCollection::initialise(const VulkanContext& context, const Swapc
         if(result != VK_SUCCESS) {
             throw std::runtime_error {"Failed to create framebuffer"};
         }
+        const std::string name = "Framebuffer " + std::to_string(index);
+        context.set_object_name(VK_OBJECT_TYPE_FRAMEBUFFER, reinterpret_cast<std::uint64_t>(m_framebuffers.at(index)), name);
     }
 }
 

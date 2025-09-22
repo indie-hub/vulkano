@@ -1,6 +1,7 @@
 #include <vulkano/synchronization.hpp>
 
 #include <stdexcept>
+#include <string>
 
 namespace vulkano {
 
@@ -28,6 +29,10 @@ auto SyncManager::create(const VulkanContext& context, std::uint32_t framesInFli
     return SyncManager {context, framesInFlight};
 }
 
+auto SyncManager::frames() noexcept -> std::vector<FrameSync>& {
+    return m_frames;
+}
+
 auto SyncManager::frames() const noexcept -> const std::vector<FrameSync>& {
     return m_frames;
 }
@@ -47,7 +52,8 @@ void SyncManager::initialise(const VulkanContext& context, std::uint32_t framesI
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-    for(FrameSync& frame : m_frames) {
+    for(std::size_t index {0U}; index < m_frames.size(); ++index) {
+        FrameSync& frame = m_frames.at(index);
         if(vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &frame.imageAvailable) != VK_SUCCESS) {
             throw std::runtime_error {"Failed to create image-available semaphore"};
         }
@@ -57,6 +63,12 @@ void SyncManager::initialise(const VulkanContext& context, std::uint32_t framesI
         if(vkCreateFence(m_device, &fenceInfo, nullptr, &frame.inFlight) != VK_SUCCESS) {
             throw std::runtime_error {"Failed to create in-flight fence"};
         }
+        const std::string imageSemaphoreName = "Frame " + std::to_string(index) + " Image Available Semaphore";
+        context.set_object_name(VK_OBJECT_TYPE_SEMAPHORE, reinterpret_cast<std::uint64_t>(frame.imageAvailable), imageSemaphoreName);
+        const std::string renderSemaphoreName = "Frame " + std::to_string(index) + " Render Finished Semaphore";
+        context.set_object_name(VK_OBJECT_TYPE_SEMAPHORE, reinterpret_cast<std::uint64_t>(frame.renderFinished), renderSemaphoreName);
+        const std::string fenceName = "Frame " + std::to_string(index) + " In Flight Fence";
+        context.set_object_name(VK_OBJECT_TYPE_FENCE, reinterpret_cast<std::uint64_t>(frame.inFlight), fenceName);
     }
 }
 

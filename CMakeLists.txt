@@ -25,6 +25,10 @@ endif()
 
 find_package(Vulkan REQUIRED)
 
+if(NOT Vulkan_GLSLC_EXECUTABLE)
+    message(FATAL_ERROR "glslc executable not found. Ensure the Vulkan SDK is installed and glslc is in PATH.")
+endif()
+
 include(FetchContent)
 
 set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
@@ -84,15 +88,47 @@ add_library(imgui::imgui ALIAS imgui)
 
 add_executable(vulkano_codex
     src/app_config.cpp
+    src/application.cpp
+    src/buffer.cpp
     src/command_allocator.cpp
     src/framebuffers.cpp
     src/glfw_context.cpp
+    src/graphics_pipeline.cpp
     src/main.cpp
     src/render_pass.cpp
     src/swapchain.cpp
     src/synchronization.cpp
+    src/vertex.cpp
     src/vulkan_context.cpp
     src/window.cpp
+)
+
+set(SHADER_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/shaders/triangle.frag
+    ${CMAKE_CURRENT_SOURCE_DIR}/shaders/triangle.vert
+)
+
+set(SPIRV_OUTPUTS)
+foreach(SHADER ${SHADER_SOURCES})
+    get_filename_component(FILE_NAME ${SHADER} NAME)
+    set(SPIRV_FILE ${CMAKE_BINARY_DIR}/shaders/${FILE_NAME}.spv)
+    add_custom_command(
+        OUTPUT ${SPIRV_FILE}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/shaders
+        COMMAND ${Vulkan_GLSLC_EXECUTABLE} -o ${SPIRV_FILE} ${SHADER}
+        DEPENDS ${SHADER}
+        COMMENT "Compiling ${FILE_NAME}"
+        VERBATIM
+    )
+    list(APPEND SPIRV_OUTPUTS ${SPIRV_FILE})
+endforeach()
+
+add_custom_target(compile_shaders DEPENDS ${SPIRV_OUTPUTS})
+add_dependencies(vulkano_codex compile_shaders)
+
+add_custom_command(TARGET vulkano_codex POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:vulkano_codex>/shaders
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SPIRV_OUTPUTS} $<TARGET_FILE_DIR:vulkano_codex>/shaders
 )
 
 target_include_directories(vulkano_codex

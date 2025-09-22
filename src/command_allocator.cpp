@@ -1,6 +1,7 @@
 #include <vulkano/command_allocator.hpp>
 
 #include <stdexcept>
+#include <string>
 
 namespace vulkano {
 
@@ -68,8 +69,13 @@ void CommandAllocator::initialise(const VulkanContext& context, std::uint32_t bu
     if(poolResult != VK_SUCCESS) {
         throw std::runtime_error {"Failed to create command pool"};
     }
+    context.set_object_name(VK_OBJECT_TYPE_COMMAND_POOL, reinterpret_cast<std::uint64_t>(m_commandPool), "Graphics Command Pool");
 
     allocate_buffers(bufferCount);
+    for(std::size_t index {0U}; index < m_commandBuffers.size(); ++index) {
+        const std::string name = "Graphics Command Buffer " + std::to_string(index);
+        context.set_object_name(VK_OBJECT_TYPE_COMMAND_BUFFER, reinterpret_cast<std::uint64_t>(m_commandBuffers.at(index)), name);
+    }
 }
 
 void CommandAllocator::cleanup() noexcept {

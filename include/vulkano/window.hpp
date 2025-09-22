@@ -24,6 +24,7 @@ public:
 
     [[nodiscard]] auto handle() const noexcept -> GLFWwindow*;
     [[nodiscard]] auto extent() const noexcept -> WindowExtent;
+    [[nodiscard]] auto should_close() const noexcept -> bool;
     [[nodiscard]] auto create_surface(VkInstance instance) const -> VkSurfaceKHR;
 
 private:

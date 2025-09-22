@@ -75,6 +75,7 @@ void RenderPass::initialise(const VulkanContext& context, VkFormat swapchainForm
     if(result != VK_SUCCESS) {
         throw std::runtime_error {"Failed to create render pass"};
     }
+    context.set_object_name(VK_OBJECT_TYPE_RENDER_PASS, reinterpret_cast<std::uint64_t>(m_renderPass), "Main Render Pass");
 }
 
 void RenderPass::cleanup() noexcept {

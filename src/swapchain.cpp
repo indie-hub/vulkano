@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include <utility>
 #include <vector>
+#include <string>
 
 #include <GLFW/glfw3.h>
 
@@ -89,6 +90,7 @@ namespace {
     }
 
     void create_image_views(
+        const vulkano::VulkanContext& context,
         VkDevice device,
         VkFormat format,
         const std::vector<VkImage>& images,
@@ -114,6 +116,10 @@ namespace {
             if(result != VK_SUCCESS) {
                 throw std::runtime_error {"Failed to create swapchain image view"};
             }
+            const std::string viewName = "Swapchain Image View " + std::to_string(index);
+            context.set_object_name(VK_OBJECT_TYPE_IMAGE_VIEW, reinterpret_cast<std::uint64_t>(imageViews.at(index)), viewName);
+            const std::string imageName = "Swapchain Image " + std::to_string(index);
+            context.set_object_name(VK_OBJECT_TYPE_IMAGE, reinterpret_cast<std::uint64_t>(images.at(index)), imageName);
         }
     }
 } // namespace
@@ -241,6 +247,8 @@ void Swapchain::initialise(const VulkanContext& context, const Window& window) {
         throw std::runtime_error {"Failed to create swapchain"};
     }
 
+    context.set_object_name(VK_OBJECT_TYPE_SWAPCHAIN_KHR, reinterpret_cast<std::uint64_t>(m_swapchain), "Swapchain");
+
     m_device = device;
     m_imageFormat = surfaceFormat.format;
     m_extent = extent;
@@ -250,7 +258,7 @@ void Swapchain::initialise(const VulkanContext& context, const Window& window) {
     m_images.resize(retrievedImageCount);
     vkGetSwapchainImagesKHR(device, m_swapchain, &retrievedImageCount, m_images.data());
 
-    create_image_views(device, m_imageFormat, m_images, m_imageViews);
+    create_image_views(context, device, m_imageFormat, m_images, m_imageViews);
 }
 
 void Swapchain::cleanup() noexcept {
