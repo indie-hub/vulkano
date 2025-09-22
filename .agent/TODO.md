@@ -1,0 +1,5 @@
+- [x] Set up project scaffolding with CMake, directories, and dependency fetching
+- [ ] Implement Vulkan initialization (instance, device, swapchain, window handling)
+- [ ] Render white triangle with configurable pipeline resources
+- [ ] Integrate ImGui overlay with runtime stats collection
+- [ ] Add tests, build packaging, and final verification
