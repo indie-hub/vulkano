@@ -4,6 +4,7 @@
 #include <limits>
 #include <span>
 #include <stdexcept>
+#include <string>
 
 #include <GLFW/glfw3.h>
 #include <imgui.h>
@@ -32,6 +33,7 @@ VulkanApplication::VulkanApplication(const AppConfig& config)
     const auto vertices = default_triangle_vertices();
     m_vertexBuffer = Buffer::create_vertex_buffer(m_context, std::span<const Vertex>(vertices.data(), vertices.size()));
     m_pipeline = GraphicsPipeline::create(m_context, m_renderPass);
+    create_render_finished_semaphores();
     m_imagesInFlight.resize(m_swapchain.image_views().size(), VK_NULL_HANDLE);
 
     init_imgui();
@@ -41,6 +43,7 @@ VulkanApplication::VulkanApplication(const AppConfig& config)
 
 VulkanApplication::~VulkanApplication() {
     wait_for_device_idle();
+    destroy_render_finished_semaphores();
     destroy_imgui();
 }
 
@@ -128,6 +131,7 @@ void VulkanApplication::draw_frame() {
 
     const VkCommandBuffer commandBuffer = m_commandAllocator.buffers().at(imageIndex);
     const VkPipelineStageFlags waitStages[] {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+    VkSemaphore* const renderFinishedSemaphore = &m_renderFinishedSemaphores.at(imageIndex);
 
     VkSubmitInfo submitInfo {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -137,7 +141,7 @@ void VulkanApplication::draw_frame() {
     submitInfo.commandBufferCount = 1U;
     submitInfo.pCommandBuffers = &commandBuffer;
     submitInfo.signalSemaphoreCount = 1U;
-    submitInfo.pSignalSemaphores = &frameSync.renderFinished;
+    submitInfo.pSignalSemaphores = renderFinishedSemaphore;
 
     if(vkQueueSubmit(m_context.graphics_queue(), 1U, &submitInfo, frameSync.inFlight) != VK_SUCCESS) {
         throw std::runtime_error {"Failed to submit draw command buffer"};
@@ -146,7 +150,7 @@ void VulkanApplication::draw_frame() {
     VkPresentInfoKHR presentInfo {};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     presentInfo.waitSemaphoreCount = 1U;
-    presentInfo.pWaitSemaphores = &frameSync.renderFinished;
+    presentInfo.pWaitSemaphores = renderFinishedSemaphore;
     const VkSwapchainKHR swapchains[] {m_swapchain.handle()};
     presentInfo.swapchainCount = 1U;
     presentInfo.pSwapchains = swapchains;
@@ -183,7 +187,50 @@ void VulkanApplication::recreate_swapchain() {
     const std::uint32_t commandBufferCount = static_cast<std::uint32_t>(m_framebuffers.size());
     m_commandAllocator.recreate(m_context, commandBufferCount);
     m_imagesInFlight.assign(commandBufferCount, VK_NULL_HANDLE);
+    create_render_finished_semaphores();
     ImGui_ImplVulkan_SetMinImageCount(static_cast<std::uint32_t>(m_swapchain.image_views().size()));
+}
+
+void VulkanApplication::create_render_finished_semaphores() {
+    destroy_render_finished_semaphores();
+
+    const VkDevice device = m_context.device();
+    if(device == VK_NULL_HANDLE) {
+        return;
+    }
+
+    const std::uint32_t imageCount = static_cast<std::uint32_t>(m_swapchain.image_views().size());
+    m_renderFinishedSemaphores.resize(imageCount, VK_NULL_HANDLE);
+
+    VkSemaphoreCreateInfo semaphoreInfo {};
+    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+    for(std::uint32_t index {0U}; index < imageCount; ++index) {
+        VkSemaphore& semaphore = m_renderFinishedSemaphores.at(index);
+        if(vkCreateSemaphore(device, &semaphoreInfo, nullptr, &semaphore) != VK_SUCCESS) {
+            throw std::runtime_error {"Failed to create render-finished semaphore"};
+        }
+        const std::string name = "Swapchain Image " + std::to_string(index) + " Render Finished Semaphore";
+        m_context.set_object_name(
+            VK_OBJECT_TYPE_SEMAPHORE,
+            reinterpret_cast<std::uint64_t>(semaphore),
+            name);
+    }
+}
+
+void VulkanApplication::destroy_render_finished_semaphores() noexcept {
+    const VkDevice device = m_context.device();
+    if(device == VK_NULL_HANDLE) {
+        m_renderFinishedSemaphores.clear();
+        return;
+    }
+    for(VkSemaphore& semaphore : m_renderFinishedSemaphores) {
+        if(semaphore != VK_NULL_HANDLE) {
+            vkDestroySemaphore(device, semaphore, nullptr);
+            semaphore = VK_NULL_HANDLE;
+        }
+    }
+    m_renderFinishedSemaphores.clear();
 }
 
 void VulkanApplication::wait_for_device_idle() const {

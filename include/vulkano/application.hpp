@@ -43,6 +43,8 @@ private:
     void begin_imgui_frame();
     void record_command_buffer(std::uint32_t imageIndex);
     void update_timing(double deltaSeconds);
+    void create_render_finished_semaphores();
+    void destroy_render_finished_semaphores() noexcept;
 
     AppConfig m_config;
     GlfwContext m_glfwContext;
@@ -58,6 +60,7 @@ private:
     VkDescriptorPool m_imguiDescriptorPool {VK_NULL_HANDLE};
 
     std::vector<VkFence> m_imagesInFlight {};
+    std::vector<VkSemaphore> m_renderFinishedSemaphores {};
     std::uint32_t m_currentFrame {0U};
     bool m_framebufferResized {false};
     std::chrono::steady_clock::time_point m_lastFrameTime {std::chrono::steady_clock::now()};

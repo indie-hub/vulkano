@@ -10,7 +10,6 @@ namespace vulkano {
 
 struct FrameSync final {
     VkSemaphore imageAvailable {VK_NULL_HANDLE};
-    VkSemaphore renderFinished {VK_NULL_HANDLE};
     VkFence inFlight {VK_NULL_HANDLE};
 };
 

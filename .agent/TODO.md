@@ -1,5 +1,7 @@
 - [x] Fix: vkCreateInstance: Found drivers that contain devices which support the portability subset, but the instance does not enumerate portability drivers! Applications that wish to enumerate portability drivers must set the VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR bit in the VkInstanceCreateInfo flags and enable the VK_KHR_portability_enumeration instance extension.
-- [ ] Run the app to make sure it works
+- [x] Update Vulkan instance creation to enumerate portability drivers on macOS
+- [x] Rebuild the project
+- [x] Run the app to make sure it works
 - [x] Set up project scaffolding with CMake, directories, and dependency fetching
 - [x] Configure external dependencies (GLFW, GLM, ImGui backend, Catch2) in CMake
 - [x] Implement Vulkan core initialization (instance, surface, physical device, logical device)

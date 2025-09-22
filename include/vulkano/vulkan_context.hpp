@@ -51,10 +51,11 @@ private:
     void create_logical_device();
     void load_debug_functions();
 
-    [[nodiscard]] auto required_instance_extensions() const -> std::vector<const char*>;
+    [[nodiscard]] auto required_instance_extensions(bool& portabilityEnumeration) const -> std::vector<const char*>;
     [[nodiscard]] auto check_validation_layer_support() const -> bool;
     [[nodiscard]] auto gather_queue_selection(VkPhysicalDevice candidate) const -> QueueSelection;
-    [[nodiscard]] auto check_device_extension_support(VkPhysicalDevice candidate) const -> bool;
+    [[nodiscard]] auto gather_device_extensions(VkPhysicalDevice candidate) const
+        -> std::optional<std::vector<const char*>>;
 
     void cleanup() noexcept;
     void move_from(VulkanContext&& other) noexcept;
@@ -74,6 +75,8 @@ private:
     PFN_vkSetDebugUtilsObjectNameEXT m_setObjectName {nullptr};
     PFN_vkCmdBeginDebugUtilsLabelEXT m_cmdBeginLabel {nullptr};
     PFN_vkCmdEndDebugUtilsLabelEXT m_cmdEndLabel {nullptr};
+    std::vector<const char*> m_enabledDeviceExtensions {};
+    bool m_portabilityEnumeration {false};
 };
 
 class VulkanContextBuilder final {

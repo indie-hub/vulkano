@@ -57,16 +57,11 @@ void SyncManager::initialise(const VulkanContext& context, std::uint32_t framesI
         if(vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &frame.imageAvailable) != VK_SUCCESS) {
             throw std::runtime_error {"Failed to create image-available semaphore"};
         }
-        if(vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &frame.renderFinished) != VK_SUCCESS) {
-            throw std::runtime_error {"Failed to create render-finished semaphore"};
-        }
         if(vkCreateFence(m_device, &fenceInfo, nullptr, &frame.inFlight) != VK_SUCCESS) {
             throw std::runtime_error {"Failed to create in-flight fence"};
         }
         const std::string imageSemaphoreName = "Frame " + std::to_string(index) + " Image Available Semaphore";
         context.set_object_name(VK_OBJECT_TYPE_SEMAPHORE, reinterpret_cast<std::uint64_t>(frame.imageAvailable), imageSemaphoreName);
-        const std::string renderSemaphoreName = "Frame " + std::to_string(index) + " Render Finished Semaphore";
-        context.set_object_name(VK_OBJECT_TYPE_SEMAPHORE, reinterpret_cast<std::uint64_t>(frame.renderFinished), renderSemaphoreName);
         const std::string fenceName = "Frame " + std::to_string(index) + " In Flight Fence";
         context.set_object_name(VK_OBJECT_TYPE_FENCE, reinterpret_cast<std::uint64_t>(frame.inFlight), fenceName);
     }
@@ -80,10 +75,6 @@ void SyncManager::cleanup() noexcept {
         if(frame.imageAvailable != VK_NULL_HANDLE) {
             vkDestroySemaphore(m_device, frame.imageAvailable, nullptr);
             frame.imageAvailable = VK_NULL_HANDLE;
-        }
-        if(frame.renderFinished != VK_NULL_HANDLE) {
-            vkDestroySemaphore(m_device, frame.renderFinished, nullptr);
-            frame.renderFinished = VK_NULL_HANDLE;
         }
         if(frame.inFlight != VK_NULL_HANDLE) {
             vkDestroyFence(m_device, frame.inFlight, nullptr);
