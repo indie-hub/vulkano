@@ -92,6 +92,18 @@ void VulkanApplication::request_close() {
     glfwSetWindowShouldClose(m_window.handle(), GLFW_TRUE);
 }
 
+auto VulkanApplication::primitive_count() const noexcept -> std::size_t {
+    return m_scene.primitives.size();
+}
+
+auto VulkanApplication::scene_light_position() const noexcept -> glm::vec3 {
+    return m_scene.lightPosition;
+}
+
+auto VulkanApplication::scene_light_intensity() const noexcept -> float {
+    return m_scene.lightIntensity;
+}
+
 void VulkanApplication::register_callbacks() {
     GLFWwindow* windowHandle = m_window.handle();
     glfwSetWindowUserPointer(windowHandle, this);

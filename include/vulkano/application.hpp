@@ -37,6 +37,9 @@ public:
 
     void run();
     void request_close();
+    [[nodiscard]] auto primitive_count() const noexcept -> std::size_t;
+    [[nodiscard]] auto scene_light_position() const noexcept -> glm::vec3;
+    [[nodiscard]] auto scene_light_intensity() const noexcept -> float;
 
 private:
     static void framebuffer_resize_callback(GLFWwindow* window, int width, int height);

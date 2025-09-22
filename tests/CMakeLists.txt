@@ -12,6 +12,7 @@ target_include_directories(vulkano_codex_tests_config INTERFACE ${PROJECT_SOURCE
 add_executable(vulkano_codex_tests
     unit/app_config_tests.cpp
     unit/vertex_tests.cpp
+    unit/primitives_tests.cpp
     integration/application_smoke_tests.cpp
 )
 
