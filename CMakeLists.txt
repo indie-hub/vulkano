@@ -96,12 +96,15 @@ add_library(vulkano_codex_lib STATIC
     src/application.cpp
     src/buffer.cpp
     src/command_allocator.cpp
+    src/cascaded_shadow_map.cpp
     src/framebuffers.cpp
+    src/shadow_pipeline.cpp
     src/glfw_context.cpp
     src/graphics_pipeline.cpp
     src/depth_resources.cpp
     src/mesh_gpu.cpp
     src/render_pass.cpp
+    src/shadow_render_pass.cpp
     src/swapchain.cpp
     src/synchronization.cpp
     src/vertex.cpp
@@ -113,6 +116,7 @@ add_library(vulkano_codex_lib STATIC
 set(SHADER_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/shaders/mesh.frag
     ${CMAKE_CURRENT_SOURCE_DIR}/shaders/mesh.vert
+    ${CMAKE_CURRENT_SOURCE_DIR}/shaders/shadow_depth.vert
 )
 
 set(SPIRV_OUTPUTS)

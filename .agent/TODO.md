@@ -17,3 +17,4 @@
 - [x] Implement orientation fix in rendering pipeline.
 - [x] Rebuild and test to verify Y axis direction.
 - [x] Implement FPS camera controls with ImGui interaction gating and tests.
+- [x] Implement cascaded shadow mapping feature (design, shaders, runtime controls, tests, build).

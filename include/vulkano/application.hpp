@@ -2,14 +2,17 @@
 
 #include <vulkano/app_config.hpp>
 #include <vulkano/buffer.hpp>
+#include <vulkano/cascaded_shadow_map.hpp>
 #include <vulkano/command_allocator.hpp>
+#include <vulkano/depth_resources.hpp>
 #include <vulkano/framebuffers.hpp>
 #include <vulkano/glfw_context.hpp>
 #include <vulkano/graphics_pipeline.hpp>
-#include <vulkano/depth_resources.hpp>
 #include <vulkano/mesh_gpu.hpp>
 #include <vulkano/primitives.hpp>
 #include <vulkano/render_pass.hpp>
+#include <vulkano/shadow_pipeline.hpp>
+#include <vulkano/shadow_render_pass.hpp>
 #include <vulkano/swapchain.hpp>
 #include <vulkano/synchronization.hpp>
 #include <vulkano/vulkan_context.hpp>
@@ -65,8 +68,16 @@ private:
     void initialise_scene();
     void rebuild_dirty_meshes();
     void create_descriptor_resources();
+    void update_descriptor_set_bindings();
     void destroy_descriptor_resources() noexcept;
     void update_global_uniforms();
+    void create_shadow_resources();
+    void destroy_shadow_resources() noexcept;
+    void render_shadow_pass(VkCommandBuffer commandBuffer);
+    void ensure_shadow_resources();
+    void recreate_shadow_resources(std::uint32_t cascadeCount, std::uint32_t resolution);
+    void clear_shadow_debug_textures() noexcept;
+    void update_shadow_debug_textures();
     [[nodiscard]] auto camera_position() const noexcept -> glm::vec3;
     [[nodiscard]] auto camera_forward() const noexcept -> glm::vec3;
     [[nodiscard]] auto camera_right(const glm::vec3& forward) const noexcept -> glm::vec3;
@@ -85,6 +96,9 @@ private:
     CommandAllocator m_commandAllocator;
     SyncManager m_syncManager;
     GraphicsPipeline m_pipeline;
+    ShadowRenderPass m_shadowRenderPass;
+    ShadowPipeline m_shadowPipeline;
+    CascadedShadowMapResources m_shadowMapResources;
     VkDescriptorPool m_imguiDescriptorPool {VK_NULL_HANDLE};
 
     struct ScenePrimitive final {
@@ -114,8 +128,21 @@ private:
         float farPlane {defaultFarPlane};
     };
 
+    struct ShadowState final {
+        CascadedShadowSettings settings {};
+        std::uint32_t cascadeCount {maxShadowCascades};
+        std::uint32_t resolution {2048U};
+        bool resourcesDirty {false};
+        bool descriptorDirty {true};
+        bool firstUse {true};
+        VkImageLayout currentLayout {VK_IMAGE_LAYOUT_UNDEFINED};
+        std::vector<VkDescriptorSet> debugAtlasDescriptors {};
+        VkFormat format {VK_FORMAT_D32_SFLOAT};
+    };
+
     SceneState m_scene {};
     CameraState m_camera {};
+    ShadowState m_shadow {};
     DepthResources m_depthResources {};
     VkFormat m_depthFormat {VK_FORMAT_D32_SFLOAT};
     VkDescriptorSetLayout m_descriptorSetLayout {VK_NULL_HANDLE};

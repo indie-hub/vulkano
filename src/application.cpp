@@ -5,6 +5,7 @@
 #include <array>
 #include <cmath>
 #include <memory>
+#include <cstdint>
 #include <limits>
 #include <span>
 #include <stdexcept>
@@ -33,19 +34,24 @@ namespace {
     constexpr float fovScrollStep {glm::radians(2.0F)};
     constexpr float movementEpsilon {1e-5F};
     constexpr glm::vec3 worldUp {0.0F, 1.0F, 0.0F};
+    constexpr float fallbackLightIntensity {1.0F};
 
-    struct GlobalUniform final {
+    using ShadowUniform = vulkano::CascadedShadowUniform;
+
+    struct alignas(16) GlobalUniform final {
         glm::mat4 view {1.0F};
         glm::mat4 projection {1.0F};
-        glm::vec4 lightPositionIntensity {0.0F, 0.0F, 0.0F, 1.0F};
+        glm::vec4 lightDirectionIntensity {0.0F, -1.0F, 0.0F, fallbackLightIntensity};
         glm::vec4 cameraPosition {0.0F, 0.0F, 0.0F, 1.0F};
+        ShadowUniform shadow {};
     };
 
-    struct PrimitivePushConstants final {
+    struct alignas(16) PrimitivePushConstants final {
         glm::mat4 model {1.0F};
         glm::vec4 materialColor {1.0F, 1.0F, 1.0F, 1.0F};
         glm::vec4 materialProperties {32.0F, 0.1F, 0.5F, 0.0F};
     };
+
 }
 
 namespace vulkano {
@@ -73,19 +79,26 @@ VulkanApplication::VulkanApplication(const AppConfig& config)
         m_renderPass,
         m_depthResources.image_views());
     m_commandAllocator = CommandAllocator::create(m_context, static_cast<std::uint32_t>(m_framebuffers.size()));
+
     create_descriptor_resources();
+    create_shadow_resources();
+    update_descriptor_set_bindings();
+
     m_pipeline = GraphicsPipeline::create(m_context, m_renderPass, m_descriptorSetLayout);
+    m_shadowPipeline = ShadowPipeline::create(m_context, m_shadowRenderPass, m_descriptorSetLayout);
     create_render_finished_semaphores();
     m_imagesInFlight.resize(m_swapchain.image_views().size(), VK_NULL_HANDLE);
 
     initialise_scene();
     init_imgui();
+    update_shadow_debug_textures();
     register_callbacks();
     m_lastFrameTime = std::chrono::steady_clock::now();
 }
 
 VulkanApplication::~VulkanApplication() {
     wait_for_device_idle();
+    destroy_shadow_resources();
     destroy_descriptor_resources();
     destroy_render_finished_semaphores();
     destroy_imgui();
@@ -187,7 +200,6 @@ void VulkanApplication::draw_frame() {
     ImGuiIO& io = ImGui::GetIO();
     update_camera_input(deltaSeconds, io);
     apply_scroll_input(io);
-    update_global_uniforms();
 
     const VkExtent2D extent = m_swapchain.extent();
     ImGui::SetNextWindowBgAlpha(0.35F);
@@ -202,14 +214,82 @@ void VulkanApplication::draw_frame() {
     ImGui::Begin("Scene Controls", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
 
     if(ImGui::CollapsingHeader("Lighting", ImGuiTreeNodeFlags_DefaultOpen)) {
-        glm::vec3 lightPosition = m_scene.lightPosition;
-        if(ImGui::DragFloat3("Position", glm::value_ptr(lightPosition), 0.1F)) {
-            m_scene.lightPosition = lightPosition;
+        glm::vec3 lightDirection = m_scene.lightPosition;
+        if(ImGui::DragFloat3("Direction", glm::value_ptr(lightDirection), 0.05F, -10.0F, 10.0F, "%.2f")) {
+            if(glm::length(lightDirection) > movementEpsilon) {
+                m_scene.lightPosition = lightDirection;
+            }
         }
 
         float lightIntensity = m_scene.lightIntensity;
         if(ImGui::SliderFloat("Intensity", &lightIntensity, 0.0F, 10.0F, "%.2f")) {
             m_scene.lightIntensity = std::max(lightIntensity, 0.0F);
+        }
+    }
+
+    if(ImGui::CollapsingHeader("Cascaded Shadows", ImGuiTreeNodeFlags_DefaultOpen)) {
+        bool enabled = m_shadow.settings.enabled;
+        if(ImGui::Checkbox("Enabled", &enabled)) {
+            m_shadow.settings.enabled = enabled;
+        }
+
+        int cascadeCount = static_cast<int>(m_shadow.settings.cascadeCount);
+        cascadeCount = std::clamp(cascadeCount, 2, static_cast<int>(maxShadowCascades));
+        if(ImGui::SliderInt("Cascade Count", &cascadeCount, 2, static_cast<int>(maxShadowCascades))) {
+            m_shadow.settings.cascadeCount = static_cast<std::uint32_t>(cascadeCount);
+            m_shadow.resourcesDirty = true;
+        }
+
+        const std::array<std::uint32_t, 3U> resolutionOptions {1024U, 2048U, 4096U};
+        int resolutionIndex = 0;
+        for(std::size_t idx {0U}; idx < resolutionOptions.size(); ++idx) {
+            if(m_shadow.settings.resolution == resolutionOptions.at(idx)) {
+                resolutionIndex = static_cast<int>(idx);
+                break;
+            }
+        }
+        const char* resolutionLabels[] {"1024", "2048", "4096"};
+        if(ImGui::Combo("Shadow Map Size", &resolutionIndex, resolutionLabels, static_cast<int>(resolutionOptions.size()))) {
+            m_shadow.settings.resolution = resolutionOptions.at(static_cast<std::size_t>(resolutionIndex));
+            m_shadow.resourcesDirty = true;
+        }
+
+        ImGui::SliderFloat("Split Lambda", &m_shadow.settings.splitLambda, 0.0F, 1.0F, "%.2f");
+        ImGui::SliderFloat("Bias (Constant)", &m_shadow.settings.biasConstant, 0.0F, 0.05F, "%.4f");
+        ImGui::SliderFloat("Bias (Slope)", &m_shadow.settings.biasSlope, 0.0F, 5.0F, "%.2f");
+        ImGui::SliderFloat("Normal Offset", &m_shadow.settings.normalBias, 0.0F, 0.05F, "%.4f");
+        ImGui::SliderFloat("PCF Radius", &m_shadow.settings.pcfRadius, 0.0F, 3.0F, "%.1f");
+        ImGui::SliderFloat("Shadow Strength", &m_shadow.settings.shadowStrength, 0.0F, 1.0F, "%.2f");
+
+        bool stabilize = m_shadow.settings.stabilize;
+        if(ImGui::Checkbox("Stabilize (Texel Snap)", &stabilize)) {
+            m_shadow.settings.stabilize = stabilize;
+        }
+
+        bool visualizeCascades = m_shadow.settings.visualizeCascades;
+        if(ImGui::Checkbox("Visualize Cascades", &visualizeCascades)) {
+            m_shadow.settings.visualizeCascades = visualizeCascades;
+        }
+
+        bool showAtlas = m_shadow.settings.showShadowAtlas;
+        if(ImGui::Checkbox("Show Shadow Map", &showAtlas)) {
+            m_shadow.settings.showShadowAtlas = showAtlas;
+            if(showAtlas) {
+                update_shadow_debug_textures();
+            }
+        }
+
+        if(m_shadow.settings.showShadowAtlas && !m_shadow.debugAtlasDescriptors.empty()) {
+            ImGui::Separator();
+            for(std::size_t cascadeIdx {0U}; cascadeIdx < m_shadow.debugAtlasDescriptors.size(); ++cascadeIdx) {
+                const VkDescriptorSet descriptor = m_shadow.debugAtlasDescriptors.at(cascadeIdx);
+                if(descriptor == VK_NULL_HANDLE) {
+                    continue;
+                }
+                ImGui::Text("Cascade %zu", cascadeIdx);
+                const ImTextureID textureId = reinterpret_cast<ImTextureID>(descriptor);
+                ImGui::Image(textureId, ImVec2 {128.0F, 128.0F});
+            }
         }
     }
 
@@ -308,6 +388,7 @@ void VulkanApplication::draw_frame() {
     ImGui::TextDisabled("Hold RMB to look. WASD to move. Shift to sprint.");
     ImGui::End();
 
+    update_global_uniforms();
     ImGui::Render();
     record_command_buffer(imageIndex);
 
@@ -523,6 +604,8 @@ void VulkanApplication::record_command_buffer(std::uint32_t imageIndex) {
     if(vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
         throw std::runtime_error {"Failed to begin recording command buffer"};
     }
+
+    render_shadow_pass(commandBuffer);
 
     std::array<VkClearValue, 2U> clearValues {};
     clearValues[0].color = {{clearColour[0], clearColour[1], clearColour[2], clearColour[3]}};
@@ -838,16 +921,22 @@ void VulkanApplication::rebuild_dirty_meshes() {
 void VulkanApplication::create_descriptor_resources() {
     destroy_descriptor_resources();
 
-    VkDescriptorSetLayoutBinding uniformBinding {};
-    uniformBinding.binding = 0U;
-    uniformBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    uniformBinding.descriptorCount = 1U;
-    uniformBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    std::array<VkDescriptorSetLayoutBinding, 2U> bindings {};
+
+    bindings.at(0).binding = 0U;
+    bindings.at(0).descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    bindings.at(0).descriptorCount = 1U;
+    bindings.at(0).stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    bindings.at(1).binding = 1U;
+    bindings.at(1).descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    bindings.at(1).descriptorCount = 1U;
+    bindings.at(1).stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
     VkDescriptorSetLayoutCreateInfo layoutInfo {};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.bindingCount = 1U;
-    layoutInfo.pBindings = &uniformBinding;
+    layoutInfo.bindingCount = static_cast<std::uint32_t>(bindings.size());
+    layoutInfo.pBindings = bindings.data();
 
     if(vkCreateDescriptorSetLayout(m_context.device(), &layoutInfo, nullptr, &m_descriptorSetLayout) != VK_SUCCESS) {
         throw std::runtime_error {"Failed to create descriptor set layout"};
@@ -857,14 +946,16 @@ void VulkanApplication::create_descriptor_resources() {
         reinterpret_cast<std::uint64_t>(m_descriptorSetLayout),
         "Global Descriptor Set Layout");
 
-    VkDescriptorPoolSize poolSize {};
-    poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSize.descriptorCount = 1U;
+    std::array<VkDescriptorPoolSize, 2U> poolSizes {};
+    poolSizes.at(0).type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSizes.at(0).descriptorCount = 1U;
+    poolSizes.at(1).type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes.at(1).descriptorCount = 1U;
 
     VkDescriptorPoolCreateInfo poolInfo {};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolInfo.poolSizeCount = 1U;
-    poolInfo.pPoolSizes = &poolSize;
+    poolInfo.poolSizeCount = static_cast<std::uint32_t>(poolSizes.size());
+    poolInfo.pPoolSizes = poolSizes.data();
     poolInfo.maxSets = 1U;
 
     if(vkCreateDescriptorPool(m_context.device(), &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS) {
@@ -891,23 +982,57 @@ void VulkanApplication::create_descriptor_resources() {
         reinterpret_cast<std::uint64_t>(m_globalUniformBuffer.handle()),
         "Global Uniform Buffer");
 
+    m_shadow.descriptorDirty = true;
+    update_global_uniforms();
+}
+
+void VulkanApplication::update_descriptor_set_bindings() {
+    if(m_descriptorSet == VK_NULL_HANDLE) {
+        return;
+    }
+    if(m_globalUniformBuffer.handle() == VK_NULL_HANDLE) {
+        return;
+    }
+    const VkSampler sampler = m_shadowMapResources.sampler();
+    const VkImageView imageView = m_shadowMapResources.image_view_array();
+    if(sampler == VK_NULL_HANDLE || imageView == VK_NULL_HANDLE) {
+        return;
+    }
+
     VkDescriptorBufferInfo bufferInfo {};
     bufferInfo.buffer = m_globalUniformBuffer.handle();
     bufferInfo.offset = 0U;
     bufferInfo.range = sizeof(GlobalUniform);
 
-    VkWriteDescriptorSet write {};
-    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write.dstSet = m_descriptorSet;
-    write.dstBinding = 0U;
-    write.dstArrayElement = 0U;
-    write.descriptorCount = 1U;
-    write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    write.pBufferInfo = &bufferInfo;
+    VkDescriptorImageInfo imageInfo {};
+    imageInfo.sampler = sampler;
+    imageInfo.imageView = imageView;
+    imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-    vkUpdateDescriptorSets(m_context.device(), 1U, &write, 0U, nullptr);
+    std::array<VkWriteDescriptorSet, 2U> writes {};
 
-    update_global_uniforms();
+    writes.at(0).sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes.at(0).dstSet = m_descriptorSet;
+    writes.at(0).dstBinding = 0U;
+    writes.at(0).descriptorCount = 1U;
+    writes.at(0).descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    writes.at(0).pBufferInfo = &bufferInfo;
+
+    writes.at(1).sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes.at(1).dstSet = m_descriptorSet;
+    writes.at(1).dstBinding = 1U;
+    writes.at(1).descriptorCount = 1U;
+    writes.at(1).descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writes.at(1).pImageInfo = &imageInfo;
+
+    vkUpdateDescriptorSets(
+        m_context.device(),
+        static_cast<std::uint32_t>(writes.size()),
+        writes.data(),
+        0U,
+        nullptr);
+
+    m_shadow.descriptorDirty = false;
 }
 
 void VulkanApplication::destroy_descriptor_resources() noexcept {
@@ -921,12 +1046,156 @@ void VulkanApplication::destroy_descriptor_resources() noexcept {
     }
     m_descriptorSet = VK_NULL_HANDLE;
     m_globalUniformBuffer = Buffer {};
+    m_shadow.descriptorDirty = true;
+}
+
+void VulkanApplication::create_shadow_resources() {
+    const std::array<VkFormat, 2U> shadowFormats {
+        VK_FORMAT_D32_SFLOAT,
+        VK_FORMAT_D16_UNORM
+    };
+
+    VkFormat selectedFormat {shadowFormats.front()};
+    for(VkFormat candidate : shadowFormats) {
+        VkFormatProperties properties {};
+        vkGetPhysicalDeviceFormatProperties(m_context.physical_device(), candidate, &properties);
+        const bool supportsDepth = (properties.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) != 0U;
+        const bool supportsSample = (properties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT) != 0U;
+        if(supportsDepth && supportsSample) {
+            selectedFormat = candidate;
+            break;
+        }
+    }
+    m_shadow.format = selectedFormat;
+
+    const bool pipelineInitialised = m_shadowPipeline.handle() != VK_NULL_HANDLE;
+
+    if(m_shadowRenderPass.handle() == VK_NULL_HANDLE) {
+        m_shadowRenderPass = ShadowRenderPass::create(m_context, m_shadow.format);
+    } else {
+        m_shadowRenderPass.recreate(m_context, m_shadow.format);
+        if(pipelineInitialised) {
+            m_shadowPipeline.recreate(m_context, m_shadowRenderPass, m_descriptorSetLayout);
+        }
+    }
+
+    const std::uint32_t desiredCascades = std::clamp(m_shadow.settings.cascadeCount, 1U, maxShadowCascades);
+    const std::uint32_t desiredResolution = std::max(m_shadow.settings.resolution, 1U);
+
+    m_shadowMapResources = CascadedShadowMapResources::create(
+        m_context,
+        m_shadowRenderPass,
+        m_shadow.format,
+        desiredCascades,
+        desiredResolution);
+
+    m_shadow.cascadeCount = desiredCascades;
+    m_shadow.resolution = desiredResolution;
+    m_shadow.settings.cascadeCount = desiredCascades;
+    m_shadow.settings.resolution = desiredResolution;
+    m_shadow.currentLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    m_shadow.firstUse = true;
+    m_shadow.descriptorDirty = true;
+}
+
+void VulkanApplication::destroy_shadow_resources() noexcept {
+    clear_shadow_debug_textures();
+    m_shadowMapResources.cleanup();
+    m_shadowPipeline.cleanup();
+    m_shadowRenderPass.cleanup();
+    m_shadow.currentLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    m_shadow.firstUse = true;
+    m_shadow.descriptorDirty = true;
+    m_shadow.resourcesDirty = false;
+}
+
+void VulkanApplication::ensure_shadow_resources() {
+    if(m_shadow.resourcesDirty) {
+        recreate_shadow_resources(m_shadow.settings.cascadeCount, m_shadow.settings.resolution);
+        m_shadow.resourcesDirty = false;
+    }
+
+    if(m_shadowMapResources.image() == VK_NULL_HANDLE) {
+        create_shadow_resources();
+        update_descriptor_set_bindings();
+        update_shadow_debug_textures();
+    } else if(m_shadow.descriptorDirty) {
+        update_descriptor_set_bindings();
+    }
+
+    if(m_shadowPipeline.handle() == VK_NULL_HANDLE && m_shadowRenderPass.handle() != VK_NULL_HANDLE && m_descriptorSetLayout != VK_NULL_HANDLE) {
+        m_shadowPipeline = ShadowPipeline::create(m_context, m_shadowRenderPass, m_descriptorSetLayout);
+    }
+}
+
+void VulkanApplication::recreate_shadow_resources(std::uint32_t cascadeCount, std::uint32_t resolution) {
+    const std::uint32_t clampedCascadeCount = std::clamp(cascadeCount, 1U, maxShadowCascades);
+    const std::uint32_t clampedResolution = std::max(resolution, 1U);
+
+    if(m_shadowRenderPass.handle() == VK_NULL_HANDLE || m_shadowMapResources.image() == VK_NULL_HANDLE) {
+        create_shadow_resources();
+    } else {
+        m_shadowMapResources.recreate(
+            m_context,
+            m_shadowRenderPass,
+            m_shadow.format,
+            clampedCascadeCount,
+            clampedResolution);
+        m_shadow.cascadeCount = clampedCascadeCount;
+        m_shadow.resolution = clampedResolution;
+        m_shadow.settings.cascadeCount = clampedCascadeCount;
+        m_shadow.settings.resolution = clampedResolution;
+        m_shadow.currentLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        m_shadow.firstUse = true;
+        m_shadow.descriptorDirty = true;
+    }
+
+    update_descriptor_set_bindings();
+    update_shadow_debug_textures();
+}
+
+void VulkanApplication::clear_shadow_debug_textures() noexcept {
+    if(ImGui::GetCurrentContext() != nullptr) {
+        for(VkDescriptorSet descriptor : m_shadow.debugAtlasDescriptors) {
+            if(descriptor != VK_NULL_HANDLE) {
+                ImGui_ImplVulkan_RemoveTexture(descriptor);
+            }
+        }
+    }
+    m_shadow.debugAtlasDescriptors.clear();
+}
+
+void VulkanApplication::update_shadow_debug_textures() {
+    if(ImGui::GetCurrentContext() == nullptr) {
+        return;
+    }
+    const VkSampler sampler = m_shadowMapResources.sampler();
+    if(sampler == VK_NULL_HANDLE) {
+        return;
+    }
+    clear_shadow_debug_textures();
+
+    for(std::uint32_t index {0U}; index < m_shadow.cascadeCount; ++index) {
+        const VkImageView layerView = m_shadowMapResources.layer_view(index);
+        if(layerView == VK_NULL_HANDLE) {
+            continue;
+        }
+        const VkDescriptorSet descriptor = ImGui_ImplVulkan_AddTexture(
+            sampler,
+            layerView,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        if(descriptor != VK_NULL_HANDLE) {
+            m_shadow.debugAtlasDescriptors.push_back(descriptor);
+        }
+    }
 }
 
 void VulkanApplication::update_global_uniforms() {
     if(m_globalUniformBuffer.handle() == VK_NULL_HANDLE) {
         return;
     }
+
+    ensure_shadow_resources();
 
     GlobalUniform uniforms {};
     const glm::vec3 cameraPos = camera_position();
@@ -938,10 +1207,196 @@ void VulkanApplication::update_global_uniforms() {
         uniforms.projection = glm::perspective(m_camera.fovY, aspect, m_camera.nearPlane, m_camera.farPlane);
     }
 
-    uniforms.lightPositionIntensity = glm::vec4 {m_scene.lightPosition, m_scene.lightIntensity};
+    glm::vec3 lightDirection = glm::normalize(-m_scene.lightPosition);
+    if(!std::isfinite(lightDirection.x) || glm::length(lightDirection) < movementEpsilon) {
+        lightDirection = glm::normalize(glm::vec3 {0.25F, -1.0F, 0.5F});
+    }
+    lightDirection = glm::normalize(lightDirection);
+
+    const float lightIntensity = std::max(m_scene.lightIntensity, 0.0F);
+    uniforms.lightDirectionIntensity = glm::vec4 {lightDirection, lightIntensity};
     uniforms.cameraPosition = glm::vec4 {cameraPos, 1.0F};
 
+    const VkExtent2D shadowExtent = m_shadowMapResources.extent();
+    const std::uint32_t shadowResolution = (shadowExtent.width > 0U) ? shadowExtent.width : m_shadow.resolution;
+    const std::uint32_t cascadeCount = std::max(1U, m_shadow.cascadeCount);
+
+    ShadowComputationInput computationInput {};
+    computationInput.view = uniforms.view;
+    computationInput.projection = uniforms.projection;
+    computationInput.lightDirection = lightDirection;
+    computationInput.nearPlane = m_camera.nearPlane;
+    computationInput.farPlane = m_camera.farPlane;
+
+    const ShadowCascadeData cascadeData = compute_cascaded_shadow_data(
+        computationInput,
+        m_shadow.settings,
+        cascadeCount,
+        shadowResolution);
+
+    uniforms.shadow = cascadeData.uniform;
+    uniforms.shadow.shadowParams.w = static_cast<float>(cascadeCount);
+    uniforms.shadow.atlasSize.x = static_cast<float>(shadowResolution);
+    uniforms.shadow.atlasSize.y = (shadowResolution > 0U) ? (1.0F / static_cast<float>(shadowResolution)) : 0.0F;
+
     m_globalUniformBuffer.write(m_context, &uniforms, sizeof(GlobalUniform));
+}
+
+void VulkanApplication::render_shadow_pass(VkCommandBuffer commandBuffer) {
+    ensure_shadow_resources();
+
+    if(m_shadowMapResources.image() == VK_NULL_HANDLE) {
+        return;
+    }
+    if(m_shadowPipeline.handle() == VK_NULL_HANDLE) {
+        return;
+    }
+
+    const VkImage shadowImage = m_shadowMapResources.image();
+    const VkExtent2D extent = m_shadowMapResources.extent();
+    if(extent.width == 0U || extent.height == 0U) {
+        return;
+    }
+    if(m_shadow.cascadeCount == 0U) {
+        return;
+    }
+    VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    if(m_shadow.format == VK_FORMAT_D32_SFLOAT_S8_UINT || m_shadow.format == VK_FORMAT_D24_UNORM_S8_UINT) {
+        aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+    }
+    const VkViewport viewport {
+        .x = 0.0F,
+        .y = 0.0F,
+        .width = static_cast<float>(extent.width),
+        .height = static_cast<float>(extent.height),
+        .minDepth = 0.0F,
+        .maxDepth = 1.0F
+    };
+    const VkRect2D scissor {{0, 0}, extent};
+
+    VkImageMemoryBarrier toDepthBarrier {};
+    toDepthBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    toDepthBarrier.srcAccessMask = m_shadow.firstUse ? 0U : VK_ACCESS_SHADER_READ_BIT;
+    toDepthBarrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    toDepthBarrier.oldLayout = m_shadow.firstUse ? VK_IMAGE_LAYOUT_UNDEFINED : m_shadow.currentLayout;
+    toDepthBarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    toDepthBarrier.image = shadowImage;
+    toDepthBarrier.subresourceRange.aspectMask = aspectMask;
+    toDepthBarrier.subresourceRange.baseMipLevel = 0U;
+    toDepthBarrier.subresourceRange.levelCount = 1U;
+    toDepthBarrier.subresourceRange.baseArrayLayer = 0U;
+    toDepthBarrier.subresourceRange.layerCount = m_shadow.cascadeCount;
+
+    const VkPipelineStageFlags srcStage = m_shadow.firstUse ? VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT : VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    const VkPipelineStageFlags dstStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+
+    vkCmdPipelineBarrier(
+        commandBuffer,
+        srcStage,
+        dstStage,
+        0U,
+        0U,
+        nullptr,
+        0U,
+        nullptr,
+        1U,
+        &toDepthBarrier);
+
+    VkClearValue clearValue {};
+    clearValue.depthStencil.depth = 1.0F;
+    clearValue.depthStencil.stencil = 0U;
+    const float biasConstant = m_shadow.settings.biasConstant;
+    const float biasSlope = m_shadow.settings.biasSlope;
+
+    for(std::uint32_t cascadeIndex {0U}; cascadeIndex < m_shadow.cascadeCount; ++cascadeIndex) {
+        VkRenderPassBeginInfo beginInfo {};
+        beginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        beginInfo.renderPass = m_shadowRenderPass.handle();
+        beginInfo.framebuffer = m_shadowMapResources.framebuffer(cascadeIndex);
+        beginInfo.renderArea.offset = {0, 0};
+        beginInfo.renderArea.extent = extent;
+        beginInfo.clearValueCount = 1U;
+        beginInfo.pClearValues = &clearValue;
+
+        const std::string label = "Shadow Cascade " + std::to_string(cascadeIndex);
+        m_context.begin_debug_label(commandBuffer, label);
+        vkCmdBeginRenderPass(commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_shadowPipeline.handle());
+        if(m_descriptorSet != VK_NULL_HANDLE) {
+            vkCmdBindDescriptorSets(
+                commandBuffer,
+                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                m_shadowPipeline.layout(),
+                0U,
+                1U,
+                &m_descriptorSet,
+                0U,
+                nullptr);
+        }
+
+        vkCmdSetViewport(commandBuffer, 0U, 1U, &viewport);
+        vkCmdSetScissor(commandBuffer, 0U, 1U, &scissor);
+        vkCmdSetDepthBias(commandBuffer, biasConstant, 0.0F, biasSlope);
+
+        for(ScenePrimitive& primitive : m_scene.primitives) {
+            if(primitive.primitive == nullptr || !primitive.gpu.has_geometry()) {
+                continue;
+            }
+
+            MeshGpuResources& gpu = primitive.gpu;
+
+            const VkBuffer vertexBuffers[] {gpu.vertex_buffer()};
+            const VkDeviceSize offsets[] {0U};
+            vkCmdBindVertexBuffers(commandBuffer, 0U, 1U, vertexBuffers, offsets);
+            vkCmdBindIndexBuffer(commandBuffer, gpu.index_buffer(), 0U, VK_INDEX_TYPE_UINT32);
+
+            ShadowPushConstants pushConstants {};
+            pushConstants.model = compute_model_matrix(primitive.primitive->properties());
+            pushConstants.cascadeIndex = cascadeIndex;
+
+            vkCmdPushConstants(
+                commandBuffer,
+                m_shadowPipeline.layout(),
+                VK_SHADER_STAGE_VERTEX_BIT,
+                0U,
+                static_cast<std::uint32_t>(sizeof(ShadowPushConstants)),
+                &pushConstants);
+
+            vkCmdDrawIndexed(commandBuffer, gpu.index_count(), 1U, 0U, 0, 0);
+        }
+
+        vkCmdEndRenderPass(commandBuffer);
+        m_context.end_debug_label(commandBuffer);
+    }
+
+    VkImageMemoryBarrier toSampleBarrier {};
+    toSampleBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    toSampleBarrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    toSampleBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    toSampleBarrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    toSampleBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    toSampleBarrier.image = shadowImage;
+    toSampleBarrier.subresourceRange.aspectMask = aspectMask;
+    toSampleBarrier.subresourceRange.baseMipLevel = 0U;
+    toSampleBarrier.subresourceRange.levelCount = 1U;
+    toSampleBarrier.subresourceRange.baseArrayLayer = 0U;
+    toSampleBarrier.subresourceRange.layerCount = m_shadow.cascadeCount;
+
+    vkCmdPipelineBarrier(
+        commandBuffer,
+        VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        0U,
+        0U,
+        nullptr,
+        0U,
+        nullptr,
+        1U,
+        &toSampleBarrier);
+
+    m_shadow.currentLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    m_shadow.firstUse = false;
 }
 
 auto VulkanApplication::camera_position() const noexcept -> glm::vec3 {
