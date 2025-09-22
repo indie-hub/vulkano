@@ -52,6 +52,10 @@ void VulkanApplication::run() {
     wait_for_device_idle();
 }
 
+void VulkanApplication::request_close() {
+    glfwSetWindowShouldClose(m_window.handle(), GLFW_TRUE);
+}
+
 void VulkanApplication::register_callbacks() {
     GLFWwindow* windowHandle = m_window.handle();
     glfwSetWindowUserPointer(windowHandle, this);
@@ -194,7 +198,6 @@ void VulkanApplication::init_imgui() {
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     ImGui::StyleColorsDark();
-
     ImGui_ImplGlfw_InitForVulkan(m_window.handle(), true);
 
     const std::array<VkDescriptorPoolSize, 11U> poolSizes {

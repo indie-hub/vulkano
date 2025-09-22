@@ -5,4 +5,4 @@
 - [x] Add render pass, framebuffers, command pools, and synchronization
 - [x] Render white triangle with configurable pipeline resources
 - [x] Integrate ImGui overlay with runtime stats collection
-- [ ] Add tests, build packaging, and final verification
+- [x] Add tests, build packaging, and final verification

@@ -29,6 +29,7 @@ public:
     ~VulkanApplication();
 
     void run();
+    void request_close();
 
 private:
     static void framebuffer_resize_callback(GLFWwindow* window, int width, int height);

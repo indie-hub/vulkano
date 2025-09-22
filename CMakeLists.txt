@@ -86,7 +86,7 @@ if(NOT imgui_POPULATED)
 endif()
 add_library(imgui::imgui ALIAS imgui)
 
-add_executable(vulkano_codex
+add_library(vulkano_codex_lib STATIC
     src/app_config.cpp
     src/application.cpp
     src/buffer.cpp
@@ -94,7 +94,6 @@ add_executable(vulkano_codex
     src/framebuffers.cpp
     src/glfw_context.cpp
     src/graphics_pipeline.cpp
-    src/main.cpp
     src/render_pass.cpp
     src/swapchain.cpp
     src/synchronization.cpp
@@ -124,24 +123,34 @@ foreach(SHADER ${SHADER_SOURCES})
 endforeach()
 
 add_custom_target(compile_shaders DEPENDS ${SPIRV_OUTPUTS})
-add_dependencies(vulkano_codex compile_shaders)
+add_dependencies(vulkano_codex_lib compile_shaders)
 
+target_include_directories(vulkano_codex_lib
+    PUBLIC
+        ${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(vulkano_codex_lib
+    PUBLIC
+        Vulkan::Vulkan
+        glfw
+        imgui::imgui
+        glm::glm
+)
+
+add_executable(vulkano_codex
+    src/main.cpp
+)
+
+add_dependencies(vulkano_codex compile_shaders)
 add_custom_command(TARGET vulkano_codex POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:vulkano_codex>/shaders
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SPIRV_OUTPUTS} $<TARGET_FILE_DIR:vulkano_codex>/shaders
 )
 
-target_include_directories(vulkano_codex
-    PRIVATE
-        ${PROJECT_SOURCE_DIR}/include
-)
-
 target_link_libraries(vulkano_codex
     PRIVATE
-        Vulkan::Vulkan
-        glfw
-        imgui::imgui
-        glm::glm
+        vulkano_codex_lib
 )
 
 include(CTest)
