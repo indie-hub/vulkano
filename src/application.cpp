@@ -1,5 +1,6 @@
 #include <vulkano/application.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <memory>
@@ -7,6 +8,7 @@
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 
 #include <GLFW/glfw3.h>
 #include <imgui.h>
@@ -14,6 +16,7 @@
 #include <backends/imgui_impl_vulkan.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/constants.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 namespace {
     constexpr std::uint32_t maxFramesInFlight {2U};
@@ -154,8 +157,95 @@ void VulkanApplication::draw_frame() {
     ImGui::Begin("Runtime Stats", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse);
     ImGui::Text("FPS: %.2f", m_fps);
     ImGui::Text("Frame Time: %.2f ms", m_frameTimeMs);
-    ImGui::Text("Device: %s", m_deviceName.c_str());
-    ImGui::Text("Swapchain: %u x %u", extent.width, extent.height);
+   ImGui::Text("Device: %s", m_deviceName.c_str());
+   ImGui::Text("Swapchain: %u x %u", extent.width, extent.height);
+   ImGui::End();
+
+    ImGui::Begin("Scene Controls", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+
+    if(ImGui::CollapsingHeader("Lighting", ImGuiTreeNodeFlags_DefaultOpen)) {
+        glm::vec3 lightPosition = m_scene.lightPosition;
+        if(ImGui::DragFloat3("Position", glm::value_ptr(lightPosition), 0.1F)) {
+            m_scene.lightPosition = lightPosition;
+        }
+
+        float lightIntensity = m_scene.lightIntensity;
+        if(ImGui::SliderFloat("Intensity", &lightIntensity, 0.0F, 10.0F, "%.2f")) {
+            m_scene.lightIntensity = std::max(lightIntensity, 0.0F);
+        }
+    }
+
+    for(std::size_t index {0U}; index < m_scene.primitives.size(); ++index) {
+        ScenePrimitive& primitive = m_scene.primitives.at(index);
+        if(primitive.primitive == nullptr) {
+            continue;
+        }
+
+        Primitive& base = *primitive.primitive;
+        PrimitiveProperties& properties = base.properties();
+
+        std::string headerLabel = std::string {base.identifier()} + "##Primitive" + std::to_string(index);
+        if(ImGui::CollapsingHeader(headerLabel.c_str(), ImGuiTreeNodeFlags_DefaultOpen)) {
+            ImGui::PushID(static_cast<int>(index));
+
+            glm::vec3 position = properties.position;
+            if(ImGui::DragFloat3("Position", glm::value_ptr(position), 0.05F)) {
+                properties.position = position;
+            }
+
+            glm::vec3 rotationDegrees = properties.rotation;
+            if(ImGui::DragFloat3("Rotation", glm::value_ptr(rotationDegrees), 0.5F)) {
+                properties.rotation = rotationDegrees;
+            }
+
+            glm::vec3 scale = properties.scale;
+            if(ImGui::DragFloat3("Scale", glm::value_ptr(scale), 0.02F, 0.01F, 100.0F, "%.2f")) {
+                properties.scale = glm::vec3 {
+                    std::max(scale.x, 0.01F),
+                    std::max(scale.y, 0.01F),
+                    std::max(scale.z, 0.01F)
+                };
+            }
+
+            glm::vec3 color = properties.baseColor;
+            if(ImGui::ColorEdit3("Base Color", glm::value_ptr(color))) {
+                properties.baseColor = glm::vec3 {
+                    std::clamp(color.x, 0.0F, 1.0F),
+                    std::clamp(color.y, 0.0F, 1.0F),
+                    std::clamp(color.z, 0.0F, 1.0F)
+                };
+            }
+
+            float shininess = properties.shininess;
+            if(ImGui::SliderFloat("Shininess", &shininess, 1.0F, 256.0F, "%.1f")) {
+                properties.shininess = shininess;
+            }
+
+            float ambient = properties.ambientStrength;
+            if(ImGui::SliderFloat("Ambient", &ambient, 0.0F, 1.0F, "%.2f")) {
+                properties.ambientStrength = std::clamp(ambient, 0.0F, 1.0F);
+            }
+
+            float specular = properties.specularStrength;
+            if(ImGui::SliderFloat("Specular", &specular, 0.0F, 1.0F, "%.2f")) {
+                properties.specularStrength = std::clamp(specular, 0.0F, 1.0F);
+            }
+
+            if(auto* icosphere = dynamic_cast<IcospherePrimitive*>(primitive.primitive.get())) {
+                const IcosphereParameters parameters = icosphere->parameters();
+                int subdivisions = static_cast<int>(parameters.subdivisions);
+                constexpr int minSubdivisionsInt {0};
+                constexpr int maxSubdivisionsInt {5};
+                if(ImGui::SliderInt("Subdivisions", &subdivisions, minSubdivisionsInt, maxSubdivisionsInt)) {
+                    subdivisions = std::clamp(subdivisions, minSubdivisionsInt, maxSubdivisionsInt);
+                    icosphere->set_subdivisions(static_cast<std::uint32_t>(subdivisions));
+                }
+            }
+
+            ImGui::PopID();
+        }
+    }
+
     ImGui::End();
 
     ImGui::Render();

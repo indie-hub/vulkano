@@ -4,6 +4,6 @@
 - [x] Build GPU buffer upload infrastructure (device-local vertex/index, mesh GPU wrapper).
 - [x] Integrate primitives into rendering loop with descriptors and per-frame data.
 - [x] Update shaders and graphics pipeline for lighting, depth testing, and camera transforms.
-- [ ] Extend ImGui controls for lights and per-primitive properties.
+- [x] Extend ImGui controls for lights and per-primitive properties.
 - [ ] Add unit and end-to-end tests for mesh generation and rendering configuration.
 - [ ] Build, package binaries in bin/, and refresh documentation as needed.
