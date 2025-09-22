@@ -5,5 +5,5 @@
 - [x] Integrate primitives into rendering loop with descriptors and per-frame data.
 - [x] Update shaders and graphics pipeline for lighting, depth testing, and camera transforms.
 - [x] Extend ImGui controls for lights and per-primitive properties.
-- [ ] Add unit and end-to-end tests for mesh generation and rendering configuration.
+- [x] Add unit and end-to-end tests for mesh generation and rendering configuration.
 - [ ] Build, package binaries in bin/, and refresh documentation as needed.
