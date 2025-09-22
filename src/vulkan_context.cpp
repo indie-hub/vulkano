@@ -201,6 +201,9 @@ void VulkanContext::create_instance() {
     const std::vector<const char*> extensions = required_instance_extensions();
     createInfo.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
     createInfo.ppEnabledExtensionNames = extensions.data();
+#if defined(VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR)
+    createInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+#endif
 
     VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo {};
     if(m_config.validation_enabled()) {
@@ -318,6 +321,17 @@ auto VulkanContext::required_instance_extensions() const -> std::vector<const ch
     }
 
     std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+#if defined(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME)
+    const auto portabilityFound = std::find_if(
+        extensions.begin(),
+        extensions.end(),
+        [](const char* name) {
+            return std::strcmp(name, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME) == 0;
+        });
+    if(portabilityFound == extensions.end()) {
+        extensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+    }
+#endif
     if(m_config.validation_enabled()) {
         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
