@@ -2,4 +2,4 @@
 - [x] Implement Vulkan core (instance, device, swapchain, window lifecycle) with RAII wrappers.
 - [x] Build rendering pipeline, shader asset loading, vertex buffers, and triangle draw commands.
 - [x] Integrate ImGui overlay for FPS, frame time, device name, and swapchain extent.
-- [ ] Add unit and end-to-end tests, documentation, and final verification.
+- [x] Add unit and end-to-end tests, documentation, and final verification.
