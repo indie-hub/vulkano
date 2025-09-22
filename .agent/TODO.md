@@ -4,5 +4,5 @@
 - [x] Implement swapchain and image view management
 - [x] Add render pass, framebuffers, command pools, and synchronization
 - [x] Render white triangle with configurable pipeline resources
-- [ ] Integrate ImGui overlay with runtime stats collection
+- [x] Integrate ImGui overlay with runtime stats collection
 - [ ] Add tests, build packaging, and final verification

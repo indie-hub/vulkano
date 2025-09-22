@@ -14,6 +14,8 @@
 
 #include <glm/vec4.hpp>
 #include <vector>
+#include <chrono>
+#include <string>
 
 namespace vulkano {
 
@@ -34,8 +36,12 @@ private:
     void register_callbacks();
     void draw_frame();
     void recreate_swapchain();
-    void rebuild_command_buffers();
     void wait_for_device_idle() const;
+    void init_imgui();
+    void destroy_imgui();
+    void begin_imgui_frame();
+    void record_command_buffer(std::uint32_t imageIndex);
+    void update_timing(double deltaSeconds);
 
     AppConfig m_config;
     GlfwContext m_glfwContext;
@@ -48,10 +54,15 @@ private:
     SyncManager m_syncManager;
     GraphicsPipeline m_pipeline;
     Buffer m_vertexBuffer;
+    VkDescriptorPool m_imguiDescriptorPool {VK_NULL_HANDLE};
 
     std::vector<VkFence> m_imagesInFlight {};
     std::uint32_t m_currentFrame {0U};
     bool m_framebufferResized {false};
+    std::chrono::steady_clock::time_point m_lastFrameTime {std::chrono::steady_clock::now()};
+    double m_frameTimeMs {0.0};
+    double m_fps {0.0};
+    std::string m_deviceName;
 
     glm::vec4 m_triangleColor {1.0F, 1.0F, 1.0F, 1.0F};
 };
