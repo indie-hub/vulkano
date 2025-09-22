@@ -2,11 +2,6 @@
 - [x] Update Vulkan instance creation to enumerate portability drivers on macOS
 - [x] Rebuild the project
 - [x] Run the app to make sure it works
-- [x] Set up project scaffolding with CMake, directories, and dependency fetching
-- [x] Configure external dependencies (GLFW, GLM, ImGui backend, Catch2) in CMake
-- [x] Implement Vulkan core initialization (instance, surface, physical device, logical device)
-- [x] Implement swapchain and image view management
-- [x] Add render pass, framebuffers, command pools, and synchronization
-- [x] Render white triangle with configurable pipeline resources
-- [x] Integrate ImGui overlay with runtime stats collection
-- [x] Add tests, build packaging, and final verification
+- [x] Package runtime binaries and resources into top-level `bin/` directory
+- [ ] Rebuild the project
+- [ ] Run the app to make sure it works
