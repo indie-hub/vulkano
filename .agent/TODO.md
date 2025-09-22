@@ -1,5 +1,7 @@
 - [x] Set up project scaffolding with CMake, directories, and dependency fetching
-- [ ] Implement Vulkan initialization (instance, device, swapchain, window handling)
+- [x] Configure external dependencies (GLFW, GLM, ImGui backend, Catch2) in CMake
+- [ ] Implement Vulkan core initialization (instance, surface, physical device, logical device)
+- [ ] Implement swapchain, image views, render pass, framebuffers, command infrastructure
 - [ ] Render white triangle with configurable pipeline resources
 - [ ] Integrate ImGui overlay with runtime stats collection
 - [ ] Add tests, build packaging, and final verification
