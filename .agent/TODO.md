@@ -1,5 +1,8 @@
-- [x] Configure build system and dependencies for Vulkan/GLFW/GLM/ImGui with bin/ outputs.
-- [x] Implement Vulkan core (instance, device, swapchain, window lifecycle) with RAII wrappers.
-- [x] Build rendering pipeline, shader asset loading, vertex buffers, and triangle draw commands.
-- [x] Integrate ImGui overlay for FPS, frame time, device name, and swapchain extent.
-- [x] Add unit and end-to-end tests, documentation, and final verification.
+- [x] Review existing Vulkan application structure and current rendering pipeline components.
+- [ ] Draft updated design for primitive system, vertex layout, and rendering resources.
+- [ ] Implement primitive hierarchy and CPU mesh generation (plane, cube, icosphere).
+- [ ] Implement GPU resource uploads (vertex/index buffers, descriptors) and integrate rendering loop with primitives.
+- [ ] Update shaders and graphics pipeline for lighting, depth testing, and camera transforms.
+- [ ] Extend ImGui controls for lights and per-primitive properties.
+- [ ] Add unit and end-to-end tests for mesh generation and rendering configuration.
+- [ ] Build, package binaries in bin/, and refresh documentation as needed.
