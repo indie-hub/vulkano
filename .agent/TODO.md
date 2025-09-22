@@ -1,5 +1,5 @@
 - [x] Configure build system and dependencies for Vulkan/GLFW/GLM/ImGui with bin/ outputs.
 - [x] Implement Vulkan core (instance, device, swapchain, window lifecycle) with RAII wrappers.
-- [ ] Build rendering pipeline, shader asset loading, vertex buffers, and triangle draw commands.
+- [x] Build rendering pipeline, shader asset loading, vertex buffers, and triangle draw commands.
 - [ ] Integrate ImGui overlay for FPS, frame time, device name, and swapchain extent.
 - [ ] Add unit and end-to-end tests, documentation, and final verification.
