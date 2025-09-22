@@ -98,6 +98,7 @@ add_library(vulkano_codex_lib STATIC
     src/framebuffers.cpp
     src/glfw_context.cpp
     src/graphics_pipeline.cpp
+    src/depth_resources.cpp
     src/mesh_gpu.cpp
     src/render_pass.cpp
     src/swapchain.cpp
@@ -109,8 +110,8 @@ add_library(vulkano_codex_lib STATIC
 )
 
 set(SHADER_SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/shaders/triangle.frag
-    ${CMAKE_CURRENT_SOURCE_DIR}/shaders/triangle.vert
+    ${CMAKE_CURRENT_SOURCE_DIR}/shaders/mesh.frag
+    ${CMAKE_CURRENT_SOURCE_DIR}/shaders/mesh.vert
 )
 
 set(SPIRV_OUTPUTS)

@@ -25,6 +25,8 @@ struct PrimitiveProperties final {
     glm::vec3 scale {1.0F, 1.0F, 1.0F};
     glm::vec3 baseColor {1.0F, 1.0F, 1.0F};
     float shininess {32.0F};
+    float ambientStrength {0.1F};
+    float specularStrength {0.5F};
 };
 
 struct PlaneParameters final {
@@ -38,4 +40,3 @@ struct IcosphereParameters final {
 };
 
 } // namespace vulkano
-

@@ -15,14 +15,14 @@ public:
     auto operator=(RenderPass&& other) noexcept -> RenderPass&;
     ~RenderPass() noexcept;
 
-    [[nodiscard]] static auto create(const VulkanContext& context, VkFormat swapchainFormat) -> RenderPass;
+    [[nodiscard]] static auto create(const VulkanContext& context, VkFormat swapchainFormat, VkFormat depthFormat) -> RenderPass;
 
     [[nodiscard]] auto handle() const noexcept -> VkRenderPass;
 
 private:
-    explicit RenderPass(const VulkanContext& context, VkFormat swapchainFormat);
+    explicit RenderPass(const VulkanContext& context, VkFormat swapchainFormat, VkFormat depthFormat);
 
-    void initialise(const VulkanContext& context, VkFormat swapchainFormat);
+    void initialise(const VulkanContext& context, VkFormat swapchainFormat, VkFormat depthFormat);
     void cleanup() noexcept;
     void move_from(RenderPass&& other) noexcept;
 

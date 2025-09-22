@@ -1,12 +1,17 @@
 #include <vulkano/framebuffers.hpp>
 
+#include <array>
 #include <stdexcept>
 #include <string>
 
 namespace vulkano {
 
-FramebufferCollection::FramebufferCollection(const VulkanContext& context, const Swapchain& swapchain, const RenderPass& renderPass) {
-    initialise(context, swapchain, renderPass);
+FramebufferCollection::FramebufferCollection(
+    const VulkanContext& context,
+    const Swapchain& swapchain,
+    const RenderPass& renderPass,
+    const std::vector<VkImageView>& depthViews) {
+    initialise(context, swapchain, renderPass, depthViews);
 }
 
 FramebufferCollection::FramebufferCollection(FramebufferCollection&& other) noexcept {
@@ -25,8 +30,12 @@ FramebufferCollection::~FramebufferCollection() noexcept {
     cleanup();
 }
 
-auto FramebufferCollection::create(const VulkanContext& context, const Swapchain& swapchain, const RenderPass& renderPass) -> FramebufferCollection {
-    return FramebufferCollection {context, swapchain, renderPass};
+auto FramebufferCollection::create(
+    const VulkanContext& context,
+    const Swapchain& swapchain,
+    const RenderPass& renderPass,
+    const std::vector<VkImageView>& depthViews) -> FramebufferCollection {
+    return FramebufferCollection {context, swapchain, renderPass, depthViews};
 }
 
 auto FramebufferCollection::handles() const noexcept -> const std::vector<VkFramebuffer>& {
@@ -37,25 +46,36 @@ auto FramebufferCollection::size() const noexcept -> std::size_t {
     return m_framebuffers.size();
 }
 
-void FramebufferCollection::recreate(const VulkanContext& context, const Swapchain& swapchain, const RenderPass& renderPass) {
+void FramebufferCollection::recreate(
+    const VulkanContext& context,
+    const Swapchain& swapchain,
+    const RenderPass& renderPass,
+    const std::vector<VkImageView>& depthViews) {
     cleanup();
-    initialise(context, swapchain, renderPass);
+    initialise(context, swapchain, renderPass, depthViews);
 }
 
-void FramebufferCollection::initialise(const VulkanContext& context, const Swapchain& swapchain, const RenderPass& renderPass) {
+void FramebufferCollection::initialise(
+    const VulkanContext& context,
+    const Swapchain& swapchain,
+    const RenderPass& renderPass,
+    const std::vector<VkImageView>& depthViews) {
     m_device = context.device();
     const VkExtent2D extent = swapchain.extent();
 
     const auto& imageViews = swapchain.image_views();
     m_framebuffers.resize(imageViews.size());
+    if(imageViews.size() != depthViews.size()) {
+        throw std::invalid_argument {"Depth views count must match swapchain image count"};
+    }
     for(std::size_t index {0U}; index < imageViews.size(); ++index) {
-        const VkImageView attachments[] {imageViews.at(index)};
+        const std::array<VkImageView, 2U> attachments {imageViews.at(index), depthViews.at(index)};
 
         VkFramebufferCreateInfo framebufferInfo {};
         framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         framebufferInfo.renderPass = renderPass.handle();
-        framebufferInfo.attachmentCount = 1U;
-        framebufferInfo.pAttachments = attachments;
+        framebufferInfo.attachmentCount = static_cast<std::uint32_t>(attachments.size());
+        framebufferInfo.pAttachments = attachments.data();
         framebufferInfo.width = extent.width;
         framebufferInfo.height = extent.height;
         framebufferInfo.layers = 1U;

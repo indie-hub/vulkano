@@ -6,6 +6,7 @@
 #include <vulkano/framebuffers.hpp>
 #include <vulkano/glfw_context.hpp>
 #include <vulkano/graphics_pipeline.hpp>
+#include <vulkano/depth_resources.hpp>
 #include <vulkano/mesh_gpu.hpp>
 #include <vulkano/primitives.hpp>
 #include <vulkano/render_pass.hpp>
@@ -57,6 +58,8 @@ private:
     void create_descriptor_resources();
     void destroy_descriptor_resources() noexcept;
     void update_global_uniforms();
+    [[nodiscard]] auto camera_position() const noexcept -> glm::vec3;
+    [[nodiscard]] auto compute_model_matrix(const PrimitiveProperties& properties) const noexcept -> glm::mat4;
 
     AppConfig m_config;
     GlfwContext m_glfwContext;
@@ -81,7 +84,20 @@ private:
         std::vector<ScenePrimitive> primitives {};
     };
 
+    struct CameraState final {
+        glm::vec3 target {0.0F, 0.5F, 0.0F};
+        float distance {6.0F};
+        float yaw {0.785398163F};
+        float pitch {-0.523598776F};
+        float fovY {0.959931088F};
+        float nearPlane {0.1F};
+        float farPlane {100.0F};
+    };
+
     SceneState m_scene {};
+    CameraState m_camera {};
+    DepthResources m_depthResources {};
+    VkFormat m_depthFormat {VK_FORMAT_D32_SFLOAT};
     VkDescriptorSetLayout m_descriptorSetLayout {VK_NULL_HANDLE};
     VkDescriptorPool m_descriptorPool {VK_NULL_HANDLE};
     VkDescriptorSet m_descriptorSet {VK_NULL_HANDLE};

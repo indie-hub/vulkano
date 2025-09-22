@@ -5,12 +5,13 @@
 #include <fstream>
 #include <stdexcept>
 #include <vector>
+#include <glm/mat4x4.hpp>
 #include <glm/vec4.hpp>
 
 namespace {
     const std::filesystem::path shaderDirectory {"shaders"};
-    const std::filesystem::path vertexShaderFile {"triangle.vert.spv"};
-    const std::filesystem::path fragmentShaderFile {"triangle.frag.spv"};
+    const std::filesystem::path vertexShaderFile {"mesh.vert.spv"};
+    const std::filesystem::path fragmentShaderFile {"mesh.frag.spv"};
 
     auto load_shader_code(const std::filesystem::path& path) -> std::vector<std::uint32_t> {
         std::ifstream file {path, std::ios::ate | std::ios::binary};
@@ -155,10 +156,18 @@ void GraphicsPipeline::initialise(const VulkanContext& context, const RenderPass
     colorBlending.attachmentCount = 1U;
     colorBlending.pAttachments = &colorBlendAttachment;
 
+    VkPipelineDepthStencilStateCreateInfo depthStencil {};
+    depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depthStencil.depthTestEnable = VK_TRUE;
+    depthStencil.depthWriteEnable = VK_TRUE;
+    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+    depthStencil.depthBoundsTestEnable = VK_FALSE;
+    depthStencil.stencilTestEnable = VK_FALSE;
+
     VkPushConstantRange pushConstantRange {};
-    pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     pushConstantRange.offset = 0U;
-    pushConstantRange.size = static_cast<std::uint32_t>(sizeof(glm::vec4));
+    pushConstantRange.size = 0U; // placeholder
 
     VkPipelineLayoutCreateInfo layoutInfo {};
     layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -169,6 +178,8 @@ void GraphicsPipeline::initialise(const VulkanContext& context, const RenderPass
         layoutInfo.setLayoutCount = 0U;
         layoutInfo.pSetLayouts = nullptr;
     }
+    const std::uint32_t pushConstantSize = static_cast<std::uint32_t>(sizeof(glm::mat4) + (2U * sizeof(glm::vec4)));
+    pushConstantRange.size = pushConstantSize;
     layoutInfo.pushConstantRangeCount = 1U;
     layoutInfo.pPushConstantRanges = &pushConstantRange;
 
@@ -187,7 +198,7 @@ void GraphicsPipeline::initialise(const VulkanContext& context, const RenderPass
     pipelineInfo.pViewportState = &viewportState;
     pipelineInfo.pRasterizationState = &rasterizer;
     pipelineInfo.pMultisampleState = &multisampling;
-    pipelineInfo.pDepthStencilState = nullptr;
+    pipelineInfo.pDepthStencilState = &depthStencil;
     pipelineInfo.pColorBlendState = &colorBlending;
     pipelineInfo.pDynamicState = &dynamicStateInfo;
     pipelineInfo.layout = m_layout;
@@ -203,8 +214,8 @@ void GraphicsPipeline::initialise(const VulkanContext& context, const RenderPass
     vkDestroyShaderModule(m_device, fragmentModule, nullptr);
     vkDestroyShaderModule(m_device, vertexModule, nullptr);
 
-    context.set_object_name(VK_OBJECT_TYPE_PIPELINE_LAYOUT, reinterpret_cast<std::uint64_t>(m_layout), "Triangle Pipeline Layout");
-    context.set_object_name(VK_OBJECT_TYPE_PIPELINE, reinterpret_cast<std::uint64_t>(m_pipeline), "Triangle Pipeline");
+    context.set_object_name(VK_OBJECT_TYPE_PIPELINE_LAYOUT, reinterpret_cast<std::uint64_t>(m_layout), "Mesh Pipeline Layout");
+    context.set_object_name(VK_OBJECT_TYPE_PIPELINE, reinterpret_cast<std::uint64_t>(m_pipeline), "Mesh Pipeline");
 }
 
 void GraphicsPipeline::cleanup() noexcept {

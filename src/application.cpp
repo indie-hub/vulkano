@@ -1,6 +1,7 @@
 #include <vulkano/application.hpp>
 
 #include <array>
+#include <cmath>
 #include <memory>
 #include <limits>
 #include <span>
@@ -11,6 +12,8 @@
 #include <imgui.h>
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_vulkan.h>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/constants.hpp>
 
 namespace {
     constexpr std::uint32_t maxFramesInFlight {2U};
@@ -23,6 +26,12 @@ namespace {
         glm::vec4 lightPositionIntensity {0.0F, 0.0F, 0.0F, 1.0F};
         glm::vec4 cameraPosition {0.0F, 0.0F, 0.0F, 1.0F};
     };
+
+    struct PrimitivePushConstants final {
+        glm::mat4 model {1.0F};
+        glm::vec4 materialColor {1.0F, 1.0F, 1.0F, 1.0F};
+        glm::vec4 materialProperties {32.0F, 0.1F, 0.5F, 0.0F};
+    };
 }
 
 namespace vulkano {
@@ -33,11 +42,23 @@ VulkanApplication::VulkanApplication(const AppConfig& config)
     , m_window {Window::create(m_glfwContext, m_config)}
     , m_context {VulkanContextBuilder {}.with_config(m_config).with_window(m_window).build()}
     , m_swapchain {Swapchain::create(m_context, m_window)}
-    , m_renderPass {RenderPass::create(m_context, m_swapchain.image_format())}
-    , m_framebuffers {FramebufferCollection::create(m_context, m_swapchain, m_renderPass)}
-    , m_commandAllocator {CommandAllocator::create(m_context, static_cast<std::uint32_t>(m_framebuffers.size()))}
+    , m_renderPass {}
+    , m_framebuffers {}
+    , m_commandAllocator {}
     , m_syncManager {SyncManager::create(m_context, maxFramesInFlight)}
     , m_deviceName {m_context.device_properties().deviceName} {
+    m_depthFormat = DepthResources::find_supported_format(m_context);
+    const VkExtent2D extent = m_swapchain.extent();
+    const std::uint32_t imageCount = static_cast<std::uint32_t>(m_swapchain.image_views().size());
+
+    m_renderPass = RenderPass::create(m_context, m_swapchain.image_format(), m_depthFormat);
+    m_depthResources = DepthResources::create(m_context, m_depthFormat, extent, imageCount);
+    m_framebuffers = FramebufferCollection::create(
+        m_context,
+        m_swapchain,
+        m_renderPass,
+        m_depthResources.image_views());
+    m_commandAllocator = CommandAllocator::create(m_context, static_cast<std::uint32_t>(m_framebuffers.size()));
     create_descriptor_resources();
     m_pipeline = GraphicsPipeline::create(m_context, m_renderPass, m_descriptorSetLayout);
     create_render_finished_semaphores();
@@ -192,14 +213,19 @@ void VulkanApplication::recreate_swapchain() {
     wait_for_device_idle();
 
     m_swapchain.recreate(m_context, m_window);
-    m_renderPass = RenderPass::create(m_context, m_swapchain.image_format());
+    const VkExtent2D extent = m_swapchain.extent();
+    const std::uint32_t imageCount = static_cast<std::uint32_t>(m_swapchain.image_views().size());
+
+    m_renderPass = RenderPass::create(m_context, m_swapchain.image_format(), m_depthFormat);
+    m_depthResources.recreate(m_context, m_depthFormat, extent, imageCount);
     m_pipeline.recreate(m_context, m_renderPass, m_descriptorSetLayout);
-    m_framebuffers.recreate(m_context, m_swapchain, m_renderPass);
+    m_framebuffers.recreate(m_context, m_swapchain, m_renderPass, m_depthResources.image_views());
     const std::uint32_t commandBufferCount = static_cast<std::uint32_t>(m_framebuffers.size());
     m_commandAllocator.recreate(m_context, commandBufferCount);
     m_imagesInFlight.assign(commandBufferCount, VK_NULL_HANDLE);
     create_render_finished_semaphores();
     ImGui_ImplVulkan_SetMinImageCount(static_cast<std::uint32_t>(m_swapchain.image_views().size()));
+    update_global_uniforms();
 }
 
 void VulkanApplication::create_render_finished_semaphores() {
@@ -348,8 +374,9 @@ void VulkanApplication::record_command_buffer(std::uint32_t imageIndex) {
         throw std::runtime_error {"Failed to begin recording command buffer"};
     }
 
-    VkClearValue clearValue {};
-    clearValue.color = {{clearColour[0], clearColour[1], clearColour[2], clearColour[3]}};
+    std::array<VkClearValue, 2U> clearValues {};
+    clearValues[0].color = {{clearColour[0], clearColour[1], clearColour[2], clearColour[3]}};
+    clearValues[1].depthStencil = {1.0F, 0U};
 
     VkRenderPassBeginInfo renderPassInfo {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -357,8 +384,8 @@ void VulkanApplication::record_command_buffer(std::uint32_t imageIndex) {
     renderPassInfo.framebuffer = m_framebuffers.handles().at(imageIndex);
     renderPassInfo.renderArea.offset = {0, 0};
     renderPassInfo.renderArea.extent = m_swapchain.extent();
-    renderPassInfo.clearValueCount = 1U;
-    renderPassInfo.pClearValues = &clearValue;
+    renderPassInfo.clearValueCount = static_cast<std::uint32_t>(clearValues.size());
+    renderPassInfo.pClearValues = clearValues.data();
 
     vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
@@ -404,14 +431,23 @@ void VulkanApplication::record_command_buffer(std::uint32_t imageIndex) {
         vkCmdBindIndexBuffer(commandBuffer, primitive.gpu.index_buffer(), 0U, VK_INDEX_TYPE_UINT32);
 
         const PrimitiveProperties& properties = primitive.primitive->properties();
-        const glm::vec4 pushColor {properties.baseColor, 1.0F};
+        PrimitivePushConstants pushConstants {};
+        pushConstants.model = compute_model_matrix(properties);
+        pushConstants.materialColor = glm::vec4 {properties.baseColor, 1.0F};
+        pushConstants.materialProperties = glm::vec4 {
+            properties.shininess,
+            properties.ambientStrength,
+            properties.specularStrength,
+            0.0F
+        };
+
         vkCmdPushConstants(
             commandBuffer,
             m_pipeline.layout(),
-            VK_SHADER_STAGE_FRAGMENT_BIT,
+            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
             0U,
-            static_cast<std::uint32_t>(sizeof(glm::vec4)),
-            &pushColor);
+            static_cast<std::uint32_t>(sizeof(PrimitivePushConstants)),
+            &pushConstants);
 
         vkCmdDrawIndexed(commandBuffer, primitive.gpu.index_count(), 1U, 0U, 0, 0);
     }
@@ -596,14 +632,43 @@ void VulkanApplication::update_global_uniforms() {
     }
 
     GlobalUniform uniforms {};
-    uniforms.lightPositionIntensity = glm::vec4 {
-        m_scene.lightPosition.x,
-        m_scene.lightPosition.y,
-        m_scene.lightPosition.z,
-        m_scene.lightIntensity
-    };
+    const glm::vec3 cameraPos = camera_position();
+    const glm::vec3 up {0.0F, 1.0F, 0.0F};
+    uniforms.view = glm::lookAt(cameraPos, m_camera.target, up);
+
+    const VkExtent2D extent = m_swapchain.extent();
+    if(extent.height > 0U) {
+        const float aspect = static_cast<float>(extent.width) / static_cast<float>(extent.height);
+        uniforms.projection = glm::perspective(m_camera.fovY, aspect, m_camera.nearPlane, m_camera.farPlane);
+        uniforms.projection[1][1] *= -1.0F;
+    }
+
+    uniforms.lightPositionIntensity = glm::vec4 {m_scene.lightPosition, m_scene.lightIntensity};
+    uniforms.cameraPosition = glm::vec4 {cameraPos, 1.0F};
 
     m_globalUniformBuffer.write(m_context, &uniforms, sizeof(GlobalUniform));
+}
+
+auto VulkanApplication::camera_position() const noexcept -> glm::vec3 {
+    const float cosPitch = std::cos(m_camera.pitch);
+    const float sinPitch = std::sin(m_camera.pitch);
+    const float cosYaw = std::cos(m_camera.yaw);
+    const float sinYaw = std::sin(m_camera.yaw);
+
+    const float x = m_camera.target.x + (m_camera.distance * cosPitch * cosYaw);
+    const float y = m_camera.target.y + (m_camera.distance * sinPitch);
+    const float z = m_camera.target.z + (m_camera.distance * cosPitch * sinYaw);
+    return glm::vec3 {x, y, z};
+}
+
+auto VulkanApplication::compute_model_matrix(const PrimitiveProperties& properties) const noexcept -> glm::mat4 {
+    glm::mat4 model {1.0F};
+    model = glm::translate(model, properties.position);
+    model = glm::rotate(model, glm::radians(properties.rotation.x), glm::vec3 {1.0F, 0.0F, 0.0F});
+    model = glm::rotate(model, glm::radians(properties.rotation.y), glm::vec3 {0.0F, 1.0F, 0.0F});
+    model = glm::rotate(model, glm::radians(properties.rotation.z), glm::vec3 {0.0F, 0.0F, 1.0F});
+    model = glm::scale(model, properties.scale);
+    return model;
 }
 
 } // namespace vulkano

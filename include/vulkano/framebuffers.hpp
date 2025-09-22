@@ -17,16 +17,32 @@ public:
     auto operator=(FramebufferCollection&& other) noexcept -> FramebufferCollection&;
     ~FramebufferCollection() noexcept;
 
-    [[nodiscard]] static auto create(const VulkanContext& context, const Swapchain& swapchain, const RenderPass& renderPass) -> FramebufferCollection;
+    [[nodiscard]] static auto create(
+        const VulkanContext& context,
+        const Swapchain& swapchain,
+        const RenderPass& renderPass,
+        const std::vector<VkImageView>& depthViews) -> FramebufferCollection;
 
     [[nodiscard]] auto handles() const noexcept -> const std::vector<VkFramebuffer>&;
     [[nodiscard]] auto size() const noexcept -> std::size_t;
-    void recreate(const VulkanContext& context, const Swapchain& swapchain, const RenderPass& renderPass);
+    void recreate(
+        const VulkanContext& context,
+        const Swapchain& swapchain,
+        const RenderPass& renderPass,
+        const std::vector<VkImageView>& depthViews);
 
 private:
-    explicit FramebufferCollection(const VulkanContext& context, const Swapchain& swapchain, const RenderPass& renderPass);
+    explicit FramebufferCollection(
+        const VulkanContext& context,
+        const Swapchain& swapchain,
+        const RenderPass& renderPass,
+        const std::vector<VkImageView>& depthViews);
 
-    void initialise(const VulkanContext& context, const Swapchain& swapchain, const RenderPass& renderPass);
+    void initialise(
+        const VulkanContext& context,
+        const Swapchain& swapchain,
+        const RenderPass& renderPass,
+        const std::vector<VkImageView>& depthViews);
     void cleanup() noexcept;
     void move_from(FramebufferCollection&& other) noexcept;
 
