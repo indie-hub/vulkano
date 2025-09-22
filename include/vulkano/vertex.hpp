@@ -4,14 +4,11 @@
 #include <cstddef>
 #include <vulkan/vulkan.h>
 
-#include <glm/glm.hpp>
+#include <vulkano/mesh.hpp>
 
 namespace vulkano {
 
-struct Vertex final {
-    glm::vec3 position {};
-};
-
+using Vertex = MeshVertex;
 using VertexArray = std::array<Vertex, 3U>;
 
 [[nodiscard]] auto vertex_binding_description() -> VkVertexInputBindingDescription;

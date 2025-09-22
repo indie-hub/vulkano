@@ -6,6 +6,8 @@
 #include <vulkano/framebuffers.hpp>
 #include <vulkano/glfw_context.hpp>
 #include <vulkano/graphics_pipeline.hpp>
+#include <vulkano/mesh_gpu.hpp>
+#include <vulkano/primitives.hpp>
 #include <vulkano/render_pass.hpp>
 #include <vulkano/swapchain.hpp>
 #include <vulkano/synchronization.hpp>
@@ -13,6 +15,10 @@
 #include <vulkano/window.hpp>
 
 #include <glm/vec4.hpp>
+#include <glm/vec3.hpp>
+#include <glm/mat4x4.hpp>
+
+#include <memory>
 #include <vector>
 #include <chrono>
 #include <string>
@@ -46,6 +52,11 @@ private:
     void update_timing(double deltaSeconds);
     void create_render_finished_semaphores();
     void destroy_render_finished_semaphores() noexcept;
+    void initialise_scene();
+    void rebuild_dirty_meshes();
+    void create_descriptor_resources();
+    void destroy_descriptor_resources() noexcept;
+    void update_global_uniforms();
 
     AppConfig m_config;
     GlfwContext m_glfwContext;
@@ -57,8 +68,24 @@ private:
     CommandAllocator m_commandAllocator;
     SyncManager m_syncManager;
     GraphicsPipeline m_pipeline;
-    Buffer m_vertexBuffer;
     VkDescriptorPool m_imguiDescriptorPool {VK_NULL_HANDLE};
+
+    struct ScenePrimitive final {
+        std::unique_ptr<Primitive> primitive {};
+        MeshGpuResources gpu {};
+    };
+
+    struct SceneState final {
+        glm::vec3 lightPosition {2.0F, 4.0F, 2.0F};
+        float lightIntensity {1.0F};
+        std::vector<ScenePrimitive> primitives {};
+    };
+
+    SceneState m_scene {};
+    VkDescriptorSetLayout m_descriptorSetLayout {VK_NULL_HANDLE};
+    VkDescriptorPool m_descriptorPool {VK_NULL_HANDLE};
+    VkDescriptorSet m_descriptorSet {VK_NULL_HANDLE};
+    Buffer m_globalUniformBuffer;
 
     std::vector<VkFence> m_imagesInFlight {};
     std::vector<VkSemaphore> m_renderFinishedSemaphores {};
@@ -68,8 +95,6 @@ private:
     double m_frameTimeMs {0.0};
     double m_fps {0.0};
     std::string m_deviceName;
-
-    glm::vec4 m_triangleColor {1.0F, 1.0F, 1.0F, 1.0F};
 };
 
 } // namespace vulkano

@@ -2,7 +2,7 @@
 - [x] Draft updated design for primitive system, vertex layout, and rendering resources.
 - [x] Implement primitive hierarchy and CPU mesh generation (plane, cube, icosphere).
 - [x] Build GPU buffer upload infrastructure (device-local vertex/index, mesh GPU wrapper).
-- [ ] Integrate primitives into rendering loop with descriptors and per-frame data.
+- [x] Integrate primitives into rendering loop with descriptors and per-frame data.
 - [ ] Update shaders and graphics pipeline for lighting, depth testing, and camera transforms.
 - [ ] Extend ImGui controls for lights and per-primitive properties.
 - [ ] Add unit and end-to-end tests for mesh generation and rendering configuration.

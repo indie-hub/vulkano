@@ -40,8 +40,8 @@ namespace {
 
 namespace vulkano {
 
-GraphicsPipeline::GraphicsPipeline(const VulkanContext& context, const RenderPass& renderPass) {
-    initialise(context, renderPass);
+GraphicsPipeline::GraphicsPipeline(const VulkanContext& context, const RenderPass& renderPass, VkDescriptorSetLayout descriptorSetLayout) {
+    initialise(context, renderPass, descriptorSetLayout);
 }
 
 GraphicsPipeline::GraphicsPipeline(GraphicsPipeline&& other) noexcept {
@@ -60,13 +60,13 @@ GraphicsPipeline::~GraphicsPipeline() noexcept {
     cleanup();
 }
 
-auto GraphicsPipeline::create(const VulkanContext& context, const RenderPass& renderPass) -> GraphicsPipeline {
-    return GraphicsPipeline {context, renderPass};
+auto GraphicsPipeline::create(const VulkanContext& context, const RenderPass& renderPass, VkDescriptorSetLayout descriptorSetLayout) -> GraphicsPipeline {
+    return GraphicsPipeline {context, renderPass, descriptorSetLayout};
 }
 
-void GraphicsPipeline::recreate(const VulkanContext& context, const RenderPass& renderPass) {
+void GraphicsPipeline::recreate(const VulkanContext& context, const RenderPass& renderPass, VkDescriptorSetLayout descriptorSetLayout) {
     cleanup();
-    initialise(context, renderPass);
+    initialise(context, renderPass, descriptorSetLayout);
 }
 
 auto GraphicsPipeline::handle() const noexcept -> VkPipeline {
@@ -77,7 +77,7 @@ auto GraphicsPipeline::layout() const noexcept -> VkPipelineLayout {
     return m_layout;
 }
 
-void GraphicsPipeline::initialise(const VulkanContext& context, const RenderPass& renderPass) {
+void GraphicsPipeline::initialise(const VulkanContext& context, const RenderPass& renderPass, VkDescriptorSetLayout descriptorSetLayout) {
     m_device = context.device();
 
     const auto vertexPath = shaderDirectory / vertexShaderFile;
@@ -162,7 +162,13 @@ void GraphicsPipeline::initialise(const VulkanContext& context, const RenderPass
 
     VkPipelineLayoutCreateInfo layoutInfo {};
     layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    layoutInfo.setLayoutCount = 0U;
+    if(descriptorSetLayout != VK_NULL_HANDLE) {
+        layoutInfo.setLayoutCount = 1U;
+        layoutInfo.pSetLayouts = &descriptorSetLayout;
+    } else {
+        layoutInfo.setLayoutCount = 0U;
+        layoutInfo.pSetLayouts = nullptr;
+    }
     layoutInfo.pushConstantRangeCount = 1U;
     layoutInfo.pPushConstantRanges = &pushConstantRange;
 

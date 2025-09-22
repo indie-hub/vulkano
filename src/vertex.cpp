@@ -30,6 +30,12 @@ auto default_triangle_vertices() -> VertexArray {
     vertices[0].position = glm::vec3 {0.0F, triangleHalfHeight, triangleDepth};
     vertices[1].position = glm::vec3 {-triangleHalfWidth, -triangleHalfHeight, triangleDepth};
     vertices[2].position = glm::vec3 {triangleHalfWidth, -triangleHalfHeight, triangleDepth};
+    for(auto& vertex : vertices) {
+        vertex.normal = glm::vec3 {0.0F, 0.0F, 1.0F};
+    }
+    vertices[0].uv = glm::vec2 {0.5F, 1.0F};
+    vertices[1].uv = glm::vec2 {0.0F, 0.0F};
+    vertices[2].uv = glm::vec2 {1.0F, 0.0F};
     return vertices;
 }
 

@@ -17,17 +17,17 @@ public:
     auto operator=(GraphicsPipeline&& other) noexcept -> GraphicsPipeline&;
     ~GraphicsPipeline() noexcept;
 
-    [[nodiscard]] static auto create(const VulkanContext& context, const RenderPass& renderPass) -> GraphicsPipeline;
+    [[nodiscard]] static auto create(const VulkanContext& context, const RenderPass& renderPass, VkDescriptorSetLayout descriptorSetLayout) -> GraphicsPipeline;
 
-    void recreate(const VulkanContext& context, const RenderPass& renderPass);
+    void recreate(const VulkanContext& context, const RenderPass& renderPass, VkDescriptorSetLayout descriptorSetLayout);
 
     [[nodiscard]] auto handle() const noexcept -> VkPipeline;
     [[nodiscard]] auto layout() const noexcept -> VkPipelineLayout;
 
 private:
-    GraphicsPipeline(const VulkanContext& context, const RenderPass& renderPass);
+    GraphicsPipeline(const VulkanContext& context, const RenderPass& renderPass, VkDescriptorSetLayout descriptorSetLayout);
 
-    void initialise(const VulkanContext& context, const RenderPass& renderPass);
+    void initialise(const VulkanContext& context, const RenderPass& renderPass, VkDescriptorSetLayout descriptorSetLayout);
     void cleanup() noexcept;
     void move_from(GraphicsPipeline&& other) noexcept;
 

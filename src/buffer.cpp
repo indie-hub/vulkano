@@ -62,6 +62,13 @@ auto Buffer::create_device_local_index_buffer(const VulkanContext& context, std:
     return deviceBuffer;
 }
 
+auto Buffer::create_uniform_buffer(const VulkanContext& context, VkDeviceSize size) -> Buffer {
+    if(size == 0U) {
+        throw std::runtime_error {"Uniform buffer size must be greater than zero"};
+    }
+    return Buffer {context, size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT};
+}
+
 auto Buffer::handle() const noexcept -> VkBuffer {
     return m_buffer;
 }
@@ -112,6 +119,26 @@ void Buffer::copy_data(const VulkanContext& context, const void* data, VkDeviceS
     std::memcpy(mappedMemory, data, static_cast<std::size_t>(size));
     vkUnmapMemory(m_device, m_memory);
     context.set_object_name(VK_OBJECT_TYPE_DEVICE_MEMORY, reinterpret_cast<std::uint64_t>(m_memory), "Buffer Memory");
+}
+
+void Buffer::write(const VulkanContext& context, const void* data, VkDeviceSize size, VkDeviceSize offset) {
+    (void)context;
+    if(m_memory == VK_NULL_HANDLE) {
+        throw std::runtime_error {"Buffer memory must be allocated before writing"};
+    }
+    if(data == nullptr) {
+        throw std::invalid_argument {"Buffer write data pointer must not be null"};
+    }
+    if((offset + size) > m_size) {
+        throw std::out_of_range {"Buffer write exceeds allocated size"};
+    }
+
+    void* mappedMemory {nullptr};
+    if(vkMapMemory(m_device, m_memory, offset, size, 0U, &mappedMemory) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to map buffer memory for write"};
+    }
+    std::memcpy(mappedMemory, data, static_cast<std::size_t>(size));
+    vkUnmapMemory(m_device, m_memory);
 }
 
 void Buffer::cleanup() noexcept {

@@ -20,9 +20,11 @@ public:
     [[nodiscard]] static auto create_vertex_buffer(const VulkanContext& context, std::span<const MeshVertex> vertices) -> Buffer;
     [[nodiscard]] static auto create_device_local_vertex_buffer(const VulkanContext& context, std::span<const MeshVertex> vertices) -> Buffer;
     [[nodiscard]] static auto create_device_local_index_buffer(const VulkanContext& context, std::span<const std::uint32_t> indices) -> Buffer;
+    [[nodiscard]] static auto create_uniform_buffer(const VulkanContext& context, VkDeviceSize size) -> Buffer;
 
     [[nodiscard]] auto handle() const noexcept -> VkBuffer;
     [[nodiscard]] auto size() const noexcept -> VkDeviceSize;
+    void write(const VulkanContext& context, const void* data, VkDeviceSize size, VkDeviceSize offset = 0U);
 
 private:
     Buffer(const VulkanContext& context, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties);
