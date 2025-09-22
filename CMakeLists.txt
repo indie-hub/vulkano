@@ -86,6 +86,7 @@ add_executable(vulkano_codex
     src/app_config.cpp
     src/glfw_context.cpp
     src/main.cpp
+    src/swapchain.cpp
     src/vulkan_context.cpp
     src/window.cpp
 )

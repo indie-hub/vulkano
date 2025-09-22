@@ -6,6 +6,7 @@
 #include <vulkano/glfw_context.hpp>
 #include <vulkano/vulkan_context.hpp>
 #include <vulkano/window.hpp>
+#include <vulkano/swapchain.hpp>
 
 auto main() -> int {
     try {
@@ -17,7 +18,11 @@ auto main() -> int {
             .with_window(window)
             .build();
 
-        (void)context;
+        auto swapchain = vulkano::SwapchainBuilder {}
+            .with_context(context)
+            .with_window(window)
+            .build();
+        (void)swapchain;
         return EXIT_SUCCESS;
     } catch(const std::exception& ex) {
         std::cerr << "Fatal error: " << ex.what() << '\n';
