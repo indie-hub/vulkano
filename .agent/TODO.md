@@ -1,1 +1,8 @@
-- [x] Implement Vulkan triangle app with ImGui overlay, tests, packaging
+- [x] Assess current repository state and outline implementation approach for the Vulkan GLFW app
+- [ ] Configure CMake to fetch and link Vulkan, GLFW, GLM, and ImGui dependencies; ensure outputs land in bin/
+- [ ] Implement Vulkan instance, device, swapchain, and associated resource management with validation layers
+- [ ] Implement graphics pipeline, shaders, vertex buffer, and render commands to draw the white triangle
+- [ ] Add swapchain recreation, synchronization primitives, and frame management for resizing support
+- [ ] Integrate ImGui overlay with FPS, frame time, device name, and swapchain extent stats
+- [ ] Create end-to-end and unit tests, run builds, and package runtime assets
+- [ ] Document build/run instructions and update any relevant project docs
