@@ -1,13 +1,14 @@
 # Vulkano Codex
 
-Vulkano Codex is a minimal Vulkan 1.3+/GLFW sample built with C++20 that renders a white triangle on a black background and overlays runtime statistics with Dear ImGui. The application targets macOS via MoltenVK and follows SOLID/Clean Code guidelines with a RAII-oriented architecture.
+Vulkano Codex is a Vulkan 1.3+/GLFW sample built with C++20 that renders a small lit scene using a plane, cube, and icosphere primitives. The application targets macOS via MoltenVK and follows SOLID/Clean Code guidelines with a RAII-oriented architecture while exposing live scene controls through Dear ImGui.
 
 ## Features
 - Vulkan instance/device creation with validation layers and `VK_EXT_debug_utils` markers in debug builds.
-- Swapchain management with automatic recreation on window resize.
-- Graphics pipeline that reads SPIR-V shader binaries from disk and renders a white triangle via push constants.
-- Dear ImGui overlay displaying FPS, frame time (ms), physical device name, and swapchain extent.
-- Unit and integration tests built on Catch2.
+- Swapchain management with automatic recreation on window resize plus depth buffering.
+- Blinn-Phong lighting pipeline with per-primitive push constants (colour, shininess, ambient/specular terms) and a uniform-buffer backed camera/light.
+- CPU-generated plane, cube, and icosphere meshes uploaded once to device-local buffers.
+- Dear ImGui overlays for runtime stats and scene controls (light position/intensity, primitive transforms/materials, icosphere subdivisions).
+- Unit and integration tests built on Catch2 covering configuration, mesh generation, and scene defaults.
 
 ## Prerequisites
 - CMake 3.25 or newer.
@@ -27,7 +28,11 @@ After a successful build, launch the sample from the project root:
 ```bash
 ./bin/vulkano_codex
 ```
-A resizable GLFW window should appear with the triangle and ImGui stats overlay. Validation output is printed to stderr when enabled.
+A resizable GLFW window opens showing the lit plane, cube, and icosphere above a black background. Validation output is printed to stderr when enabled.
+
+### Scene Controls
+- `Runtime Stats` shows FPS, frame time, device name, and swapchain extent.
+- `Scene Controls` allows adjusting light position/intensity and each primitive's position, rotation, scale, base colour, shininess, ambient, and specular strengths. The icosphere also supports rebuilding with subdivisions 0–5.
 
 ## Tests
 Configure with testing enabled (default) and run Catch2-based tests:

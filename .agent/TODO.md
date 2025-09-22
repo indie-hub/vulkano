@@ -6,4 +6,4 @@
 - [x] Update shaders and graphics pipeline for lighting, depth testing, and camera transforms.
 - [x] Extend ImGui controls for lights and per-primitive properties.
 - [x] Add unit and end-to-end tests for mesh generation and rendering configuration.
-- [ ] Build, package binaries in bin/, and refresh documentation as needed.
+- [x] Build, package binaries in bin/, and refresh documentation as needed.
