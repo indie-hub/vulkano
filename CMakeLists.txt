@@ -92,6 +92,7 @@ add_library(imgui::imgui ALIAS imgui)
 
 add_library(vulkano_codex_lib STATIC
     src/app_config.cpp
+    src/camera_math.cpp
     src/application.cpp
     src/buffer.cpp
     src/command_allocator.cpp

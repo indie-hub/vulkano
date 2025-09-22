@@ -17,12 +17,16 @@
 
 #include <glm/vec4.hpp>
 #include <glm/vec3.hpp>
+#include <glm/vec2.hpp>
 #include <glm/mat4x4.hpp>
+#include <glm/gtc/constants.hpp>
 
 #include <memory>
 #include <vector>
 #include <chrono>
 #include <string>
+
+struct ImGuiIO;
 
 namespace vulkano {
 
@@ -54,6 +58,8 @@ private:
     void upload_imgui_fonts();
     void record_command_buffer(std::uint32_t imageIndex);
     void update_timing(double deltaSeconds);
+    void update_camera_input(double deltaSeconds, const ImGuiIO& io);
+    void apply_scroll_input(const ImGuiIO& io);
     void create_render_finished_semaphores();
     void destroy_render_finished_semaphores() noexcept;
     void initialise_scene();
@@ -62,6 +68,11 @@ private:
     void destroy_descriptor_resources() noexcept;
     void update_global_uniforms();
     [[nodiscard]] auto camera_position() const noexcept -> glm::vec3;
+    [[nodiscard]] auto camera_forward() const noexcept -> glm::vec3;
+    [[nodiscard]] auto camera_right(const glm::vec3& forward) const noexcept -> glm::vec3;
+    [[nodiscard]] auto camera_up(const glm::vec3& forward, const glm::vec3& right) const noexcept -> glm::vec3;
+    void set_cursor_mode(int mode) noexcept;
+    static void scroll_callback(GLFWwindow* window, double xOffset, double yOffset);
     [[nodiscard]] auto compute_model_matrix(const PrimitiveProperties& properties) const noexcept -> glm::mat4;
 
     AppConfig m_config;
@@ -88,13 +99,19 @@ private:
     };
 
     struct CameraState final {
-        glm::vec3 target {0.0F, 0.5F, 0.0F};
-        float distance {6.0F};
-        float yaw {0.785398163F};
-        float pitch {-0.523598776F};
-        float fovY {0.959931088F};
-        float nearPlane {0.1F};
-        float farPlane {100.0F};
+        static constexpr glm::vec3 defaultPosition {0.0F, 1.6F, 6.0F};
+        static constexpr float defaultYaw {-glm::half_pi<float>()};
+        static constexpr float defaultPitch {0.0F};
+        static constexpr float defaultFovY {glm::pi<float>() / 3.0F};
+        static constexpr float defaultNearPlane {0.1F};
+        static constexpr float defaultFarPlane {100.0F};
+
+        glm::vec3 position {defaultPosition};
+        float yaw {defaultYaw};
+        float pitch {defaultPitch};
+        float fovY {defaultFovY};
+        float nearPlane {defaultNearPlane};
+        float farPlane {defaultFarPlane};
     };
 
     SceneState m_scene {};
@@ -113,6 +130,12 @@ private:
     std::chrono::steady_clock::time_point m_lastFrameTime {std::chrono::steady_clock::now()};
     double m_frameTimeMs {0.0};
     double m_fps {0.0};
+    double m_deltaSeconds {0.0};
+    double m_scrollDelta {0.0};
+    bool m_cameraLookActive {false};
+    bool m_cameraLock {false};
+    bool m_firstMouse {true};
+    glm::dvec2 m_lastCursorPosition {0.0, 0.0};
     std::string m_deviceName;
 };
 

@@ -7,3 +7,13 @@
 - [x] Extend ImGui controls for lights and per-primitive properties.
 - [x] Add unit and end-to-end tests for mesh generation and rendering configuration.
 - [x] Build, package binaries in bin/, and refresh documentation as needed.
+- [x] Inspect current axis/camera orientation to locate Y-axis direction.
+- [x] Modify rendering code so that Y axis vector points up from screen center.
+- [x] Validate orientation adjustment and update documentation/tests if needed.
+- [x] Reassess camera/view/projection setup to ensure positive Y positions render upward.
+- [x] Adjust rendering pipeline so viewport/projection produce upward Y.
+- [x] Rebuild and test to confirm corrected orientation.
+- [x] Reevaluate projection/viewport configuration for correct Y orientation.
+- [x] Implement orientation fix in rendering pipeline.
+- [x] Rebuild and test to verify Y axis direction.
+- [x] Implement FPS camera controls with ImGui interaction gating and tests.
