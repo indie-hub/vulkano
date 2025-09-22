@@ -83,7 +83,11 @@ endif()
 add_library(imgui::imgui ALIAS imgui)
 
 add_executable(vulkano_codex
+    src/app_config.cpp
+    src/glfw_context.cpp
     src/main.cpp
+    src/vulkan_context.cpp
+    src/window.cpp
 )
 
 target_include_directories(vulkano_codex
