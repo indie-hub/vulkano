@@ -300,6 +300,7 @@ void VulkanApplication::init_imgui() {
     if(!ImGui_ImplVulkan_Init(&initInfo)) {
         throw std::runtime_error {"Failed to initialise ImGui Vulkan backend"};
     }
+    upload_imgui_fonts();
 }
 
 void VulkanApplication::destroy_imgui() {
@@ -310,6 +311,58 @@ void VulkanApplication::destroy_imgui() {
         vkDestroyDescriptorPool(m_context.device(), m_imguiDescriptorPool, nullptr);
         m_imguiDescriptorPool = VK_NULL_HANDLE;
     }
+}
+
+void VulkanApplication::upload_imgui_fonts() {
+    const VkDevice device = m_context.device();
+    const VkCommandPool commandPool = m_commandAllocator.pool();
+    if(device == VK_NULL_HANDLE || commandPool == VK_NULL_HANDLE) {
+        throw std::runtime_error {"Command allocator must be initialised before uploading ImGui fonts"};
+    }
+
+    VkCommandBufferAllocateInfo allocateInfo {};
+    allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocateInfo.commandPool = commandPool;
+    allocateInfo.commandBufferCount = 1U;
+
+    VkCommandBuffer commandBuffer {VK_NULL_HANDLE};
+    if(vkAllocateCommandBuffers(device, &allocateInfo, &commandBuffer) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to allocate ImGui font upload command buffer"};
+    }
+
+    VkCommandBufferBeginInfo beginInfo {};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    if(vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
+        vkFreeCommandBuffers(device, commandPool, 1U, &commandBuffer);
+        throw std::runtime_error {"Failed to begin ImGui font upload command buffer"};
+    }
+
+    ImGui_ImplVulkan_CreateFontsTexture(commandBuffer);
+
+    if(vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
+        vkFreeCommandBuffers(device, commandPool, 1U, &commandBuffer);
+        throw std::runtime_error {"Failed to record ImGui font upload command buffer"};
+    }
+
+    VkSubmitInfo submitInfo {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1U;
+    submitInfo.pCommandBuffers = &commandBuffer;
+
+    if(vkQueueSubmit(m_context.graphics_queue(), 1U, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
+        vkFreeCommandBuffers(device, commandPool, 1U, &commandBuffer);
+        throw std::runtime_error {"Failed to submit ImGui font upload command buffer"};
+    }
+
+    if(vkDeviceWaitIdle(device) != VK_SUCCESS) {
+        vkFreeCommandBuffers(device, commandPool, 1U, &commandBuffer);
+        throw std::runtime_error {"Failed to wait for device idle during ImGui font upload"};
+    }
+
+    ImGui_ImplVulkan_DestroyFontUploadObjects();
+    vkFreeCommandBuffers(device, commandPool, 1U, &commandBuffer);
 }
 
 void VulkanApplication::begin_imgui_frame() {

@@ -41,6 +41,7 @@ private:
     void init_imgui();
     void destroy_imgui();
     void begin_imgui_frame();
+    void upload_imgui_fonts();
     void record_command_buffer(std::uint32_t imageIndex);
     void update_timing(double deltaSeconds);
     void create_render_finished_semaphores();
