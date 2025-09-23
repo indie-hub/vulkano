@@ -156,6 +156,7 @@ private:
         std::uint32_t resolution {2048U};
         bool resourcesDirty {false};
         bool descriptorDirty {true};
+        bool debugDescriptorsDirty {true};
         bool firstUse {true};
         VkImageLayout currentLayout {VK_IMAGE_LAYOUT_UNDEFINED};
         VkImageLayout sampleLayout {VK_IMAGE_LAYOUT_UNDEFINED};

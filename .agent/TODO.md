@@ -28,3 +28,6 @@
 - [x] Document baseline shadow behaviour before adjustments.
 - [x] Design and implement corrected cascade stabilisation + bias.
 - [x] Rebuild and validate shadows after changes.
+- [x] Diagnose cascaded shadow mapping bugs (missing shadows, crash, invalid descriptor set).
+- [x] Repair cascaded shadow map resources and bindings so rendering and debug views work.
+- [x] Rebuild binaries, run tests, and validate shadow features end-to-end.

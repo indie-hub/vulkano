@@ -283,20 +283,28 @@ void VulkanApplication::draw_frame() {
         if(ImGui::Checkbox("Show Shadow Map", &showAtlas)) {
             m_shadow.settings.showShadowAtlas = showAtlas;
             if(showAtlas) {
-                update_shadow_debug_textures();
+                m_shadow.debugDescriptorsDirty = true;
+            } else {
+                clear_shadow_debug_textures();
+                m_shadow.debugDescriptorsDirty = false;
             }
         }
 
-        if(m_shadow.settings.showShadowAtlas && !m_shadow.debugAtlasDescriptors.empty()) {
-            ImGui::Separator();
-            for(std::size_t cascadeIdx {0U}; cascadeIdx < m_shadow.debugAtlasDescriptors.size(); ++cascadeIdx) {
-                const VkDescriptorSet descriptor = m_shadow.debugAtlasDescriptors.at(cascadeIdx);
-                if(descriptor == VK_NULL_HANDLE) {
-                    continue;
+        if(m_shadow.settings.showShadowAtlas) {
+            if(m_shadow.debugDescriptorsDirty) {
+                update_shadow_debug_textures();
+            }
+            if(!m_shadow.debugAtlasDescriptors.empty()) {
+                ImGui::Separator();
+                for(std::size_t cascadeIdx {0U}; cascadeIdx < m_shadow.debugAtlasDescriptors.size(); ++cascadeIdx) {
+                    const VkDescriptorSet descriptor = m_shadow.debugAtlasDescriptors.at(cascadeIdx);
+                    if(descriptor == VK_NULL_HANDLE) {
+                        continue;
+                    }
+                    ImGui::Text("Cascade %zu", cascadeIdx);
+                    const ImTextureID textureId = reinterpret_cast<ImTextureID>(descriptor);
+                    ImGui::Image(textureId, ImVec2 {128.0F, 128.0F});
                 }
-                ImGui::Text("Cascade %zu", cascadeIdx);
-                const ImTextureID textureId = reinterpret_cast<ImTextureID>(descriptor);
-                ImGui::Image(textureId, ImVec2 {128.0F, 128.0F});
             }
         }
     }
@@ -1140,50 +1148,54 @@ void VulkanApplication::update_descriptor_set_bindings() {
     if(m_globalUniformBuffer.handle() == VK_NULL_HANDLE) {
         return;
     }
-    const VkSampler sampler = m_shadowMapResources.sampler();
-    const VkImageView imageView = m_shadowMapResources.image_view_array();
-    const VkImageLayout sampleLayout = m_shadow.sampleLayout;
-    if(sampler == VK_NULL_HANDLE || imageView == VK_NULL_HANDLE) {
-        return;
-    }
-    if(sampleLayout == VK_IMAGE_LAYOUT_UNDEFINED) {
-        return;
-    }
-
     VkDescriptorBufferInfo bufferInfo {};
     bufferInfo.buffer = m_globalUniformBuffer.handle();
     bufferInfo.offset = 0U;
     bufferInfo.range = sizeof(GlobalUniform);
 
-    VkDescriptorImageInfo imageInfo {};
-    imageInfo.sampler = sampler;
-    imageInfo.imageView = imageView;
-    imageInfo.imageLayout = sampleLayout;
-
     std::array<VkWriteDescriptorSet, 2U> writes {};
+    std::uint32_t writeCount {0U};
 
-    writes.at(0).sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    writes.at(0).dstSet = m_descriptorSet;
-    writes.at(0).dstBinding = 0U;
-    writes.at(0).descriptorCount = 1U;
-    writes.at(0).descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    writes.at(0).pBufferInfo = &bufferInfo;
+    writes.at(writeCount).sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes.at(writeCount).dstSet = m_descriptorSet;
+    writes.at(writeCount).dstBinding = 0U;
+    writes.at(writeCount).descriptorCount = 1U;
+    writes.at(writeCount).descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    writes.at(writeCount).pBufferInfo = &bufferInfo;
+    ++writeCount;
 
-    writes.at(1).sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    writes.at(1).dstSet = m_descriptorSet;
-    writes.at(1).dstBinding = 1U;
-    writes.at(1).descriptorCount = 1U;
-    writes.at(1).descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    writes.at(1).pImageInfo = &imageInfo;
+    const VkSampler sampler = m_shadowMapResources.sampler();
+    const VkImageView imageView = m_shadowMapResources.image_view_array();
+    const VkImageLayout currentLayout = m_shadow.sampleLayout;
+    const VkImageLayout descriptorLayout = (currentLayout != VK_IMAGE_LAYOUT_UNDEFINED)
+        ? currentLayout
+        : VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+    const bool imageReady = sampler != VK_NULL_HANDLE && imageView != VK_NULL_HANDLE;
+
+    VkDescriptorImageInfo imageInfo {};
+    if(imageReady) {
+        imageInfo.sampler = sampler;
+        imageInfo.imageView = imageView;
+        imageInfo.imageLayout = descriptorLayout;
+
+        writes.at(writeCount).sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes.at(writeCount).dstSet = m_descriptorSet;
+        writes.at(writeCount).dstBinding = 1U;
+        writes.at(writeCount).descriptorCount = 1U;
+        writes.at(writeCount).descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        writes.at(writeCount).pImageInfo = &imageInfo;
+        ++writeCount;
+    }
 
     vkUpdateDescriptorSets(
         m_context.device(),
-        static_cast<std::uint32_t>(writes.size()),
+        writeCount,
         writes.data(),
         0U,
         nullptr);
 
-    m_shadow.descriptorDirty = false;
+    const bool layoutKnown = currentLayout != VK_IMAGE_LAYOUT_UNDEFINED;
+    m_shadow.descriptorDirty = !(imageReady && layoutKnown);
 }
 
 void VulkanApplication::destroy_descriptor_resources() noexcept {
@@ -1445,6 +1457,7 @@ void VulkanApplication::create_shadow_resources() {
     m_shadow.currentLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     m_shadow.firstUse = true;
     m_shadow.descriptorDirty = true;
+    m_shadow.debugDescriptorsDirty = true;
 }
 
 void VulkanApplication::destroy_shadow_resources() noexcept {
@@ -1459,6 +1472,7 @@ void VulkanApplication::destroy_shadow_resources() noexcept {
     m_shadow.firstUse = true;
     m_shadow.descriptorDirty = true;
     m_shadow.resourcesDirty = false;
+    m_shadow.debugDescriptorsDirty = true;
 }
 
 void VulkanApplication::ensure_shadow_resources() {
@@ -1470,12 +1484,8 @@ void VulkanApplication::ensure_shadow_resources() {
     if(m_shadowMapResources.image() == VK_NULL_HANDLE) {
         create_shadow_resources();
         update_descriptor_set_bindings();
-        update_shadow_debug_textures();
     } else if(m_shadow.descriptorDirty) {
         update_descriptor_set_bindings();
-        if(m_shadow.sampleLayout != VK_IMAGE_LAYOUT_UNDEFINED) {
-            update_shadow_debug_textures();
-        }
     }
 
     if(m_shadowPipeline.handle() == VK_NULL_HANDLE && m_shadowRenderPass.handle() != VK_NULL_HANDLE && m_descriptorSetLayout != VK_NULL_HANDLE) {
@@ -1513,7 +1523,7 @@ void VulkanApplication::recreate_shadow_resources(std::uint32_t cascadeCount, st
     }
 
     update_descriptor_set_bindings();
-    update_shadow_debug_textures();
+    m_shadow.debugDescriptorsDirty = true;
 }
 
 void VulkanApplication::clear_shadow_debug_textures() noexcept {
@@ -1531,9 +1541,15 @@ void VulkanApplication::update_shadow_debug_textures() {
     if(ImGui::GetCurrentContext() == nullptr) {
         return;
     }
+    if(!m_shadow.settings.showShadowAtlas) {
+        clear_shadow_debug_textures();
+        m_shadow.debugDescriptorsDirty = false;
+        return;
+    }
     const VkSampler sampler = m_shadowMapResources.sampler();
     const VkImageLayout sampleLayout = m_shadow.sampleLayout;
     if(sampler == VK_NULL_HANDLE || sampleLayout == VK_IMAGE_LAYOUT_UNDEFINED) {
+        m_shadow.debugDescriptorsDirty = true;
         return;
     }
     clear_shadow_debug_textures();
@@ -1551,6 +1567,8 @@ void VulkanApplication::update_shadow_debug_textures() {
             m_shadow.debugAtlasDescriptors.push_back(descriptor);
         }
     }
+
+    m_shadow.debugDescriptorsDirty = false;
 }
 
 void VulkanApplication::update_global_uniforms() {
@@ -1745,7 +1763,7 @@ void VulkanApplication::render_shadow_pass(VkCommandBuffer commandBuffer) {
     toSampleBarrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
     toSampleBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
     toSampleBarrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-    const VkImageLayout sampleLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    const VkImageLayout sampleLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
     toSampleBarrier.newLayout = sampleLayout;
     toSampleBarrier.image = shadowImage;
     toSampleBarrier.subresourceRange.aspectMask = aspectMask;
@@ -1770,6 +1788,7 @@ void VulkanApplication::render_shadow_pass(VkCommandBuffer commandBuffer) {
     m_shadow.currentLayout = sampleLayout;
     m_shadow.firstUse = false;
     m_shadow.descriptorDirty = true;
+    m_shadow.debugDescriptorsDirty = true;
 }
 
 auto VulkanApplication::camera_position() const noexcept -> glm::vec3 {
