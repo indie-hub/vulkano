@@ -24,4 +24,4 @@
 - [x] Update shaders, descriptors, and rendering path to apply albedo and normal textures per primitive.
 - [x] Extend ImGui UI for texture toggles, normal strength, and stats display.
 - [x] Add unit and end-to-end tests covering texture generation and bindings.
-- [ ] Build, package binaries into `bin/`, and validate on macOS configuration.
+- [x] Build, package binaries into `bin/`, and validate on macOS configuration.
