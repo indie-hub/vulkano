@@ -20,7 +20,7 @@
 - [x] Implement cascaded shadow mapping feature (design, shaders, runtime controls, tests, build).
 - [x] Plan texture pipeline extension for albedo and normal maps with procedural fallbacks.
 - [x] Implement Vulkan texture image resources and samplers.
-- [ ] Implement texture loading pipeline and procedural generators for albedo/normal maps.
+- [x] Implement texture loading pipeline and procedural generators for albedo/normal maps.
 - [ ] Update shaders, descriptors, and rendering path to apply albedo and normal textures per primitive.
 - [ ] Extend ImGui UI for texture toggles, normal strength, and stats display.
 - [ ] Add unit and end-to-end tests covering texture generation and bindings.

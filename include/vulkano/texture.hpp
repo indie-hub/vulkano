@@ -1,7 +1,11 @@
 #pragma once
 
 #include <cstdint>
+#include <cstdint>
+#include <filesystem>
+#include <span>
 #include <string_view>
+#include <vector>
 
 #include <vulkan/vulkan.h>
 
@@ -26,6 +30,15 @@ public:
         VkImageAspectFlags aspectMask,
         std::uint32_t mipLevels,
         std::string_view name) -> TextureImage;
+
+    [[nodiscard]] static auto create_from_rgba(
+        const VulkanContext& context,
+        VkExtent2D extent,
+        std::span<const std::uint8_t> pixels,
+        VkFormat format,
+        std::string_view name) -> TextureImage;
+
+    [[nodiscard]] static auto calculate_mip_levels(VkExtent2D extent) -> std::uint32_t;
 
     void transition_layout(
         const VulkanContext& context,
@@ -98,6 +111,21 @@ private:
     VkImageAspectFlags m_aspectMask {0U};
     std::uint32_t m_mipLevels {1U};
 };
+
+struct TexturePixelData final {
+    VkExtent2D extent {0U, 0U};
+    std::vector<std::uint8_t> pixels {};
+};
+
+[[nodiscard]] auto load_texture_pixels(const std::filesystem::path& path, bool srgb) -> TexturePixelData;
+[[nodiscard]] auto generate_checkerboard_pixels() -> TexturePixelData;
+[[nodiscard]] auto generate_blue_noise_normal_pixels() -> TexturePixelData;
+
+[[nodiscard]] auto create_texture_from_pixels(
+    const VulkanContext& context,
+    const TexturePixelData& data,
+    VkFormat format,
+    std::string_view name) -> TextureImage;
 
 class TextureSamplers final {
 public:

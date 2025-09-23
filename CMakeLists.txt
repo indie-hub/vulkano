@@ -110,6 +110,7 @@ add_library(vulkano_codex_lib STATIC
     src/vertex.cpp
     src/primitives.cpp
     src/texture.cpp
+    src/stb_image.cpp
     src/vulkan_context.cpp
     src/window.cpp
 )
@@ -141,6 +142,8 @@ add_dependencies(vulkano_codex_lib compile_shaders)
 target_include_directories(vulkano_codex_lib
     PUBLIC
         ${PROJECT_SOURCE_DIR}/include
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/third_party
 )
 
 target_link_libraries(vulkano_codex_lib

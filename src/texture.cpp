@@ -2,10 +2,17 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
+#include <cstring>
+#include <cstddef>
+#include <filesystem>
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <vector>
+
+#include <stb/stb_image.h>
 
 namespace {
     constexpr VkSampleCountFlagBits textureSampleCount {VK_SAMPLE_COUNT_1_BIT};
@@ -14,6 +21,13 @@ namespace {
     constexpr VkImageType textureImageType {VK_IMAGE_TYPE_2D};
     constexpr std::uint32_t textureArrayLayers {1U};
     constexpr std::uint32_t textureQueueFamilyIgnored {VK_QUEUE_FAMILY_IGNORED};
+    constexpr VkExtent2D checkerboardExtent {256U, 256U};
+    constexpr std::uint32_t checkerboardSquares {8U};
+    constexpr float checkerboardLightValue {0.92F};
+    constexpr float checkerboardDarkValue {0.12F};
+    constexpr VkExtent2D normalNoiseExtent {128U, 128U};
+    constexpr float normalNoiseAmplitude {0.8F};
+    constexpr float normalHighPassStrength {0.45F};
 
     auto clamp_dimension(std::uint32_t value) -> std::uint32_t {
         return std::max(value, 1U);
@@ -21,6 +35,34 @@ namespace {
 
     auto lod_clamp() -> float {
         return VK_LOD_CLAMP_NONE;
+    }
+
+    auto encode_colour_component(float value) -> std::uint8_t {
+        const float clamped = std::clamp(value, 0.0F, 1.0F);
+        return static_cast<std::uint8_t>(std::lround(clamped * 255.0F));
+    }
+
+    auto wang_hash(std::uint32_t seed) -> std::uint32_t {
+        seed = (seed ^ 61U) ^ (seed >> 16U);
+        seed *= 9U;
+        seed ^= seed >> 4U;
+        seed *= 0x27d4eb2dU;
+        seed ^= seed >> 15U;
+        return seed;
+    }
+
+    auto random_unit(std::uint32_t seed) -> float {
+        const std::uint32_t hashed = wang_hash(seed);
+        const std::uint32_t mantissa = hashed & 0x00FFFFFFU;
+        return static_cast<float>(mantissa) / static_cast<float>(0x01000000U);
+    }
+
+    auto wrap_index(int value, std::uint32_t range) -> std::uint32_t {
+        const int modulus = value % static_cast<int>(range);
+        if(modulus < 0) {
+            return static_cast<std::uint32_t>(modulus + static_cast<int>(range));
+        }
+        return static_cast<std::uint32_t>(modulus);
     }
 }
 
@@ -91,6 +133,114 @@ auto TextureImage::create(
     std::uint32_t mipLevels,
     std::string_view name) -> TextureImage {
     return TextureImage {context, extent, format, usage, aspectMask, mipLevels, name};
+}
+
+auto TextureImage::calculate_mip_levels(VkExtent2D extent) -> std::uint32_t {
+    const std::uint32_t maxDimension = std::max(extent.width, extent.height);
+    if(maxDimension == 0U) {
+        throw std::invalid_argument {"Cannot compute mip levels for zero-sized image"};
+    }
+    const double dimension = static_cast<double>(maxDimension);
+    return static_cast<std::uint32_t>(std::floor(std::log2(dimension))) + 1U;
+}
+
+auto TextureImage::create_from_rgba(
+    const VulkanContext& context,
+    VkExtent2D extent,
+    std::span<const std::uint8_t> pixels,
+    VkFormat format,
+    std::string_view name) -> TextureImage {
+    if(extent.width == 0U || extent.height == 0U) {
+        throw std::invalid_argument {"Texture extent must be non-zero"};
+    }
+    const std::uint64_t expectedSize = static_cast<std::uint64_t>(extent.width) * static_cast<std::uint64_t>(extent.height) * 4ULL;
+    if(static_cast<std::uint64_t>(pixels.size()) != expectedSize) {
+        throw std::invalid_argument {"Pixel data size does not match extent"};
+    }
+
+    const std::uint32_t mipLevels = calculate_mip_levels(extent);
+    const VkImageUsageFlags usageFlags = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+
+    TextureImage texture = TextureImage::create(
+        context,
+        extent,
+        format,
+        usageFlags,
+        VK_IMAGE_ASPECT_COLOR_BIT,
+        mipLevels,
+        name);
+
+    VkDeviceSize bufferSize = static_cast<VkDeviceSize>(pixels.size());
+
+    VkBuffer stagingBuffer {VK_NULL_HANDLE};
+    VkDeviceMemory stagingMemory {VK_NULL_HANDLE};
+
+    VkBufferCreateInfo bufferInfo {};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = bufferSize;
+    bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    if(vkCreateBuffer(context.device(), &bufferInfo, nullptr, &stagingBuffer) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create staging buffer for texture upload"};
+    }
+
+    VkMemoryRequirements requirements {};
+    vkGetBufferMemoryRequirements(context.device(), stagingBuffer, &requirements);
+
+    VkMemoryAllocateInfo allocInfo {};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = requirements.size;
+    allocInfo.memoryTypeIndex = find_memory_type(
+        context,
+        requirements.memoryTypeBits,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    if(vkAllocateMemory(context.device(), &allocInfo, nullptr, &stagingMemory) != VK_SUCCESS) {
+        vkDestroyBuffer(context.device(), stagingBuffer, nullptr);
+        throw std::runtime_error {"Failed to allocate staging buffer memory"};
+    }
+
+    if(vkBindBufferMemory(context.device(), stagingBuffer, stagingMemory, 0U) != VK_SUCCESS) {
+        vkFreeMemory(context.device(), stagingMemory, nullptr);
+        vkDestroyBuffer(context.device(), stagingBuffer, nullptr);
+        throw std::runtime_error {"Failed to bind staging buffer memory"};
+    }
+
+    void* mapped {nullptr};
+    if(vkMapMemory(context.device(), stagingMemory, 0U, bufferSize, 0U, &mapped) != VK_SUCCESS) {
+        vkFreeMemory(context.device(), stagingMemory, nullptr);
+        vkDestroyBuffer(context.device(), stagingBuffer, nullptr);
+        throw std::runtime_error {"Failed to map staging memory"};
+    }
+    std::memcpy(mapped, pixels.data(), static_cast<std::size_t>(bufferSize));
+    vkUnmapMemory(context.device(), stagingMemory);
+
+    texture.transition_layout(
+        context,
+        VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        0U,
+        mipLevels);
+
+    const VkExtent3D uploadExtent {extent.width, extent.height, 1U};
+    texture.copy_buffer_to_image(context, stagingBuffer, uploadExtent, 0U);
+
+    if(mipLevels > 1U) {
+        texture.generate_mipmaps(context);
+    } else {
+        texture.transition_layout(
+            context,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            0U,
+            1U);
+    }
+
+    vkFreeMemory(context.device(), stagingMemory, nullptr);
+    vkDestroyBuffer(context.device(), stagingBuffer, nullptr);
+
+    return texture;
 }
 
 void TextureImage::transition_layout(
@@ -668,6 +818,158 @@ void TextureSamplers::move_from(TextureSamplers&& other) noexcept {
     other.m_normal = VK_NULL_HANDLE;
     other.m_anisotropy = false;
     other.m_maxAnisotropy = 1.0F;
+}
+
+auto load_texture_pixels(const std::filesystem::path& path, bool srgb) -> TexturePixelData {
+    (void)srgb;
+
+    TexturePixelData data {};
+    stbi_set_flip_vertically_on_load(true);
+
+    int width {0};
+    int height {0};
+    int channels {0};
+
+    const std::string pathString = path.string();
+    stbi_uc* pixelData = stbi_load(pathString.c_str(), &width, &height, &channels, STBI_rgb_alpha);
+    if(pixelData == nullptr) {
+        throw std::runtime_error {"Failed to load texture: " + pathString + " (" + stbi_failure_reason() + ")"};
+    }
+
+    if(width <= 0 || height <= 0) {
+        stbi_image_free(pixelData);
+        throw std::runtime_error {"Loaded texture has invalid dimensions"};
+    }
+
+    data.extent = VkExtent2D {
+        static_cast<std::uint32_t>(width),
+        static_cast<std::uint32_t>(height)
+    };
+
+    const std::size_t totalBytes = static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 4U;
+    data.pixels.resize(totalBytes);
+    std::memcpy(data.pixels.data(), pixelData, totalBytes);
+    stbi_image_free(pixelData);
+    return data;
+}
+
+auto generate_checkerboard_pixels() -> TexturePixelData {
+    TexturePixelData data {};
+    data.extent = checkerboardExtent;
+    const std::uint32_t width = data.extent.width;
+    const std::uint32_t height = data.extent.height;
+    const std::size_t totalBytes = static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 4U;
+    data.pixels.resize(totalBytes);
+
+    const std::array<std::uint8_t, 4U> lightColour {
+        encode_colour_component(checkerboardLightValue),
+        encode_colour_component(checkerboardLightValue),
+        encode_colour_component(checkerboardLightValue),
+        255U
+    };
+    const std::array<std::uint8_t, 4U> darkColour {
+        encode_colour_component(checkerboardDarkValue),
+        encode_colour_component(checkerboardDarkValue),
+        encode_colour_component(checkerboardDarkValue),
+        255U
+    };
+
+    for(std::uint32_t y {0U}; y < height; ++y) {
+        for(std::uint32_t x {0U}; x < width; ++x) {
+            const std::uint32_t tileX = (checkerboardSquares == 0U) ? 0U : (x * checkerboardSquares) / width;
+            const std::uint32_t tileY = (checkerboardSquares == 0U) ? 0U : (y * checkerboardSquares) / height;
+            const bool useLight = ((tileX + tileY) % 2U) == 0U;
+            const auto& colour = useLight ? lightColour : darkColour;
+            const std::size_t index = (static_cast<std::size_t>(y) * width + x) * 4U;
+            std::copy(
+                colour.begin(),
+                colour.end(),
+                data.pixels.begin() + static_cast<std::ptrdiff_t>(index));
+        }
+    }
+    return data;
+}
+
+auto generate_blue_noise_normal_pixels() -> TexturePixelData {
+    TexturePixelData data {};
+    data.extent = normalNoiseExtent;
+    const std::uint32_t width = data.extent.width;
+    const std::uint32_t height = data.extent.height;
+    const std::size_t pixelCount = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+
+    std::vector<float> noiseX(pixelCount);
+    std::vector<float> noiseY(pixelCount);
+    std::vector<float> blurX(pixelCount);
+    std::vector<float> blurY(pixelCount);
+
+    for(std::uint32_t y {0U}; y < height; ++y) {
+        for(std::uint32_t x {0U}; x < width; ++x) {
+            const std::size_t index = static_cast<std::size_t>(y) * width + x;
+            const std::uint32_t baseSeed = static_cast<std::uint32_t>(index);
+            noiseX[index] = (random_unit(baseSeed) * 2.0F) - 1.0F;
+            noiseY[index] = (random_unit(baseSeed ^ 0x9E3779B9U) * 2.0F) - 1.0F;
+        }
+    }
+
+    for(std::uint32_t y {0U}; y < height; ++y) {
+        for(std::uint32_t x {0U}; x < width; ++x) {
+            float sumX {0.0F};
+            float sumY {0.0F};
+            for(int offsetY {-1}; offsetY <= 1; ++offsetY) {
+                const std::uint32_t sampleY = wrap_index(static_cast<int>(y) + offsetY, height);
+                for(int offsetX {-1}; offsetX <= 1; ++offsetX) {
+                    const std::uint32_t sampleX = wrap_index(static_cast<int>(x) + offsetX, width);
+                    const std::size_t sampleIndex = static_cast<std::size_t>(sampleY) * width + sampleX;
+                    sumX += noiseX[sampleIndex];
+                    sumY += noiseY[sampleIndex];
+                }
+            }
+            const std::size_t index = static_cast<std::size_t>(y) * width + x;
+            blurX[index] = sumX / 9.0F;
+            blurY[index] = sumY / 9.0F;
+        }
+    }
+
+    data.pixels.resize(pixelCount * 4U);
+
+    for(std::uint32_t y {0U}; y < height; ++y) {
+        for(std::uint32_t x {0U}; x < width; ++x) {
+            const std::size_t index = static_cast<std::size_t>(y) * width + x;
+            const float filteredX = std::clamp(noiseX[index] - (normalHighPassStrength * blurX[index]), -1.0F, 1.0F);
+            const float filteredY = std::clamp(noiseY[index] - (normalHighPassStrength * blurY[index]), -1.0F, 1.0F);
+
+            const float nx = std::clamp(filteredX * normalNoiseAmplitude, -1.0F, 1.0F);
+            const float ny = std::clamp(filteredY * normalNoiseAmplitude, -1.0F, 1.0F);
+            const float lengthSquared = (nx * nx) + (ny * ny);
+            const float nz = std::sqrt(std::max(0.0F, 1.0F - lengthSquared));
+
+            const std::array<std::uint8_t, 4U> encoded {
+                encode_colour_component((nx * 0.5F) + 0.5F),
+                encode_colour_component((ny * 0.5F) + 0.5F),
+                encode_colour_component((nz * 0.5F) + 0.5F),
+                255U
+            };
+
+            const std::size_t pixelBase = index * 4U;
+            std::copy(
+                encoded.begin(),
+                encoded.end(),
+                data.pixels.begin() + static_cast<std::ptrdiff_t>(pixelBase));
+        }
+    }
+
+    return data;
+}
+
+auto create_texture_from_pixels(
+    const VulkanContext& context,
+    const TexturePixelData& data,
+    VkFormat format,
+    std::string_view name) -> TextureImage {
+    if(data.extent.width == 0U || data.extent.height == 0U) {
+        throw std::invalid_argument {"TexturePixelData extent must be non-zero"};
+    }
+    return TextureImage::create_from_rgba(context, data.extent, data.pixels, format, name);
 }
 
 } // namespace vulkano
