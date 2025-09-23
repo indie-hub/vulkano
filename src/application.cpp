@@ -357,6 +357,49 @@ void VulkanApplication::draw_frame() {
                 properties.specularStrength = std::clamp(specular, 0.0F, 1.0F);
             }
 
+            bool useAlbedo = properties.useAlbedoMap;
+            if(ImGui::Checkbox("Use Albedo Map", &useAlbedo)) {
+                properties.useAlbedoMap = useAlbedo;
+            }
+
+            bool useNormal = properties.useNormalMap;
+            if(ImGui::Checkbox("Use Normal Map", &useNormal)) {
+                properties.useNormalMap = useNormal;
+            }
+
+            float normalStrength = properties.normalStrength;
+            if(ImGui::SliderFloat("Normal Strength", &normalStrength, 0.0F, 2.0F, "%.2f")) {
+                properties.normalStrength = std::clamp(normalStrength, 0.0F, 2.0F);
+            }
+
+            if(auto* plane = dynamic_cast<PlanePrimitive*>(primitive.primitive.get())) {
+                PlaneParameters parameters = plane->parameters();
+                glm::vec2 uvTiling = parameters.uvTiling;
+                if(ImGui::DragFloat2("UV Tiling", glm::value_ptr(uvTiling), 0.1F, 0.1F, 64.0F, "%.2f")) {
+                    uvTiling.x = std::max(uvTiling.x, 0.1F);
+                    uvTiling.y = std::max(uvTiling.y, 0.1F);
+                    parameters.uvTiling = uvTiling;
+                    plane->set_parameters(parameters);
+                    properties.uvScale = uvTiling;
+                }
+            }
+
+            const char* albedoLabel = primitive.material.albedoUsesFallback ? "Fallback" : "Custom";
+            const VkExtent2D albedoExtent = primitive.material.albedoExtent;
+            ImGui::Text(
+                "Albedo Map: %s (%u x %u)",
+                albedoLabel,
+                albedoExtent.width,
+                albedoExtent.height);
+
+            const char* normalLabel = primitive.material.normalUsesFallback ? "Fallback" : "Custom";
+            const VkExtent2D normalExtent = primitive.material.normalExtent;
+            ImGui::Text(
+                "Normal Map: %s (%u x %u)",
+                normalLabel,
+                normalExtent.width,
+                normalExtent.height);
+
             if(auto* icosphere = dynamic_cast<IcospherePrimitive*>(primitive.primitive.get())) {
                 const IcosphereParameters parameters = icosphere->parameters();
                 int subdivisions = static_cast<int>(parameters.subdivisions);
@@ -394,6 +437,45 @@ void VulkanApplication::draw_frame() {
         }
     }
     ImGui::TextDisabled("Hold RMB to look. WASD to move. Shift to sprint.");
+    ImGui::End();
+
+    ImGui::Begin("Texture Stats", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+    const bool anisotropyEnabled = m_textureSamplers.anisotropy_enabled();
+    ImGui::Text(
+        "Anisotropy: %s",
+        anisotropyEnabled ? "Enabled" : "Disabled");
+    ImGui::Text("Max Anisotropy: %.1f", m_textureSamplers.max_anisotropy());
+    ImGui::Text(
+        "Fallback Albedo: %u x %u",
+        m_fallbackAlbedoExtent.width,
+        m_fallbackAlbedoExtent.height);
+    ImGui::Text(
+        "Fallback Normal: %u x %u",
+        m_fallbackNormalExtent.width,
+        m_fallbackNormalExtent.height);
+
+    ImGui::Separator();
+    for(std::size_t index {0U}; index < m_scene.primitives.size(); ++index) {
+        const ScenePrimitive& primitive = m_scene.primitives.at(index);
+        const std::string identifier = (primitive.primitive != nullptr)
+            ? std::string {primitive.primitive->identifier()}
+            : std::string {"Primitive"};
+        ImGui::Text(
+            "%s Albedo: %s (%u x %u)",
+            identifier.c_str(),
+            primitive.material.albedoUsesFallback ? "Fallback" : "Custom",
+            primitive.material.albedoExtent.width,
+            primitive.material.albedoExtent.height);
+        ImGui::Text(
+            "%s Normal: %s (%u x %u)",
+            identifier.c_str(),
+            primitive.material.normalUsesFallback ? "Fallback" : "Custom",
+            primitive.material.normalExtent.width,
+            primitive.material.normalExtent.height);
+        if(index + 1U < m_scene.primitives.size()) {
+            ImGui::Separator();
+        }
+    }
     ImGui::End();
 
     update_global_uniforms();
