@@ -35,6 +35,7 @@ public:
     [[nodiscard]] auto present_queue_index() const noexcept -> std::uint32_t;
     [[nodiscard]] auto device_properties() const noexcept -> VkPhysicalDeviceProperties;
     [[nodiscard]] auto validation_enabled() const noexcept -> bool;
+    [[nodiscard]] auto supports_sampler_anisotropy() const noexcept -> bool;
     void set_object_name(VkObjectType type, std::uint64_t handle, const std::string& name) const;
     void begin_debug_label(VkCommandBuffer commandBuffer, const std::string& label) const;
     void end_debug_label(VkCommandBuffer commandBuffer) const;
@@ -72,11 +73,13 @@ private:
     std::uint32_t m_graphicsQueueIndex {0U};
     std::uint32_t m_presentQueueIndex {0U};
     VkPhysicalDeviceProperties m_deviceProperties {};
+    VkPhysicalDeviceFeatures m_enabledFeatures {};
     PFN_vkSetDebugUtilsObjectNameEXT m_setObjectName {nullptr};
     PFN_vkCmdBeginDebugUtilsLabelEXT m_cmdBeginLabel {nullptr};
     PFN_vkCmdEndDebugUtilsLabelEXT m_cmdEndLabel {nullptr};
     std::vector<const char*> m_enabledDeviceExtensions {};
     bool m_portabilityEnumeration {false};
+    bool m_samplerAnisotropySupported {false};
 };
 
 class VulkanContextBuilder final {

@@ -163,6 +163,10 @@ auto VulkanContext::validation_enabled() const noexcept -> bool {
     return m_config.validation_enabled();
 }
 
+auto VulkanContext::supports_sampler_anisotropy() const noexcept -> bool {
+    return m_samplerAnisotropySupported;
+}
+
 void VulkanContext::set_object_name(VkObjectType type, std::uint64_t handle, const std::string& name) const {
     if(m_setObjectName == nullptr || m_device == VK_NULL_HANDLE) {
         return;
@@ -288,11 +292,19 @@ void VulkanContext::pick_physical_device() {
         if(!extensionRequirements.has_value()) {
             continue;
         }
+        VkPhysicalDeviceFeatures supportedFeatures {};
+        vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
+
         m_physicalDevice = device;
         m_graphicsQueueIndex = selection.graphicsIndex.value();
         m_presentQueueIndex = selection.presentIndex.value();
         vkGetPhysicalDeviceProperties(device, &m_deviceProperties);
         m_enabledDeviceExtensions = std::move(extensionRequirements.value());
+        m_samplerAnisotropySupported = supportedFeatures.samplerAnisotropy == VK_TRUE;
+        m_enabledFeatures = {};
+        if(m_samplerAnisotropySupported) {
+            m_enabledFeatures.samplerAnisotropy = VK_TRUE;
+        }
         return;
     }
     throw std::runtime_error {"Failed to find a suitable physical device"};
@@ -311,13 +323,17 @@ void VulkanContext::create_logical_device() {
         queueInfos.push_back(queueInfo);
     }
 
-    VkPhysicalDeviceFeatures deviceFeatures {};
+    if(m_samplerAnisotropySupported) {
+        m_enabledFeatures.samplerAnisotropy = VK_TRUE;
+    } else {
+        m_enabledFeatures.samplerAnisotropy = VK_FALSE;
+    }
 
     VkDeviceCreateInfo createInfo {};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     createInfo.queueCreateInfoCount = static_cast<std::uint32_t>(queueInfos.size());
     createInfo.pQueueCreateInfos = queueInfos.data();
-    createInfo.pEnabledFeatures = &deviceFeatures;
+    createInfo.pEnabledFeatures = &m_enabledFeatures;
     createInfo.enabledExtensionCount = static_cast<std::uint32_t>(m_enabledDeviceExtensions.size());
     createInfo.ppEnabledExtensionNames = m_enabledDeviceExtensions.data();
     createInfo.enabledLayerCount = 0U;
@@ -499,13 +515,15 @@ void VulkanContext::cleanup() noexcept {
     m_graphicsQueue = VK_NULL_HANDLE;
     m_presentQueue = VK_NULL_HANDLE;
     m_graphicsQueueIndex = 0U;
-    m_presentQueueIndex = 0U;
-    m_window = nullptr;
-    m_setObjectName = nullptr;
-    m_cmdBeginLabel = nullptr;
-    m_cmdEndLabel = nullptr;
-    m_enabledDeviceExtensions.clear();
+   m_presentQueueIndex = 0U;
+   m_window = nullptr;
+   m_setObjectName = nullptr;
+   m_cmdBeginLabel = nullptr;
+   m_cmdEndLabel = nullptr;
+   m_enabledDeviceExtensions.clear();
     m_portabilityEnumeration = false;
+    m_enabledFeatures = {};
+    m_samplerAnisotropySupported = false;
 }
 
 void VulkanContext::move_from(VulkanContext&& other) noexcept {
@@ -521,11 +539,13 @@ void VulkanContext::move_from(VulkanContext&& other) noexcept {
     m_graphicsQueueIndex = other.m_graphicsQueueIndex;
     m_presentQueueIndex = other.m_presentQueueIndex;
     m_deviceProperties = other.m_deviceProperties;
+    m_enabledFeatures = other.m_enabledFeatures;
     m_setObjectName = other.m_setObjectName;
     m_cmdBeginLabel = other.m_cmdBeginLabel;
     m_cmdEndLabel = other.m_cmdEndLabel;
     m_enabledDeviceExtensions = std::move(other.m_enabledDeviceExtensions);
     m_portabilityEnumeration = other.m_portabilityEnumeration;
+    m_samplerAnisotropySupported = other.m_samplerAnisotropySupported;
 
     other.m_window = nullptr;
     other.m_instance = VK_NULL_HANDLE;
@@ -538,11 +558,13 @@ void VulkanContext::move_from(VulkanContext&& other) noexcept {
     other.m_graphicsQueueIndex = 0U;
     other.m_presentQueueIndex = 0U;
     other.m_deviceProperties = {};
+    other.m_enabledFeatures = {};
     other.m_setObjectName = nullptr;
     other.m_cmdBeginLabel = nullptr;
     other.m_cmdEndLabel = nullptr;
     other.m_enabledDeviceExtensions.clear();
     other.m_portabilityEnumeration = false;
+    other.m_samplerAnisotropySupported = false;
 }
 
 void VulkanContext::load_debug_functions() {

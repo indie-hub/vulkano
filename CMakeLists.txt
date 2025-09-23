@@ -109,6 +109,7 @@ add_library(vulkano_codex_lib STATIC
     src/synchronization.cpp
     src/vertex.cpp
     src/primitives.cpp
+    src/texture.cpp
     src/vulkan_context.cpp
     src/window.cpp
 )
