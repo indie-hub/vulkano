@@ -18,3 +18,9 @@
 - [x] Rebuild and test to verify Y axis direction.
 - [x] Implement FPS camera controls with ImGui interaction gating and tests.
 - [x] Implement cascaded shadow mapping feature (design, shaders, runtime controls, tests, build).
+- [x] Plan texture pipeline extension for albedo and normal maps with procedural fallbacks.
+- [ ] Implement Vulkan texture resources, loaders, and procedural generators for albedo/normal maps.
+- [ ] Update shaders, descriptors, and rendering path to apply albedo and normal textures per primitive.
+- [ ] Extend ImGui UI for texture toggles, normal strength, and stats display.
+- [ ] Add unit and end-to-end tests covering texture generation and bindings.
+- [ ] Build, package binaries into `bin/`, and validate on macOS configuration.
