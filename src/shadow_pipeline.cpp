@@ -51,8 +51,8 @@ ShadowPushConstants::ShadowPushConstants()
 ShadowPipeline::ShadowPipeline(
     const VulkanContext& context,
     const ShadowRenderPass& renderPass,
-    VkDescriptorSetLayout descriptorSetLayout) {
-    initialise(context, renderPass, descriptorSetLayout);
+    std::span<const VkDescriptorSetLayout> descriptorSetLayouts) {
+    initialise(context, renderPass, descriptorSetLayouts);
 }
 
 ShadowPipeline::ShadowPipeline(ShadowPipeline&& other) noexcept {
@@ -74,16 +74,16 @@ ShadowPipeline::~ShadowPipeline() noexcept {
 auto ShadowPipeline::create(
     const VulkanContext& context,
     const ShadowRenderPass& renderPass,
-    VkDescriptorSetLayout descriptorSetLayout) -> ShadowPipeline {
-    return ShadowPipeline {context, renderPass, descriptorSetLayout};
+    std::span<const VkDescriptorSetLayout> descriptorSetLayouts) -> ShadowPipeline {
+    return ShadowPipeline {context, renderPass, descriptorSetLayouts};
 }
 
 void ShadowPipeline::recreate(
     const VulkanContext& context,
     const ShadowRenderPass& renderPass,
-    VkDescriptorSetLayout descriptorSetLayout) {
+    std::span<const VkDescriptorSetLayout> descriptorSetLayouts) {
     cleanup();
-    initialise(context, renderPass, descriptorSetLayout);
+    initialise(context, renderPass, descriptorSetLayouts);
 }
 
 void ShadowPipeline::cleanup() noexcept {
@@ -109,7 +109,7 @@ auto ShadowPipeline::layout() const noexcept -> VkPipelineLayout {
 void ShadowPipeline::initialise(
     const VulkanContext& context,
     const ShadowRenderPass& renderPass,
-    VkDescriptorSetLayout descriptorSetLayout) {
+    std::span<const VkDescriptorSetLayout> descriptorSetLayouts) {
     m_device = context.device();
 
     const auto vertexPath = shaderDirectory / shadowVertexShaderFile;
@@ -185,10 +185,8 @@ void ShadowPipeline::initialise(
 
     VkPipelineLayoutCreateInfo layoutInfo {};
     layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    if(descriptorSetLayout != VK_NULL_HANDLE) {
-        layoutInfo.setLayoutCount = 1U;
-        layoutInfo.pSetLayouts = &descriptorSetLayout;
-    }
+    layoutInfo.setLayoutCount = static_cast<std::uint32_t>(descriptorSetLayouts.size());
+    layoutInfo.pSetLayouts = descriptorSetLayouts.empty() ? nullptr : descriptorSetLayouts.data();
 
     VkPushConstantRange pushConstantRange {};
     pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
@@ -245,4 +243,3 @@ void ShadowPipeline::move_from(ShadowPipeline&& other) noexcept {
 }
 
 } // namespace vulkano
-

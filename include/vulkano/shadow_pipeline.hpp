@@ -6,6 +6,8 @@
 
 #include <vulkan/vulkan.h>
 
+#include <span>
+
 #include <vulkano/shadow_render_pass.hpp>
 #include <vulkano/vulkan_context.hpp>
 
@@ -33,12 +35,12 @@ public:
     [[nodiscard]] static auto create(
         const VulkanContext& context,
         const ShadowRenderPass& renderPass,
-        VkDescriptorSetLayout descriptorSetLayout) -> ShadowPipeline;
+        std::span<const VkDescriptorSetLayout> descriptorSetLayouts) -> ShadowPipeline;
 
     void recreate(
         const VulkanContext& context,
         const ShadowRenderPass& renderPass,
-        VkDescriptorSetLayout descriptorSetLayout);
+        std::span<const VkDescriptorSetLayout> descriptorSetLayouts);
 
     void cleanup() noexcept;
 
@@ -49,12 +51,12 @@ private:
     ShadowPipeline(
         const VulkanContext& context,
         const ShadowRenderPass& renderPass,
-        VkDescriptorSetLayout descriptorSetLayout);
+        std::span<const VkDescriptorSetLayout> descriptorSetLayouts);
 
     void initialise(
         const VulkanContext& context,
         const ShadowRenderPass& renderPass,
-        VkDescriptorSetLayout descriptorSetLayout);
+        std::span<const VkDescriptorSetLayout> descriptorSetLayouts);
     void move_from(ShadowPipeline&& other) noexcept;
 
     VkDevice m_device {VK_NULL_HANDLE};
@@ -63,4 +65,3 @@ private:
 };
 
 } // namespace vulkano
-

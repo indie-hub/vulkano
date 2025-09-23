@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <limits>
 #include <stdexcept>
 #include <string_view>
 #include <unordered_map>
@@ -68,6 +69,77 @@ namespace {
         const std::uint32_t minValue = std::min(first, second);
         const std::uint32_t maxValue = std::max(first, second);
         return (static_cast<std::uint64_t>(minValue) << 32U) | static_cast<std::uint64_t>(maxValue);
+    }
+
+    auto compute_tangents(vulkano::MeshData& mesh) -> void {
+        using glm::vec2;
+        using glm::vec3;
+        using glm::vec4;
+
+        const std::size_t vertexCount = mesh.vertices.size();
+        if(vertexCount == 0U || mesh.indices.size() < 3U) {
+            for(auto& vertex : mesh.vertices) {
+                vertex.tangent = vec4 {1.0F, 0.0F, 0.0F, 1.0F};
+            }
+            return;
+        }
+
+        std::vector<vec3> tan1(vertexCount, vec3 {0.0F, 0.0F, 0.0F});
+        std::vector<vec3> tan2(vertexCount, vec3 {0.0F, 0.0F, 0.0F});
+
+        for(std::size_t index {0U}; index + 2U < mesh.indices.size(); index += 3U) {
+            const std::uint32_t i0 = mesh.indices.at(index);
+            const std::uint32_t i1 = mesh.indices.at(index + 1U);
+            const std::uint32_t i2 = mesh.indices.at(index + 2U);
+
+            const vulkano::MeshVertex& v0 = mesh.vertices.at(i0);
+            const vulkano::MeshVertex& v1 = mesh.vertices.at(i1);
+            const vulkano::MeshVertex& v2 = mesh.vertices.at(i2);
+
+            const vec3 edge1 = v1.position - v0.position;
+            const vec3 edge2 = v2.position - v0.position;
+            const vec2 deltaUv1 = v1.uv - v0.uv;
+            const vec2 deltaUv2 = v2.uv - v0.uv;
+
+            const float determinant = (deltaUv1.x * deltaUv2.y) - (deltaUv2.x * deltaUv1.y);
+            if(std::abs(determinant) <= std::numeric_limits<float>::epsilon()) {
+                continue;
+            }
+            const float invDet = 1.0F / determinant;
+
+            const vec3 tangent = (edge1 * deltaUv2.y - edge2 * deltaUv1.y) * invDet;
+            const vec3 bitangent = (edge2 * deltaUv1.x - edge1 * deltaUv2.x) * invDet;
+
+            tan1.at(i0) += tangent;
+            tan1.at(i1) += tangent;
+            tan1.at(i2) += tangent;
+
+            tan2.at(i0) += bitangent;
+            tan2.at(i1) += bitangent;
+            tan2.at(i2) += bitangent;
+        }
+
+        for(std::size_t index {0U}; index < vertexCount; ++index) {
+            vulkano::MeshVertex& vertex = mesh.vertices.at(index);
+            vec3 tangent = tan1.at(index);
+            const vec3 normal = glm::normalize(vertex.normal);
+
+            if(glm::dot(tangent, tangent) <= std::numeric_limits<float>::epsilon()) {
+                tangent = glm::cross(normal, vec3 {0.0F, 1.0F, 0.0F});
+                if(glm::dot(tangent, tangent) <= std::numeric_limits<float>::epsilon()) {
+                    tangent = glm::vec3 {1.0F, 0.0F, 0.0F};
+                }
+            }
+
+            tangent = glm::normalize(tangent - (normal * glm::dot(normal, tangent)));
+            if(glm::dot(tangent, tangent) <= std::numeric_limits<float>::epsilon()) {
+                tangent = glm::vec3 {1.0F, 0.0F, 0.0F};
+            }
+
+            const vec3 bitangent = tan2.at(index);
+            const float handedness = (glm::dot(glm::cross(normal, tangent), bitangent) < 0.0F) ? -1.0F : 1.0F;
+            vertex.tangent = vec4 {tangent, handedness};
+        }
     }
 }
 
@@ -166,6 +238,7 @@ auto PlanePrimitive::build_mesh() const -> MeshData {
     mesh.vertices[2].uv = glm::vec2 {m_parameters.uvTiling.x, m_parameters.uvTiling.y};
     mesh.vertices[3].uv = glm::vec2 {m_parameters.uvTiling.x, 0.0F};
 
+    compute_tangents(mesh);
     return mesh;
 }
 
@@ -201,6 +274,7 @@ auto CubePrimitive::build_mesh() const -> MeshData {
         }
     }
 
+    compute_tangents(mesh);
     return mesh;
 }
 
@@ -248,6 +322,7 @@ auto IcospherePrimitive::build_mesh() const -> MeshData {
         mesh.vertices.push_back(vertex);
     }
 
+    compute_tangents(mesh);
     return mesh;
 }
 

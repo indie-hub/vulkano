@@ -5,6 +5,8 @@ const uint MAX_SHADOW_CASCADES = 4u;
 layout(location = 0) in vec3 vWorldPos;
 layout(location = 1) in vec3 vNormal;
 layout(location = 2) in vec2 vUv;
+layout(location = 3) in vec3 vTangent;
+layout(location = 4) in vec3 vBitangent;
 
 layout(location = 0) out vec4 outColor;
 
@@ -27,10 +29,14 @@ layout(set = 0, binding = 0) uniform GlobalUniforms {
 
 layout(set = 0, binding = 1) uniform sampler2DArray shadowAtlas;
 
+layout(set = 1, binding = 0) uniform sampler2D albedoMap;
+layout(set = 1, binding = 1) uniform sampler2D normalMap;
+
 layout(push_constant) uniform PrimitivePushConstants {
     mat4 model;
     vec4 materialColor;
     vec4 materialProperties;
+    vec4 materialFlags;
 } primitiveConstants;
 
 const vec3 CASCADE_DEBUG_COLOURS[4] = vec3[4](
@@ -94,6 +100,23 @@ uint select_cascade(float viewSpaceDepth, uint cascadeCount) {
 
 void main() {
     vec3 normal = normalize(vNormal);
+    vec3 baseColor = primitiveConstants.materialColor.rgb;
+
+    if(primitiveConstants.materialFlags.x > 0.5) {
+        vec4 sampledAlbedo = texture(albedoMap, vUv);
+        baseColor *= sampledAlbedo.rgb;
+    }
+
+    if(primitiveConstants.materialFlags.y > 0.5) {
+        vec3 tangent = normalize(vTangent);
+        vec3 bitangent = normalize(vBitangent);
+        mat3 tbn = mat3(tangent, bitangent, normal);
+        vec3 sampledNormal = texture(normalMap, vUv).xyz * 2.0 - 1.0;
+        sampledNormal.xy *= primitiveConstants.materialFlags.z;
+        sampledNormal = normalize(sampledNormal);
+        normal = normalize(tbn * sampledNormal);
+    }
+
     vec3 lightDirection = normalize(-globalUniforms.lightDirectionIntensity.xyz);
     float lightIntensity = globalUniforms.lightDirectionIntensity.w;
 
@@ -106,7 +129,6 @@ void main() {
     uint cascadeIndex = select_cascade(viewDepth, cascadeCount);
 
     float NdotL = max(dot(normal, lightDirection), 0.0);
-    vec3 baseColor = primitiveConstants.materialColor.rgb;
 
     float ambientStrength = primitiveConstants.materialProperties.y;
     float specularStrength = primitiveConstants.materialProperties.z;
@@ -135,4 +157,3 @@ void main() {
 
     outColor = vec4(colour, primitiveConstants.materialColor.a);
 }
-

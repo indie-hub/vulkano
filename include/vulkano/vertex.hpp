@@ -12,7 +12,7 @@ using Vertex = MeshVertex;
 using VertexArray = std::array<Vertex, 3U>;
 
 [[nodiscard]] auto vertex_binding_description() -> VkVertexInputBindingDescription;
-[[nodiscard]] auto vertex_attribute_descriptions() -> std::array<VkVertexInputAttributeDescription, 3U>;
+[[nodiscard]] auto vertex_attribute_descriptions() -> std::array<VkVertexInputAttributeDescription, 4U>;
 [[nodiscard]] auto default_triangle_vertices() -> VertexArray;
 
 } // namespace vulkano

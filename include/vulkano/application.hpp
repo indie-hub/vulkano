@@ -15,6 +15,7 @@
 #include <vulkano/shadow_render_pass.hpp>
 #include <vulkano/swapchain.hpp>
 #include <vulkano/synchronization.hpp>
+#include <vulkano/texture.hpp>
 #include <vulkano/vulkan_context.hpp>
 #include <vulkano/window.hpp>
 
@@ -49,6 +50,8 @@ public:
     [[nodiscard]] auto scene_light_intensity() const noexcept -> float;
 
 private:
+    struct ScenePrimitive;
+
     static void framebuffer_resize_callback(GLFWwindow* window, int width, int height);
 
     void register_callbacks();
@@ -70,6 +73,12 @@ private:
     void create_descriptor_resources();
     void update_descriptor_set_bindings();
     void destroy_descriptor_resources() noexcept;
+    void create_texture_resources();
+    void destroy_texture_resources() noexcept;
+    void allocate_material_descriptor_pool(std::uint32_t primitiveCount);
+    void destroy_material_descriptor_pool() noexcept;
+    void update_material_descriptor(ScenePrimitive& primitive);
+    void update_all_material_descriptors();
     void update_global_uniforms();
     void create_shadow_resources();
     void destroy_shadow_resources() noexcept;
@@ -104,6 +113,18 @@ private:
     struct ScenePrimitive final {
         std::unique_ptr<Primitive> primitive {};
         MeshGpuResources gpu {};
+
+        struct MaterialTextures final {
+            TextureImage customAlbedo {};
+            TextureImage customNormal {};
+            const TextureImage* boundAlbedo {nullptr};
+            const TextureImage* boundNormal {nullptr};
+            VkDescriptorSet descriptor {VK_NULL_HANDLE};
+            bool albedoUsesFallback {true};
+            bool normalUsesFallback {true};
+            VkExtent2D albedoExtent {0U, 0U};
+            VkExtent2D normalExtent {0U, 0U};
+        } material;
     };
 
     struct SceneState final {
@@ -146,9 +167,16 @@ private:
     DepthResources m_depthResources {};
     VkFormat m_depthFormat {VK_FORMAT_D32_SFLOAT};
     VkDescriptorSetLayout m_descriptorSetLayout {VK_NULL_HANDLE};
+    VkDescriptorSetLayout m_materialDescriptorSetLayout {VK_NULL_HANDLE};
     VkDescriptorPool m_descriptorPool {VK_NULL_HANDLE};
+    VkDescriptorPool m_materialDescriptorPool {VK_NULL_HANDLE};
     VkDescriptorSet m_descriptorSet {VK_NULL_HANDLE};
     Buffer m_globalUniformBuffer;
+    TextureSamplers m_textureSamplers;
+    TextureImage m_fallbackAlbedo;
+    TextureImage m_fallbackNormal;
+    VkExtent2D m_fallbackAlbedoExtent {0U, 0U};
+    VkExtent2D m_fallbackNormalExtent {0U, 0U};
 
     std::vector<VkFence> m_imagesInFlight {};
     std::vector<VkSemaphore> m_renderFinishedSemaphores {};

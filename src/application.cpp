@@ -50,6 +50,7 @@ namespace {
         glm::mat4 model {1.0F};
         glm::vec4 materialColor {1.0F, 1.0F, 1.0F, 1.0F};
         glm::vec4 materialProperties {32.0F, 0.1F, 0.5F, 0.0F};
+        glm::vec4 materialFlags {1.0F, 1.0F, 1.0F, 0.0F};
     };
 
 }
@@ -83,13 +84,20 @@ VulkanApplication::VulkanApplication(const AppConfig& config)
     create_descriptor_resources();
     create_shadow_resources();
     update_descriptor_set_bindings();
+    create_texture_resources();
 
-    m_pipeline = GraphicsPipeline::create(m_context, m_renderPass, m_descriptorSetLayout);
-    m_shadowPipeline = ShadowPipeline::create(m_context, m_shadowRenderPass, m_descriptorSetLayout);
+    const std::array<VkDescriptorSetLayout, 2U> descriptorLayouts {
+        m_descriptorSetLayout,
+        m_materialDescriptorSetLayout
+    };
+
+    m_pipeline = GraphicsPipeline::create(m_context, m_renderPass, descriptorLayouts);
+    m_shadowPipeline = ShadowPipeline::create(m_context, m_shadowRenderPass, descriptorLayouts);
     create_render_finished_semaphores();
     m_imagesInFlight.resize(m_swapchain.image_views().size(), VK_NULL_HANDLE);
 
     initialise_scene();
+    allocate_material_descriptor_pool(static_cast<std::uint32_t>(m_scene.primitives.size()));
     init_imgui();
     update_shadow_debug_textures();
     register_callbacks();
@@ -449,7 +457,11 @@ void VulkanApplication::recreate_swapchain() {
 
     m_renderPass = RenderPass::create(m_context, m_swapchain.image_format(), m_depthFormat);
     m_depthResources.recreate(m_context, m_depthFormat, extent, imageCount);
-    m_pipeline.recreate(m_context, m_renderPass, m_descriptorSetLayout);
+    const std::array<VkDescriptorSetLayout, 2U> descriptorLayouts {
+        m_descriptorSetLayout,
+        m_materialDescriptorSetLayout
+    };
+    m_pipeline.recreate(m_context, m_renderPass, descriptorLayouts);
     m_framebuffers.recreate(m_context, m_swapchain, m_renderPass, m_depthResources.image_views());
     const std::uint32_t commandBufferCount = static_cast<std::uint32_t>(m_framebuffers.size());
     m_commandAllocator.recreate(m_context, commandBufferCount);
@@ -673,6 +685,26 @@ void VulkanApplication::record_command_buffer(std::uint32_t imageIndex) {
             properties.specularStrength,
             0.0F
         };
+        const float normalStrength = std::clamp(properties.normalStrength, 0.0F, 2.0F);
+        pushConstants.materialFlags = glm::vec4 {
+            properties.useAlbedoMap ? 1.0F : 0.0F,
+            properties.useNormalMap ? 1.0F : 0.0F,
+            normalStrength,
+            0.0F
+        };
+
+        if(primitive.material.descriptor != VK_NULL_HANDLE) {
+            const VkDescriptorSet materialSet = primitive.material.descriptor;
+            vkCmdBindDescriptorSets(
+                commandBuffer,
+                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                m_pipeline.layout(),
+                1U,
+                1U,
+                &materialSet,
+                0U,
+                nullptr);
+        }
 
         vkCmdPushConstants(
             commandBuffer,
@@ -867,16 +899,19 @@ void VulkanApplication::initialise_scene() {
 
     PrimitiveProperties planeProperties {};
     planeProperties.baseColor = glm::vec3 {0.6F, 0.6F, 0.6F};
+    planeProperties.uvScale = planeParameters.uvTiling;
 
     PrimitiveProperties cubeProperties {};
     cubeProperties.position = glm::vec3 {-1.0F, 0.5F, 0.0F};
     cubeProperties.scale = glm::vec3 {0.5F, 0.5F, 0.5F};
     cubeProperties.baseColor = glm::vec3 {0.9F, 0.4F, 0.1F};
+    cubeProperties.uvScale = glm::vec2 {1.0F, 1.0F};
 
     PrimitiveProperties sphereProperties {};
     sphereProperties.position = glm::vec3 {1.0F, 0.5F, 0.0F};
     sphereProperties.scale = glm::vec3 {0.5F, 0.5F, 0.5F};
     sphereProperties.baseColor = glm::vec3 {0.3F, 0.6F, 0.9F};
+    sphereProperties.uvScale = glm::vec2 {1.0F, 1.0F};
 
     IcosphereParameters sphereParameters {};
     sphereParameters.subdivisions = 2U;
@@ -897,6 +932,12 @@ void VulkanApplication::initialise_scene() {
             const std::string name = std::string {scenePrimitive.primitive->identifier()} + " Primitive";
             scenePrimitive.gpu.upload(m_context, mesh, name);
             scenePrimitive.primitive->clear_mesh_dirty();
+            scenePrimitive.material.boundAlbedo = &m_fallbackAlbedo;
+            scenePrimitive.material.boundNormal = &m_fallbackNormal;
+            scenePrimitive.material.albedoUsesFallback = true;
+            scenePrimitive.material.normalUsesFallback = true;
+            scenePrimitive.material.albedoExtent = m_fallbackAlbedoExtent;
+            scenePrimitive.material.normalExtent = m_fallbackNormalExtent;
         }
         m_scene.primitives.push_back(std::move(scenePrimitive));
     }
@@ -921,45 +962,69 @@ void VulkanApplication::rebuild_dirty_meshes() {
 void VulkanApplication::create_descriptor_resources() {
     destroy_descriptor_resources();
 
-    std::array<VkDescriptorSetLayoutBinding, 2U> bindings {};
+    std::array<VkDescriptorSetLayoutBinding, 2U> globalBindings {};
 
-    bindings.at(0).binding = 0U;
-    bindings.at(0).descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    bindings.at(0).descriptorCount = 1U;
-    bindings.at(0).stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    globalBindings.at(0).binding = 0U;
+    globalBindings.at(0).descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    globalBindings.at(0).descriptorCount = 1U;
+    globalBindings.at(0).stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
-    bindings.at(1).binding = 1U;
-    bindings.at(1).descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    bindings.at(1).descriptorCount = 1U;
-    bindings.at(1).stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    globalBindings.at(1).binding = 1U;
+    globalBindings.at(1).descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    globalBindings.at(1).descriptorCount = 1U;
+    globalBindings.at(1).stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-    VkDescriptorSetLayoutCreateInfo layoutInfo {};
-    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.bindingCount = static_cast<std::uint32_t>(bindings.size());
-    layoutInfo.pBindings = bindings.data();
+    VkDescriptorSetLayoutCreateInfo globalLayoutInfo {};
+    globalLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    globalLayoutInfo.bindingCount = static_cast<std::uint32_t>(globalBindings.size());
+    globalLayoutInfo.pBindings = globalBindings.data();
 
-    if(vkCreateDescriptorSetLayout(m_context.device(), &layoutInfo, nullptr, &m_descriptorSetLayout) != VK_SUCCESS) {
-        throw std::runtime_error {"Failed to create descriptor set layout"};
+    if(vkCreateDescriptorSetLayout(m_context.device(), &globalLayoutInfo, nullptr, &m_descriptorSetLayout) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create global descriptor set layout"};
     }
     m_context.set_object_name(
         VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT,
         reinterpret_cast<std::uint64_t>(m_descriptorSetLayout),
         "Global Descriptor Set Layout");
 
-    std::array<VkDescriptorPoolSize, 2U> poolSizes {};
-    poolSizes.at(0).type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSizes.at(0).descriptorCount = 1U;
-    poolSizes.at(1).type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSizes.at(1).descriptorCount = 1U;
+    std::array<VkDescriptorSetLayoutBinding, 2U> materialBindings {};
+    materialBindings.at(0).binding = 0U;
+    materialBindings.at(0).descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    materialBindings.at(0).descriptorCount = 1U;
+    materialBindings.at(0).stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    materialBindings.at(1).binding = 1U;
+    materialBindings.at(1).descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    materialBindings.at(1).descriptorCount = 1U;
+    materialBindings.at(1).stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutCreateInfo materialLayoutInfo {};
+    materialLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    materialLayoutInfo.bindingCount = static_cast<std::uint32_t>(materialBindings.size());
+    materialLayoutInfo.pBindings = materialBindings.data();
+
+    if(vkCreateDescriptorSetLayout(m_context.device(), &materialLayoutInfo, nullptr, &m_materialDescriptorSetLayout) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create material descriptor set layout"};
+    }
+    m_context.set_object_name(
+        VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT,
+        reinterpret_cast<std::uint64_t>(m_materialDescriptorSetLayout),
+        "Material Descriptor Set Layout");
+
+    std::array<VkDescriptorPoolSize, 2U> globalPoolSizes {};
+    globalPoolSizes.at(0).type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    globalPoolSizes.at(0).descriptorCount = 1U;
+    globalPoolSizes.at(1).type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    globalPoolSizes.at(1).descriptorCount = 1U;
 
     VkDescriptorPoolCreateInfo poolInfo {};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolInfo.poolSizeCount = static_cast<std::uint32_t>(poolSizes.size());
-    poolInfo.pPoolSizes = poolSizes.data();
+    poolInfo.poolSizeCount = static_cast<std::uint32_t>(globalPoolSizes.size());
+    poolInfo.pPoolSizes = globalPoolSizes.data();
     poolInfo.maxSets = 1U;
 
     if(vkCreateDescriptorPool(m_context.device(), &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS) {
-        throw std::runtime_error {"Failed to create descriptor pool"};
+        throw std::runtime_error {"Failed to create global descriptor pool"};
     }
     m_context.set_object_name(
         VK_OBJECT_TYPE_DESCRIPTOR_POOL,
@@ -973,7 +1038,7 @@ void VulkanApplication::create_descriptor_resources() {
     allocateInfo.pSetLayouts = &m_descriptorSetLayout;
 
     if(vkAllocateDescriptorSets(m_context.device(), &allocateInfo, &m_descriptorSet) != VK_SUCCESS) {
-        throw std::runtime_error {"Failed to allocate descriptor set"};
+        throw std::runtime_error {"Failed to allocate global descriptor set"};
     }
 
     m_globalUniformBuffer = Buffer::create_uniform_buffer(m_context, sizeof(GlobalUniform));
@@ -1036,9 +1101,16 @@ void VulkanApplication::update_descriptor_set_bindings() {
 }
 
 void VulkanApplication::destroy_descriptor_resources() noexcept {
+    destroy_material_descriptor_pool();
+    destroy_texture_resources();
+
     if(m_descriptorPool != VK_NULL_HANDLE) {
         vkDestroyDescriptorPool(m_context.device(), m_descriptorPool, nullptr);
         m_descriptorPool = VK_NULL_HANDLE;
+    }
+    if(m_materialDescriptorSetLayout != VK_NULL_HANDLE) {
+        vkDestroyDescriptorSetLayout(m_context.device(), m_materialDescriptorSetLayout, nullptr);
+        m_materialDescriptorSetLayout = VK_NULL_HANDLE;
     }
     if(m_descriptorSetLayout != VK_NULL_HANDLE) {
         vkDestroyDescriptorSetLayout(m_context.device(), m_descriptorSetLayout, nullptr);
@@ -1047,6 +1119,190 @@ void VulkanApplication::destroy_descriptor_resources() noexcept {
     m_descriptorSet = VK_NULL_HANDLE;
     m_globalUniformBuffer = Buffer {};
     m_shadow.descriptorDirty = true;
+}
+
+void VulkanApplication::create_texture_resources() {
+    destroy_texture_resources();
+
+    if(m_context.device() == VK_NULL_HANDLE) {
+        return;
+    }
+
+    m_textureSamplers = TextureSamplers::create(m_context);
+
+    const TexturePixelData checkerboard = generate_checkerboard_pixels();
+    m_fallbackAlbedo = create_texture_from_pixels(
+        m_context,
+        checkerboard,
+        VK_FORMAT_R8G8B8A8_SRGB,
+        "Fallback Checkerboard Albedo");
+    m_fallbackAlbedoExtent = checkerboard.extent;
+
+    const TexturePixelData normalNoise = generate_blue_noise_normal_pixels();
+    m_fallbackNormal = create_texture_from_pixels(
+        m_context,
+        normalNoise,
+        VK_FORMAT_R8G8B8A8_UNORM,
+        "Fallback Blue Noise Normal");
+    m_fallbackNormalExtent = normalNoise.extent;
+
+    for(ScenePrimitive& primitive : m_scene.primitives) {
+        if(primitive.material.albedoUsesFallback) {
+            primitive.material.boundAlbedo = &m_fallbackAlbedo;
+            primitive.material.albedoExtent = m_fallbackAlbedoExtent;
+        }
+        if(primitive.material.normalUsesFallback) {
+            primitive.material.boundNormal = &m_fallbackNormal;
+            primitive.material.normalExtent = m_fallbackNormalExtent;
+        }
+    }
+
+    update_all_material_descriptors();
+}
+
+void VulkanApplication::destroy_texture_resources() noexcept {
+    m_fallbackAlbedo = TextureImage {};
+    m_fallbackNormal = TextureImage {};
+    m_textureSamplers = TextureSamplers {};
+    m_fallbackAlbedoExtent = VkExtent2D {0U, 0U};
+    m_fallbackNormalExtent = VkExtent2D {0U, 0U};
+
+    for(ScenePrimitive& primitive : m_scene.primitives) {
+        if(primitive.material.albedoUsesFallback) {
+            primitive.material.boundAlbedo = nullptr;
+            primitive.material.albedoExtent = VkExtent2D {0U, 0U};
+        }
+        if(primitive.material.normalUsesFallback) {
+            primitive.material.boundNormal = nullptr;
+            primitive.material.normalExtent = VkExtent2D {0U, 0U};
+        }
+    }
+}
+
+void VulkanApplication::allocate_material_descriptor_pool(std::uint32_t primitiveCount) {
+    destroy_material_descriptor_pool();
+
+    if(primitiveCount == 0U || m_materialDescriptorSetLayout == VK_NULL_HANDLE) {
+        return;
+    }
+
+    std::array<VkDescriptorPoolSize, 1U> poolSizes {};
+    poolSizes.at(0).type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes.at(0).descriptorCount = primitiveCount * 2U;
+
+    VkDescriptorPoolCreateInfo poolInfo {};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = static_cast<std::uint32_t>(poolSizes.size());
+    poolInfo.pPoolSizes = poolSizes.data();
+    poolInfo.maxSets = primitiveCount;
+
+    if(vkCreateDescriptorPool(m_context.device(), &poolInfo, nullptr, &m_materialDescriptorPool) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create material descriptor pool"};
+    }
+    m_context.set_object_name(
+        VK_OBJECT_TYPE_DESCRIPTOR_POOL,
+        reinterpret_cast<std::uint64_t>(m_materialDescriptorPool),
+        "Material Descriptor Pool");
+
+    for(ScenePrimitive& primitive : m_scene.primitives) {
+        VkDescriptorSet descriptor {VK_NULL_HANDLE};
+        VkDescriptorSetAllocateInfo allocateInfo {};
+        allocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        allocateInfo.descriptorPool = m_materialDescriptorPool;
+        allocateInfo.descriptorSetCount = 1U;
+        allocateInfo.pSetLayouts = &m_materialDescriptorSetLayout;
+
+        if(vkAllocateDescriptorSets(m_context.device(), &allocateInfo, &descriptor) != VK_SUCCESS) {
+            throw std::runtime_error {"Failed to allocate material descriptor set"};
+        }
+        primitive.material.descriptor = descriptor;
+        if(primitive.material.boundAlbedo == nullptr) {
+            primitive.material.boundAlbedo = &m_fallbackAlbedo;
+            primitive.material.albedoUsesFallback = true;
+            primitive.material.albedoExtent = m_fallbackAlbedoExtent;
+        }
+        if(primitive.material.boundNormal == nullptr) {
+            primitive.material.boundNormal = &m_fallbackNormal;
+            primitive.material.normalUsesFallback = true;
+            primitive.material.normalExtent = m_fallbackNormalExtent;
+        }
+    }
+
+    update_all_material_descriptors();
+}
+
+void VulkanApplication::destroy_material_descriptor_pool() noexcept {
+    if(m_materialDescriptorPool != VK_NULL_HANDLE) {
+        vkDestroyDescriptorPool(m_context.device(), m_materialDescriptorPool, nullptr);
+        m_materialDescriptorPool = VK_NULL_HANDLE;
+    }
+    for(ScenePrimitive& primitive : m_scene.primitives) {
+        primitive.material.descriptor = VK_NULL_HANDLE;
+    }
+}
+
+void VulkanApplication::update_material_descriptor(ScenePrimitive& primitive) {
+    if(primitive.material.descriptor == VK_NULL_HANDLE) {
+        return;
+    }
+    if(m_textureSamplers.albedo() == VK_NULL_HANDLE || m_textureSamplers.normal() == VK_NULL_HANDLE) {
+        return;
+    }
+
+    const TextureImage* albedoImage = primitive.material.boundAlbedo;
+    if(albedoImage == nullptr || albedoImage->image_view() == VK_NULL_HANDLE) {
+        albedoImage = &m_fallbackAlbedo;
+        primitive.material.albedoUsesFallback = true;
+        primitive.material.albedoExtent = m_fallbackAlbedoExtent;
+    }
+
+    const TextureImage* normalImage = primitive.material.boundNormal;
+    if(normalImage == nullptr || normalImage->image_view() == VK_NULL_HANDLE) {
+        normalImage = &m_fallbackNormal;
+        primitive.material.normalUsesFallback = true;
+        primitive.material.normalExtent = m_fallbackNormalExtent;
+    }
+
+    VkDescriptorImageInfo albedoInfo {};
+    albedoInfo.sampler = m_textureSamplers.albedo();
+    albedoInfo.imageView = albedoImage->image_view();
+    albedoInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkDescriptorImageInfo normalInfo {};
+    normalInfo.sampler = m_textureSamplers.normal();
+    normalInfo.imageView = normalImage->image_view();
+    normalInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    std::array<VkWriteDescriptorSet, 2U> writes {};
+    writes.at(0).sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes.at(0).dstSet = primitive.material.descriptor;
+    writes.at(0).dstBinding = 0U;
+    writes.at(0).descriptorCount = 1U;
+    writes.at(0).descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writes.at(0).pImageInfo = &albedoInfo;
+
+    writes.at(1).sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes.at(1).dstSet = primitive.material.descriptor;
+    writes.at(1).dstBinding = 1U;
+    writes.at(1).descriptorCount = 1U;
+    writes.at(1).descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writes.at(1).pImageInfo = &normalInfo;
+
+    vkUpdateDescriptorSets(
+        m_context.device(),
+        static_cast<std::uint32_t>(writes.size()),
+        writes.data(),
+        0U,
+        nullptr);
+
+    primitive.material.boundAlbedo = albedoImage;
+    primitive.material.boundNormal = normalImage;
+}
+
+void VulkanApplication::update_all_material_descriptors() {
+    for(ScenePrimitive& primitive : m_scene.primitives) {
+        update_material_descriptor(primitive);
+    }
 }
 
 void VulkanApplication::create_shadow_resources() {
@@ -1075,7 +1331,11 @@ void VulkanApplication::create_shadow_resources() {
     } else {
         m_shadowRenderPass.recreate(m_context, m_shadow.format);
         if(pipelineInitialised) {
-            m_shadowPipeline.recreate(m_context, m_shadowRenderPass, m_descriptorSetLayout);
+            const std::array<VkDescriptorSetLayout, 2U> descriptorLayouts {
+                m_descriptorSetLayout,
+                m_materialDescriptorSetLayout
+            };
+            m_shadowPipeline.recreate(m_context, m_shadowRenderPass, descriptorLayouts);
         }
     }
 
@@ -1124,7 +1384,11 @@ void VulkanApplication::ensure_shadow_resources() {
     }
 
     if(m_shadowPipeline.handle() == VK_NULL_HANDLE && m_shadowRenderPass.handle() != VK_NULL_HANDLE && m_descriptorSetLayout != VK_NULL_HANDLE) {
-        m_shadowPipeline = ShadowPipeline::create(m_context, m_shadowRenderPass, m_descriptorSetLayout);
+    const std::array<VkDescriptorSetLayout, 2U> descriptorLayouts {
+        m_descriptorSetLayout,
+        m_materialDescriptorSetLayout
+    };
+    m_shadowPipeline = ShadowPipeline::create(m_context, m_shadowRenderPass, descriptorLayouts);
     }
 }
 

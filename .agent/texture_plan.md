@@ -62,3 +62,17 @@
 - Mipmap generation requires format support; add capability checks and fallbacks.
 - Normal strength scaling ensures >0 results clamped.
 - Manage resource cleanup (descriptor sets, images) during swapchain recreation and app teardown.
+
+## Step 3 Notes (Descriptors & Rendering)
+- Extend `PrimitiveProperties` with map toggles (`useAlbedoMap`, `useNormalMap`), `normalStrength`, optional file paths.
+- Update `MeshVertex` to include tangent (vec4). Regenerate tangents in primitives.
+- Introduce `MaterialTextureSet` struct on GPU side: holds `TextureImage` handles for albedo/normal plus descriptor set + status enum (Fallback / Custom / Missing).
+- Create global `TextureLibrary` in `VulkanApplication` to own fallback textures, samplers, descriptor layouts/pools.
+- Rebuild descriptor layouts:
+  - Set 0: global (UBO + shadow).
+  - Set 1: material (albedo sampler, normal sampler).
+- Allocate descriptor sets per primitive; update whenever textures change or toggles require fallback.
+- Modify command buffer bind to use both descriptor sets.
+- Extend push constants with flags/normal strength and base color.
+- Update shaders for tangent-space normal mapping with TBN matrix and texture sampling fallback.
+- Update scene init to assign fallback textures and compute tangents for meshes.
