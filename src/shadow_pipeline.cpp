@@ -125,7 +125,7 @@ void ShadowPipeline::initialise(
     const VkPipelineShaderStageCreateInfo shaderStage = vertexStage;
 
     const VkVertexInputBindingDescription bindingDescription = vertex_binding_description();
-    const auto attributeDescriptions = vertex_attribute_descriptions();
+    const auto attributeDescriptions = shadow_vertex_attribute_descriptions();
 
     VkPipelineVertexInputStateCreateInfo vertexInputInfo {};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;

@@ -3,8 +3,6 @@
 const uint MAX_SHADOW_CASCADES = 4u;
 
 layout(location = 0) in vec3 inPosition;
-layout(location = 1) in vec3 inNormal;
-layout(location = 2) in vec2 inUv;
 
 struct ShadowUniform {
     mat4 lightViewProjection[MAX_SHADOW_CASCADES];
@@ -27,7 +25,9 @@ layout(set = 0, binding = 0) uniform GlobalUniforms {
 layout(push_constant) uniform ShadowConstants {
     mat4 model;
     uint cascadeIndex;
-    vec3 padding;
+    float padding0;
+    float padding1;
+    float padding2;
 } shadowConstants;
 
 void main() {

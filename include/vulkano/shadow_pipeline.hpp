@@ -13,7 +13,7 @@
 
 namespace vulkano {
 
-struct ShadowPushConstants final {
+struct alignas(16) ShadowPushConstants final {
     ShadowPushConstants();
 
     glm::mat4 model;

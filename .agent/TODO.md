@@ -31,3 +31,8 @@
 - [x] Diagnose cascaded shadow mapping bugs (missing shadows, crash, invalid descriptor set).
 - [x] Repair cascaded shadow map resources and bindings so rendering and debug views work.
 - [x] Rebuild binaries, run tests, and validate shadow features end-to-end.
+- [x] Audit cascaded shadow map pipeline (camera matrices, light view, descriptors, UI) to reproduce issues.
+- [x] Correct push constant range and vertex input mismatches between pipeline and shaders.
+- [x] Fix view-dependent shadow behaviour and stabilize cascades (light matrices, splits, stabilization).
+- [x] Restore ImGui debug view for shadow maps and ensure PCF radius/bias controls work.
+- [x] Rebuild project, run unit+end-to-end tests, package binaries in `bin/`, confirm no validation errors.

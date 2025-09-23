@@ -40,6 +40,16 @@ auto vertex_attribute_descriptions() -> std::array<VkVertexInputAttributeDescrip
     return descriptions;
 }
 
+auto shadow_vertex_attribute_descriptions()
+    -> std::array<VkVertexInputAttributeDescription, 1U> {
+    std::array<VkVertexInputAttributeDescription, 1U> descriptions {};
+    descriptions[0].binding = 0U;
+    descriptions[0].location = 0U;
+    descriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+    descriptions[0].offset = offsetof(Vertex, position);
+    return descriptions;
+}
+
 auto default_triangle_vertices() -> VertexArray {
     VertexArray vertices {};
     vertices[0].position = glm::vec3 {0.0F, triangleHalfHeight, triangleDepth};

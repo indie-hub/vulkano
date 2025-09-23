@@ -205,6 +205,9 @@ void VulkanApplication::draw_frame() {
     }
 
     begin_imgui_frame();
+    if(m_shadow.settings.showShadowAtlas && m_shadow.debugDescriptorsDirty) {
+        update_shadow_debug_textures();
+    }
     ImGuiIO& io = ImGui::GetIO();
     update_camera_input(deltaSeconds, io);
     apply_scroll_input(io);
@@ -291,9 +294,6 @@ void VulkanApplication::draw_frame() {
         }
 
         if(m_shadow.settings.showShadowAtlas) {
-            if(m_shadow.debugDescriptorsDirty) {
-                update_shadow_debug_textures();
-            }
             if(!m_shadow.debugAtlasDescriptors.empty()) {
                 ImGui::Separator();
                 for(std::size_t cascadeIdx {0U}; cascadeIdx < m_shadow.debugAtlasDescriptors.size(); ++cascadeIdx) {
@@ -305,6 +305,9 @@ void VulkanApplication::draw_frame() {
                     const ImTextureID textureId = reinterpret_cast<ImTextureID>(descriptor);
                     ImGui::Image(textureId, ImVec2 {128.0F, 128.0F});
                 }
+            } else {
+                ImGui::Separator();
+                ImGui::TextDisabled("Shadow atlas not available yet.");
             }
         }
     }

@@ -222,29 +222,28 @@ auto compute_cascaded_shadow_data(
             maxLightSpaceZ = std::max(maxLightSpaceZ, cornerLightSpace.z);
         }
 
-        const float extentX = std::max(maxAbsX * extentPaddingFactor, epsilon);
-        const float extentY = std::max(maxAbsY * extentPaddingFactor, epsilon);
-        const float dominantExtent = std::max(extentX, extentY);
-        const float texelSize = (dominantExtent * 2.0F) / static_cast<float>(clampedResolution);
+        const float maxAbsXY = std::max(maxAbsX, maxAbsY);
+        const float extent = std::max(maxAbsXY * extentPaddingFactor, epsilon);
+        const float texelSize = (extent * 2.0F) / static_cast<float>(clampedResolution);
         data.cascadeTexelSizes.at(cascadeIndex) = texelSize;
-        data.cascadeRadii.at(cascadeIndex) = dominantExtent;
+        data.cascadeRadii.at(cascadeIndex) = extent;
 
         const float depthPadding = range * 0.5F;
         const float nearPlane = minLightSpaceZ - depthPadding;
         const float farPlane = maxLightSpaceZ + depthPadding;
 
         glm::mat4 lightProjection = glm::ortho(
-            -extentX,
-            extentX,
-            -extentY,
-            extentY,
+            -extent,
+            extent,
+            -extent,
+            extent,
             nearPlane,
             farPlane);
 
         glm::mat4 viewProjectionMatrix = lightProjection * lightView;
         if(settings.stabilize) {
             const float stabilisedResolution = static_cast<float>(clampedResolution);
-            glm::vec4 shadowOrigin = viewProjectionMatrix * glm::vec4 {0.0F, 0.0F, 0.0F, 1.0F};
+            glm::vec4 shadowOrigin = viewProjectionMatrix * glm::vec4 {cascadeCenter, 1.0F};
             if(shadowOrigin.w != 0.0F) {
                 shadowOrigin /= shadowOrigin.w;
             }
@@ -259,7 +258,7 @@ auto compute_cascaded_shadow_data(
 
         const std::size_t arrayIndex = static_cast<std::size_t>(cascadeIndex);
         data.uniform.lightViewProjection.at(arrayIndex) = viewProjectionMatrix;
-        data.uniform.cascadeData.at(arrayIndex) = glm::vec4 {texelSize, dominantExtent, farPlane - nearPlane, 0.0F};
+        data.uniform.cascadeData.at(arrayIndex) = glm::vec4 {texelSize, extent, farPlane - nearPlane, 0.0F};
         data.uniform.cascadeSplits[static_cast<int>(cascadeIndex)] = splitDepth;
     }
 
