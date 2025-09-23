@@ -21,6 +21,24 @@ namespace {
         return true;
     }
 
+    auto all_valid_tangents(const vulkano::MeshData& mesh, float epsilon = 1e-4F) -> bool {
+        for(const vulkano::MeshVertex& vertex : mesh.vertices) {
+            const glm::vec3 tangent = glm::vec3 {vertex.tangent};
+            if(!(glm::length(tangent) == Approx(1.0F).margin(epsilon))) {
+                return false;
+            }
+            const float handedness = vertex.tangent.w;
+            if(!(std::abs(std::abs(handedness) - 1.0F) <= epsilon)) {
+                return false;
+            }
+            const glm::vec3 bitangent = glm::cross(vertex.normal, tangent) * handedness;
+            if(!(glm::dot(bitangent, vertex.normal) == Approx(0.0F).margin(1e-3F))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     auto expected_power_of_four(std::uint32_t exponent) -> std::size_t {
         std::size_t value {1U};
         for(std::uint32_t index {0U}; index < exponent; ++index) {
@@ -57,6 +75,7 @@ TEST_CASE("Plane primitive generates expected quad", "[primitives]") {
     REQUIRE(mesh.vertices.size() == 4U);
     REQUIRE(mesh.indices.size() == 6U);
     REQUIRE(all_unit_normals(mesh));
+    REQUIRE(all_valid_tangents(mesh));
 
     CHECK(mesh.vertices.front().position.x == Approx(-1.0F));
     CHECK(mesh.vertices.front().uv.x == Approx(0.0F));
@@ -70,6 +89,7 @@ TEST_CASE("Cube primitive exposes per-face vertices", "[primitives]") {
     REQUIRE(mesh.vertices.size() == 24U);
     REQUIRE(mesh.indices.size() == 36U);
     REQUIRE(all_unit_normals(mesh));
+    REQUIRE(all_valid_tangents(mesh));
 
     for(std::size_t face {0U}; face < mesh.vertices.size(); face += 4U) {
         const glm::vec3& normal = mesh.vertices.at(face).normal;
@@ -89,10 +109,12 @@ TEST_CASE("Icosphere primitive scales with subdivisions", "[primitives]") {
     REQUIRE(baseMesh.vertices.size() == expected_icosphere_vertices(baseParameters.subdivisions));
     REQUIRE(baseMesh.indices.size() == expected_icosphere_triangles(baseParameters.subdivisions) * 3U);
     REQUIRE(all_unit_normals(baseMesh));
+    REQUIRE(all_valid_tangents(baseMesh));
 
     vulkano::IcospherePrimitive refinedSphere {{.subdivisions = 2U}};
     const vulkano::MeshData& refinedMesh = refinedSphere.mesh();
     REQUIRE(refinedMesh.vertices.size() == expected_icosphere_vertices(2U));
     REQUIRE(refinedMesh.indices.size() == expected_icosphere_triangles(2U) * 3U);
     REQUIRE(all_unit_normals(refinedMesh));
+    REQUIRE(all_valid_tangents(refinedMesh));
 }

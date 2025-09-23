@@ -14,6 +14,7 @@ add_executable(vulkano_codex_tests
     unit/camera_math_tests.cpp
     unit/vertex_tests.cpp
     unit/primitives_tests.cpp
+    unit/texture_tests.cpp
     unit/shadow_mapping_tests.cpp
     integration/application_smoke_tests.cpp
 )
