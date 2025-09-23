@@ -1142,7 +1142,11 @@ void VulkanApplication::update_descriptor_set_bindings() {
     }
     const VkSampler sampler = m_shadowMapResources.sampler();
     const VkImageView imageView = m_shadowMapResources.image_view_array();
+    const VkImageLayout sampleLayout = m_shadow.sampleLayout;
     if(sampler == VK_NULL_HANDLE || imageView == VK_NULL_HANDLE) {
+        return;
+    }
+    if(sampleLayout == VK_IMAGE_LAYOUT_UNDEFINED) {
         return;
     }
 
@@ -1154,7 +1158,7 @@ void VulkanApplication::update_descriptor_set_bindings() {
     VkDescriptorImageInfo imageInfo {};
     imageInfo.sampler = sampler;
     imageInfo.imageView = imageView;
-    imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    imageInfo.imageLayout = sampleLayout;
 
     std::array<VkWriteDescriptorSet, 2U> writes {};
 
@@ -1435,6 +1439,9 @@ void VulkanApplication::create_shadow_resources() {
     m_shadow.resolution = desiredResolution;
     m_shadow.settings.cascadeCount = desiredCascades;
     m_shadow.settings.resolution = desiredResolution;
+    m_shadow.sampleLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    m_shadow.cascadeTexelSizes.fill(0.0F);
+    m_shadow.cascadeRadii.fill(0.0F);
     m_shadow.currentLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     m_shadow.firstUse = true;
     m_shadow.descriptorDirty = true;
@@ -1445,6 +1452,9 @@ void VulkanApplication::destroy_shadow_resources() noexcept {
     m_shadowMapResources.cleanup();
     m_shadowPipeline.cleanup();
     m_shadowRenderPass.cleanup();
+    m_shadow.sampleLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    m_shadow.cascadeTexelSizes.fill(0.0F);
+    m_shadow.cascadeRadii.fill(0.0F);
     m_shadow.currentLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     m_shadow.firstUse = true;
     m_shadow.descriptorDirty = true;
@@ -1463,6 +1473,9 @@ void VulkanApplication::ensure_shadow_resources() {
         update_shadow_debug_textures();
     } else if(m_shadow.descriptorDirty) {
         update_descriptor_set_bindings();
+        if(m_shadow.sampleLayout != VK_IMAGE_LAYOUT_UNDEFINED) {
+            update_shadow_debug_textures();
+        }
     }
 
     if(m_shadowPipeline.handle() == VK_NULL_HANDLE && m_shadowRenderPass.handle() != VK_NULL_HANDLE && m_descriptorSetLayout != VK_NULL_HANDLE) {
@@ -1491,6 +1504,9 @@ void VulkanApplication::recreate_shadow_resources(std::uint32_t cascadeCount, st
         m_shadow.resolution = clampedResolution;
         m_shadow.settings.cascadeCount = clampedCascadeCount;
         m_shadow.settings.resolution = clampedResolution;
+        m_shadow.sampleLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        m_shadow.cascadeTexelSizes.fill(0.0F);
+        m_shadow.cascadeRadii.fill(0.0F);
         m_shadow.currentLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         m_shadow.firstUse = true;
         m_shadow.descriptorDirty = true;
@@ -1516,7 +1532,8 @@ void VulkanApplication::update_shadow_debug_textures() {
         return;
     }
     const VkSampler sampler = m_shadowMapResources.sampler();
-    if(sampler == VK_NULL_HANDLE) {
+    const VkImageLayout sampleLayout = m_shadow.sampleLayout;
+    if(sampler == VK_NULL_HANDLE || sampleLayout == VK_IMAGE_LAYOUT_UNDEFINED) {
         return;
     }
     clear_shadow_debug_textures();
@@ -1529,7 +1546,7 @@ void VulkanApplication::update_shadow_debug_textures() {
         const VkDescriptorSet descriptor = ImGui_ImplVulkan_AddTexture(
             sampler,
             layerView,
-            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+            sampleLayout);
         if(descriptor != VK_NULL_HANDLE) {
             m_shadow.debugAtlasDescriptors.push_back(descriptor);
         }
@@ -1581,6 +1598,8 @@ void VulkanApplication::update_global_uniforms() {
         shadowResolution);
 
     uniforms.shadow = cascadeData.uniform;
+    m_shadow.cascadeTexelSizes = cascadeData.cascadeTexelSizes;
+    m_shadow.cascadeRadii = cascadeData.cascadeRadii;
     uniforms.shadow.shadowParams.w = static_cast<float>(cascadeCount);
     uniforms.shadow.atlasSize.x = static_cast<float>(shadowResolution);
     uniforms.shadow.atlasSize.y = (shadowResolution > 0U) ? (1.0F / static_cast<float>(shadowResolution)) : 0.0F;
@@ -1683,7 +1702,12 @@ void VulkanApplication::render_shadow_pass(VkCommandBuffer commandBuffer) {
 
         vkCmdSetViewport(commandBuffer, 0U, 1U, &viewport);
         vkCmdSetScissor(commandBuffer, 0U, 1U, &scissor);
-        vkCmdSetDepthBias(commandBuffer, biasConstant, 0.0F, biasSlope);
+        const float texelSize = (cascadeIndex < m_shadow.cascadeTexelSizes.size())
+            ? std::max(m_shadow.cascadeTexelSizes.at(cascadeIndex), 1.0F)
+            : 1.0F;
+        const float scaledConstant = std::clamp(biasConstant * texelSize, biasConstant, biasConstant * 8.0F);
+        const float scaledSlope = std::clamp(biasSlope * texelSize, biasSlope, biasSlope * 8.0F);
+        vkCmdSetDepthBias(commandBuffer, scaledConstant, 0.0F, scaledSlope);
 
         for(ScenePrimitive& primitive : m_scene.primitives) {
             if(primitive.primitive == nullptr || !primitive.gpu.has_geometry()) {
@@ -1721,7 +1745,8 @@ void VulkanApplication::render_shadow_pass(VkCommandBuffer commandBuffer) {
     toSampleBarrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
     toSampleBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
     toSampleBarrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-    toSampleBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    const VkImageLayout sampleLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    toSampleBarrier.newLayout = sampleLayout;
     toSampleBarrier.image = shadowImage;
     toSampleBarrier.subresourceRange.aspectMask = aspectMask;
     toSampleBarrier.subresourceRange.baseMipLevel = 0U;
@@ -1741,8 +1766,10 @@ void VulkanApplication::render_shadow_pass(VkCommandBuffer commandBuffer) {
         1U,
         &toSampleBarrier);
 
-    m_shadow.currentLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    m_shadow.sampleLayout = sampleLayout;
+    m_shadow.currentLayout = sampleLayout;
     m_shadow.firstUse = false;
+    m_shadow.descriptorDirty = true;
 }
 
 auto VulkanApplication::camera_position() const noexcept -> glm::vec3 {

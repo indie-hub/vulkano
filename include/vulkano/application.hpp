@@ -29,6 +29,7 @@
 #include <vector>
 #include <chrono>
 #include <string>
+#include <array>
 
 struct ImGuiIO;
 
@@ -157,6 +158,9 @@ private:
         bool descriptorDirty {true};
         bool firstUse {true};
         VkImageLayout currentLayout {VK_IMAGE_LAYOUT_UNDEFINED};
+        VkImageLayout sampleLayout {VK_IMAGE_LAYOUT_UNDEFINED};
+        std::array<float, maxShadowCascades> cascadeTexelSizes {};
+        std::array<float, maxShadowCascades> cascadeRadii {};
         std::vector<VkDescriptorSet> debugAtlasDescriptors {};
         VkFormat format {VK_FORMAT_D32_SFLOAT};
     };

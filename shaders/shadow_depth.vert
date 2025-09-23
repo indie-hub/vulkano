@@ -8,6 +8,7 @@ layout(location = 2) in vec2 inUv;
 
 struct ShadowUniform {
     mat4 lightViewProjection[MAX_SHADOW_CASCADES];
+    vec4 cascadeData[MAX_SHADOW_CASCADES];
     vec4 cascadeSplits;
     vec4 shadowParams;
     vec4 biasParams;
@@ -35,4 +36,3 @@ void main() {
     mat4 lightViewProjection = globalUniforms.shadow.lightViewProjection[cascade];
     gl_Position = lightViewProjection * worldPosition;
 }
-

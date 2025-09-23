@@ -16,6 +16,7 @@ namespace {
     constexpr float epsilon {1e-6F};
     constexpr float defaultShadowDirectionY {1.0F};
     constexpr float depthPaddingScale {2.0F};
+    constexpr float extentPaddingFactor {1.05F};
 
     auto has_stencil_component(VkFormat format) -> bool {
         return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
@@ -92,6 +93,7 @@ CascadedShadowSettings::CascadedShadowSettings()
 
 CascadedShadowUniform::CascadedShadowUniform()
     : lightViewProjection {}
+    , cascadeData {}
     , cascadeSplits {0.0F, 0.0F, 0.0F, 0.0F}
     , shadowParams {1.0F, 0.75F, 1.0F, static_cast<float>(maxShadowCascades)}
     , biasParams {0.0025F, 1.5F, 0.0025F, 0.0F}
@@ -99,6 +101,9 @@ CascadedShadowUniform::CascadedShadowUniform()
     , debugParams {0.0F, 0.0F, 1.0F, 0.0F} {
     for(glm::mat4& matrix : lightViewProjection) {
         matrix = glm::mat4 {1.0F};
+    }
+    for(glm::vec4& cascade : cascadeData) {
+        cascade = glm::vec4 {0.0F};
     }
 }
 
@@ -111,7 +116,11 @@ ShadowComputationInput::ShadowComputationInput()
 }
 
 ShadowCascadeData::ShadowCascadeData()
-    : uniform {} {
+    : uniform {}
+    , cascadeTexelSizes {}
+    , cascadeRadii {} {
+    cascadeTexelSizes.fill(0.0F);
+    cascadeRadii.fill(0.0F);
 }
 
 auto compute_cascaded_shadow_data(
@@ -161,7 +170,10 @@ auto compute_cascaded_shadow_data(
         if(cascadeIndex >= clampedCascadeCount) {
             const std::size_t arrayIndex = static_cast<std::size_t>(cascadeIndex);
             data.uniform.lightViewProjection.at(arrayIndex) = glm::mat4 {1.0F};
+            data.uniform.cascadeData.at(arrayIndex) = glm::vec4 {0.0F};
             data.uniform.cascadeSplits[static_cast<int>(cascadeIndex)] = input.farPlane;
+            data.cascadeTexelSizes.at(cascadeIndex) = 0.0F;
+            data.cascadeRadii.at(cascadeIndex) = 0.0F;
             continue;
         }
 
@@ -197,41 +209,57 @@ auto compute_cascaded_shadow_data(
         const glm::vec3 lightPosition = cascadeCenter - (lightDirection * radius * depthPaddingScale);
         const glm::mat4 lightView = glm::lookAt(lightPosition, cascadeCenter, up);
 
-        glm::vec3 minBounds {std::numeric_limits<float>::max()};
-        glm::vec3 maxBounds {std::numeric_limits<float>::lowest()};
+        float maxAbsX {0.0F};
+        float maxAbsY {0.0F};
+        float minLightSpaceZ {std::numeric_limits<float>::max()};
+        float maxLightSpaceZ {std::numeric_limits<float>::lowest()};
         for(const glm::vec3& corner : cascadeCorners) {
-            const glm::vec4 cornerLightSpace = lightView * glm::vec4 {corner, 1.0F};
-            minBounds = glm::min(minBounds, glm::vec3 {cornerLightSpace});
-            maxBounds = glm::max(maxBounds, glm::vec3 {cornerLightSpace});
+            const glm::vec4 cornerLightSpace4 = lightView * glm::vec4 {corner, 1.0F};
+            const glm::vec3 cornerLightSpace {cornerLightSpace4};
+            maxAbsX = std::max(maxAbsX, glm::abs(cornerLightSpace.x));
+            maxAbsY = std::max(maxAbsY, glm::abs(cornerLightSpace.y));
+            minLightSpaceZ = std::min(minLightSpaceZ, cornerLightSpace.z);
+            maxLightSpaceZ = std::max(maxLightSpaceZ, cornerLightSpace.z);
         }
 
-        const float depthPadding = range * 0.5F + radius;
-        minBounds.z -= depthPadding;
-        maxBounds.z += depthPadding;
+        const float extentX = std::max(maxAbsX * extentPaddingFactor, epsilon);
+        const float extentY = std::max(maxAbsY * extentPaddingFactor, epsilon);
+        const float dominantExtent = std::max(extentX, extentY);
+        const float texelSize = (dominantExtent * 2.0F) / static_cast<float>(clampedResolution);
+        data.cascadeTexelSizes.at(cascadeIndex) = texelSize;
+        data.cascadeRadii.at(cascadeIndex) = dominantExtent;
+
+        const float depthPadding = range * 0.5F;
+        const float nearPlane = minLightSpaceZ - depthPadding;
+        const float farPlane = maxLightSpaceZ + depthPadding;
 
         glm::mat4 lightProjection = glm::ortho(
-            minBounds.x,
-            maxBounds.x,
-            minBounds.y,
-            maxBounds.y,
-            minBounds.z,
-            maxBounds.z);
+            -extentX,
+            extentX,
+            -extentY,
+            extentY,
+            nearPlane,
+            farPlane);
 
         glm::mat4 viewProjectionMatrix = lightProjection * lightView;
         if(settings.stabilize) {
-            const float mapResolution = static_cast<float>(clampedResolution);
-            const glm::vec4 origin = viewProjectionMatrix * glm::vec4 {0.0F, 0.0F, 0.0F, 1.0F};
-            const glm::vec2 originScaled = glm::vec2 {origin.x, origin.y} * (mapResolution * 0.5F);
-            const glm::vec2 originRounded = glm::round(originScaled);
-            const glm::vec2 roundOffset = (originRounded - originScaled) / (mapResolution * 0.5F);
-            glm::mat4 stabiliseMatrix {1.0F};
-            stabiliseMatrix[3][0] = roundOffset.x;
-            stabiliseMatrix[3][1] = roundOffset.y;
-            viewProjectionMatrix = stabiliseMatrix * viewProjectionMatrix;
+            const float stabilisedResolution = static_cast<float>(clampedResolution);
+            glm::vec4 shadowOrigin = viewProjectionMatrix * glm::vec4 {0.0F, 0.0F, 0.0F, 1.0F};
+            if(shadowOrigin.w != 0.0F) {
+                shadowOrigin /= shadowOrigin.w;
+            }
+            shadowOrigin *= (stabilisedResolution * 0.5F);
+            const glm::vec2 roundedOrigin = glm::round(glm::vec2 {shadowOrigin.x, shadowOrigin.y});
+            const glm::vec2 roundOffset = (roundedOrigin - glm::vec2 {shadowOrigin.x, shadowOrigin.y}) * (2.0F / stabilisedResolution);
+            glm::mat4 correction {1.0F};
+            correction[3][0] = roundOffset.x;
+            correction[3][1] = roundOffset.y;
+            viewProjectionMatrix = correction * viewProjectionMatrix;
         }
 
         const std::size_t arrayIndex = static_cast<std::size_t>(cascadeIndex);
         data.uniform.lightViewProjection.at(arrayIndex) = viewProjectionMatrix;
+        data.uniform.cascadeData.at(arrayIndex) = glm::vec4 {texelSize, dominantExtent, farPlane - nearPlane, 0.0F};
         data.uniform.cascadeSplits[static_cast<int>(cascadeIndex)] = splitDepth;
     }
 

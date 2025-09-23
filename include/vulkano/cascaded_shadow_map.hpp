@@ -38,6 +38,7 @@ struct alignas(16) CascadedShadowUniform final {
     CascadedShadowUniform();
 
     std::array<glm::mat4, maxShadowCascades> lightViewProjection;
+    std::array<glm::vec4, maxShadowCascades> cascadeData;
     glm::vec4 cascadeSplits;
     glm::vec4 shadowParams;
     glm::vec4 biasParams;
@@ -59,6 +60,8 @@ struct ShadowCascadeData final {
     ShadowCascadeData();
 
     CascadedShadowUniform uniform;
+    std::array<float, maxShadowCascades> cascadeTexelSizes;
+    std::array<float, maxShadowCascades> cascadeRadii;
 };
 
 auto compute_cascaded_shadow_data(

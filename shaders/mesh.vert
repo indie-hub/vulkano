@@ -15,6 +15,7 @@ layout(location = 4) out vec3 vBitangent;
 
 struct ShadowUniform {
     mat4 lightViewProjection[MAX_SHADOW_CASCADES];
+    vec4 cascadeData[MAX_SHADOW_CASCADES];
     vec4 cascadeSplits;
     vec4 shadowParams;
     vec4 biasParams;

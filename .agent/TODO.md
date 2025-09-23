@@ -25,3 +25,6 @@
 - [x] Extend ImGui UI for texture toggles, normal strength, and stats display.
 - [x] Add unit and end-to-end tests covering texture generation and bindings.
 - [x] Build, package binaries into `bin/`, and validate on macOS configuration.
+- [x] Document baseline shadow behaviour before adjustments.
+- [x] Design and implement corrected cascade stabilisation + bias.
+- [x] Rebuild and validate shadows after changes.

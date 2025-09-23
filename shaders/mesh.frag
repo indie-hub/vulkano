@@ -12,6 +12,7 @@ layout(location = 0) out vec4 outColor;
 
 struct ShadowUniform {
     mat4 lightViewProjection[MAX_SHADOW_CASCADES];
+    vec4 cascadeData[MAX_SHADOW_CASCADES];
     vec4 cascadeSplits;
     vec4 shadowParams;
     vec4 biasParams;
@@ -52,10 +53,20 @@ float compute_shadow(uint cascadeIndex, vec3 worldPosition, vec3 normal) {
         return 0.0;
     }
 
+    vec4 cascadeMeta = globalUniforms.shadow.cascadeData[cascadeIndex];
     float mapResolution = globalUniforms.shadow.atlasSize.x;
     float invMapResolution = globalUniforms.shadow.atlasSize.y;
-    float normalBias = globalUniforms.shadow.biasParams.z;
+
+    vec3 lightDir = normalize(-globalUniforms.lightDirectionIntensity.xyz);
+    float ndotl = clamp(dot(normal, lightDir), 0.0, 1.0);
+    float angularFactor = 1.0 - ndotl;
+
+    float texelSize = max(cascadeMeta.x, 1e-4);
+    float baseNormalBias = globalUniforms.shadow.biasParams.z * texelSize;
+    float minNormalBias = baseNormalBias * 0.25;
+    float normalBias = mix(minNormalBias, baseNormalBias, angularFactor);
     vec3 biasedPosition = worldPosition + normal * normalBias;
+
     vec4 lightSpace = globalUniforms.shadow.lightViewProjection[cascadeIndex] * vec4(biasedPosition, 1.0);
     vec3 shadowCoord = lightSpace.xyz / lightSpace.w;
     shadowCoord = shadowCoord * 0.5 + 0.5;
@@ -66,7 +77,7 @@ float compute_shadow(uint cascadeIndex, vec3 worldPosition, vec3 normal) {
 
     int kernelRadius = int(round(globalUniforms.shadow.shadowParams.z));
     kernelRadius = max(kernelRadius, 0);
-    float depthBias = globalUniforms.shadow.biasParams.x;
+    float depthBias = globalUniforms.shadow.biasParams.x * texelSize;
 
     float shadow = 0.0;
     float samples = 0.0;
