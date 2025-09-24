@@ -22,7 +22,6 @@
 #include <glm/gtc/type_ptr.hpp>
 
 namespace {
-    constexpr std::uint32_t maxFramesInFlight {2U};
     constexpr std::array<float, 4U> clearColour {0.0F, 0.0F, 0.0F, 1.0F};
     constexpr float timingSmoothingFactor {0.1F};
     constexpr float cameraBaseSpeed {4.0F};
@@ -83,7 +82,6 @@ VulkanApplication::VulkanApplication(const AppConfig& config)
 
     create_descriptor_resources();
     create_shadow_resources();
-    update_descriptor_set_bindings();
     create_texture_resources();
 
     const std::array<VkDescriptorSetLayout, 2U> descriptorLayouts {
@@ -494,7 +492,7 @@ void VulkanApplication::draw_frame() {
     }
     ImGui::End();
 
-    update_global_uniforms();
+    update_global_uniforms(m_currentFrame);
     ImGui::Render();
     record_command_buffer(imageIndex);
 
@@ -566,7 +564,7 @@ void VulkanApplication::recreate_swapchain() {
     m_imagesInFlight.assign(commandBufferCount, VK_NULL_HANDLE);
     create_render_finished_semaphores();
     ImGui_ImplVulkan_SetMinImageCount(static_cast<std::uint32_t>(m_swapchain.image_views().size()));
-    update_global_uniforms();
+    update_global_uniforms(m_currentFrame);
 }
 
 void VulkanApplication::create_render_finished_semaphores() {
@@ -704,6 +702,7 @@ void VulkanApplication::begin_imgui_frame() {
 }
 
 void VulkanApplication::record_command_buffer(std::uint32_t imageIndex) {
+    const std::uint32_t frameIndex = m_currentFrame;
     VkCommandBuffer commandBuffer = m_commandAllocator.buffers().at(imageIndex);
     if(vkResetCommandBuffer(commandBuffer, 0U) != VK_SUCCESS) {
         throw std::runtime_error {"Failed to reset command buffer"};
@@ -715,7 +714,7 @@ void VulkanApplication::record_command_buffer(std::uint32_t imageIndex) {
         throw std::runtime_error {"Failed to begin recording command buffer"};
     }
 
-    render_shadow_pass(commandBuffer);
+    render_shadow_pass(commandBuffer, frameIndex);
 
     std::array<VkClearValue, 2U> clearValues {};
     clearValues[0].color = {{clearColour[0], clearColour[1], clearColour[2], clearColour[3]}};
@@ -751,14 +750,17 @@ void VulkanApplication::record_command_buffer(std::uint32_t imageIndex) {
     m_context.begin_debug_label(commandBuffer, "Draw Primitives");
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline.handle());
 
-    if(m_descriptorSet != VK_NULL_HANDLE) {
+    const VkDescriptorSet globalDescriptor = (frameIndex < maxFramesInFlight)
+        ? m_frameResources.at(frameIndex).descriptor
+        : VK_NULL_HANDLE;
+    if(globalDescriptor != VK_NULL_HANDLE) {
         vkCmdBindDescriptorSets(
             commandBuffer,
             VK_PIPELINE_BIND_POINT_GRAPHICS,
             m_pipeline.layout(),
             0U,
             1U,
-            &m_descriptorSet,
+            &globalDescriptor,
             0U,
             nullptr);
     }
@@ -1111,15 +1113,15 @@ void VulkanApplication::create_descriptor_resources() {
 
     std::array<VkDescriptorPoolSize, 2U> globalPoolSizes {};
     globalPoolSizes.at(0).type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    globalPoolSizes.at(0).descriptorCount = 1U;
+    globalPoolSizes.at(0).descriptorCount = maxFramesInFlight;
     globalPoolSizes.at(1).type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    globalPoolSizes.at(1).descriptorCount = 1U;
+    globalPoolSizes.at(1).descriptorCount = maxFramesInFlight;
 
     VkDescriptorPoolCreateInfo poolInfo {};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.poolSizeCount = static_cast<std::uint32_t>(globalPoolSizes.size());
     poolInfo.pPoolSizes = globalPoolSizes.data();
-    poolInfo.maxSets = 1U;
+    poolInfo.maxSets = maxFramesInFlight;
 
     if(vkCreateDescriptorPool(m_context.device(), &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS) {
         throw std::runtime_error {"Failed to create global descriptor pool"};
@@ -1129,35 +1131,56 @@ void VulkanApplication::create_descriptor_resources() {
         reinterpret_cast<std::uint64_t>(m_descriptorPool),
         "Global Descriptor Pool");
 
+    std::array<VkDescriptorSetLayout, maxFramesInFlight> layouts {};
+    layouts.fill(m_descriptorSetLayout);
+
+    std::array<VkDescriptorSet, maxFramesInFlight> descriptors {};
+
     VkDescriptorSetAllocateInfo allocateInfo {};
     allocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     allocateInfo.descriptorPool = m_descriptorPool;
-    allocateInfo.descriptorSetCount = 1U;
-    allocateInfo.pSetLayouts = &m_descriptorSetLayout;
+    allocateInfo.descriptorSetCount = maxFramesInFlight;
+    allocateInfo.pSetLayouts = layouts.data();
 
-    if(vkAllocateDescriptorSets(m_context.device(), &allocateInfo, &m_descriptorSet) != VK_SUCCESS) {
-        throw std::runtime_error {"Failed to allocate global descriptor set"};
+    if(vkAllocateDescriptorSets(m_context.device(), &allocateInfo, descriptors.data()) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to allocate global descriptor sets"};
     }
 
-    m_globalUniformBuffer = Buffer::create_uniform_buffer(m_context, sizeof(GlobalUniform));
-    m_context.set_object_name(
-        VK_OBJECT_TYPE_BUFFER,
-        reinterpret_cast<std::uint64_t>(m_globalUniformBuffer.handle()),
-        "Global Uniform Buffer");
+    for(std::uint32_t index {0U}; index < maxFramesInFlight; ++index) {
+        FrameResources& frame = m_frameResources.at(index);
+        frame.descriptor = descriptors.at(index);
+        frame.uniformBuffer = Buffer::create_uniform_buffer(m_context, sizeof(GlobalUniform));
+        frame.descriptorDirty = true;
 
-    m_shadow.descriptorDirty = true;
-    update_global_uniforms();
+        const std::string bufferName = "Global Uniform Buffer [" + std::to_string(index) + "]";
+        m_context.set_object_name(
+            VK_OBJECT_TYPE_BUFFER,
+            reinterpret_cast<std::uint64_t>(frame.uniformBuffer.handle()),
+            bufferName);
+    }
+
+    mark_all_frame_descriptors_dirty();
+    update_global_uniforms(m_currentFrame);
 }
 
-void VulkanApplication::update_descriptor_set_bindings() {
-    if(m_descriptorSet == VK_NULL_HANDLE) {
+void VulkanApplication::update_descriptor_set_bindings(std::uint32_t frameIndex) {
+    if(frameIndex >= maxFramesInFlight) {
         return;
     }
-    if(m_globalUniformBuffer.handle() == VK_NULL_HANDLE) {
+
+    FrameResources& frame = m_frameResources.at(frameIndex);
+    if(!frame.descriptorDirty) {
         return;
     }
+    if(frame.descriptor == VK_NULL_HANDLE) {
+        return;
+    }
+    if(frame.uniformBuffer.handle() == VK_NULL_HANDLE) {
+        return;
+    }
+
     VkDescriptorBufferInfo bufferInfo {};
-    bufferInfo.buffer = m_globalUniformBuffer.handle();
+    bufferInfo.buffer = frame.uniformBuffer.handle();
     bufferInfo.offset = 0U;
     bufferInfo.range = sizeof(GlobalUniform);
 
@@ -1165,7 +1188,7 @@ void VulkanApplication::update_descriptor_set_bindings() {
     std::uint32_t writeCount {0U};
 
     writes.at(writeCount).sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    writes.at(writeCount).dstSet = m_descriptorSet;
+    writes.at(writeCount).dstSet = frame.descriptor;
     writes.at(writeCount).dstBinding = 0U;
     writes.at(writeCount).descriptorCount = 1U;
     writes.at(writeCount).descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -1187,7 +1210,7 @@ void VulkanApplication::update_descriptor_set_bindings() {
         imageInfo.imageLayout = descriptorLayout;
 
         writes.at(writeCount).sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        writes.at(writeCount).dstSet = m_descriptorSet;
+        writes.at(writeCount).dstSet = frame.descriptor;
         writes.at(writeCount).dstBinding = 1U;
         writes.at(writeCount).descriptorCount = 1U;
         writes.at(writeCount).descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -1203,12 +1226,26 @@ void VulkanApplication::update_descriptor_set_bindings() {
         nullptr);
 
     const bool layoutKnown = currentLayout != VK_IMAGE_LAYOUT_UNDEFINED;
-    m_shadow.descriptorDirty = !(imageReady && layoutKnown);
+    frame.descriptorDirty = !(imageReady && layoutKnown);
+
+    const bool anyDirty = std::any_of(
+        m_frameResources.begin(),
+        m_frameResources.end(),
+        [](const FrameResources& candidate) {
+            return candidate.descriptorDirty;
+        });
+    m_shadow.descriptorDirty = anyDirty;
 }
 
 void VulkanApplication::destroy_descriptor_resources() noexcept {
     destroy_material_descriptor_pool();
     destroy_texture_resources();
+
+    for(FrameResources& frame : m_frameResources) {
+        frame.uniformBuffer = Buffer {};
+        frame.descriptor = VK_NULL_HANDLE;
+        frame.descriptorDirty = true;
+    }
 
     if(m_descriptorPool != VK_NULL_HANDLE) {
         vkDestroyDescriptorPool(m_context.device(), m_descriptorPool, nullptr);
@@ -1222,8 +1259,14 @@ void VulkanApplication::destroy_descriptor_resources() noexcept {
         vkDestroyDescriptorSetLayout(m_context.device(), m_descriptorSetLayout, nullptr);
         m_descriptorSetLayout = VK_NULL_HANDLE;
     }
-    m_descriptorSet = VK_NULL_HANDLE;
-    m_globalUniformBuffer = Buffer {};
+
+    m_shadow.descriptorDirty = true;
+}
+
+void VulkanApplication::mark_all_frame_descriptors_dirty() noexcept {
+    for(FrameResources& frame : m_frameResources) {
+        frame.descriptorDirty = true;
+    }
     m_shadow.descriptorDirty = true;
 }
 
@@ -1464,7 +1507,7 @@ void VulkanApplication::create_shadow_resources() {
     m_shadow.cascadeRadii.fill(0.0F);
     m_shadow.currentLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     m_shadow.firstUse = true;
-    m_shadow.descriptorDirty = true;
+    mark_all_frame_descriptors_dirty();
     m_shadow.debugDescriptorsDirty = true;
 }
 
@@ -1478,12 +1521,12 @@ void VulkanApplication::destroy_shadow_resources() noexcept {
     m_shadow.cascadeRadii.fill(0.0F);
     m_shadow.currentLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     m_shadow.firstUse = true;
-    m_shadow.descriptorDirty = true;
+    mark_all_frame_descriptors_dirty();
     m_shadow.resourcesDirty = false;
     m_shadow.debugDescriptorsDirty = true;
 }
 
-void VulkanApplication::ensure_shadow_resources() {
+void VulkanApplication::ensure_shadow_resources(std::uint32_t frameIndex) {
     if(m_shadow.resourcesDirty) {
         recreate_shadow_resources(m_shadow.settings.cascadeCount, m_shadow.settings.resolution);
         m_shadow.resourcesDirty = false;
@@ -1491,17 +1534,21 @@ void VulkanApplication::ensure_shadow_resources() {
 
     if(m_shadowMapResources.image() == VK_NULL_HANDLE) {
         create_shadow_resources();
-        update_descriptor_set_bindings();
-    } else if(m_shadow.descriptorDirty) {
-        update_descriptor_set_bindings();
+    }
+
+    if(frameIndex < maxFramesInFlight) {
+        const FrameResources& frame = m_frameResources.at(frameIndex);
+        if(frame.descriptorDirty || m_shadow.descriptorDirty) {
+            update_descriptor_set_bindings(frameIndex);
+        }
     }
 
     if(m_shadowPipeline.handle() == VK_NULL_HANDLE && m_shadowRenderPass.handle() != VK_NULL_HANDLE && m_descriptorSetLayout != VK_NULL_HANDLE) {
-    const std::array<VkDescriptorSetLayout, 2U> descriptorLayouts {
-        m_descriptorSetLayout,
-        m_materialDescriptorSetLayout
-    };
-    m_shadowPipeline = ShadowPipeline::create(m_context, m_shadowRenderPass, descriptorLayouts);
+        const std::array<VkDescriptorSetLayout, 2U> descriptorLayouts {
+            m_descriptorSetLayout,
+            m_materialDescriptorSetLayout
+        };
+        m_shadowPipeline = ShadowPipeline::create(m_context, m_shadowRenderPass, descriptorLayouts);
     }
 }
 
@@ -1527,10 +1574,9 @@ void VulkanApplication::recreate_shadow_resources(std::uint32_t cascadeCount, st
         m_shadow.cascadeRadii.fill(0.0F);
         m_shadow.currentLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         m_shadow.firstUse = true;
-        m_shadow.descriptorDirty = true;
     }
 
-    update_descriptor_set_bindings();
+    mark_all_frame_descriptors_dirty();
     m_shadow.debugDescriptorsDirty = true;
 }
 
@@ -1579,12 +1625,17 @@ void VulkanApplication::update_shadow_debug_textures() {
     m_shadow.debugDescriptorsDirty = false;
 }
 
-void VulkanApplication::update_global_uniforms() {
-    if(m_globalUniformBuffer.handle() == VK_NULL_HANDLE) {
+void VulkanApplication::update_global_uniforms(std::uint32_t frameIndex) {
+    if(frameIndex >= maxFramesInFlight) {
         return;
     }
 
-    ensure_shadow_resources();
+    FrameResources& frame = m_frameResources.at(frameIndex);
+    if(frame.uniformBuffer.handle() == VK_NULL_HANDLE) {
+        return;
+    }
+
+    ensure_shadow_resources(frameIndex);
 
     GlobalUniform uniforms {};
     const glm::vec3 cameraPos = camera_position();
@@ -1635,11 +1686,11 @@ void VulkanApplication::update_global_uniforms() {
     uniforms.shadow.atlasSize.x = static_cast<float>(shadowResolution);
     uniforms.shadow.atlasSize.y = (shadowResolution > 0U) ? (1.0F / static_cast<float>(shadowResolution)) : 0.0F;
 
-    m_globalUniformBuffer.write(m_context, &uniforms, sizeof(GlobalUniform));
+    frame.uniformBuffer.write(m_context, &uniforms, sizeof(GlobalUniform));
 }
 
-void VulkanApplication::render_shadow_pass(VkCommandBuffer commandBuffer) {
-    ensure_shadow_resources();
+void VulkanApplication::render_shadow_pass(VkCommandBuffer commandBuffer, std::uint32_t frameIndex) {
+    ensure_shadow_resources(frameIndex);
 
     if(m_shadowMapResources.image() == VK_NULL_HANDLE) {
         return;
@@ -1719,16 +1770,19 @@ void VulkanApplication::render_shadow_pass(VkCommandBuffer commandBuffer) {
         vkCmdBeginRenderPass(commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_shadowPipeline.handle());
-        if(m_descriptorSet != VK_NULL_HANDLE) {
-            vkCmdBindDescriptorSets(
-                commandBuffer,
-                VK_PIPELINE_BIND_POINT_GRAPHICS,
-                m_shadowPipeline.layout(),
-                0U,
-                1U,
-                &m_descriptorSet,
-                0U,
-                nullptr);
+        if(frameIndex < maxFramesInFlight) {
+            const VkDescriptorSet descriptor = m_frameResources.at(frameIndex).descriptor;
+            if(descriptor != VK_NULL_HANDLE) {
+                vkCmdBindDescriptorSets(
+                    commandBuffer,
+                    VK_PIPELINE_BIND_POINT_GRAPHICS,
+                    m_shadowPipeline.layout(),
+                    0U,
+                    1U,
+                    &descriptor,
+                    0U,
+                    nullptr);
+            }
         }
 
         vkCmdSetViewport(commandBuffer, 0U, 1U, &viewport);
@@ -1800,7 +1854,7 @@ void VulkanApplication::render_shadow_pass(VkCommandBuffer commandBuffer) {
     m_shadow.sampleLayout = sampleLayout;
     m_shadow.currentLayout = sampleLayout;
     m_shadow.firstUse = false;
-    m_shadow.descriptorDirty = true;
+    mark_all_frame_descriptors_dirty();
     m_shadow.debugDescriptorsDirty = true;
 }
 

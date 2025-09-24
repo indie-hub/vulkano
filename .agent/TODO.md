@@ -38,6 +38,6 @@
 - [x] Rebuild project, run unit+end-to-end tests, package binaries in `bin/`, confirm no validation errors.
 - [x] Analyse cascaded shadow mapping light-space transforms and descriptor updates.
 - [x] Fix directional light world-space transforms and cascade stabilization behaviour.
-- [ ] Resolve descriptor set update-in-use issues during shadow resource updates.
-- [ ] Update tests, rebuild binaries, run validation to ensure no errors.
-- [ ] Final pass: document adjustments and prepare conventional commit.
+- [x] Resolve descriptor set update-in-use issues during shadow resource updates.
+- [x] Update tests, rebuild binaries, run validation to ensure no errors.
+- [x] Final pass: document adjustments and prepare conventional commit.

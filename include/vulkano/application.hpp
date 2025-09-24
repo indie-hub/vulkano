@@ -52,6 +52,8 @@ public:
     [[nodiscard]] auto scene_light_intensity() const noexcept -> float;
 
 private:
+    static constexpr std::uint32_t maxFramesInFlight {2U};
+
     struct ScenePrimitive;
 
     static void framebuffer_resize_callback(GLFWwindow* window, int width, int height);
@@ -73,19 +75,20 @@ private:
     void initialise_scene();
     void rebuild_dirty_meshes();
     void create_descriptor_resources();
-    void update_descriptor_set_bindings();
+    void update_descriptor_set_bindings(std::uint32_t frameIndex);
     void destroy_descriptor_resources() noexcept;
+    void mark_all_frame_descriptors_dirty() noexcept;
     void create_texture_resources();
     void destroy_texture_resources() noexcept;
     void allocate_material_descriptor_pool(std::uint32_t primitiveCount);
     void destroy_material_descriptor_pool() noexcept;
     void update_material_descriptor(ScenePrimitive& primitive);
     void update_all_material_descriptors();
-    void update_global_uniforms();
+    void update_global_uniforms(std::uint32_t frameIndex);
     void create_shadow_resources();
     void destroy_shadow_resources() noexcept;
-    void render_shadow_pass(VkCommandBuffer commandBuffer);
-    void ensure_shadow_resources();
+    void render_shadow_pass(VkCommandBuffer commandBuffer, std::uint32_t frameIndex);
+    void ensure_shadow_resources(std::uint32_t frameIndex);
     void recreate_shadow_resources(std::uint32_t cascadeCount, std::uint32_t resolution);
     void clear_shadow_debug_textures() noexcept;
     void update_shadow_debug_textures();
@@ -135,6 +138,12 @@ private:
         std::vector<ScenePrimitive> primitives {};
     };
 
+    struct FrameResources final {
+        Buffer uniformBuffer {};
+        VkDescriptorSet descriptor {VK_NULL_HANDLE};
+        bool descriptorDirty {true};
+    };
+
     struct CameraState final {
         static constexpr glm::vec3 defaultPosition {0.0F, 1.6F, 6.0F};
         static constexpr float defaultYaw {-glm::half_pi<float>()};
@@ -176,8 +185,7 @@ private:
     VkDescriptorSetLayout m_materialDescriptorSetLayout {VK_NULL_HANDLE};
     VkDescriptorPool m_descriptorPool {VK_NULL_HANDLE};
     VkDescriptorPool m_materialDescriptorPool {VK_NULL_HANDLE};
-    VkDescriptorSet m_descriptorSet {VK_NULL_HANDLE};
-    Buffer m_globalUniformBuffer;
+    std::array<FrameResources, maxFramesInFlight> m_frameResources {};
     TextureSamplers m_textureSamplers;
     TextureImage m_fallbackAlbedo;
     TextureImage m_fallbackNormal;
