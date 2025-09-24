@@ -67,4 +67,31 @@ namespace vulkano {
     return std::clamp(updated, minFov, maxFov);
 }
 
+[[nodiscard]] auto compute_light_view_projection(
+    const glm::vec3& lightPosition,
+    const glm::vec3& target,
+    const glm::vec3& worldUp,
+    float fovY,
+    float nearPlane,
+    float farPlane,
+    const glm::vec3& fallbackDirection,
+    float epsilon) noexcept -> glm::mat4 {
+    glm::vec3 adjustedTarget = target;
+    if(glm::length(target - lightPosition) <= epsilon) {
+        glm::vec3 safeFallback = fallbackDirection;
+        if(glm::length(safeFallback) <= epsilon) {
+            safeFallback = fallbackForward;
+        }
+        const glm::vec3 normalizedFallback = glm::normalize(safeFallback);
+        const glm::vec3 normalizedUp = glm::normalize(worldUp);
+        if(glm::abs(glm::dot(normalizedFallback, normalizedUp)) >= 1.0F - epsilon) {
+            safeFallback = fallbackForward;
+        }
+        adjustedTarget = lightPosition + safeFallback;
+    }
+    const glm::mat4 view = glm::lookAt(lightPosition, adjustedTarget, worldUp);
+    const glm::mat4 projection = glm::perspective(fovY, 1.0F, nearPlane, farPlane);
+    return projection * view;
+}
+
 } // namespace vulkano

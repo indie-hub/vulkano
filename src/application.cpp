@@ -46,6 +46,7 @@ namespace {
         glm::mat4 lightViewProjection {1.0F};
         glm::vec4 lightPositionIntensity {0.0F, 0.0F, 0.0F, 1.0F};
         glm::vec4 cameraPosition {0.0F, 0.0F, 0.0F, 1.0F};
+        glm::vec4 shadowParams {0.0025F, 0.05F, 1.0F, 0.0F};
     };
 
     struct PrimitivePushConstants final {
@@ -228,6 +229,39 @@ void VulkanApplication::draw_frame() {
         if(ImGui::SliderFloat("Intensity", &lightIntensity, 0.0F, 10.0F, "%.2f")) {
             m_scene.lightIntensity = std::max(lightIntensity, 0.0F);
         }
+    }
+
+    if(ImGui::CollapsingHeader("Shadows", ImGuiTreeNodeFlags_DefaultOpen)) {
+        float depthBiasConstant = m_shadowSettings.depthBiasConstant;
+        if(ImGui::SliderFloat("Depth Bias Constant", &depthBiasConstant, 0.0F, 10.0F, "%.3f")) {
+            m_shadowSettings.depthBiasConstant = depthBiasConstant;
+        }
+
+        float depthBiasSlope = m_shadowSettings.depthBiasSlope;
+        if(ImGui::SliderFloat("Depth Bias Slope", &depthBiasSlope, 0.0F, 10.0F, "%.3f")) {
+            m_shadowSettings.depthBiasSlope = depthBiasSlope;
+        }
+
+        float depthBiasClamp = m_shadowSettings.depthBiasClamp;
+        if(ImGui::SliderFloat("Depth Bias Clamp", &depthBiasClamp, 0.0F, 1.0F, "%.3f")) {
+            m_shadowSettings.depthBiasClamp = std::clamp(depthBiasClamp, 0.0F, 1.0F);
+        }
+
+        float minBias = m_shadowSettings.minBias;
+        if(ImGui::SliderFloat("Receiver Min Bias", &minBias, 0.0F, 0.02F, "%.5f")) {
+            m_shadowSettings.minBias = std::clamp(minBias, 0.0F, 0.02F);
+        }
+
+        float normalBiasFactor = m_shadowSettings.normalBiasFactor;
+        if(ImGui::SliderFloat("Normal Bias Factor", &normalBiasFactor, 0.0F, 0.5F, "%.4f")) {
+            m_shadowSettings.normalBiasFactor = std::clamp(normalBiasFactor, 0.0F, 0.5F);
+        }
+
+        int pcfRadius = m_shadowSettings.pcfRadius;
+        if(ImGui::SliderInt("PCF Radius", &pcfRadius, 0, 4)) {
+            m_shadowSettings.pcfRadius = std::clamp(pcfRadius, 0, 4);
+        }
+        ImGui::TextDisabled("Adjust bias to reduce acne; increasing PCF radius softens shadows at extra cost.");
     }
 
     for(std::size_t index {0U}; index < m_scene.primitives.size(); ++index) {
@@ -579,7 +613,15 @@ void VulkanApplication::record_command_buffer(std::uint32_t imageIndex) {
     clearValues[0].color = {{clearColour[0], clearColour[1], clearColour[2], clearColour[3]}};
     clearValues[1].depthStencil = {1.0F, 0U};
 
-    const glm::mat4 lightViewProjection = compute_light_view_projection();
+    const glm::mat4 lightViewProjection = compute_light_view_projection(
+        m_scene.lightPosition,
+        lightTarget,
+        worldUp,
+        shadowFovRadians,
+        shadowNearPlane,
+        shadowFarPlane,
+        lightFallbackDirection,
+        lightTargetEpsilon);
 
     if(m_shadowFramebuffer != VK_NULL_HANDLE) {
         m_context.begin_debug_label(commandBuffer, "Shadow Map Pass");
@@ -619,11 +661,10 @@ void VulkanApplication::record_command_buffer(std::uint32_t imageIndex) {
         vkCmdSetScissor(commandBuffer, 0U, 1U, &shadowScissor);
 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_shadowPipeline.handle());
-        vkCmdSetDepthBias(
-            commandBuffer,
-            m_shadowSettings.depthBiasConstant,
-            m_shadowSettings.depthBiasClamp,
-            m_shadowSettings.depthBiasSlope);
+        const float depthBiasConstant = std::max(m_shadowSettings.depthBiasConstant, 0.0F);
+        const float depthBiasClamp = std::clamp(m_shadowSettings.depthBiasClamp, 0.0F, 1.0F);
+        const float depthBiasSlope = std::max(m_shadowSettings.depthBiasSlope, 0.0F);
+        vkCmdSetDepthBias(commandBuffer, depthBiasConstant, depthBiasClamp, depthBiasSlope);
 
         for(const ScenePrimitive& primitive : m_scene.primitives) {
             if(primitive.primitive == nullptr || !primitive.gpu.has_geometry()) {
@@ -935,17 +976,6 @@ auto VulkanApplication::camera_up(const glm::vec3& forward, const glm::vec3& rig
     return compute_up(forward, right);
 }
 
-auto VulkanApplication::compute_light_view_projection() const noexcept -> glm::mat4 {
-    glm::vec3 lightPosition = m_scene.lightPosition;
-    glm::vec3 target = lightTarget;
-    if(glm::length(lightPosition - target) <= lightTargetEpsilon) {
-        target = lightPosition + lightFallbackDirection;
-    }
-    const glm::mat4 lightView = glm::lookAt(lightPosition, target, worldUp);
-    const glm::mat4 lightProjection = glm::perspective(shadowFovRadians, 1.0F, shadowNearPlane, shadowFarPlane);
-    return lightProjection * lightView;
-}
-
 void VulkanApplication::initialise_scene() {
     constexpr PlaneParameters planeParameters {
         .width = 10.0F,
@@ -1132,10 +1162,26 @@ void VulkanApplication::update_global_uniforms() {
         uniforms.projection = glm::perspective(m_camera.fovY, aspect, m_camera.nearPlane, m_camera.farPlane);
     }
 
-    uniforms.lightViewProjection = compute_light_view_projection();
+    uniforms.lightViewProjection = compute_light_view_projection(
+        m_scene.lightPosition,
+        lightTarget,
+        worldUp,
+        shadowFovRadians,
+        shadowNearPlane,
+        shadowFarPlane,
+        lightFallbackDirection,
+        lightTargetEpsilon);
 
     uniforms.lightPositionIntensity = glm::vec4 {m_scene.lightPosition, m_scene.lightIntensity};
     uniforms.cameraPosition = glm::vec4 {cameraPos, 1.0F};
+
+    const float minBias = std::clamp(m_shadowSettings.minBias, 0.0F, 0.02F);
+    const float normalBias = std::clamp(m_shadowSettings.normalBiasFactor, 0.0F, 0.5F);
+    const int pcfRadius = std::clamp(m_shadowSettings.pcfRadius, 0, 4);
+    m_shadowSettings.minBias = minBias;
+    m_shadowSettings.normalBiasFactor = normalBias;
+    m_shadowSettings.pcfRadius = pcfRadius;
+    uniforms.shadowParams = glm::vec4 {minBias, normalBias, static_cast<float>(pcfRadius), 0.0F};
 
     m_globalUniformBuffer.write(m_context, &uniforms, sizeof(GlobalUniform));
 }

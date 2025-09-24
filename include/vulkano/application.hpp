@@ -76,7 +76,6 @@ private:
     [[nodiscard]] auto camera_forward() const noexcept -> glm::vec3;
     [[nodiscard]] auto camera_right(const glm::vec3& forward) const noexcept -> glm::vec3;
     [[nodiscard]] auto camera_up(const glm::vec3& forward, const glm::vec3& right) const noexcept -> glm::vec3;
-    [[nodiscard]] auto compute_light_view_projection() const noexcept -> glm::mat4;
     void set_cursor_mode(int mode) noexcept;
     static void scroll_callback(GLFWwindow* window, double xOffset, double yOffset);
     [[nodiscard]] auto compute_model_matrix(const PrimitiveProperties& properties) const noexcept -> glm::mat4;
@@ -124,6 +123,9 @@ private:
         float depthBiasConstant {1.25F};
         float depthBiasSlope {1.75F};
         float depthBiasClamp {0.0F};
+        float minBias {0.0025F};
+        float normalBiasFactor {0.05F};
+        int pcfRadius {1};
     };
 
     SceneState m_scene {};

@@ -6,6 +6,7 @@ Vulkano Codex is a Vulkan 1.3+/GLFW sample built with C++20 that renders a small
 - Vulkan instance/device creation with validation layers and `VK_EXT_debug_utils` markers in debug builds.
 - Swapchain management with automatic recreation on window resize plus depth buffering.
 - Blinn-Phong lighting pipeline with per-primitive push constants (colour, shininess, ambient/specular terms) and a uniform-buffer backed camera/light.
+- Single-pass shadow mapping with adjustable depth bias and PCF filtering to mitigate acne and soften edges.
 - CPU-generated plane, cube, and icosphere meshes uploaded once to device-local buffers.
 - Dear ImGui overlays for runtime stats and scene controls (light position/intensity, primitive transforms/materials, icosphere subdivisions).
 - Unit and integration tests built on Catch2 covering configuration, mesh generation, and scene defaults.
@@ -33,6 +34,7 @@ A resizable GLFW window opens showing the lit plane, cube, and icosphere above a
 ### Scene Controls
 - `Runtime Stats` shows FPS, frame time, device name, and swapchain extent.
 - `Scene Controls` allows adjusting light position/intensity and each primitive's position, rotation, scale, base colour, shininess, ambient, and specular strengths. The icosphere also supports rebuilding with subdivisions 0–5.
+- The `Shadows` section exposes depth bias and PCF radius tweaks to tune artifact suppression versus softness.
 
 ## Tests
 Configure with testing enabled (default) and run Catch2-based tests:

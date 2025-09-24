@@ -34,6 +34,6 @@
 - [x] Add shadow depth render pass and pipeline.
 - [x] Extend descriptors/uniforms for light matrices and shadow sampler.
 - [x] Update mesh shaders and lighting to apply shadow sampling.
-- [ ] Expose shadow parameters in ImGui and update docs/tests.
+- [x] Expose shadow parameters in ImGui and update docs/tests.
 - [ ] Rebuild project and run tests.
 - [ ] Summarize shadow feature implementation to user.

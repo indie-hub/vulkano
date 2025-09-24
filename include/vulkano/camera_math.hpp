@@ -11,5 +11,14 @@ namespace vulkano {
 [[nodiscard]] auto compute_view_matrix(const glm::vec3& position, float yaw, float pitch, const glm::vec3& worldUp) noexcept -> glm::mat4;
 [[nodiscard]] auto clamp_pitch(float pitch, float minPitch, float maxPitch) noexcept -> float;
 [[nodiscard]] auto adjust_fov(float currentFov, float delta, float minFov, float maxFov) noexcept -> float;
+[[nodiscard]] auto compute_light_view_projection(
+    const glm::vec3& lightPosition,
+    const glm::vec3& target,
+    const glm::vec3& worldUp,
+    float fovY,
+    float nearPlane,
+    float farPlane,
+    const glm::vec3& fallbackDirection,
+    float epsilon) noexcept -> glm::mat4;
 
 } // namespace vulkano

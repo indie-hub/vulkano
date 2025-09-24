@@ -13,6 +13,7 @@ layout(set = 0, binding = 0) uniform GlobalUniforms {
     mat4 lightViewProjection;
     vec4 lightPositionIntensity;
     vec4 cameraPosition;
+    vec4 shadowParams;
 } globalUniforms;
 
 layout(set = 0, binding = 1) uniform sampler2DShadow shadowMap;
@@ -45,18 +46,22 @@ void main() {
     float visibility = 1.0;
 
     if(shadowCoord.x >= 0.0 && shadowCoord.x <= 1.0 && shadowCoord.y >= 0.0 && shadowCoord.y <= 1.0 && shadowCoord.z >= 0.0 && shadowCoord.z <= 1.0) {
-        vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
+        vec2 texelSize = 1.0 / vec2(textureSize(shadowMap, 0));
         float normalDotLight = max(dot(normal, lightDirection), 0.0);
-        float bias = max(0.0025, 0.05 * (1.0 - normalDotLight));
+        float biasBase = globalUniforms.shadowParams.x;
+        float biasFactor = globalUniforms.shadowParams.y;
+        int kernelRadius = int(round(clamp(globalUniforms.shadowParams.z, 0.0, 4.0)));
+        float bias = max(biasBase, biasFactor * (1.0 - normalDotLight));
+        int diameter = (kernelRadius * 2) + 1;
+        int sampleCount = max(diameter * diameter, 1);
         float sum = 0.0;
-        const int kernelRadius = 1;
         for(int x = -kernelRadius; x <= kernelRadius; ++x) {
             for(int y = -kernelRadius; y <= kernelRadius; ++y) {
                 vec2 offset = vec2(x, y) * texelSize;
                 sum += texture(shadowMap, vec3(shadowCoord.xy + offset, shadowCoord.z - bias));
             }
         }
-        visibility = sum / 9.0;
+        visibility = sum / float(sampleCount);
     }
 
     vec3 diffuse = diffuseStrength * lightIntensity * baseColor * visibility;
