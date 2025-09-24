@@ -257,16 +257,17 @@ auto compute_cascaded_shadow_data(
         const float minY = stabilisedCenterLightSpace.y - halfExtent;
         const float maxY = stabilisedCenterLightSpace.y + halfExtent;
 
-        const float depthPadding = range * 0.5F;
-        const float nearPlane = minLightSpaceZ - depthPadding;
-        const float farPlane = maxLightSpaceZ + depthPadding;
+        const float depthPadding = range * 0.25F;
+        const float nearPlane = std::max(0.0F, -maxLightSpaceZ - depthPadding);
+        const float farPlane = -minLightSpaceZ + depthPadding;
+        const float clampedFar = std::max(farPlane, nearPlane + epsilon);
 
-        glm::mat4 lightProjection = glm::ortho(minX, maxX, minY, maxY, nearPlane, farPlane);
+        glm::mat4 lightProjection = glm::ortho(minX, maxX, minY, maxY, nearPlane, clampedFar);
         glm::mat4 viewProjectionMatrix = lightProjection * lightView;
 
         const std::size_t arrayIndex = static_cast<std::size_t>(cascadeIndex);
         data.uniform.lightViewProjection.at(arrayIndex) = viewProjectionMatrix;
-        data.uniform.cascadeData.at(arrayIndex) = glm::vec4 {texelSize, halfExtent, farPlane - nearPlane, 0.0F};
+        data.uniform.cascadeData.at(arrayIndex) = glm::vec4 {texelSize, halfExtent, clampedFar - nearPlane, 0.0F};
         data.uniform.cascadeSplits[static_cast<int>(cascadeIndex)] = splitDepth;
         data.cascadeTexelSizes.at(cascadeIndex) = texelSize;
         data.cascadeRadii.at(cascadeIndex) = halfExtent;

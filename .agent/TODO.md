@@ -55,3 +55,7 @@
 - [x] Fix world-space lighting/shadow calculations so results are camera-independent.
 - [x] Rebuild, run tests, and validate runtime to ensure stable shadows with no errors.
 - [x] Prepare documentation updates if needed and commit with reasoning summary.
+- [x] Diagnose why cascaded shadows sample zero and lighting appears without occlusion.
+- [x] Correct shadow map generation/sampling to render cascaded shadows for all primitives.
+- [x] Rebuild, run tests, execute runtime validation to confirm shadows render and no errors occur.
+- [x] Document findings if needed and commit with reasoning summary.

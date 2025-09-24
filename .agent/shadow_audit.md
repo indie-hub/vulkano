@@ -15,3 +15,4 @@ Actionable fixes:
 - Result: upward-facing surfaces see negative cosine (clamped to zero), so diffuse + shadow terms drop out; only specular noise tied to view survives, giving the impression that lighting follows the camera and hides shadows.
 - Restoring the original convention (store light-to-scene on CPU, negate in GLSL to obtain surface-to-light) should recover camera-independent lighting and shadowing.
 - Updated fragment shader to restore surface-to-light vector by negating the stored light ray direction before Lambert/PCF calculations.
+- Adjusted orthographic near/far planes to use distances along the light direction (positive depth) so cascades cover scene geometry when sampling.
