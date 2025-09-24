@@ -18,7 +18,8 @@ TEST_CASE("Vulkan application initialises and shuts down", "[integration]") {
         vulkano::VulkanApplication application {config};
         CHECK(application.primitive_count() == 3U);
         const glm::vec3 lightPosition = application.scene_light_position();
-        const glm::vec3 expectedPosition = glm::normalize(glm::vec3 {2.0F, 4.0F, 2.0F}) * 3.0F;
+        const glm::vec3 defaultDirection {-2.0F, -4.0F, -2.0F};
+        const glm::vec3 expectedPosition = -glm::normalize(defaultDirection) * 3.0F;
         CHECK(lightPosition.x == Approx(expectedPosition.x).margin(1e-3F));
         CHECK(lightPosition.y == Approx(expectedPosition.y).margin(1e-3F));
         CHECK(lightPosition.z == Approx(expectedPosition.z).margin(1e-3F));

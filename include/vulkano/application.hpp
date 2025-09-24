@@ -135,7 +135,7 @@ private:
     };
 
     struct SceneState final {
-        glm::vec3 lightDirection {2.0F, 4.0F, 2.0F};
+        glm::vec3 lightDirection {-2.0F, -4.0F, -2.0F};
         float lightIntensity {1.0F};
         glm::vec3 lightIndicatorPosition {0.0F, 0.0F, 0.0F};
         std::size_t lightIndicatorPrimitiveIndex {std::numeric_limits<std::size_t>::max()};

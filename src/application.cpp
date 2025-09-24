@@ -134,7 +134,14 @@ auto VulkanApplication::scene_light_position() const noexcept -> glm::vec3 {
     if(glm::length(m_scene.lightIndicatorPosition) > movementEpsilon) {
         return m_scene.lightIndicatorPosition;
     }
-    return m_scene.lightDirection;
+    glm::vec3 direction = m_scene.lightDirection;
+    if(glm::length(direction) <= movementEpsilon) {
+        direction = glm::vec3 {0.0F, -1.0F, 0.0F};
+    } else {
+        direction = glm::normalize(direction);
+    }
+    constexpr float indicatorDistance {3.0F};
+    return -direction * indicatorDistance;
 }
 
 auto VulkanApplication::scene_light_intensity() const noexcept -> float {
@@ -1675,16 +1682,14 @@ void VulkanApplication::update_light_indicator() {
         return;
     }
 
-    glm::vec3 desiredPosition = m_shadow.cascadeLightPositions.front();
-    if(glm::length(desiredPosition) <= movementEpsilon) {
-        glm::vec3 fallbackDirection = m_scene.lightDirection;
-        if(glm::length(fallbackDirection) <= movementEpsilon) {
-            fallbackDirection = glm::vec3 {0.0F, -1.0F, 0.0F};
-        } else {
-            fallbackDirection = glm::normalize(fallbackDirection);
-        }
-        desiredPosition = fallbackDirection * 3.0F;
+    glm::vec3 lightDirection = m_scene.lightDirection;
+    if(glm::length(lightDirection) <= movementEpsilon) {
+        lightDirection = glm::vec3 {0.0F, -1.0F, 0.0F};
+    } else {
+        lightDirection = glm::normalize(lightDirection);
     }
+    constexpr float indicatorDistance {3.0F};
+    const glm::vec3 desiredPosition = -lightDirection * indicatorDistance;
 
     PrimitiveProperties& properties = primitive.primitive->properties();
     properties.position = desiredPosition;
@@ -1713,20 +1718,19 @@ void VulkanApplication::update_global_uniforms(std::uint32_t frameIndex) {
         uniforms.projection = glm::perspective(m_camera.fovY, aspect, m_camera.nearPlane, m_camera.farPlane);
     }
 
-    glm::vec3 directionToLight = m_scene.lightDirection;
-    const bool validDirection = std::isfinite(directionToLight.x) && std::isfinite(directionToLight.y)
-        && std::isfinite(directionToLight.z);
-    if(!validDirection || glm::length(directionToLight) < movementEpsilon) {
-        directionToLight = glm::normalize(glm::vec3 {2.0F, 4.0F, 2.0F});
+    glm::vec3 lightDirection = m_scene.lightDirection;
+    const bool validDirection = std::isfinite(lightDirection.x) && std::isfinite(lightDirection.y)
+        && std::isfinite(lightDirection.z);
+    if(!validDirection || glm::length(lightDirection) < movementEpsilon) {
+        lightDirection = glm::normalize(glm::vec3 {-2.0F, -4.0F, -2.0F});
     } else {
-        directionToLight = glm::normalize(directionToLight);
+        lightDirection = glm::normalize(lightDirection);
     }
-    m_scene.lightDirection = directionToLight;
+    m_scene.lightDirection = lightDirection;
 
     // Cascaded shadow mapping expects the light-to-scene direction.
-    const glm::vec3 directionFromLight = -directionToLight;
     const float lightIntensity = std::max(m_scene.lightIntensity, 0.0F);
-    uniforms.lightDirectionIntensity = glm::vec4 {directionToLight, lightIntensity};
+    uniforms.lightDirectionIntensity = glm::vec4 {lightDirection, lightIntensity};
     uniforms.cameraPosition = glm::vec4 {cameraPos, 1.0F};
 
     const VkExtent2D shadowExtent = m_shadowMapResources.extent();
@@ -1736,7 +1740,7 @@ void VulkanApplication::update_global_uniforms(std::uint32_t frameIndex) {
     ShadowComputationInput computationInput {};
     computationInput.view = uniforms.view;
     computationInput.projection = uniforms.projection;
-    computationInput.lightDirection = directionFromLight;
+    computationInput.lightDirection = lightDirection;
     computationInput.nearPlane = m_camera.nearPlane;
     computationInput.farPlane = m_camera.farPlane;
 

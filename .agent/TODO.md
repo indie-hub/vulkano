@@ -47,3 +47,7 @@
 - [x] Update tests, rebuild binaries, validate rendering, and prepare documentation/commit.
 
 - [x] Resolve cascaded shadow map regressions (light movement, stabilization, resources).
+- [x] Audit directional light and shadow mapping transforms to diagnose camera-dependent movement.
+- [x] Fix directional light matrices and descriptor updates so light stays fixed and shadows render.
+- [x] Rebuild, run unit and end-to-end tests, and execute validation to ensure shadows work without errors.
+- [x] Package binaries in top-level folder, update docs if needed, prepare commit with reasoning summary.
