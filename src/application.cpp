@@ -1713,19 +1713,20 @@ void VulkanApplication::update_global_uniforms(std::uint32_t frameIndex) {
         uniforms.projection = glm::perspective(m_camera.fovY, aspect, m_camera.nearPlane, m_camera.farPlane);
     }
 
-    glm::vec3 lightDirection = m_scene.lightDirection;
-    const bool validDirection = std::isfinite(lightDirection.x) && std::isfinite(lightDirection.y)
-        && std::isfinite(lightDirection.z);
-    if(!validDirection || glm::length(lightDirection) < movementEpsilon) {
-        lightDirection = glm::normalize(glm::vec3 {0.25F, -1.0F, 0.5F});
+    glm::vec3 directionToLight = m_scene.lightDirection;
+    const bool validDirection = std::isfinite(directionToLight.x) && std::isfinite(directionToLight.y)
+        && std::isfinite(directionToLight.z);
+    if(!validDirection || glm::length(directionToLight) < movementEpsilon) {
+        directionToLight = glm::normalize(glm::vec3 {2.0F, 4.0F, 2.0F});
     } else {
-        lightDirection = glm::normalize(lightDirection);
+        directionToLight = glm::normalize(directionToLight);
     }
-    m_scene.lightDirection = lightDirection;
+    m_scene.lightDirection = directionToLight;
 
-    const glm::vec3 lightToScene = lightDirection;
+    // Cascaded shadow mapping expects the light-to-scene direction.
+    const glm::vec3 directionFromLight = -directionToLight;
     const float lightIntensity = std::max(m_scene.lightIntensity, 0.0F);
-    uniforms.lightDirectionIntensity = glm::vec4 {lightToScene, lightIntensity};
+    uniforms.lightDirectionIntensity = glm::vec4 {directionToLight, lightIntensity};
     uniforms.cameraPosition = glm::vec4 {cameraPos, 1.0F};
 
     const VkExtent2D shadowExtent = m_shadowMapResources.extent();
@@ -1735,7 +1736,7 @@ void VulkanApplication::update_global_uniforms(std::uint32_t frameIndex) {
     ShadowComputationInput computationInput {};
     computationInput.view = uniforms.view;
     computationInput.projection = uniforms.projection;
-    computationInput.lightDirection = lightToScene;
+    computationInput.lightDirection = directionFromLight;
     computationInput.nearPlane = m_camera.nearPlane;
     computationInput.farPlane = m_camera.farPlane;
 
