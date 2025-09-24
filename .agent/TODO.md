@@ -51,3 +51,7 @@
 - [x] Fix directional light matrices and descriptor updates so light stays fixed and shadows render.
 - [x] Rebuild, run unit and end-to-end tests, and execute validation to ensure shadows work without errors.
 - [x] Package binaries in top-level folder, update docs if needed, prepare commit with reasoning summary.
+- [x] Investigate camera-dependent lighting and missing shadows for directional light.
+- [x] Fix world-space lighting/shadow calculations so results are camera-independent.
+- [x] Rebuild, run tests, and validate runtime to ensure stable shadows with no errors.
+- [x] Prepare documentation updates if needed and commit with reasoning summary.

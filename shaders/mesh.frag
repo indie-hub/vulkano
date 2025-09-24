@@ -57,7 +57,7 @@ float compute_shadow(uint cascadeIndex, vec3 worldPosition, vec3 normal) {
     float mapResolution = globalUniforms.shadow.atlasSize.x;
     float invMapResolution = globalUniforms.shadow.atlasSize.y;
 
-    vec3 lightDir = normalize(globalUniforms.lightDirectionIntensity.xyz);
+    vec3 lightDir = normalize(-globalUniforms.lightDirectionIntensity.xyz);
     float ndotl = clamp(dot(normal, lightDir), 0.0, 1.0);
     float angularFactor = 1.0 - ndotl;
 
@@ -128,7 +128,7 @@ void main() {
         normal = normalize(tbn * sampledNormal);
     }
 
-    vec3 lightDirection = normalize(globalUniforms.lightDirectionIntensity.xyz);
+    vec3 lightDirection = normalize(-globalUniforms.lightDirectionIntensity.xyz);
     float lightIntensity = globalUniforms.lightDirectionIntensity.w;
 
     vec3 viewPosition = vec3(globalUniforms.view * vec4(vWorldPos, 1.0));
