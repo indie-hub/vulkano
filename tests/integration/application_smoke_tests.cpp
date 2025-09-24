@@ -2,6 +2,7 @@
 #include <catch2/catch_approx.hpp>
 
 #include <glm/vec3.hpp>
+#include <glm/geometric.hpp>
 
 #include <string>
 #include <vulkano/application.hpp>
@@ -16,7 +17,11 @@ TEST_CASE("Vulkan application initialises and shuts down", "[integration]") {
     auto run_application = [&config]() {
         vulkano::VulkanApplication application {config};
         CHECK(application.primitive_count() == 3U);
-        CHECK(application.scene_light_position() == glm::vec3 {2.0F, 4.0F, 2.0F});
+        const glm::vec3 lightPosition = application.scene_light_position();
+        const glm::vec3 expectedPosition = glm::normalize(glm::vec3 {2.0F, 4.0F, 2.0F}) * 3.0F;
+        CHECK(lightPosition.x == Approx(expectedPosition.x).margin(1e-3F));
+        CHECK(lightPosition.y == Approx(expectedPosition.y).margin(1e-3F));
+        CHECK(lightPosition.z == Approx(expectedPosition.z).margin(1e-3F));
         CHECK(application.scene_light_intensity() == Approx(1.0F));
         application.request_close();
         application.run();

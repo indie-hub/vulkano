@@ -41,3 +41,7 @@
 - [x] Resolve descriptor set update-in-use issues during shadow resource updates.
 - [x] Update tests, rebuild binaries, run validation to ensure no errors.
 - [x] Final pass: document adjustments and prepare conventional commit.
+- [x] Investigate cascaded shadow map culling and stabilization regressions.
+- [x] Implement fixes for cascade splits, culling volume, stabilization, bias, and resource recreation.
+- [x] Add yellow light-position sphere to render path with proper transforms.
+- [x] Update tests, rebuild binaries, validate rendering, and prepare documentation/commit.

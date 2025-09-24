@@ -30,6 +30,7 @@
 #include <chrono>
 #include <string>
 #include <array>
+#include <limits>
 
 struct ImGuiIO;
 
@@ -92,6 +93,7 @@ private:
     void recreate_shadow_resources(std::uint32_t cascadeCount, std::uint32_t resolution);
     void clear_shadow_debug_textures() noexcept;
     void update_shadow_debug_textures();
+    void update_light_indicator();
     [[nodiscard]] auto camera_position() const noexcept -> glm::vec3;
     [[nodiscard]] auto camera_forward() const noexcept -> glm::vec3;
     [[nodiscard]] auto camera_right(const glm::vec3& forward) const noexcept -> glm::vec3;
@@ -135,6 +137,8 @@ private:
     struct SceneState final {
         glm::vec3 lightDirection {2.0F, 4.0F, 2.0F};
         float lightIntensity {1.0F};
+        glm::vec3 lightIndicatorPosition {0.0F, 0.0F, 0.0F};
+        std::size_t lightIndicatorPrimitiveIndex {std::numeric_limits<std::size_t>::max()};
         std::vector<ScenePrimitive> primitives {};
     };
 
@@ -172,6 +176,8 @@ private:
         VkImageLayout sampleLayout {VK_IMAGE_LAYOUT_UNDEFINED};
         std::array<float, maxShadowCascades> cascadeTexelSizes {};
         std::array<float, maxShadowCascades> cascadeRadii {};
+        std::array<glm::vec3, maxShadowCascades> cascadeCenters {};
+        std::array<glm::vec3, maxShadowCascades> cascadeLightPositions {};
         std::vector<VkDescriptorSet> debugAtlasDescriptors {};
         VkFormat format {VK_FORMAT_D32_SFLOAT};
     };

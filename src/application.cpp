@@ -131,6 +131,9 @@ auto VulkanApplication::scene_light_direction() const noexcept -> glm::vec3 {
 }
 
 auto VulkanApplication::scene_light_position() const noexcept -> glm::vec3 {
+    if(glm::length(m_scene.lightIndicatorPosition) > movementEpsilon) {
+        return m_scene.lightIndicatorPosition;
+    }
     return m_scene.lightDirection;
 }
 
@@ -1016,15 +1019,39 @@ void VulkanApplication::initialise_scene() {
     IcosphereParameters sphereParameters {};
     sphereParameters.subdivisions = 2U;
 
+    PrimitiveProperties lightIndicatorProperties {};
+    glm::vec3 indicatorDirection = m_scene.lightDirection;
+    if(glm::length(indicatorDirection) <= movementEpsilon) {
+        indicatorDirection = glm::vec3 {0.0F, -1.0F, 0.0F};
+    } else {
+        indicatorDirection = glm::normalize(indicatorDirection);
+    }
+    constexpr float lightIndicatorDistance {3.0F};
+    lightIndicatorProperties.position = indicatorDirection * lightIndicatorDistance;
+    lightIndicatorProperties.scale = glm::vec3 {0.15F, 0.15F, 0.15F};
+    lightIndicatorProperties.baseColor = glm::vec3 {1.0F, 0.9F, 0.25F};
+    lightIndicatorProperties.useAlbedoMap = false;
+    lightIndicatorProperties.useNormalMap = false;
+    lightIndicatorProperties.specularStrength = 0.0F;
+    lightIndicatorProperties.ambientStrength = 0.3F;
+
+    IcosphereParameters lightIndicatorSphere {};
+    lightIndicatorSphere.subdivisions = 1U;
+
     std::vector<std::unique_ptr<Primitive>> primitives {};
     primitives.push_back(std::make_unique<PlanePrimitive>(planeParameters, planeProperties));
     primitives.push_back(std::make_unique<CubePrimitive>(cubeProperties));
     primitives.push_back(std::make_unique<IcospherePrimitive>(sphereParameters, sphereProperties));
+    const std::size_t indicatorIndex = primitives.size();
+    primitives.push_back(std::make_unique<IcospherePrimitive>(lightIndicatorSphere, lightIndicatorProperties));
 
     m_scene.primitives.clear();
     m_scene.primitives.reserve(primitives.size());
+    m_scene.lightIndicatorPrimitiveIndex = std::numeric_limits<std::size_t>::max();
+    m_scene.lightIndicatorPosition = lightIndicatorProperties.position;
 
-    for(auto& primitive : primitives) {
+    for(std::size_t index {0U}; index < primitives.size(); ++index) {
+        std::unique_ptr<Primitive>& primitive = primitives.at(index);
         ScenePrimitive scenePrimitive {};
         scenePrimitive.primitive = std::move(primitive);
         if(scenePrimitive.primitive != nullptr) {
@@ -1038,6 +1065,10 @@ void VulkanApplication::initialise_scene() {
             scenePrimitive.material.normalUsesFallback = true;
             scenePrimitive.material.albedoExtent = m_fallbackAlbedoExtent;
             scenePrimitive.material.normalExtent = m_fallbackNormalExtent;
+            if(index == indicatorIndex) {
+                m_scene.lightIndicatorPrimitiveIndex = m_scene.primitives.size();
+                m_scene.lightIndicatorPosition = scenePrimitive.primitive->properties().position;
+            }
         }
         m_scene.primitives.push_back(std::move(scenePrimitive));
     }
@@ -1505,6 +1536,8 @@ void VulkanApplication::create_shadow_resources() {
     m_shadow.sampleLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     m_shadow.cascadeTexelSizes.fill(0.0F);
     m_shadow.cascadeRadii.fill(0.0F);
+    m_shadow.cascadeCenters.fill(glm::vec3 {0.0F});
+    m_shadow.cascadeLightPositions.fill(glm::vec3 {0.0F});
     m_shadow.currentLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     m_shadow.firstUse = true;
     mark_all_frame_descriptors_dirty();
@@ -1519,6 +1552,8 @@ void VulkanApplication::destroy_shadow_resources() noexcept {
     m_shadow.sampleLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     m_shadow.cascadeTexelSizes.fill(0.0F);
     m_shadow.cascadeRadii.fill(0.0F);
+    m_shadow.cascadeCenters.fill(glm::vec3 {0.0F});
+    m_shadow.cascadeLightPositions.fill(glm::vec3 {0.0F});
     m_shadow.currentLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     m_shadow.firstUse = true;
     mark_all_frame_descriptors_dirty();
@@ -1556,6 +1591,8 @@ void VulkanApplication::recreate_shadow_resources(std::uint32_t cascadeCount, st
     const std::uint32_t clampedCascadeCount = std::clamp(cascadeCount, 1U, maxShadowCascades);
     const std::uint32_t clampedResolution = std::max(resolution, 1U);
 
+    wait_for_device_idle();
+
     if(m_shadowRenderPass.handle() == VK_NULL_HANDLE || m_shadowMapResources.image() == VK_NULL_HANDLE) {
         create_shadow_resources();
     } else {
@@ -1572,6 +1609,8 @@ void VulkanApplication::recreate_shadow_resources(std::uint32_t cascadeCount, st
         m_shadow.sampleLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         m_shadow.cascadeTexelSizes.fill(0.0F);
         m_shadow.cascadeRadii.fill(0.0F);
+        m_shadow.cascadeCenters.fill(glm::vec3 {0.0F});
+        m_shadow.cascadeLightPositions.fill(glm::vec3 {0.0F});
         m_shadow.currentLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         m_shadow.firstUse = true;
     }
@@ -1623,6 +1662,33 @@ void VulkanApplication::update_shadow_debug_textures() {
     }
 
     m_shadow.debugDescriptorsDirty = false;
+}
+
+void VulkanApplication::update_light_indicator() {
+    const std::size_t indicatorIndex = m_scene.lightIndicatorPrimitiveIndex;
+    if(indicatorIndex >= m_scene.primitives.size()) {
+        return;
+    }
+
+    ScenePrimitive& primitive = m_scene.primitives.at(indicatorIndex);
+    if(primitive.primitive == nullptr) {
+        return;
+    }
+
+    glm::vec3 desiredPosition = m_shadow.cascadeLightPositions.front();
+    if(glm::length(desiredPosition) <= movementEpsilon) {
+        glm::vec3 fallbackDirection = m_scene.lightDirection;
+        if(glm::length(fallbackDirection) <= movementEpsilon) {
+            fallbackDirection = glm::vec3 {0.0F, -1.0F, 0.0F};
+        } else {
+            fallbackDirection = glm::normalize(fallbackDirection);
+        }
+        desiredPosition = fallbackDirection * 3.0F;
+    }
+
+    PrimitiveProperties& properties = primitive.primitive->properties();
+    properties.position = desiredPosition;
+    m_scene.lightIndicatorPosition = desiredPosition;
 }
 
 void VulkanApplication::update_global_uniforms(std::uint32_t frameIndex) {
@@ -1682,6 +1748,9 @@ void VulkanApplication::update_global_uniforms(std::uint32_t frameIndex) {
     uniforms.shadow = cascadeData.uniform;
     m_shadow.cascadeTexelSizes = cascadeData.cascadeTexelSizes;
     m_shadow.cascadeRadii = cascadeData.cascadeRadii;
+    m_shadow.cascadeCenters = cascadeData.cascadeCenters;
+    m_shadow.cascadeLightPositions = cascadeData.lightPositions;
+    update_light_indicator();
     uniforms.shadow.shadowParams.w = static_cast<float>(cascadeCount);
     uniforms.shadow.atlasSize.x = static_cast<float>(shadowResolution);
     uniforms.shadow.atlasSize.y = (shadowResolution > 0U) ? (1.0F / static_cast<float>(shadowResolution)) : 0.0F;
@@ -1787,11 +1856,15 @@ void VulkanApplication::render_shadow_pass(VkCommandBuffer commandBuffer, std::u
 
         vkCmdSetViewport(commandBuffer, 0U, 1U, &viewport);
         vkCmdSetScissor(commandBuffer, 0U, 1U, &scissor);
+        constexpr float texelEpsilon {1e-6F};
+        constexpr float biasScaleMin {1.0F};
+        constexpr float biasScaleMax {20.0F};
         const float texelSize = (cascadeIndex < m_shadow.cascadeTexelSizes.size())
-            ? std::max(m_shadow.cascadeTexelSizes.at(cascadeIndex), 1.0F)
+            ? std::max(m_shadow.cascadeTexelSizes.at(cascadeIndex), texelEpsilon)
             : 1.0F;
-        const float scaledConstant = std::clamp(biasConstant * texelSize, biasConstant, biasConstant * 8.0F);
-        const float scaledSlope = std::clamp(biasSlope * texelSize, biasSlope, biasSlope * 8.0F);
+        const float biasScale = std::clamp(texelSize * 50.0F, biasScaleMin, biasScaleMax);
+        const float scaledConstant = biasConstant * biasScale;
+        const float scaledSlope = biasSlope * biasScale;
         vkCmdSetDepthBias(commandBuffer, scaledConstant, 0.0F, scaledSlope);
 
         for(ScenePrimitive& primitive : m_scene.primitives) {
