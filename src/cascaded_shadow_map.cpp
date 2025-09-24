@@ -14,7 +14,7 @@
 
 namespace {
     constexpr float epsilon {1e-6F};
-    constexpr float defaultShadowDirectionY {1.0F};
+    constexpr float defaultShadowDirectionY {-1.0F};
     constexpr float depthPaddingScale {2.0F};
     constexpr float extentPaddingFactor {1.05F};
 

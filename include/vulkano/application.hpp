@@ -47,6 +47,7 @@ public:
     void run();
     void request_close();
     [[nodiscard]] auto primitive_count() const noexcept -> std::size_t;
+    [[nodiscard]] auto scene_light_direction() const noexcept -> glm::vec3;
     [[nodiscard]] auto scene_light_position() const noexcept -> glm::vec3;
     [[nodiscard]] auto scene_light_intensity() const noexcept -> float;
 
@@ -129,7 +130,7 @@ private:
     };
 
     struct SceneState final {
-        glm::vec3 lightPosition {2.0F, 4.0F, 2.0F};
+        glm::vec3 lightDirection {2.0F, 4.0F, 2.0F};
         float lightIntensity {1.0F};
         std::vector<ScenePrimitive> primitives {};
     };
