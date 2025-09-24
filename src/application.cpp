@@ -305,7 +305,7 @@ void VulkanApplication::draw_frame() {
             }
         }
     }
-    ImGui::TextDisabled("Hold RMB to look. WASD to move. Shift to sprint.");
+    ImGui::TextDisabled("Hold RMB to look. WASD to move. Space/E up, Ctrl/Q down. Shift to sprint.");
     ImGui::End();
 
     ImGui::Render();
@@ -722,6 +722,12 @@ void VulkanApplication::update_camera_input(double deltaSeconds, const ImGuiIO& 
     }
     if(glfwGetKey(windowHandle, GLFW_KEY_SPACE) == GLFW_PRESS) {
         movement += worldUp;
+    }
+    if(glfwGetKey(windowHandle, GLFW_KEY_E) == GLFW_PRESS) {
+        movement += worldUp;
+    }
+    if(glfwGetKey(windowHandle, GLFW_KEY_Q) == GLFW_PRESS) {
+        movement -= worldUp;
     }
     if(glfwGetKey(windowHandle, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS
         || glfwGetKey(windowHandle, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS) {

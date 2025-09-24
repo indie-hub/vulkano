@@ -17,3 +17,13 @@
 - [x] Implement orientation fix in rendering pipeline.
 - [x] Rebuild and test to verify Y axis direction.
 - [x] Implement FPS camera controls with ImGui interaction gating and tests.
+- [x] Audit repository structure for documentation summary.
+- [x] Provide repository description to user.
+- [x] Configure project with CMake.
+- [x] Build project artifacts.
+- [x] Report build results to user.
+- [x] Update camera movement to respond to Q/E for vertical motion.
+- [x] Update UI messaging/documentation about camera controls.
+- [x] Validate build after input change.
+- [x] Review rendering, lighting, and camera interaction implementation details.
+- [x] Summarize rendering, lighting, feature set, and camera interaction for user.
