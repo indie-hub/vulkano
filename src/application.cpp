@@ -33,10 +33,17 @@ namespace {
     constexpr float fovScrollStep {glm::radians(2.0F)};
     constexpr float movementEpsilon {1e-5F};
     constexpr glm::vec3 worldUp {0.0F, 1.0F, 0.0F};
+    constexpr glm::vec3 lightTarget {0.0F, 0.0F, 0.0F};
+    constexpr float shadowNearPlane {0.1F};
+    constexpr float shadowFarPlane {50.0F};
+    constexpr float shadowFovRadians {glm::radians(60.0F)};
+    constexpr float lightTargetEpsilon {1e-4F};
+    constexpr glm::vec3 lightFallbackDirection {0.0F, -1.0F, 0.0F};
 
     struct GlobalUniform final {
         glm::mat4 view {1.0F};
         glm::mat4 projection {1.0F};
+        glm::mat4 lightViewProjection {1.0F};
         glm::vec4 lightPositionIntensity {0.0F, 0.0F, 0.0F, 1.0F};
         glm::vec4 cameraPosition {0.0F, 0.0F, 0.0F, 1.0F};
     };
@@ -889,10 +896,18 @@ void VulkanApplication::create_descriptor_resources() {
     uniformBinding.descriptorCount = 1U;
     uniformBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 
+    VkDescriptorSetLayoutBinding shadowBinding {};
+    shadowBinding.binding = 1U;
+    shadowBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    shadowBinding.descriptorCount = 1U;
+    shadowBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    std::array<VkDescriptorSetLayoutBinding, 2U> bindings {uniformBinding, shadowBinding};
+
     VkDescriptorSetLayoutCreateInfo layoutInfo {};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.bindingCount = 1U;
-    layoutInfo.pBindings = &uniformBinding;
+    layoutInfo.bindingCount = static_cast<std::uint32_t>(bindings.size());
+    layoutInfo.pBindings = bindings.data();
 
     if(vkCreateDescriptorSetLayout(m_context.device(), &layoutInfo, nullptr, &m_descriptorSetLayout) != VK_SUCCESS) {
         throw std::runtime_error {"Failed to create descriptor set layout"};
@@ -902,14 +917,16 @@ void VulkanApplication::create_descriptor_resources() {
         reinterpret_cast<std::uint64_t>(m_descriptorSetLayout),
         "Global Descriptor Set Layout");
 
-    VkDescriptorPoolSize poolSize {};
-    poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSize.descriptorCount = 1U;
+    std::array<VkDescriptorPoolSize, 2U> poolSizes {};
+    poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSizes[0].descriptorCount = 1U;
+    poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[1].descriptorCount = 1U;
 
     VkDescriptorPoolCreateInfo poolInfo {};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolInfo.poolSizeCount = 1U;
-    poolInfo.pPoolSizes = &poolSize;
+    poolInfo.poolSizeCount = static_cast<std::uint32_t>(poolSizes.size());
+    poolInfo.pPoolSizes = poolSizes.data();
     poolInfo.maxSets = 1U;
 
     if(vkCreateDescriptorPool(m_context.device(), &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS) {
@@ -941,16 +958,29 @@ void VulkanApplication::create_descriptor_resources() {
     bufferInfo.offset = 0U;
     bufferInfo.range = sizeof(GlobalUniform);
 
-    VkWriteDescriptorSet write {};
-    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write.dstSet = m_descriptorSet;
-    write.dstBinding = 0U;
-    write.dstArrayElement = 0U;
-    write.descriptorCount = 1U;
-    write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    write.pBufferInfo = &bufferInfo;
+    VkDescriptorImageInfo imageInfo {};
+    imageInfo.sampler = m_shadowMap.sampler();
+    imageInfo.imageView = m_shadowMap.image_view();
+    imageInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
 
-    vkUpdateDescriptorSets(m_context.device(), 1U, &write, 0U, nullptr);
+    std::array<VkWriteDescriptorSet, 2U> writes {};
+    writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes[0].dstSet = m_descriptorSet;
+    writes[0].dstBinding = 0U;
+    writes[0].dstArrayElement = 0U;
+    writes[0].descriptorCount = 1U;
+    writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    writes[0].pBufferInfo = &bufferInfo;
+
+    writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes[1].dstSet = m_descriptorSet;
+    writes[1].dstBinding = 1U;
+    writes[1].dstArrayElement = 0U;
+    writes[1].descriptorCount = 1U;
+    writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writes[1].pImageInfo = &imageInfo;
+
+    vkUpdateDescriptorSets(m_context.device(), static_cast<std::uint32_t>(writes.size()), writes.data(), 0U, nullptr);
 
     update_global_uniforms();
 }
@@ -982,6 +1012,15 @@ void VulkanApplication::update_global_uniforms() {
         const float aspect = static_cast<float>(extent.width) / static_cast<float>(extent.height);
         uniforms.projection = glm::perspective(m_camera.fovY, aspect, m_camera.nearPlane, m_camera.farPlane);
     }
+
+    glm::vec3 lightPosition = m_scene.lightPosition;
+    glm::vec3 target = lightTarget;
+    if(glm::length(lightPosition - target) <= lightTargetEpsilon) {
+        target = lightPosition + lightFallbackDirection;
+    }
+    const glm::mat4 lightView = glm::lookAt(lightPosition, target, worldUp);
+    const glm::mat4 lightProjection = glm::perspective(shadowFovRadians, 1.0F, shadowNearPlane, shadowFarPlane);
+    uniforms.lightViewProjection = lightProjection * lightView;
 
     uniforms.lightPositionIntensity = glm::vec4 {m_scene.lightPosition, m_scene.lightIntensity};
     uniforms.cameraPosition = glm::vec4 {cameraPos, 1.0F};

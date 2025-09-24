@@ -32,7 +32,7 @@
 - [x] Summarize rendering, lighting, feature set, and camera interaction for user.
 - [x] Implement shadow map image and sampler resources.
 - [x] Add shadow depth render pass and pipeline.
-- [ ] Extend descriptors/uniforms for light matrices and shadow sampler.
+- [x] Extend descriptors/uniforms for light matrices and shadow sampler.
 - [ ] Update mesh shaders and lighting to apply shadow sampling.
 - [ ] Expose shadow parameters in ImGui and update docs/tests.
 - [ ] Rebuild project and run tests.

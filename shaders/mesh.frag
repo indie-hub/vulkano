@@ -9,6 +9,7 @@ layout(location = 0) out vec4 outColor;
 layout(set = 0, binding = 0) uniform GlobalUniforms {
     mat4 view;
     mat4 projection;
+    mat4 lightViewProjection;
     vec4 lightPositionIntensity;
     vec4 cameraPosition;
 } globalUniforms;
