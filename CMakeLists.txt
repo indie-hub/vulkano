@@ -100,6 +100,7 @@ add_library(vulkano_codex_lib STATIC
     src/glfw_context.cpp
     src/graphics_pipeline.cpp
     src/depth_resources.cpp
+    src/shadow_map.cpp
     src/mesh_gpu.cpp
     src/render_pass.cpp
     src/swapchain.cpp

@@ -10,6 +10,7 @@
 #include <vulkano/mesh_gpu.hpp>
 #include <vulkano/primitives.hpp>
 #include <vulkano/render_pass.hpp>
+#include <vulkano/shadow_map.hpp>
 #include <vulkano/swapchain.hpp>
 #include <vulkano/synchronization.hpp>
 #include <vulkano/vulkan_context.hpp>
@@ -117,6 +118,7 @@ private:
     SceneState m_scene {};
     CameraState m_camera {};
     DepthResources m_depthResources {};
+    ShadowMap m_shadowMap {};
     VkFormat m_depthFormat {VK_FORMAT_D32_SFLOAT};
     VkDescriptorSetLayout m_descriptorSetLayout {VK_NULL_HANDLE};
     VkDescriptorPool m_descriptorPool {VK_NULL_HANDLE};

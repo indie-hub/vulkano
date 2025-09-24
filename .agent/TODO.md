@@ -25,5 +25,15 @@
 - [x] Update camera movement to respond to Q/E for vertical motion.
 - [x] Update UI messaging/documentation about camera controls.
 - [x] Validate build after input change.
+- [x] Evaluate shadow rendering options for Vulkan sample.
+- [x] Recommend shadow implementation approach to user.
+- [x] Draft acceptance criteria for shadow mapping feature.
 - [x] Review rendering, lighting, and camera interaction implementation details.
 - [x] Summarize rendering, lighting, feature set, and camera interaction for user.
+- [x] Implement shadow map image and sampler resources.
+- [ ] Add shadow depth render pass and pipeline.
+- [ ] Extend descriptors/uniforms for light matrices and shadow sampler.
+- [ ] Update mesh shaders and lighting to apply shadow sampling.
+- [ ] Expose shadow parameters in ImGui and update docs/tests.
+- [ ] Rebuild project and run tests.
+- [ ] Summarize shadow feature implementation to user.

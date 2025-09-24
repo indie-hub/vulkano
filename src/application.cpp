@@ -67,6 +67,7 @@ VulkanApplication::VulkanApplication(const AppConfig& config)
 
     m_renderPass = RenderPass::create(m_context, m_swapchain.image_format(), m_depthFormat);
     m_depthResources = DepthResources::create(m_context, m_depthFormat, extent, imageCount);
+    m_shadowMap = ShadowMap::create(m_context, ShadowMap::defaultResolution);
     m_framebuffers = FramebufferCollection::create(
         m_context,
         m_swapchain,
