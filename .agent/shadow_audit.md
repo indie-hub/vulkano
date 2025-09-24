@@ -16,3 +16,5 @@ Actionable fixes:
 - Restoring the original convention (store light-to-scene on CPU, negate in GLSL to obtain surface-to-light) should recover camera-independent lighting and shadowing.
 - Updated fragment shader to restore surface-to-light vector by negating the stored light ray direction before Lambert/PCF calculations.
 - Adjusted orthographic near/far planes to use distances along the light direction (positive depth) so cascades cover scene geometry when sampling.
+- Shadow jitter traced to lightView shifting with camera; projection snapping lacked translation correction, so depth maps drift relative to world when camera moves.
+- Added texel-grid stabilisation by translating the light projection matrix; snaps the cascade origin in shadow texel space so camera motion no longer jitters shadows.

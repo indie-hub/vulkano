@@ -59,3 +59,7 @@
 - [x] Correct shadow map generation/sampling to render cascaded shadows for all primitives.
 - [x] Rebuild, run tests, execute runtime validation to confirm shadows render and no errors occur.
 - [x] Document findings if needed and commit with reasoning summary.
+- [x] Investigate cascade instability and light-camera tether when moving view camera.
+- [x] Stabilize light-space matrices so directional shadows stay world aligned independent of camera.
+- [x] Rebuild, run tests, perform runtime validation, and confirm shadows remain stable.
+- [x] Document findings if needed and commit with reasoning summary.

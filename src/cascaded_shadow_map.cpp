@@ -265,6 +265,16 @@ auto compute_cascaded_shadow_data(
         glm::mat4 lightProjection = glm::ortho(minX, maxX, minY, maxY, nearPlane, clampedFar);
         glm::mat4 viewProjectionMatrix = lightProjection * lightView;
 
+        if(settings.stabilize && clampedResolution > 0U) {
+            const float resolutionScale = static_cast<float>(clampedResolution);
+            glm::vec4 shadowOrigin = viewProjectionMatrix * glm::vec4 {0.0F, 0.0F, 0.0F, 1.0F};
+            shadowOrigin *= resolutionScale * 0.5F;
+            const glm::vec4 roundedOrigin = glm::round(shadowOrigin);
+            const glm::vec4 roundOffset = (roundedOrigin - shadowOrigin) * (2.0F / resolutionScale);
+            const glm::vec3 translation {roundOffset.x, roundOffset.y, 0.0F};
+            viewProjectionMatrix = glm::translate(glm::mat4 {1.0F}, translation) * viewProjectionMatrix;
+        }
+
         const std::size_t arrayIndex = static_cast<std::size_t>(cascadeIndex);
         data.uniform.lightViewProjection.at(arrayIndex) = viewProjectionMatrix;
         data.uniform.cascadeData.at(arrayIndex) = glm::vec4 {texelSize, halfExtent, clampedFar - nearPlane, 0.0F};
