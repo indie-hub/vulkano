@@ -76,6 +76,7 @@ private:
     [[nodiscard]] auto camera_forward() const noexcept -> glm::vec3;
     [[nodiscard]] auto camera_right(const glm::vec3& forward) const noexcept -> glm::vec3;
     [[nodiscard]] auto camera_up(const glm::vec3& forward, const glm::vec3& right) const noexcept -> glm::vec3;
+    [[nodiscard]] auto compute_light_view_projection() const noexcept -> glm::mat4;
     void set_cursor_mode(int mode) noexcept;
     static void scroll_callback(GLFWwindow* window, double xOffset, double yOffset);
     [[nodiscard]] auto compute_model_matrix(const PrimitiveProperties& properties) const noexcept -> glm::mat4;
@@ -119,6 +120,12 @@ private:
         float farPlane {defaultFarPlane};
     };
 
+    struct ShadowSettings final {
+        float depthBiasConstant {1.25F};
+        float depthBiasSlope {1.75F};
+        float depthBiasClamp {0.0F};
+    };
+
     SceneState m_scene {};
     CameraState m_camera {};
     DepthResources m_depthResources {};
@@ -126,6 +133,7 @@ private:
     ShadowRenderPass m_shadowRenderPass {};
     ShadowPipeline m_shadowPipeline {};
     VkFramebuffer m_shadowFramebuffer {VK_NULL_HANDLE};
+    ShadowSettings m_shadowSettings {};
     VkFormat m_depthFormat {VK_FORMAT_D32_SFLOAT};
     VkDescriptorSetLayout m_descriptorSetLayout {VK_NULL_HANDLE};
     VkDescriptorPool m_descriptorPool {VK_NULL_HANDLE};

@@ -7,6 +7,7 @@ layout(location = 2) in vec2 inUv;
 layout(location = 0) out vec3 vWorldPos;
 layout(location = 1) out vec3 vNormal;
 layout(location = 2) out vec2 vUv;
+layout(location = 3) out vec4 vLightSpacePos;
 
 layout(set = 0, binding = 0) uniform GlobalUniforms {
     mat4 view;
@@ -30,6 +31,7 @@ void main() {
     mat3 normalMatrix = transpose(inverse(mat3(model)));
     vNormal = normalize(normalMatrix * inNormal);
     vUv = inUv;
+    vLightSpacePos = globalUniforms.lightViewProjection * worldPosition;
 
     gl_Position = globalUniforms.projection * globalUniforms.view * worldPosition;
 }

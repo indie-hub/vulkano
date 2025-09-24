@@ -53,6 +53,11 @@ namespace {
         glm::vec4 materialColor {1.0F, 1.0F, 1.0F, 1.0F};
         glm::vec4 materialProperties {32.0F, 0.1F, 0.5F, 0.0F};
     };
+
+    struct ShadowPushConstants final {
+        glm::mat4 model {1.0F};
+        glm::mat4 lightViewProjection {1.0F};
+    };
 }
 
 namespace vulkano {
@@ -574,6 +579,109 @@ void VulkanApplication::record_command_buffer(std::uint32_t imageIndex) {
     clearValues[0].color = {{clearColour[0], clearColour[1], clearColour[2], clearColour[3]}};
     clearValues[1].depthStencil = {1.0F, 0U};
 
+    const glm::mat4 lightViewProjection = compute_light_view_projection();
+
+    if(m_shadowFramebuffer != VK_NULL_HANDLE) {
+        m_context.begin_debug_label(commandBuffer, "Shadow Map Pass");
+
+        VkClearValue depthClear {};
+        depthClear.depthStencil = {1.0F, 0U};
+
+        VkRenderPassBeginInfo shadowPassInfo {};
+        shadowPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        shadowPassInfo.renderPass = m_shadowRenderPass.handle();
+        shadowPassInfo.framebuffer = m_shadowFramebuffer;
+        shadowPassInfo.renderArea.offset = {0, 0};
+        shadowPassInfo.renderArea.extent = {
+            m_shadowMap.resolution(),
+            m_shadowMap.resolution()
+        };
+        shadowPassInfo.clearValueCount = 1U;
+        shadowPassInfo.pClearValues = &depthClear;
+
+        vkCmdBeginRenderPass(commandBuffer, &shadowPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+        VkViewport shadowViewport {};
+        shadowViewport.x = 0.0F;
+        shadowViewport.y = 0.0F;
+        shadowViewport.width = static_cast<float>(m_shadowMap.resolution());
+        shadowViewport.height = static_cast<float>(m_shadowMap.resolution());
+        shadowViewport.minDepth = 0.0F;
+        shadowViewport.maxDepth = 1.0F;
+        vkCmdSetViewport(commandBuffer, 0U, 1U, &shadowViewport);
+
+        VkRect2D shadowScissor {};
+        shadowScissor.offset = {0, 0};
+        shadowScissor.extent = {
+            m_shadowMap.resolution(),
+            m_shadowMap.resolution()
+        };
+        vkCmdSetScissor(commandBuffer, 0U, 1U, &shadowScissor);
+
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_shadowPipeline.handle());
+        vkCmdSetDepthBias(
+            commandBuffer,
+            m_shadowSettings.depthBiasConstant,
+            m_shadowSettings.depthBiasClamp,
+            m_shadowSettings.depthBiasSlope);
+
+        for(const ScenePrimitive& primitive : m_scene.primitives) {
+            if(primitive.primitive == nullptr || !primitive.gpu.has_geometry()) {
+                continue;
+            }
+
+            const VkBuffer vertexBuffers[] {primitive.gpu.vertex_buffer()};
+            const VkDeviceSize offsets[] {0U};
+            vkCmdBindVertexBuffers(commandBuffer, 0U, 1U, vertexBuffers, offsets);
+            vkCmdBindIndexBuffer(commandBuffer, primitive.gpu.index_buffer(), 0U, VK_INDEX_TYPE_UINT32);
+
+            const PrimitiveProperties& properties = primitive.primitive->properties();
+            ShadowPushConstants shadowPush {};
+            shadowPush.model = compute_model_matrix(properties);
+            shadowPush.lightViewProjection = lightViewProjection;
+
+            vkCmdPushConstants(
+                commandBuffer,
+                m_shadowPipeline.layout(),
+                VK_SHADER_STAGE_VERTEX_BIT,
+                0U,
+                static_cast<std::uint32_t>(sizeof(ShadowPushConstants)),
+                &shadowPush);
+
+            vkCmdDrawIndexed(commandBuffer, primitive.gpu.index_count(), 1U, 0U, 0, 0);
+        }
+
+        vkCmdEndRenderPass(commandBuffer);
+        m_context.end_debug_label(commandBuffer);
+
+        VkImageMemoryBarrier shadowBarrier {};
+        shadowBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        shadowBarrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        shadowBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        shadowBarrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+        shadowBarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+        shadowBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        shadowBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        shadowBarrier.image = m_shadowMap.image();
+        shadowBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+        shadowBarrier.subresourceRange.baseMipLevel = 0U;
+        shadowBarrier.subresourceRange.levelCount = 1U;
+        shadowBarrier.subresourceRange.baseArrayLayer = 0U;
+        shadowBarrier.subresourceRange.layerCount = 1U;
+
+        vkCmdPipelineBarrier(
+            commandBuffer,
+            VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            0U,
+            0U,
+            nullptr,
+            0U,
+            nullptr,
+            1U,
+            &shadowBarrier);
+    }
+
     VkRenderPassBeginInfo renderPassInfo {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     renderPassInfo.renderPass = m_renderPass.handle();
@@ -827,6 +935,17 @@ auto VulkanApplication::camera_up(const glm::vec3& forward, const glm::vec3& rig
     return compute_up(forward, right);
 }
 
+auto VulkanApplication::compute_light_view_projection() const noexcept -> glm::mat4 {
+    glm::vec3 lightPosition = m_scene.lightPosition;
+    glm::vec3 target = lightTarget;
+    if(glm::length(lightPosition - target) <= lightTargetEpsilon) {
+        target = lightPosition + lightFallbackDirection;
+    }
+    const glm::mat4 lightView = glm::lookAt(lightPosition, target, worldUp);
+    const glm::mat4 lightProjection = glm::perspective(shadowFovRadians, 1.0F, shadowNearPlane, shadowFarPlane);
+    return lightProjection * lightView;
+}
+
 void VulkanApplication::initialise_scene() {
     constexpr PlaneParameters planeParameters {
         .width = 10.0F,
@@ -1013,14 +1132,7 @@ void VulkanApplication::update_global_uniforms() {
         uniforms.projection = glm::perspective(m_camera.fovY, aspect, m_camera.nearPlane, m_camera.farPlane);
     }
 
-    glm::vec3 lightPosition = m_scene.lightPosition;
-    glm::vec3 target = lightTarget;
-    if(glm::length(lightPosition - target) <= lightTargetEpsilon) {
-        target = lightPosition + lightFallbackDirection;
-    }
-    const glm::mat4 lightView = glm::lookAt(lightPosition, target, worldUp);
-    const glm::mat4 lightProjection = glm::perspective(shadowFovRadians, 1.0F, shadowNearPlane, shadowFarPlane);
-    uniforms.lightViewProjection = lightProjection * lightView;
+    uniforms.lightViewProjection = compute_light_view_projection();
 
     uniforms.lightPositionIntensity = glm::vec4 {m_scene.lightPosition, m_scene.lightIntensity};
     uniforms.cameraPosition = glm::vec4 {cameraPos, 1.0F};
