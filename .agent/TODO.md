@@ -36,4 +36,4 @@
 - [x] Update mesh shaders and lighting to apply shadow sampling.
 - [x] Expose shadow parameters in ImGui and update docs/tests.
 - [x] Rebuild project and run tests.
-- [ ] Summarize shadow feature implementation to user.
+- [x] Summarize shadow feature implementation to user.
