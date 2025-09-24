@@ -47,6 +47,12 @@ const vec3 CASCADE_DEBUG_COLOURS[4] = vec3[4](
     vec3(1.0, 0.9, 0.5)
 );
 
+const float FRONT_FACE_START = 0.6;
+const float FRONT_FACE_END = 0.95;
+const float LIGHT_DIR_BIAS_SCALE = 1.75;
+const float RECEIVER_EXTRA_SCALE = 2.25;
+const float MIN_NORMAL_BIAS_SCALE = 0.25;
+
 float compute_shadow(uint cascadeIndex, vec3 worldPosition, vec3 normal) {
     float cascadesEnabled = globalUniforms.shadow.shadowParams.x;
     if(cascadesEnabled < 0.5) {
@@ -62,9 +68,17 @@ float compute_shadow(uint cascadeIndex, vec3 worldPosition, vec3 normal) {
     float angularFactor = 1.0 - ndotl;
 
     float texelSize = max(cascadeMeta.x, 1e-4);
-    float normalBiasBase = globalUniforms.shadow.biasParams.z * texelSize;
-    float normalBias = normalBiasBase * (1.0 + angularFactor);
-    vec3 biasedPosition = worldPosition + normal * normalBias;
+    float cascadeSpan = max(cascadeMeta.z, 1e-4);
+    float normalBiasBase = max(globalUniforms.shadow.biasParams.z * texelSize, texelSize * MIN_NORMAL_BIAS_SCALE);
+    float normalBiasCeiling = texelSize * 6.0;
+    float normalBias = clamp(normalBiasBase * (1.0 + angularFactor), normalBiasBase, normalBiasCeiling);
+
+    float frontFaceFactor = smoothstep(FRONT_FACE_START, FRONT_FACE_END, ndotl);
+    float lightSpaceBias = texelSize * LIGHT_DIR_BIAS_SCALE * frontFaceFactor;
+
+    vec3 biasedPosition = worldPosition
+        + normal * normalBias
+        - lightDir * lightSpaceBias;
 
     vec4 lightSpace = globalUniforms.shadow.lightViewProjection[cascadeIndex] * vec4(biasedPosition, 1.0);
     vec3 shadowCoord = lightSpace.xyz / lightSpace.w;
@@ -79,6 +93,10 @@ float compute_shadow(uint cascadeIndex, vec3 worldPosition, vec3 normal) {
     float constantBias = globalUniforms.shadow.biasParams.x;
     float slopeBias = globalUniforms.shadow.biasParams.y * angularFactor;
     float depthBias = (constantBias + slopeBias) * texelSize;
+    float biasFloor = texelSize * 0.1;
+    float biasCeiling = texelSize * clamp(0.25 * cascadeSpan, 0.5, 6.0);
+    float receiverBias = texelSize * RECEIVER_EXTRA_SCALE * frontFaceFactor;
+    depthBias = clamp(depthBias + receiverBias, biasFloor, biasCeiling);
 
     float shadow = 0.0;
     float samples = 0.0;
@@ -140,6 +158,21 @@ void main() {
     cascadeCount = min(cascadeCount, MAX_SHADOW_CASCADES);
     uint cascadeIndex = select_cascade(viewDepth, cascadeCount);
 
+    float shadowAmount = compute_shadow(cascadeIndex, vWorldPos, normal);
+
+    if(cascadeIndex > 0u) {
+        int cascadeIdxInt = int(cascadeIndex);
+        float cascadeEnd = globalUniforms.shadow.cascadeSplits[cascadeIdxInt];
+        float transitionWidth = globalUniforms.shadow.cascadeData[cascadeIndex].w;
+        transitionWidth = max(transitionWidth, 1e-4);
+        float blendStart = cascadeEnd - transitionWidth;
+        if(viewDepth >= blendStart) {
+            float blendWeight = clamp((cascadeEnd - viewDepth) / transitionWidth, 0.0, 1.0);
+            float previousShadow = compute_shadow(cascadeIndex - 1u, vWorldPos, normal);
+            shadowAmount = mix(shadowAmount, previousShadow, blendWeight);
+        }
+    }
+
     float NdotL = max(dot(normal, lightDirection), 0.0);
 
     float ambientStrength = primitiveConstants.materialProperties.y;
@@ -155,7 +188,6 @@ void main() {
     float specularFactor = specularStrength * lightIntensity * pow(specAngle, shininess);
     vec3 specular = specularFactor * vec3(1.0);
 
-    float shadowAmount = compute_shadow(cascadeIndex, vWorldPos, normal);
     float shadowStrength = clamp(globalUniforms.shadow.shadowParams.y, 0.0, 1.0);
     float lightVisibility = mix(1.0, 1.0 - shadowAmount, shadowStrength);
 

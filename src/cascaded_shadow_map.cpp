@@ -6,6 +6,7 @@
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 #include <glm/common.hpp>
 #include <glm/geometric.hpp>
@@ -15,8 +16,12 @@
 namespace {
     constexpr float epsilon {1e-6F};
     constexpr float defaultShadowDirectionY {-1.0F};
-    constexpr float depthPaddingScale {2.0F};
-    constexpr float extentPaddingFactor {1.05F};
+    constexpr float cascadeBlendFactor {0.15F};
+    constexpr float minXYGuard {0.05F};
+    constexpr float xyGuardFraction {0.05F};
+    constexpr float depthGuardFraction {0.3F};
+    constexpr float minDepthGuard {0.5F};
+    constexpr float minTexelSize {1e-4F};
 
     auto has_stencil_component(VkFormat format) -> bool {
         return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
@@ -118,13 +123,25 @@ ShadowComputationInput::ShadowComputationInput()
 ShadowCascadeData::ShadowCascadeData()
     : uniform {}
     , cascadeTexelSizes {}
-    , cascadeRadii {}
+    , cascadeHalfExtents {}
     , cascadeCenters {}
-    , lightPositions {} {
+    , lightPositions {}
+    , cascadeBlendDistances {}
+    , cascadeMinBounds {}
+    , cascadeMaxBounds {}
+    , lightViewMatrices {}
+    , cascadeNearPlanes {}
+    , cascadeFarPlanes {} {
     cascadeTexelSizes.fill(0.0F);
-    cascadeRadii.fill(0.0F);
+    cascadeHalfExtents.fill(glm::vec3 {0.0F});
     cascadeCenters.fill(glm::vec3 {0.0F});
     lightPositions.fill(glm::vec3 {0.0F});
+    cascadeBlendDistances.fill(0.0F);
+    cascadeMinBounds.fill(glm::vec3 {0.0F});
+    cascadeMaxBounds.fill(glm::vec3 {0.0F});
+    lightViewMatrices.fill(glm::mat4 {1.0F});
+    cascadeNearPlanes.fill(0.0F);
+    cascadeFarPlanes.fill(0.0F);
 }
 
 auto compute_cascaded_shadow_data(
@@ -169,6 +186,7 @@ auto compute_cascaded_shadow_data(
 
     const float range = input.farPlane - input.nearPlane;
     const glm::vec3 up = choose_up_vector(lightDirection);
+    const glm::vec3 lightForward = glm::normalize(lightDirection);
 
     for(std::uint32_t cascadeIndex {0U}; cascadeIndex < maxShadowCascades; ++cascadeIndex) {
         if(cascadeIndex >= clampedCascadeCount) {
@@ -177,14 +195,21 @@ auto compute_cascaded_shadow_data(
             data.uniform.cascadeData.at(arrayIndex) = glm::vec4 {0.0F};
             data.uniform.cascadeSplits[static_cast<int>(cascadeIndex)] = input.farPlane;
             data.cascadeTexelSizes.at(cascadeIndex) = 0.0F;
-            data.cascadeRadii.at(cascadeIndex) = 0.0F;
+            data.cascadeHalfExtents.at(cascadeIndex) = glm::vec3 {0.0F};
             data.cascadeCenters.at(cascadeIndex) = glm::vec3 {0.0F};
             data.lightPositions.at(cascadeIndex) = glm::vec3 {0.0F};
+            data.cascadeBlendDistances.at(cascadeIndex) = 0.0F;
+            data.cascadeMinBounds.at(cascadeIndex) = glm::vec3 {0.0F};
+            data.cascadeMaxBounds.at(cascadeIndex) = glm::vec3 {0.0F};
+            data.lightViewMatrices.at(cascadeIndex) = glm::mat4 {1.0F};
+            data.cascadeNearPlanes.at(cascadeIndex) = 0.0F;
+            data.cascadeFarPlanes.at(cascadeIndex) = 0.0F;
             continue;
         }
 
         const float splitDepth = splits.at(cascadeIndex);
         const float previousSplit = (cascadeIndex == 0U) ? input.nearPlane : splits.at(cascadeIndex - 1U);
+        const float cascadeSpan = std::max(splitDepth - previousSplit, epsilon);
 
         const float previousRatio = (previousSplit - input.nearPlane) / range;
         const float splitRatio = (splitDepth - input.nearPlane) / range;
@@ -205,84 +230,130 @@ auto compute_cascaded_shadow_data(
         }
         cascadeCenter /= static_cast<float>(cascadeCorners.size());
 
-        float radius {0.0F};
-        for(const glm::vec3& corner : cascadeCorners) {
-            const float distance = glm::length(corner - cascadeCenter);
-            radius = std::max(radius, distance);
+        const std::size_t arrayIndex = static_cast<std::size_t>(cascadeIndex);
+
+        const glm::vec3 upVector = glm::normalize(up);
+        glm::vec3 lightRight = glm::normalize(glm::cross(upVector, lightForward));
+        if(glm::length(lightRight) <= epsilon) {
+            lightRight = glm::vec3 {1.0F, 0.0F, 0.0F};
         }
-        radius = std::ceil(radius * 16.0F) / 16.0F;
+        const glm::vec3 lightUp = glm::normalize(glm::cross(lightForward, lightRight));
 
-        const float lightDistance = std::max(radius * depthPaddingScale, epsilon);
-        const glm::vec3 lightPosition = cascadeCenter - (lightDirection * lightDistance);
-        const glm::mat4 lightView = glm::lookAt(lightPosition, cascadeCenter, up);
-
-        glm::vec3 minBounds {
+        glm::vec3 minLS {
             std::numeric_limits<float>::max(),
             std::numeric_limits<float>::max(),
             std::numeric_limits<float>::max()
         };
-        glm::vec3 maxBounds {
+        glm::vec3 maxLS {
             std::numeric_limits<float>::lowest(),
             std::numeric_limits<float>::lowest(),
             std::numeric_limits<float>::lowest()
         };
 
         for(const glm::vec3& corner : cascadeCorners) {
-            const glm::vec3 cornerLightSpace = glm::vec3 {lightView * glm::vec4 {corner, 1.0F}};
-            minBounds = glm::min(minBounds, cornerLightSpace);
-            maxBounds = glm::max(maxBounds, cornerLightSpace);
+            const glm::vec3 offset = corner - cascadeCenter;
+            const glm::vec3 lightSpaceCorner {
+                glm::dot(offset, lightRight),
+                glm::dot(offset, lightUp),
+                glm::dot(offset, lightForward)
+            };
+            minLS = glm::min(minLS, lightSpaceCorner);
+            maxLS = glm::max(maxLS, lightSpaceCorner);
         }
 
-        const float minLightSpaceZ = minBounds.z;
-        const float maxLightSpaceZ = maxBounds.z;
+        glm::vec3 halfExtents = (maxLS - minLS) * 0.5F;
+        halfExtents = glm::max(halfExtents, glm::vec3 {epsilon});
 
-        const glm::vec3 cascadeCenterLightSpace = (minBounds + maxBounds) * 0.5F;
-        float halfExtentX = (maxBounds.x - minBounds.x) * 0.5F;
-        float halfExtentY = (maxBounds.y - minBounds.y) * 0.5F;
-        float halfExtent = std::max({halfExtentX, halfExtentY, epsilon});
-        halfExtent *= extentPaddingFactor;
+        const glm::vec2 xyGuard = glm::max(
+            glm::vec2 {halfExtents.x, halfExtents.y} * xyGuardFraction,
+            glm::vec2 {minXYGuard});
+        const float depthGuard = std::max(halfExtents.z * depthGuardFraction, minDepthGuard);
 
-        const float cascadeWidth = halfExtent * 2.0F;
-        float texelSize = cascadeWidth / static_cast<float>(clampedResolution);
-        texelSize = std::max(texelSize, epsilon);
+        const glm::vec3 lightPosition = cascadeCenter - lightForward * (halfExtents.z + depthGuard);
+        glm::mat4 lightView = glm::lookAt(lightPosition, cascadeCenter, lightUp);
 
-        glm::vec3 stabilisedCenterLightSpace = cascadeCenterLightSpace;
-        if(settings.stabilize && texelSize > epsilon) {
-            stabilisedCenterLightSpace.x = std::round(stabilisedCenterLightSpace.x / texelSize) * texelSize;
-            stabilisedCenterLightSpace.y = std::round(stabilisedCenterLightSpace.y / texelSize) * texelSize;
+        auto compute_bounds = [&](glm::mat4 viewMatrix) {
+            glm::vec3 minBounds {
+                std::numeric_limits<float>::max(),
+                std::numeric_limits<float>::max(),
+                std::numeric_limits<float>::max()
+            };
+            glm::vec3 maxBounds {
+                std::numeric_limits<float>::lowest(),
+                std::numeric_limits<float>::lowest(),
+                std::numeric_limits<float>::lowest()
+            };
+            for(const glm::vec3& corner : cascadeCorners) {
+                const glm::vec3 cornerLightSpace = glm::vec3 {viewMatrix * glm::vec4 {corner, 1.0F}};
+                minBounds = glm::min(minBounds, cornerLightSpace);
+                maxBounds = glm::max(maxBounds, cornerLightSpace);
+            }
+            minBounds.x -= xyGuard.x;
+            minBounds.y -= xyGuard.y;
+            maxBounds.x += xyGuard.x;
+            maxBounds.y += xyGuard.y;
+            return std::pair {minBounds, maxBounds};
+        };
+
+        auto [minBounds, maxBounds] = compute_bounds(lightView);
+
+        float cascadeWidth = maxBounds.x - minBounds.x;
+        float texelSize = std::max(cascadeWidth / static_cast<float>(clampedResolution), minTexelSize);
+
+        if(settings.stabilize && texelSize > minTexelSize) {
+            const glm::vec2 centerXY {
+                (minBounds.x + maxBounds.x) * 0.5F,
+                (minBounds.y + maxBounds.y) * 0.5F
+            };
+            const glm::vec2 snappedCenter {
+                std::round(centerXY.x / texelSize) * texelSize,
+                std::round(centerXY.y / texelSize) * texelSize
+            };
+            const glm::vec2 offset = snappedCenter - centerXY;
+            if(glm::length(offset) > epsilon) {
+                const glm::mat4 stabilization = glm::translate(glm::mat4 {1.0F}, glm::vec3 {-offset.x, -offset.y, 0.0F});
+                lightView = stabilization * lightView;
+                std::tie(minBounds, maxBounds) = compute_bounds(lightView);
+                cascadeWidth = maxBounds.x - minBounds.x;
+                texelSize = std::max(cascadeWidth / static_cast<float>(clampedResolution), minTexelSize);
+            }
         }
 
-        const float minX = stabilisedCenterLightSpace.x - halfExtent;
-        const float maxX = stabilisedCenterLightSpace.x + halfExtent;
-        const float minY = stabilisedCenterLightSpace.y - halfExtent;
-        const float maxY = stabilisedCenterLightSpace.y + halfExtent;
+        const float nearPlane = std::max(0.0F, -maxBounds.z - depthGuard);
+        const float farPlaneRaw = (-minBounds.z) + depthGuard;
+        const float farPlane = std::max(farPlaneRaw, nearPlane + epsilon);
 
-        const float depthPadding = range * 0.25F;
-        const float nearPlane = std::max(0.0F, -maxLightSpaceZ - depthPadding);
-        const float farPlane = -minLightSpaceZ + depthPadding;
-        const float clampedFar = std::max(farPlane, nearPlane + epsilon);
+        glm::mat4 lightProjection = glm::ortho(minBounds.x, maxBounds.x, minBounds.y, maxBounds.y, nearPlane, farPlane);
+        const glm::mat4 viewProjectionMatrix = lightProjection * lightView;
 
-        glm::mat4 lightProjection = glm::ortho(minX, maxX, minY, maxY, nearPlane, clampedFar);
-        glm::mat4 viewProjectionMatrix = lightProjection * lightView;
+        const float blendDistance = std::max(cascadeSpan * cascadeBlendFactor, epsilon);
+        const glm::vec3 halfExtentsFinal {
+            (maxBounds.x - minBounds.x) * 0.5F,
+            (maxBounds.y - minBounds.y) * 0.5F,
+            (farPlane - nearPlane) * 0.5F
+        };
 
-        if(settings.stabilize && clampedResolution > 0U) {
-            const float resolutionScale = static_cast<float>(clampedResolution);
-            glm::vec4 shadowOrigin = viewProjectionMatrix * glm::vec4 {0.0F, 0.0F, 0.0F, 1.0F};
-            shadowOrigin *= resolutionScale * 0.5F;
-            const glm::vec4 roundedOrigin = glm::round(shadowOrigin);
-            const glm::vec4 roundOffset = (roundedOrigin - shadowOrigin) * (2.0F / resolutionScale);
-            const glm::vec3 translation {roundOffset.x, roundOffset.y, 0.0F};
-            viewProjectionMatrix = glm::translate(glm::mat4 {1.0F}, translation) * viewProjectionMatrix;
-        }
+        const glm::mat4 lightViewInverse = glm::inverse(lightView);
+        const glm::vec3 finalLightPosition = glm::vec3 {lightViewInverse[3]};
 
-        const std::size_t arrayIndex = static_cast<std::size_t>(cascadeIndex);
         data.uniform.lightViewProjection.at(arrayIndex) = viewProjectionMatrix;
-        data.uniform.cascadeData.at(arrayIndex) = glm::vec4 {texelSize, halfExtent, clampedFar - nearPlane, 0.0F};
+        data.uniform.cascadeData.at(arrayIndex) = glm::vec4 {
+            texelSize,
+            std::max(halfExtentsFinal.x, halfExtentsFinal.y),
+            farPlane - nearPlane,
+            blendDistance
+        };
         data.uniform.cascadeSplits[static_cast<int>(cascadeIndex)] = splitDepth;
         data.cascadeTexelSizes.at(cascadeIndex) = texelSize;
-        data.cascadeRadii.at(cascadeIndex) = halfExtent;
+        data.cascadeHalfExtents.at(cascadeIndex) = halfExtentsFinal;
         data.cascadeCenters.at(cascadeIndex) = cascadeCenter;
-        data.lightPositions.at(cascadeIndex) = lightPosition;
+        data.lightPositions.at(cascadeIndex) = finalLightPosition;
+        data.cascadeBlendDistances.at(cascadeIndex) = blendDistance;
+        data.cascadeMinBounds.at(cascadeIndex) = minBounds;
+        data.cascadeMaxBounds.at(cascadeIndex) = maxBounds;
+        data.lightViewMatrices.at(cascadeIndex) = lightView;
+        data.cascadeNearPlanes.at(cascadeIndex) = nearPlane;
+        data.cascadeFarPlanes.at(cascadeIndex) = farPlane;
     }
 
     data.uniform.shadowParams = glm::vec4 {

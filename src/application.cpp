@@ -52,6 +52,15 @@ namespace {
         glm::vec4 materialFlags {1.0F, 1.0F, 1.0F, 0.0F};
     };
 
+    auto compute_object_space_radius(const vulkano::MeshData& mesh) -> float {
+        float maxLengthSq {0.0F};
+        for(const vulkano::MeshVertex& vertex : mesh.vertices) {
+            const float lengthSq = glm::dot(vertex.position, vertex.position);
+            maxLengthSq = std::max(maxLengthSq, lengthSq);
+        }
+        return (maxLengthSq > 0.0F) ? std::sqrt(maxLengthSq) : 0.0F;
+    }
+
 }
 
 namespace vulkano {
@@ -322,6 +331,32 @@ void VulkanApplication::draw_frame() {
                 ImGui::Separator();
                 ImGui::TextDisabled("Shadow atlas not available yet.");
             }
+        }
+
+        if(ImGui::TreeNode("Cascade Metrics")) {
+            const std::uint32_t visibleCascadeCount = std::min(m_shadow.cascadeCount, maxShadowCascades);
+            for(std::uint32_t cascadeIdx {0U}; cascadeIdx < visibleCascadeCount; ++cascadeIdx) {
+                const float texelSize = m_shadow.cascadeTexelSizes.at(cascadeIdx);
+                const glm::vec3 halfExtents = m_shadow.cascadeHalfExtents.at(cascadeIdx);
+                const float blendWidth = m_shadow.cascadeBlendDistances.at(cascadeIdx);
+                const glm::vec3 center = m_shadow.cascadeCenters.at(cascadeIdx);
+                const glm::vec3 lightPosition = m_shadow.cascadeLightPositions.at(cascadeIdx);
+                const float lightDistance = glm::length(center - lightPosition);
+                const float nearPlane = m_shadow.cascadeNearPlanes.at(cascadeIdx);
+                const float farPlane = m_shadow.cascadeFarPlanes.at(cascadeIdx);
+                ImGui::Text(
+                    "Cascade %u | texel: %.6f | extents: (%.3f, %.3f, %.3f) | near/far: %.2f / %.2f | blend: %.3f | light dist: %.3f",
+                    cascadeIdx,
+                    texelSize,
+                    halfExtents.x,
+                    halfExtents.y,
+                    halfExtents.z,
+                    nearPlane,
+                    farPlane,
+                    blendWidth,
+                    lightDistance);
+            }
+            ImGui::TreePop();
         }
     }
 
@@ -1065,6 +1100,7 @@ void VulkanApplication::initialise_scene() {
             const auto& mesh = scenePrimitive.primitive->mesh();
             const std::string name = std::string {scenePrimitive.primitive->identifier()} + " Primitive";
             scenePrimitive.gpu.upload(m_context, mesh, name);
+            scenePrimitive.objectBoundingRadius = compute_object_space_radius(mesh);
             scenePrimitive.primitive->clear_mesh_dirty();
             scenePrimitive.material.boundAlbedo = &m_fallbackAlbedo;
             scenePrimitive.material.boundNormal = &m_fallbackNormal;
@@ -1093,6 +1129,7 @@ void VulkanApplication::rebuild_dirty_meshes() {
         const auto& mesh = primitive.primitive->mesh();
         const std::string name = std::string {primitive.primitive->identifier()} + " Primitive";
         primitive.gpu.upload(m_context, mesh, name);
+        primitive.objectBoundingRadius = compute_object_space_radius(mesh);
         primitive.primitive->clear_mesh_dirty();
     }
 }
@@ -1542,9 +1579,15 @@ void VulkanApplication::create_shadow_resources() {
     m_shadow.settings.resolution = desiredResolution;
     m_shadow.sampleLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     m_shadow.cascadeTexelSizes.fill(0.0F);
-    m_shadow.cascadeRadii.fill(0.0F);
+    m_shadow.cascadeHalfExtents.fill(glm::vec3 {0.0F});
     m_shadow.cascadeCenters.fill(glm::vec3 {0.0F});
     m_shadow.cascadeLightPositions.fill(glm::vec3 {0.0F});
+    m_shadow.cascadeBlendDistances.fill(0.0F);
+    m_shadow.cascadeMinBounds.fill(glm::vec3 {0.0F});
+    m_shadow.cascadeMaxBounds.fill(glm::vec3 {0.0F});
+    m_shadow.cascadeViewMatrices.fill(glm::mat4 {1.0F});
+    m_shadow.cascadeNearPlanes.fill(0.0F);
+    m_shadow.cascadeFarPlanes.fill(0.0F);
     m_shadow.currentLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     m_shadow.firstUse = true;
     mark_all_frame_descriptors_dirty();
@@ -1558,9 +1601,15 @@ void VulkanApplication::destroy_shadow_resources() noexcept {
     m_shadowRenderPass.cleanup();
     m_shadow.sampleLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     m_shadow.cascadeTexelSizes.fill(0.0F);
-    m_shadow.cascadeRadii.fill(0.0F);
+    m_shadow.cascadeHalfExtents.fill(glm::vec3 {0.0F});
     m_shadow.cascadeCenters.fill(glm::vec3 {0.0F});
     m_shadow.cascadeLightPositions.fill(glm::vec3 {0.0F});
+    m_shadow.cascadeBlendDistances.fill(0.0F);
+    m_shadow.cascadeMinBounds.fill(glm::vec3 {0.0F});
+    m_shadow.cascadeMaxBounds.fill(glm::vec3 {0.0F});
+    m_shadow.cascadeViewMatrices.fill(glm::mat4 {1.0F});
+    m_shadow.cascadeNearPlanes.fill(0.0F);
+    m_shadow.cascadeFarPlanes.fill(0.0F);
     m_shadow.currentLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     m_shadow.firstUse = true;
     mark_all_frame_descriptors_dirty();
@@ -1615,9 +1664,15 @@ void VulkanApplication::recreate_shadow_resources(std::uint32_t cascadeCount, st
         m_shadow.settings.resolution = clampedResolution;
         m_shadow.sampleLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         m_shadow.cascadeTexelSizes.fill(0.0F);
-        m_shadow.cascadeRadii.fill(0.0F);
+        m_shadow.cascadeHalfExtents.fill(glm::vec3 {0.0F});
         m_shadow.cascadeCenters.fill(glm::vec3 {0.0F});
         m_shadow.cascadeLightPositions.fill(glm::vec3 {0.0F});
+        m_shadow.cascadeBlendDistances.fill(0.0F);
+        m_shadow.cascadeMinBounds.fill(glm::vec3 {0.0F});
+        m_shadow.cascadeMaxBounds.fill(glm::vec3 {0.0F});
+        m_shadow.cascadeViewMatrices.fill(glm::mat4 {1.0F});
+        m_shadow.cascadeNearPlanes.fill(0.0F);
+        m_shadow.cascadeFarPlanes.fill(0.0F);
         m_shadow.currentLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         m_shadow.firstUse = true;
     }
@@ -1752,9 +1807,15 @@ void VulkanApplication::update_global_uniforms(std::uint32_t frameIndex) {
 
     uniforms.shadow = cascadeData.uniform;
     m_shadow.cascadeTexelSizes = cascadeData.cascadeTexelSizes;
-    m_shadow.cascadeRadii = cascadeData.cascadeRadii;
+    m_shadow.cascadeHalfExtents = cascadeData.cascadeHalfExtents;
     m_shadow.cascadeCenters = cascadeData.cascadeCenters;
     m_shadow.cascadeLightPositions = cascadeData.lightPositions;
+    m_shadow.cascadeBlendDistances = cascadeData.cascadeBlendDistances;
+    m_shadow.cascadeMinBounds = cascadeData.cascadeMinBounds;
+    m_shadow.cascadeMaxBounds = cascadeData.cascadeMaxBounds;
+    m_shadow.cascadeViewMatrices = cascadeData.lightViewMatrices;
+    m_shadow.cascadeNearPlanes = cascadeData.cascadeNearPlanes;
+    m_shadow.cascadeFarPlanes = cascadeData.cascadeFarPlanes;
     update_light_indicator();
     uniforms.shadow.shadowParams.w = static_cast<float>(cascadeCount);
     uniforms.shadow.atlasSize.x = static_cast<float>(shadowResolution);
@@ -1829,6 +1890,50 @@ void VulkanApplication::render_shadow_pass(VkCommandBuffer commandBuffer, std::u
     const float biasConstant = m_shadow.settings.biasConstant;
     const float biasSlope = m_shadow.settings.biasSlope;
 
+    auto primitive_visible_in_cascade = [&](const ScenePrimitive& primitive, std::uint32_t cascadeIdx, const glm::mat4& modelMatrix) -> bool {
+        if(cascadeIdx >= m_shadow.cascadeCount) {
+            return false;
+        }
+        if(primitive.objectBoundingRadius <= 0.0F) {
+            return true;
+        }
+        const PrimitiveProperties& properties = primitive.primitive->properties();
+        const glm::vec3 scaleAbs {std::abs(properties.scale.x), std::abs(properties.scale.y), std::abs(properties.scale.z)};
+        const float maxScale = std::max({scaleAbs.x, scaleAbs.y, scaleAbs.z, 0.0F});
+        const float radius = primitive.objectBoundingRadius * maxScale;
+        if(radius <= 0.0F) {
+            return true;
+        }
+
+        const glm::vec3 centerWorld = glm::vec3 {modelMatrix * glm::vec4 {0.0F, 0.0F, 0.0F, 1.0F}};
+        const glm::vec3 centerLightSpace = glm::vec3 {
+            m_shadow.cascadeViewMatrices.at(cascadeIdx) * glm::vec4 {centerWorld, 1.0F}
+        };
+        const glm::vec3 minBounds = m_shadow.cascadeMinBounds.at(cascadeIdx);
+        const glm::vec3 maxBounds = m_shadow.cascadeMaxBounds.at(cascadeIdx);
+        if(centerLightSpace.x + radius < minBounds.x) {
+            return false;
+        }
+        if(centerLightSpace.x - radius > maxBounds.x) {
+            return false;
+        }
+        if(centerLightSpace.y + radius < minBounds.y) {
+            return false;
+        }
+        if(centerLightSpace.y - radius > maxBounds.y) {
+            return false;
+        }
+        const float nearPlane = m_shadow.cascadeNearPlanes.at(cascadeIdx);
+        const float farPlane = m_shadow.cascadeFarPlanes.at(cascadeIdx);
+        if(centerLightSpace.z - radius > -nearPlane) {
+            return false;
+        }
+        if(centerLightSpace.z + radius < -farPlane) {
+            return false;
+        }
+        return true;
+    };
+
     for(std::uint32_t cascadeIndex {0U}; cascadeIndex < m_shadow.cascadeCount; ++cascadeIndex) {
         VkRenderPassBeginInfo beginInfo {};
         beginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -1879,13 +1984,18 @@ void VulkanApplication::render_shadow_pass(VkCommandBuffer commandBuffer, std::u
 
             MeshGpuResources& gpu = primitive.gpu;
 
+            const glm::mat4 modelMatrix = compute_model_matrix(primitive.primitive->properties());
+            if(!primitive_visible_in_cascade(primitive, cascadeIndex, modelMatrix)) {
+                continue;
+            }
+
             const VkBuffer vertexBuffers[] {gpu.vertex_buffer()};
             const VkDeviceSize offsets[] {0U};
             vkCmdBindVertexBuffers(commandBuffer, 0U, 1U, vertexBuffers, offsets);
             vkCmdBindIndexBuffer(commandBuffer, gpu.index_buffer(), 0U, VK_INDEX_TYPE_UINT32);
 
             ShadowPushConstants pushConstants {};
-            pushConstants.model = compute_model_matrix(primitive.primitive->properties());
+            pushConstants.model = modelMatrix;
             pushConstants.cascadeIndex = cascadeIndex;
 
             vkCmdPushConstants(

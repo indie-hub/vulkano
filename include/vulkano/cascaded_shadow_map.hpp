@@ -61,9 +61,15 @@ struct ShadowCascadeData final {
 
     CascadedShadowUniform uniform;
     std::array<float, maxShadowCascades> cascadeTexelSizes;
-    std::array<float, maxShadowCascades> cascadeRadii;
+    std::array<glm::vec3, maxShadowCascades> cascadeHalfExtents;
     std::array<glm::vec3, maxShadowCascades> cascadeCenters;
     std::array<glm::vec3, maxShadowCascades> lightPositions;
+    std::array<float, maxShadowCascades> cascadeBlendDistances;
+    std::array<glm::vec3, maxShadowCascades> cascadeMinBounds;
+    std::array<glm::vec3, maxShadowCascades> cascadeMaxBounds;
+    std::array<glm::mat4, maxShadowCascades> lightViewMatrices;
+    std::array<float, maxShadowCascades> cascadeNearPlanes;
+    std::array<float, maxShadowCascades> cascadeFarPlanes;
 };
 
 auto compute_cascaded_shadow_data(

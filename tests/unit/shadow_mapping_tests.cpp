@@ -1,6 +1,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <glm/gtc/epsilon.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -72,6 +73,24 @@ TEST_CASE("compute_cascaded_shadow_data encodes settings", "[shadow][uniform]") 
     bool anyNonIdentity {false};
     for(std::size_t index {0U}; index < settings.cascadeCount; ++index) {
         const glm::mat4 matrix = uniform.lightViewProjection.at(index);
+        const glm::vec4 meta = uniform.cascadeData.at(index);
+        const float splitEnd = uniform.cascadeSplits[static_cast<int>(index)];
+        const float splitStart = (index == 0U) ? input.nearPlane : uniform.cascadeSplits[static_cast<int>(index) - 1];
+        const float span = splitEnd - splitStart;
+        const float expectedBlend = std::max(span * 0.15F, epsilon);
+        REQUIRE(meta.z >= span);
+        REQUIRE(meta.w == Approx(expectedBlend).margin(1e-3F));
+        REQUIRE(data.cascadeTexelSizes.at(index) == Approx(meta.x).margin(epsilon));
+        REQUIRE(data.cascadeBlendDistances.at(index) == Approx(meta.w).margin(1e-3F));
+        const glm::vec3 halfExtents = data.cascadeHalfExtents.at(index);
+        REQUIRE(halfExtents.x > 0.0F);
+        REQUIRE(halfExtents.y > 0.0F);
+        REQUIRE(halfExtents.z * 2.0F == Approx(meta.z).margin(1e-3F));
+        const glm::vec3 minBounds = data.cascadeMinBounds.at(index);
+        const glm::vec3 maxBounds = data.cascadeMaxBounds.at(index);
+        REQUIRE(minBounds.x < maxBounds.x);
+        REQUIRE(minBounds.y < maxBounds.y);
+        REQUIRE(maxBounds.z <= 0.0F);
         bool isIdentity {true};
         for(int row {0}; row < 4 && isIdentity; ++row) {
             for(int col {0}; col < 4; ++col) {
@@ -161,4 +180,40 @@ TEST_CASE("light orientation remains world aligned", "[shadow][stability]") {
     REQUIRE(glm::dot(orientationA, expected) == Approx(1.0F).margin(orientationTolerance));
     REQUIRE(glm::dot(orientationB, expected) == Approx(1.0F).margin(orientationTolerance));
     REQUIRE(glm::dot(orientationA, orientationB) == Approx(1.0F).margin(orientationTolerance));
+}
+
+TEST_CASE("cascade span influences light offset and blending", "[shadow][stability]") {
+    vulkano::CascadedShadowSettings settings {};
+    settings.enabled = true;
+    settings.cascadeCount = 3U;
+    settings.stabilize = true;
+
+    vulkano::ShadowComputationInput input {};
+    input.view = glm::lookAt(
+        glm::vec3 {0.0F, 2.0F, 6.0F},
+        glm::vec3 {0.0F, 2.0F, 0.0F},
+        glm::vec3 {0.0F, 1.0F, 0.0F});
+    input.projection = glm::perspective(glm::radians(50.0F), 16.0F / 9.0F, 0.1F, 60.0F);
+    input.lightDirection = glm::normalize(glm::vec3 {0.0F, -0.1F, -1.0F});
+    input.nearPlane = 0.1F;
+    input.farPlane = 60.0F;
+
+    const vulkano::ShadowCascadeData data = vulkano::compute_cascaded_shadow_data(
+        input,
+        settings,
+        settings.cascadeCount,
+        settings.resolution);
+
+    REQUIRE(data.cascadeBlendDistances.front() > 0.0F);
+
+    const glm::vec3 center = data.cascadeCenters.front();
+    const glm::vec3 lightPosition = data.lightPositions.front();
+    const glm::vec3 offset = center - lightPosition;
+    const glm::vec3 lightDir = glm::normalize(input.lightDirection);
+    const float projectedDistance = glm::dot(offset, lightDir);
+    const glm::vec4 cascadeMeta = data.uniform.cascadeData.front();
+    const glm::vec3 halfExtents = data.cascadeHalfExtents.front();
+    REQUIRE(projectedDistance >= Approx(halfExtents.z).margin(0.5F));
+    REQUIRE(data.cascadeBlendDistances.front() == Approx(cascadeMeta.w).margin(1e-3F));
+    REQUIRE(data.cascadeNearPlanes.front() < data.cascadeFarPlanes.front());
 }

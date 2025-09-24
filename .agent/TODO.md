@@ -67,3 +67,17 @@
 - [x] Correct shadow bias/normal handling so lit faces remain lit and cascades cover view-aligned cases.
 - [x] Rebuild, run tests, and validate runtime to ensure directional shadows behave correctly.
 - [x] Document findings if needed and commit with reasoning summary.
+
+- [x] Refine cascaded shadow volume computation (light distance, padding, stabilization adjustments).
+- [x] Adjust shadow sampling behaviour (bias scaling, cascade blending) and update shaders.
+- [x] Extend shadow debugging aids and tests, then verify build.
+
+- [x] Increase fallback normal map resolution to 1024x1024.
+- [x] Rebuild project and run shadow-related tests.
+
+- [x] Reduce front-lit self-shadowing with improved receiver biasing.
+- [x] Rebuild and run shadow-focused tests.
+
+- [x] Redesign cascaded shadow computation (tight frustum slicing, stabilisation plan, cascade metadata).
+- [x] Implement revised CPU pipeline, light-volume culling, and state propagation.
+- [x] Update shaders/tests/UI for new cascade data, rebuild, and validate.

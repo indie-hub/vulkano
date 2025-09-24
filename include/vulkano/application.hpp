@@ -120,6 +120,7 @@ private:
     struct ScenePrimitive final {
         std::unique_ptr<Primitive> primitive {};
         MeshGpuResources gpu {};
+        float objectBoundingRadius {0.0F};
 
         struct MaterialTextures final {
             TextureImage customAlbedo {};
@@ -175,9 +176,15 @@ private:
         VkImageLayout currentLayout {VK_IMAGE_LAYOUT_UNDEFINED};
         VkImageLayout sampleLayout {VK_IMAGE_LAYOUT_UNDEFINED};
         std::array<float, maxShadowCascades> cascadeTexelSizes {};
-        std::array<float, maxShadowCascades> cascadeRadii {};
+        std::array<glm::vec3, maxShadowCascades> cascadeHalfExtents {};
         std::array<glm::vec3, maxShadowCascades> cascadeCenters {};
         std::array<glm::vec3, maxShadowCascades> cascadeLightPositions {};
+        std::array<float, maxShadowCascades> cascadeBlendDistances {};
+        std::array<glm::vec3, maxShadowCascades> cascadeMinBounds {};
+        std::array<glm::vec3, maxShadowCascades> cascadeMaxBounds {};
+        std::array<glm::mat4, maxShadowCascades> cascadeViewMatrices {};
+        std::array<float, maxShadowCascades> cascadeNearPlanes {};
+        std::array<float, maxShadowCascades> cascadeFarPlanes {};
         std::vector<VkDescriptorSet> debugAtlasDescriptors {};
         VkFormat format {VK_FORMAT_D32_SFLOAT};
     };

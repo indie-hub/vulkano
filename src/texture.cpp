@@ -25,7 +25,7 @@ namespace {
     constexpr std::uint32_t checkerboardSquares {8U};
     constexpr float checkerboardLightValue {0.92F};
     constexpr float checkerboardDarkValue {0.12F};
-    constexpr VkExtent2D normalNoiseExtent {128U, 128U};
+    constexpr VkExtent2D normalNoiseExtent {1024U, 1024U};
     constexpr float normalNoiseAmplitude {0.8F};
     constexpr float normalHighPassStrength {0.45F};
 
