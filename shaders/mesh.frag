@@ -62,9 +62,8 @@ float compute_shadow(uint cascadeIndex, vec3 worldPosition, vec3 normal) {
     float angularFactor = 1.0 - ndotl;
 
     float texelSize = max(cascadeMeta.x, 1e-4);
-    float baseNormalBias = globalUniforms.shadow.biasParams.z * texelSize;
-    float minNormalBias = baseNormalBias * 0.25;
-    float normalBias = mix(minNormalBias, baseNormalBias, angularFactor);
+    float normalBiasBase = globalUniforms.shadow.biasParams.z * texelSize;
+    float normalBias = normalBiasBase * (1.0 + angularFactor);
     vec3 biasedPosition = worldPosition + normal * normalBias;
 
     vec4 lightSpace = globalUniforms.shadow.lightViewProjection[cascadeIndex] * vec4(biasedPosition, 1.0);
@@ -77,7 +76,9 @@ float compute_shadow(uint cascadeIndex, vec3 worldPosition, vec3 normal) {
 
     int kernelRadius = int(round(globalUniforms.shadow.shadowParams.z));
     kernelRadius = max(kernelRadius, 0);
-    float depthBias = globalUniforms.shadow.biasParams.x * texelSize;
+    float constantBias = globalUniforms.shadow.biasParams.x;
+    float slopeBias = globalUniforms.shadow.biasParams.y * angularFactor;
+    float depthBias = (constantBias + slopeBias) * texelSize;
 
     float shadow = 0.0;
     float samples = 0.0;

@@ -18,3 +18,4 @@ Actionable fixes:
 - Adjusted orthographic near/far planes to use distances along the light direction (positive depth) so cascades cover scene geometry when sampling.
 - Shadow jitter traced to lightView shifting with camera; projection snapping lacked translation correction, so depth maps drift relative to world when camera moves.
 - Added texel-grid stabilisation by translating the light projection matrix; snaps the cascade origin in shadow texel space so camera motion no longer jitters shadows.
+- Tuned receiver bias (normal + slope) in shader so forward-facing surfaces stay lit while preserving contact shadows even when view aligns with the light.

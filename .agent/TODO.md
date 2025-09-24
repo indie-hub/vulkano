@@ -63,3 +63,7 @@
 - [x] Stabilize light-space matrices so directional shadows stay world aligned independent of camera.
 - [x] Rebuild, run tests, perform runtime validation, and confirm shadows remain stable.
 - [x] Document findings if needed and commit with reasoning summary.
+- [x] Investigate incorrect self-shadowing and missing shadows when camera aligns with light.
+- [x] Correct shadow bias/normal handling so lit faces remain lit and cascades cover view-aligned cases.
+- [x] Rebuild, run tests, and validate runtime to ensure directional shadows behave correctly.
+- [x] Document findings if needed and commit with reasoning summary.
