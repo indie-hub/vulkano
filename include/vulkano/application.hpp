@@ -11,6 +11,8 @@
 #include <vulkano/primitives.hpp>
 #include <vulkano/render_pass.hpp>
 #include <vulkano/shadow_map.hpp>
+#include <vulkano/shadow_pipeline.hpp>
+#include <vulkano/shadow_render_pass.hpp>
 #include <vulkano/swapchain.hpp>
 #include <vulkano/synchronization.hpp>
 #include <vulkano/vulkan_context.hpp>
@@ -63,6 +65,8 @@ private:
     void apply_scroll_input(const ImGuiIO& io);
     void create_render_finished_semaphores();
     void destroy_render_finished_semaphores() noexcept;
+    void create_shadow_framebuffer();
+    void destroy_shadow_framebuffer() noexcept;
     void initialise_scene();
     void rebuild_dirty_meshes();
     void create_descriptor_resources();
@@ -119,6 +123,9 @@ private:
     CameraState m_camera {};
     DepthResources m_depthResources {};
     ShadowMap m_shadowMap {};
+    ShadowRenderPass m_shadowRenderPass {};
+    ShadowPipeline m_shadowPipeline {};
+    VkFramebuffer m_shadowFramebuffer {VK_NULL_HANDLE};
     VkFormat m_depthFormat {VK_FORMAT_D32_SFLOAT};
     VkDescriptorSetLayout m_descriptorSetLayout {VK_NULL_HANDLE};
     VkDescriptorPool m_descriptorPool {VK_NULL_HANDLE};

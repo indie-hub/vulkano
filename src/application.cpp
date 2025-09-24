@@ -68,6 +68,9 @@ VulkanApplication::VulkanApplication(const AppConfig& config)
     m_renderPass = RenderPass::create(m_context, m_swapchain.image_format(), m_depthFormat);
     m_depthResources = DepthResources::create(m_context, m_depthFormat, extent, imageCount);
     m_shadowMap = ShadowMap::create(m_context, ShadowMap::defaultResolution);
+    m_shadowRenderPass = ShadowRenderPass::create(m_context, m_shadowMap.format());
+    create_shadow_framebuffer();
+    m_shadowPipeline = ShadowPipeline::create(m_context, m_shadowRenderPass, VK_NULL_HANDLE);
     m_framebuffers = FramebufferCollection::create(
         m_context,
         m_swapchain,
@@ -87,6 +90,7 @@ VulkanApplication::VulkanApplication(const AppConfig& config)
 
 VulkanApplication::~VulkanApplication() {
     wait_for_device_idle();
+    destroy_shadow_framebuffer();
     destroy_descriptor_resources();
     destroy_render_finished_semaphores();
     destroy_imgui();
@@ -403,6 +407,40 @@ void VulkanApplication::create_render_finished_semaphores() {
             VK_OBJECT_TYPE_SEMAPHORE,
             reinterpret_cast<std::uint64_t>(semaphore),
             name);
+    }
+}
+
+void VulkanApplication::create_shadow_framebuffer() {
+    destroy_shadow_framebuffer();
+
+    if(m_shadowRenderPass.handle() == VK_NULL_HANDLE || m_shadowMap.image_view() == VK_NULL_HANDLE) {
+        return;
+    }
+
+    VkFramebufferCreateInfo framebufferInfo {};
+    framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+    framebufferInfo.renderPass = m_shadowRenderPass.handle();
+    framebufferInfo.attachmentCount = 1U;
+    const VkImageView attachment = m_shadowMap.image_view();
+    framebufferInfo.pAttachments = &attachment;
+    framebufferInfo.width = m_shadowMap.resolution();
+    framebufferInfo.height = m_shadowMap.resolution();
+    framebufferInfo.layers = 1U;
+
+    if(vkCreateFramebuffer(m_context.device(), &framebufferInfo, nullptr, &m_shadowFramebuffer) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create shadow framebuffer"};
+    }
+
+    m_context.set_object_name(
+        VK_OBJECT_TYPE_FRAMEBUFFER,
+        reinterpret_cast<std::uint64_t>(m_shadowFramebuffer),
+        "Shadow Framebuffer");
+}
+
+void VulkanApplication::destroy_shadow_framebuffer() noexcept {
+    if(m_shadowFramebuffer != VK_NULL_HANDLE) {
+        vkDestroyFramebuffer(m_context.device(), m_shadowFramebuffer, nullptr);
+        m_shadowFramebuffer = VK_NULL_HANDLE;
     }
 }
 
