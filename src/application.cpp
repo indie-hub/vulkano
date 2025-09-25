@@ -1,5 +1,6 @@
 #include <vulkano/application.hpp>
 #include <vulkano/camera_math.hpp>
+#include <vulkano/procedural_textures.hpp>
 
 #include <algorithm>
 #include <array>
@@ -1426,12 +1427,26 @@ void VulkanApplication::destroy_material_descriptor_resources() noexcept {
 void VulkanApplication::create_fallback_textures() {
     destroy_fallback_textures();
 
-    const VkExtent2D fallbackExtent {1U, 1U};
-    const std::array<std::uint8_t, 4U> fallbackAlbedoData {255U, 255U, 255U, 255U};
-    const std::array<std::uint8_t, 4U> fallbackNormalData {128U, 128U, 255U, 255U};
+    constexpr std::uint32_t fallbackResolution {512U};
+    constexpr std::uint32_t checkerTiles {8U};
+    constexpr std::uint32_t noiseSeed {1337U};
+    constexpr float noiseAmplitude {0.5F};
 
-    Texture2D albedo = Texture2D::create_rgba8(m_context, fallbackExtent, fallbackAlbedoData, VK_FORMAT_R8G8B8A8_SRGB);
-    Texture2D normal = Texture2D::create_rgba8(m_context, fallbackExtent, fallbackNormalData, VK_FORMAT_R8G8B8A8_UNORM);
+    const auto albedoPixels = generate_checkerboard_rgba_srgb(fallbackResolution, checkerTiles);
+    const auto normalPixels = generate_normal_map_rgba(fallbackResolution, noiseSeed, noiseAmplitude);
+
+    const VkExtent2D fallbackExtent {fallbackResolution, fallbackResolution};
+
+    Texture2D albedo = Texture2D::create_rgba8(
+        m_context,
+        fallbackExtent,
+        albedoPixels,
+        VK_FORMAT_R8G8B8A8_SRGB);
+    Texture2D normal = Texture2D::create_rgba8(
+        m_context,
+        fallbackExtent,
+        normalPixels,
+        VK_FORMAT_R8G8B8A8_UNORM);
 
     m_fallbackAlbedoTexture = std::make_shared<Texture2D>(std::move(albedo));
     m_fallbackNormalTexture = std::make_shared<Texture2D>(std::move(normal));

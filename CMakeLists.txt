@@ -103,6 +103,7 @@ add_library(vulkano_codex_lib STATIC
     src/shadow_map.cpp
     src/mesh_gpu.cpp
     src/render_pass.cpp
+    src/procedural_textures.cpp
     src/texture.cpp
     src/shadow_pipeline.cpp
     src/shadow_render_pass.cpp
