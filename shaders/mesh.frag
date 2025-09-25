@@ -29,7 +29,7 @@ layout(push_constant) uniform PrimitivePushConstants {
     mat4 model;
     vec4 materialColor;
     vec4 materialProperties; // x: shininess, y: ambientStrength, z: specularStrength, w: unused
-    vec4 textureControls; // x: texturesEnabled, y: normalStrength
+    vec4 textureControls; // x: albedoEnabled, y: normalEnabled, z: normalStrength, w: unused
 } primitiveConstants;
 
 vec3 srgb_to_linear(vec3 value) {
@@ -47,13 +47,17 @@ void main() {
     mat3 tbn = mat3(tangent, bitangent, normal);
 
     vec3 baseColor = primitiveConstants.materialColor.rgb;
-    const bool texturesEnabled = primitiveConstants.textureControls.x > 0.5;
-    if(texturesEnabled) {
+    const bool albedoEnabled = primitiveConstants.textureControls.x > 0.5;
+    const bool normalEnabled = primitiveConstants.textureControls.y > 0.5;
+    float normalStrength = max(primitiveConstants.textureControls.z, 0.0);
+
+    if(albedoEnabled) {
         vec3 albedoSample = texture(albedoMap, vUv).rgb;
         baseColor *= srgb_to_linear(albedoSample);
+    }
 
+    if(normalEnabled) {
         vec3 sampledNormal = texture(normalMap, vUv).rgb * 2.0 - 1.0;
-        float normalStrength = max(primitiveConstants.textureControls.y, 0.0);
         sampledNormal = normalize(vec3(sampledNormal.xy * normalStrength, sampledNormal.z));
         normal = normalize(tbn * sampledNormal);
     }

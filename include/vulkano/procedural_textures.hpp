@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <vector>
 
+#include <vulkano/texture_types.hpp>
+
 namespace vulkano {
 
 [[nodiscard]] auto generate_checkerboard_rgba_srgb(
@@ -12,7 +14,7 @@ namespace vulkano {
 [[nodiscard]] auto generate_normal_map_rgba(
     std::uint32_t resolution,
     std::uint32_t seed,
-    float amplitude) -> std::vector<std::uint8_t>;
+    float amplitude,
+    NormalMapStyle style = NormalMapStyle::RandomNoise) -> std::vector<std::uint8_t>;
 
 } // namespace vulkano
-

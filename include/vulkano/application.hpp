@@ -15,6 +15,7 @@
 #include <vulkano/shadow_render_pass.hpp>
 #include <vulkano/swapchain.hpp>
 #include <vulkano/synchronization.hpp>
+#include <vulkano/texture_types.hpp>
 #include <vulkano/texture.hpp>
 #include <vulkano/vulkan_context.hpp>
 #include <vulkano/window.hpp>
@@ -89,6 +90,7 @@ private:
     void destroy_fallback_textures() noexcept;
     void ensure_material_descriptor(ScenePrimitive& primitive);
     void update_material_descriptor(ScenePrimitive& primitive);
+    [[nodiscard]] auto fallback_normal_texture(NormalMapStyle style) const noexcept -> TextureHandle;
     void update_global_uniforms();
     [[nodiscard]] auto camera_position() const noexcept -> glm::vec3;
     [[nodiscard]] auto camera_forward() const noexcept -> glm::vec3;
@@ -174,7 +176,8 @@ private:
     VkDescriptorSet m_descriptorSet {VK_NULL_HANDLE};
     Buffer m_globalUniformBuffer;
     TextureHandle m_fallbackAlbedoTexture {};
-    TextureHandle m_fallbackNormalTexture {};
+    TextureHandle m_fallbackNormalNoiseTexture {};
+    TextureHandle m_fallbackNormalMetalTexture {};
 
     std::vector<VkFence> m_imagesInFlight {};
     std::vector<VkSemaphore> m_renderFinishedSemaphores {};

@@ -6,7 +6,7 @@ Vulkano Codex is a Vulkan 1.3+/GLFW sample built with C++20 that renders a small
 - Vulkan instance/device creation with validation layers and `VK_EXT_debug_utils` markers in debug builds.
 - Swapchain management with automatic recreation on window resize plus depth buffering.
 - Blinn-Phong lighting pipeline with per-primitive push constants (colour, shininess, ambient/specular terms, texture toggles) and a uniform-buffer backed camera/light.
-- Albedo + tangent-space normal mapping per primitive with automatic procedural checkerboard/normal fallbacks when no textures are supplied.
+- Albedo + tangent-space normal mapping per primitive with independent albedo/normal toggles, adjustable normal strength, and selectable procedural styles (random noise or brushed metal) when no textures are supplied.
 - Cascaded shadow mapping with adjustable split distribution, depth bias, and PCF filtering to mitigate acne and soften edges across the scene.
 - CPU-generated plane, cube, and icosphere meshes uploaded once to device-local buffers.
 - Dear ImGui overlays for runtime stats and scene controls (light position/intensity, primitive transforms/materials, icosphere subdivisions).
@@ -34,7 +34,7 @@ A resizable GLFW window opens showing the lit plane, cube, and icosphere above a
 
 ### Scene Controls
 - `Runtime Stats` shows FPS, frame time, device name, and swapchain extent.
-- `Scene Controls` allows adjusting light position/intensity and each primitive's position, rotation, scale, base colour, shininess, ambient, and specular strengths. Textured primitives can toggle albedo/normal sampling and tune normal strength. The icosphere also supports rebuilding with subdivisions 0–5.
+- `Scene Controls` allows adjusting light position/intensity and each primitive's position, rotation, scale, base colour, shininess, ambient, and specular strengths. Textured primitives can toggle albedo and normal maps independently, select the procedural normal style, and tune normal strength. The icosphere also supports rebuilding with subdivisions 0–5.
 - The `Shadows` section exposes cascade count, split distribution (`λ`), resolution, depth bias, and PCF radius tweaks so you can balance quality, shimmering, and performance.
 
 ## Tests

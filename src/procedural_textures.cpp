@@ -8,6 +8,8 @@
 
 #include <glm/common.hpp>
 #include <glm/geometric.hpp>
+#include <glm/gtc/constants.hpp>
+#include <glm/trigonometric.hpp>
 #include <glm/vec3.hpp>
 
 namespace {
@@ -109,7 +111,11 @@ auto generate_checkerboard_rgba_srgb(std::uint32_t resolution, std::uint32_t til
     return pixels;
 }
 
-auto generate_normal_map_rgba(std::uint32_t resolution, std::uint32_t seed, float amplitude) -> std::vector<std::uint8_t> {
+auto generate_normal_map_rgba(
+    std::uint32_t resolution,
+    std::uint32_t seed,
+    float amplitude,
+    NormalMapStyle style) -> std::vector<std::uint8_t> {
     resolution = validate_resolution(resolution);
     if(amplitude <= 0.0F) {
         throw std::invalid_argument {"Normal map amplitude must be greater than zero"};
@@ -125,10 +131,24 @@ auto generate_normal_map_rgba(std::uint32_t resolution, std::uint32_t seed, floa
             const float sampleX = static_cast<float>(x) * scale;
             const float sampleY = static_cast<float>(y) * scale;
 
-    const float noiseX = (value_noise(sampleX, sampleY, seed) * 2.0F) - 1.0F;
-    const float noiseY = (value_noise(sampleX, sampleY, seed + 1U) * 2.0F) - 1.0F;
+            glm::vec3 normal {0.0F, 0.0F, 1.0F};
+            if(style == NormalMapStyle::RandomNoise) {
+                const float noiseX = (value_noise(sampleX, sampleY, seed) * 2.0F) - 1.0F;
+                const float noiseY = (value_noise(sampleX, sampleY, seed + 1U) * 2.0F) - 1.0F;
+                normal = glm::vec3 {noiseX * amplitude, noiseY * amplitude, 1.0F};
+            } else {
+                const float u = static_cast<float>(x) / static_cast<float>(resolution);
+                const float v = static_cast<float>(y) / static_cast<float>(resolution);
+                const float streaks = 36.0F;
+                const float baseAngle = (u * streaks * glm::two_pi<float>());
+                const float offset = (value_noise(sampleY * 0.5F, sampleX * 0.5F, seed ^ 0x8F3AU) - 0.5F) * glm::pi<float>();
+                const float groove = std::sin(baseAngle + offset) * amplitude;
+                const float crossNoise = (value_noise(sampleX * 3.5F, sampleY * 7.5F, seed + 0x1523U) - 0.5F) * amplitude * 0.4F;
+                const float swirl = (value_noise(sampleY * 1.2F, sampleX * 1.2F, seed ^ 0x5D91U) - 0.5F) * amplitude * 0.25F;
+                const float radial = (v - 0.5F) * amplitude * 0.2F;
+                normal = glm::vec3 {groove, crossNoise + swirl + radial, 1.0F};
+            }
 
-            glm::vec3 normal {noiseX * amplitude, noiseY * amplitude, 1.0F};
             if(glm::dot(normal, normal) <= std::numeric_limits<float>::epsilon()) {
                 normal = glm::vec3 {0.0F, 0.0F, 1.0F};
             } else {

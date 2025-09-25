@@ -27,7 +27,7 @@ layout(push_constant) uniform PrimitivePushConstants {
     mat4 model;
     vec4 materialColor;
     vec4 materialProperties;
-    vec4 textureControls;
+    vec4 textureControls; // x: albedoEnabled, y: normalEnabled, z: normalStrength, w: unused
 } primitiveConstants;
 
 void main() {

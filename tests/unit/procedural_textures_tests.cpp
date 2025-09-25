@@ -2,6 +2,7 @@
 
 #include <vulkano/procedural_textures.hpp>
 
+#include <cmath>
 #include <cstdint>
 #include <glm/geometric.hpp>
 #include <glm/vec3.hpp>
@@ -51,4 +52,31 @@ TEST_CASE("Normal map generator normalizes output", "[procedural_textures]") {
         REQUIRE(lengthSquared <= 1.05F);
         REQUIRE(pixels[index + 3U] == 255U);
     }
+}
+
+TEST_CASE("Brushed metal normal map skews anisotropy", "[procedural_textures]") {
+    constexpr std::uint32_t resolution {16U};
+    constexpr std::uint32_t seed {9876U};
+    constexpr float amplitude {0.4F};
+
+    const auto pixels = vulkano::generate_normal_map_rgba(
+        resolution,
+        seed,
+        amplitude,
+        vulkano::NormalMapStyle::BrushedMetal);
+
+    REQUIRE(pixels.size() == static_cast<std::size_t>(resolution * resolution * 4U));
+
+    float sumAbsX {0.0F};
+    float sumAbsY {0.0F};
+    for(std::size_t index {0U}; index < pixels.size(); index += 4U) {
+        const glm::vec3 normal = decode_normal(pixels[index + 0U], pixels[index + 1U], pixels[index + 2U]);
+        const float lengthSquared = glm::dot(normal, normal);
+        REQUIRE(lengthSquared >= 0.70F);
+        REQUIRE(lengthSquared <= 1.05F);
+        sumAbsX += std::abs(normal.x);
+        sumAbsY += std::abs(normal.y);
+    }
+
+    REQUIRE(sumAbsX > sumAbsY);
 }

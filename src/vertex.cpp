@@ -16,8 +16,8 @@ auto vertex_binding_description() -> VkVertexInputBindingDescription {
     return description;
 }
 
-auto vertex_attribute_descriptions() -> std::array<VkVertexInputAttributeDescription, 3U> {
-    std::array<VkVertexInputAttributeDescription, 3U> descriptions {};
+auto vertex_attribute_descriptions() -> std::array<VkVertexInputAttributeDescription, 4U> {
+    std::array<VkVertexInputAttributeDescription, 4U> descriptions {};
     descriptions[0].binding = 0U;
     descriptions[0].location = 0U;
     descriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
@@ -32,6 +32,11 @@ auto vertex_attribute_descriptions() -> std::array<VkVertexInputAttributeDescrip
     descriptions[2].location = 2U;
     descriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
     descriptions[2].offset = offsetof(Vertex, uv);
+
+    descriptions[3].binding = 0U;
+    descriptions[3].location = 3U;
+    descriptions[3].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+    descriptions[3].offset = offsetof(Vertex, tangent);
     return descriptions;
 }
 
@@ -42,6 +47,7 @@ auto default_triangle_vertices() -> VertexArray {
     vertices[2].position = glm::vec3 {triangleHalfWidth, -triangleHalfHeight, triangleDepth};
     for(auto& vertex : vertices) {
         vertex.normal = glm::vec3 {0.0F, 0.0F, 1.0F};
+        vertex.tangent = glm::vec4 {1.0F, 0.0F, 0.0F, 1.0F};
     }
     vertices[0].uv = glm::vec2 {0.5F, 1.0F};
     vertices[1].uv = glm::vec2 {0.0F, 0.0F};

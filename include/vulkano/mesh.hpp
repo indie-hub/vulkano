@@ -5,6 +5,9 @@
 
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
+#include <glm/vec4.hpp>
+
+#include <vulkano/texture_types.hpp>
 
 namespace vulkano {
 
@@ -12,6 +15,7 @@ struct MeshVertex final {
     glm::vec3 position {};
     glm::vec3 normal {};
     glm::vec2 uv {};
+    glm::vec4 tangent {1.0F, 0.0F, 0.0F, 1.0F};
 };
 
 struct MeshData final {
@@ -27,6 +31,10 @@ struct PrimitiveProperties final {
     float shininess {32.0F};
     float ambientStrength {0.1F};
     float specularStrength {0.5F};
+    bool albedoEnabled {true};
+    bool normalEnabled {true};
+    float normalStrength {1.0F};
+    NormalMapStyle normalStyle {NormalMapStyle::RandomNoise};
 };
 
 struct PlaneParameters final {

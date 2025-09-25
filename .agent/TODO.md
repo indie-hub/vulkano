@@ -58,3 +58,7 @@
 - [x] Rebuild project, run tests, and summarize visualization feature.
 - [x] Plan separate albedo and normal map toggles.
 - [x] Plan metal-style normal map generator selection.
+- [x] Implement separate albedo and normal map toggles.
+- [x] Add metal-inspired procedural normal map option.
+- [x] Update docs/tests for toggle and metal normal support.
+- [ ] Summarize toggle/metal normal changes to user.

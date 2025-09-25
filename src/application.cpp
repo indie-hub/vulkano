@@ -57,7 +57,7 @@ namespace {
         glm::mat4 model {1.0F};
         glm::vec4 materialColor {1.0F, 1.0F, 1.0F, 1.0F};
         glm::vec4 materialProperties {32.0F, 0.1F, 0.5F, 0.0F};
-        glm::vec4 textureControls {1.0F, 1.0F, 0.0F, 0.0F};
+        glm::vec4 textureControls {1.0F, 1.0F, 1.0F, 0.0F};
     };
 
     struct ShadowPushConstants final {
@@ -350,6 +350,8 @@ void VulkanApplication::draw_frame() {
         if(ImGui::CollapsingHeader(headerLabel.c_str(), ImGuiTreeNodeFlags_DefaultOpen)) {
             ImGui::PushID(static_cast<int>(index));
 
+            bool materialDescriptorDirty {false};
+
             glm::vec3 position = properties.position;
             if(ImGui::DragFloat3("Position", glm::value_ptr(position), 0.05F)) {
                 properties.position = position;
@@ -393,12 +395,29 @@ void VulkanApplication::draw_frame() {
                 properties.specularStrength = std::clamp(specular, 0.0F, 1.0F);
             }
 
-            ImGui::Checkbox("Use Textures", &properties.texturesEnabled);
+            if(ImGui::Checkbox("Use Albedo Map", &properties.albedoEnabled)) {
+                materialDescriptorDirty = true;
+            }
+            if(ImGui::Checkbox("Use Normal Map", &properties.normalEnabled)) {
+                materialDescriptorDirty = true;
+            }
 
-            ImGui::BeginDisabled(!properties.texturesEnabled);
+            ImGui::BeginDisabled(!properties.normalEnabled);
             float normalStrength = properties.normalStrength;
             if(ImGui::SliderFloat("Normal Strength", &normalStrength, 0.0F, 2.0F, "%.2f")) {
                 properties.normalStrength = std::clamp(normalStrength, 0.0F, 2.0F);
+            }
+            int normalStyleIndex = static_cast<int>(properties.normalStyle);
+            constexpr const char* normalStyleLabels[] {"Random Noise", "Brushed Metal"};
+            constexpr int normalStyleCount = static_cast<int>(sizeof(normalStyleLabels) / sizeof(normalStyleLabels[0]));
+            if(ImGui::Combo(
+                   "Normal Style",
+                   &normalStyleIndex,
+                   normalStyleLabels,
+                   normalStyleCount)) {
+                normalStyleIndex = std::clamp(normalStyleIndex, 0, normalStyleCount - 1);
+                properties.normalStyle = static_cast<NormalMapStyle>(normalStyleIndex);
+                materialDescriptorDirty = true;
             }
             ImGui::EndDisabled();
 
@@ -411,6 +430,10 @@ void VulkanApplication::draw_frame() {
                     subdivisions = std::clamp(subdivisions, minSubdivisionsInt, maxSubdivisionsInt);
                     icosphere->set_subdivisions(static_cast<std::uint32_t>(subdivisions));
                 }
+            }
+
+            if(materialDescriptorDirty) {
+                ensure_material_descriptor(primitive);
             }
 
             ImGui::PopID();
@@ -1003,9 +1026,9 @@ void VulkanApplication::record_command_buffer(std::uint32_t imageIndex) {
             0.0F
         };
         pushConstants.textureControls = glm::vec4 {
-            properties.texturesEnabled ? 1.0F : 0.0F,
+            properties.albedoEnabled ? 1.0F : 0.0F,
+            properties.normalEnabled ? 1.0F : 0.0F,
             properties.normalStrength,
-            0.0F,
             0.0F
         };
 
@@ -1449,7 +1472,16 @@ void VulkanApplication::create_fallback_textures() {
     constexpr float noiseAmplitude {0.5F};
 
     const auto albedoPixels = generate_checkerboard_rgba_srgb(fallbackResolution, checkerTiles);
-    const auto normalPixels = generate_normal_map_rgba(fallbackResolution, noiseSeed, noiseAmplitude);
+    const auto normalNoisePixels = generate_normal_map_rgba(
+        fallbackResolution,
+        noiseSeed,
+        noiseAmplitude,
+        NormalMapStyle::RandomNoise);
+    const auto normalMetalPixels = generate_normal_map_rgba(
+        fallbackResolution,
+        noiseSeed ^ 0x5A5AU,
+        noiseAmplitude * 0.8F,
+        NormalMapStyle::BrushedMetal);
 
     const VkExtent2D fallbackExtent {fallbackResolution, fallbackResolution};
 
@@ -1458,19 +1490,26 @@ void VulkanApplication::create_fallback_textures() {
         fallbackExtent,
         albedoPixels,
         VK_FORMAT_R8G8B8A8_SRGB);
-    Texture2D normal = Texture2D::create_rgba8(
+    Texture2D normalNoise = Texture2D::create_rgba8(
         m_context,
         fallbackExtent,
-        normalPixels,
+        normalNoisePixels,
+        VK_FORMAT_R8G8B8A8_UNORM);
+    Texture2D normalMetal = Texture2D::create_rgba8(
+        m_context,
+        fallbackExtent,
+        normalMetalPixels,
         VK_FORMAT_R8G8B8A8_UNORM);
 
     m_fallbackAlbedoTexture = std::make_shared<Texture2D>(std::move(albedo));
-    m_fallbackNormalTexture = std::make_shared<Texture2D>(std::move(normal));
+    m_fallbackNormalNoiseTexture = std::make_shared<Texture2D>(std::move(normalNoise));
+    m_fallbackNormalMetalTexture = std::make_shared<Texture2D>(std::move(normalMetal));
 }
 
 void VulkanApplication::destroy_fallback_textures() noexcept {
     m_fallbackAlbedoTexture.reset();
-    m_fallbackNormalTexture.reset();
+    m_fallbackNormalNoiseTexture.reset();
+    m_fallbackNormalMetalTexture.reset();
 }
 
 void VulkanApplication::ensure_material_descriptor(ScenePrimitive& primitive) {
@@ -1481,8 +1520,17 @@ void VulkanApplication::ensure_material_descriptor(ScenePrimitive& primitive) {
     if(primitive.albedoTexture == nullptr) {
         primitive.albedoTexture = m_fallbackAlbedoTexture;
     }
-    if(primitive.normalTexture == nullptr) {
-        primitive.normalTexture = m_fallbackNormalTexture;
+
+    NormalMapStyle style {NormalMapStyle::RandomNoise};
+    if(primitive.primitive != nullptr) {
+        style = primitive.primitive->properties().normalStyle;
+    }
+
+    const TextureHandle desiredNormal = fallback_normal_texture(style);
+    if(primitive.normalTexture == nullptr
+       || primitive.normalTexture == m_fallbackNormalNoiseTexture
+       || primitive.normalTexture == m_fallbackNormalMetalTexture) {
+        primitive.normalTexture = desiredNormal;
     }
 
     if(primitive.materialDescriptor == VK_NULL_HANDLE) {
@@ -1512,7 +1560,9 @@ void VulkanApplication::update_material_descriptor(ScenePrimitive& primitive) {
         return;
     }
     const TextureHandle albedoTexture = (primitive.albedoTexture != nullptr) ? primitive.albedoTexture : m_fallbackAlbedoTexture;
-    const TextureHandle normalTexture = (primitive.normalTexture != nullptr) ? primitive.normalTexture : m_fallbackNormalTexture;
+    const TextureHandle normalTexture = (primitive.normalTexture != nullptr)
+        ? primitive.normalTexture
+        : fallback_normal_texture(NormalMapStyle::RandomNoise);
 
     if(albedoTexture == nullptr || normalTexture == nullptr) {
         return;
@@ -1551,6 +1601,20 @@ void VulkanApplication::update_material_descriptor(ScenePrimitive& primitive) {
         writes.data(),
         0U,
         nullptr);
+}
+
+auto VulkanApplication::fallback_normal_texture(NormalMapStyle style) const noexcept -> TextureHandle {
+    switch(style) {
+    case NormalMapStyle::BrushedMetal:
+        if(m_fallbackNormalMetalTexture != nullptr) {
+            return m_fallbackNormalMetalTexture;
+        }
+        break;
+    case NormalMapStyle::RandomNoise:
+    default:
+        break;
+    }
+    return (m_fallbackNormalNoiseTexture != nullptr) ? m_fallbackNormalNoiseTexture : m_fallbackNormalMetalTexture;
 }
 
 void VulkanApplication::update_global_uniforms() {
