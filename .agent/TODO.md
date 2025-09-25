@@ -65,5 +65,5 @@
 - [x] Plan SSAO implementation approach.
 - [x] Implement G-buffer and SSAO sampling pipelines.
 - [x] Add SSAO blur/composition and runtime controls.
-- [ ] Update docs/tests and verify SSAO integration.
+- [x] Update docs/tests and verify SSAO integration.
 - [ ] Summarize SSAO feature to user.

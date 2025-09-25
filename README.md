@@ -8,6 +8,7 @@ Vulkano Codex is a Vulkan 1.3+/GLFW sample built with C++20 that renders a small
 - Blinn-Phong lighting pipeline with per-primitive push constants (colour, shininess, ambient/specular terms, texture toggles) and a uniform-buffer backed camera/light.
 - Albedo + tangent-space normal mapping per primitive with independent albedo/normal toggles, adjustable normal strength, and selectable procedural styles (random noise or brushed metal) when no textures are supplied.
 - Cascaded shadow mapping with adjustable split distribution, depth bias, and PCF filtering to mitigate acne and soften edges across the scene.
+- Screen-space ambient occlusion (SSAO) implemented via compute kernels that write occlusion, apply a separable blur, and feed the filtered factor into the lighting pass for contact shadowing.
 - CPU-generated plane, cube, and icosphere meshes uploaded once to device-local buffers.
 - Dear ImGui overlays for runtime stats and scene controls (light position/intensity, primitive transforms/materials, icosphere subdivisions).
 - Unit and integration tests built on Catch2 covering configuration, mesh generation, and scene defaults.
@@ -36,10 +37,11 @@ A resizable GLFW window opens showing the lit plane, cube, and icosphere above a
 - `Runtime Stats` shows FPS, frame time, device name, and swapchain extent.
 - `Scene Controls` allows adjusting light position/intensity and each primitive's position, rotation, scale, base colour, shininess, ambient, and specular strengths. Textured primitives can toggle albedo and normal maps independently, select the procedural normal style, and tune normal strength. The icosphere also supports rebuilding with subdivisions 0–5.
 - The `Shadows` section exposes cascade count, split distribution (`λ`), resolution, depth bias, and PCF radius tweaks so you can balance quality, shimmering, and performance.
+- The `Ambient Occlusion` section toggles SSAO at runtime and adjusts radius, bias, power, intensity, blur sigma, sample count, and half-resolution mode while updating kernel/noise buffers immediately.
 
 ## Tests
 Configure with testing enabled (default) and run Catch2-based tests:
 ```bash
 ctest --test-dir build
 ```
-The integration test attempts to initialise the Vulkan application and will self-skip with a warning if the runtime environment lacks a Vulkan-capable device.
+The integration test attempts to initialise the Vulkan application, verifies default SSAO resources, and will self-skip with a warning if the runtime environment lacks a Vulkan-capable device.

@@ -53,6 +53,9 @@ public:
     [[nodiscard]] auto primitive_count() const noexcept -> std::size_t;
     [[nodiscard]] auto scene_light_position() const noexcept -> glm::vec3;
     [[nodiscard]] auto scene_light_intensity() const noexcept -> float;
+    [[nodiscard]] auto ssao_enabled() const noexcept -> bool;
+    [[nodiscard]] auto ssao_sample_count() const noexcept -> std::uint32_t;
+    [[nodiscard]] auto ssao_extent() const noexcept -> std::array<std::uint32_t, 2U>;
 
 private:
     struct ScenePrimitive;

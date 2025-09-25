@@ -199,6 +199,18 @@ auto VulkanApplication::scene_light_intensity() const noexcept -> float {
     return m_scene.lightIntensity;
 }
 
+auto VulkanApplication::ssao_enabled() const noexcept -> bool {
+    return m_ssaoSettings.enabled;
+}
+
+auto VulkanApplication::ssao_sample_count() const noexcept -> std::uint32_t {
+    return m_ssaoSettings.sampleCount;
+}
+
+auto VulkanApplication::ssao_extent() const noexcept -> std::array<std::uint32_t, 2U> {
+    return {m_ssaoExtent.width, m_ssaoExtent.height};
+}
+
 void VulkanApplication::register_callbacks() {
     GLFWwindow* windowHandle = m_window.handle();
     if(windowHandle == nullptr) {
