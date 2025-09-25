@@ -16,11 +16,14 @@ layout(set = 0, binding = 0) uniform GlobalUniforms {
     vec4 cameraPosition;
     vec4 shadowParams;
     vec4 shadowConfig;
+    vec4 ssaoConfig;
     vec4 cascadeSplits;
     vec4 cameraClip;
+    vec4 screenInfo;
 } globalUniforms;
 
 layout(set = 0, binding = 1) uniform sampler2DArray shadowMap;
+layout(set = 0, binding = 2) uniform sampler2D ssaoTexture;
 
 layout(set = 1, binding = 0) uniform sampler2D albedoMap;
 layout(set = 1, binding = 1) uniform sampler2D normalMap;
@@ -69,6 +72,12 @@ void main() {
     float shininess = primitiveConstants.materialProperties.x;
 
     vec3 ambient = ambientStrength * lightIntensity * baseColor;
+    float occlusion = 1.0;
+    if(globalUniforms.ssaoConfig.x > 0.5) {
+        vec2 ssaoUV = gl_FragCoord.xy * globalUniforms.screenInfo.zw;
+        occlusion = texture(ssaoTexture, ssaoUV).r;
+    }
+    ambient *= occlusion;
 
     vec4 viewPosition = globalUniforms.view * vec4(vWorldPos, 1.0);
     float viewDepth = abs(viewPosition.z);

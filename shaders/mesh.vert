@@ -19,8 +19,10 @@ layout(set = 0, binding = 0) uniform GlobalUniforms {
     vec4 cameraPosition;
     vec4 shadowParams;
     vec4 shadowConfig;
+    vec4 ssaoConfig;
     vec4 cascadeSplits;
     vec4 cameraClip;
+    vec4 screenInfo;
 } globalUniforms;
 
 layout(push_constant) uniform PrimitivePushConstants {

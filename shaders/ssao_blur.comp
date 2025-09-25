@@ -1,0 +1,51 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+layout(binding = 0) uniform SsaoParams {
+    mat4 projection;
+    mat4 inverseProjection;
+    vec4 radiusBiasPowerIntensity; // radius, bias, power, intensity
+    vec4 screenSize;               // width, height, noiseScaleX, noiseScaleY
+    vec4 sampleInfo;               // sampleCount, halfResolutionFlag, blurSigma, unused
+} params;
+
+layout(binding = 1) uniform sampler2D occlusionInput;
+layout(binding = 2, rgba8) writeonly uniform image2D occlusionOutput;
+
+float gaussianWeight(float dist, float sigma) {
+    float sigma2 = max(sigma * sigma, 1e-4);
+    return exp(-(dist * dist) / (2.0 * sigma2));
+}
+
+void main() {
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if(pixel.x >= int(params.screenSize.x) || pixel.y >= int(params.screenSize.y)) {
+        return;
+    }
+
+    vec2 texelSize = 1.0 / params.screenSize.xy;
+    vec2 uv = (vec2(pixel) + vec2(0.5)) * texelSize;
+
+    float sigma = max(params.sampleInfo.z, 0.5);
+    int radius = int(clamp(sigma * 2.0, 1.0, 5.0));
+
+    float result = 0.0;
+    float weightSum = 0.0;
+    for(int y = -radius; y <= radius; ++y) {
+        for(int x = -radius; x <= radius; ++x) {
+            vec2 offset = vec2(x, y) * texelSize;
+            float weight = gaussianWeight(length(vec2(x, y)), sigma);
+            float occlusionSample = texture(occlusionInput, uv + offset).r;
+            result += occlusionSample * weight;
+            weightSum += weight;
+        }
+    }
+
+    if(weightSum > 0.0) {
+        result /= weightSum;
+    }
+    result = clamp(result, 0.0, 1.0);
+
+    imageStore(occlusionOutput, pixel, vec4(result, result, result, 1.0));
+}

@@ -122,6 +122,7 @@ set(SHADER_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/shaders/ssao_prepass.vert
     ${CMAKE_CURRENT_SOURCE_DIR}/shaders/ssao_prepass.frag
     ${CMAKE_CURRENT_SOURCE_DIR}/shaders/ssao.comp
+    ${CMAKE_CURRENT_SOURCE_DIR}/shaders/ssao_blur.comp
 )
 
 set(SPIRV_OUTPUTS)

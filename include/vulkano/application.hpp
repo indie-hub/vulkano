@@ -102,6 +102,8 @@ private:
     void update_ssao_descriptors();
     void record_depth_prepass(VkCommandBuffer commandBuffer, std::uint32_t imageIndex);
     void record_ssao_pass(VkCommandBuffer commandBuffer, std::uint32_t imageIndex);
+    void record_ssao_blur_pass(VkCommandBuffer commandBuffer, std::uint32_t imageIndex);
+    void update_ssao_composition_descriptor(std::uint32_t imageIndex);
     void transition_image_layout(
         VkCommandBuffer commandBuffer,
         VkImage image,
@@ -217,9 +219,14 @@ private:
     std::vector<VkFramebuffer> m_depthPrepassFramebuffers {};
     VkPipelineLayout m_ssaoPipelineLayout {VK_NULL_HANDLE};
     VkPipeline m_ssaoPipeline {VK_NULL_HANDLE};
+    VkPipelineLayout m_ssaoBlurPipelineLayout {VK_NULL_HANDLE};
+    VkPipeline m_ssaoBlurPipeline {VK_NULL_HANDLE};
+
     VkDescriptorSetLayout m_ssaoDescriptorSetLayout {VK_NULL_HANDLE};
+    VkDescriptorSetLayout m_ssaoBlurDescriptorSetLayout {VK_NULL_HANDLE};
     VkDescriptorPool m_ssaoDescriptorPool {VK_NULL_HANDLE};
     std::vector<VkDescriptorSet> m_ssaoDescriptorSets {};
+    std::vector<VkDescriptorSet> m_ssaoBlurDescriptorSets {};
     std::vector<VkImage> m_gbufferNormalImages {};
     std::vector<VkDeviceMemory> m_gbufferNormalMemories {};
     std::vector<VkImageView> m_gbufferNormalViews {};
@@ -227,8 +234,12 @@ private:
     std::vector<VkDeviceMemory> m_gbufferPositionMemories {};
     std::vector<VkImageView> m_gbufferPositionViews {};
     std::vector<VkImage> m_ssaoOcclusionImages {};
+    std::vector<VkImage> m_ssaoBlurImages {};
     std::vector<VkDeviceMemory> m_ssaoOcclusionMemories {};
+    std::vector<VkDeviceMemory> m_ssaoBlurMemories {};
     std::vector<VkImageView> m_ssaoOcclusionViews {};
+    std::vector<VkImageView> m_ssaoBlurViews {};
+    std::vector<VkImageLayout> m_ssaoBlurLayouts {};
     std::vector<VkImageLayout> m_ssaoOcclusionLayouts {};
     VkSampler m_ssaoSampler {VK_NULL_HANDLE};
     TextureHandle m_ssaoNoiseTexture {};

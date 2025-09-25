@@ -61,8 +61,10 @@ namespace {
         glm::vec4 cameraPosition {0.0F, 0.0F, 0.0F, 1.0F};
         glm::vec4 shadowParams {0.0025F, 0.05F, 1.0F, 0.0F};
         glm::vec4 shadowConfig {1.0F, 1.0F, 0.0F, 0.0F};
+        glm::vec4 ssaoConfig {0.0F, 0.0F, 0.0F, 0.0F};
         glm::vec4 cascadeSplits {1.0F, 1.0F, 1.0F, 1.0F};
         glm::vec4 cameraClip {0.1F, 100.0F, 0.0F, 0.0F};
+        glm::vec4 screenInfo {1.0F, 1.0F, 1.0F, 1.0F};
     };
 
     struct SsaoUniform final {
@@ -273,7 +275,6 @@ void VulkanApplication::draw_frame() {
     ImGuiIO& io = ImGui::GetIO();
     update_camera_input(deltaSeconds, io);
     apply_scroll_input(io);
-    update_global_uniforms();
     update_ssao_settings_buffer();
 
     const VkExtent2D extent = m_swapchain.extent();
@@ -391,6 +392,68 @@ void VulkanApplication::draw_frame() {
             }
         }
         ImGui::EndDisabled();
+    }
+
+    if(ImGui::CollapsingHeader("Ambient Occlusion", ImGuiTreeNodeFlags_DefaultOpen)) {
+        bool ssaoEnabled = m_ssaoSettings.enabled;
+        if(ImGui::Checkbox("Enable SSAO", &ssaoEnabled)) {
+            m_ssaoSettings.enabled = ssaoEnabled;
+        }
+
+        bool ssaoSettingsDirty = false;
+        ImGui::BeginDisabled(!m_ssaoSettings.enabled);
+
+        float radius = m_ssaoSettings.radius;
+        if(ImGui::SliderFloat("Radius", &radius, 0.05F, 3.0F, "%.2f")) {
+            m_ssaoSettings.radius = std::clamp(radius, 0.05F, 3.0F);
+            ssaoSettingsDirty = true;
+        }
+
+        float bias = m_ssaoSettings.bias;
+        if(ImGui::SliderFloat("Bias", &bias, 0.0F, 0.1F, "%.3f")) {
+            m_ssaoSettings.bias = std::clamp(bias, 0.0F, 0.1F);
+            ssaoSettingsDirty = true;
+        }
+
+        float power = m_ssaoSettings.power;
+        if(ImGui::SliderFloat("Power", &power, 0.5F, 4.0F, "%.2f")) {
+            m_ssaoSettings.power = std::clamp(power, 0.5F, 4.0F);
+            ssaoSettingsDirty = true;
+        }
+
+        float intensity = m_ssaoSettings.intensity;
+        if(ImGui::SliderFloat("Intensity", &intensity, 0.0F, 2.0F, "%.2f")) {
+            m_ssaoSettings.intensity = std::clamp(intensity, 0.0F, 2.0F);
+            ssaoSettingsDirty = true;
+        }
+
+        float blurSigma = m_ssaoSettings.blurSigma;
+        if(ImGui::SliderFloat("Blur Sigma", &blurSigma, 0.5F, 5.0F, "%.2f")) {
+            m_ssaoSettings.blurSigma = std::clamp(blurSigma, 0.5F, 5.0F);
+            ssaoSettingsDirty = true;
+        }
+
+        int sampleCount = static_cast<int>(m_ssaoSettings.sampleCount);
+        if(ImGui::SliderInt("Samples", &sampleCount, 8, static_cast<int>(ssaoKernelSize))) {
+            sampleCount = std::clamp(sampleCount, 1, static_cast<int>(ssaoKernelSize));
+            m_ssaoSettings.sampleCount = static_cast<std::uint32_t>(sampleCount);
+            generate_ssao_kernel();
+            ssaoSettingsDirty = true;
+        }
+
+        bool halfResolution = m_ssaoSettings.halfResolution;
+        if(ImGui::Checkbox("Half Resolution", &halfResolution)) {
+            m_ssaoSettings.halfResolution = halfResolution;
+            recreate_ssao_resources();
+            ssaoSettingsDirty = false;
+        }
+
+        ImGui::TextDisabled("SSAO darkens ambient light near contact areas; increase blur to reduce noise.");
+        ImGui::EndDisabled();
+
+        if(ssaoSettingsDirty) {
+            update_ssao_settings_buffer();
+        }
     }
 
     for(std::size_t index {0U}; index < m_scene.primitives.size(); ++index) {
@@ -519,6 +582,8 @@ void VulkanApplication::draw_frame() {
     }
     ImGui::TextDisabled("Hold RMB to look. WASD to move. Space/E up, Ctrl/Q down. Shift to sprint.");
     ImGui::End();
+
+    update_global_uniforms();
 
     ImGui::Render();
     record_command_buffer(imageIndex);
@@ -1010,6 +1075,8 @@ void VulkanApplication::record_command_buffer(std::uint32_t imageIndex) {
 
     record_depth_prepass(commandBuffer, imageIndex);
     record_ssao_pass(commandBuffer, imageIndex);
+    record_ssao_blur_pass(commandBuffer, imageIndex);
+    update_ssao_composition_descriptor(imageIndex);
 
     VkRenderPassBeginInfo renderPassInfo {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -1359,7 +1426,13 @@ void VulkanApplication::create_descriptor_resources() {
     shadowBinding.descriptorCount = 1U;
     shadowBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-    std::array<VkDescriptorSetLayoutBinding, 2U> bindings {uniformBinding, shadowBinding};
+    VkDescriptorSetLayoutBinding ssaoBinding {};
+    ssaoBinding.binding = 2U;
+    ssaoBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    ssaoBinding.descriptorCount = 1U;
+    ssaoBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    std::array<VkDescriptorSetLayoutBinding, 3U> bindings {uniformBinding, shadowBinding, ssaoBinding};
 
     VkDescriptorSetLayoutCreateInfo layoutInfo {};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -1378,7 +1451,7 @@ void VulkanApplication::create_descriptor_resources() {
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     poolSizes[0].descriptorCount = 1U;
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSizes[1].descriptorCount = 1U;
+    poolSizes[1].descriptorCount = 2U;
 
     VkDescriptorPoolCreateInfo poolInfo {};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -1415,12 +1488,23 @@ void VulkanApplication::create_descriptor_resources() {
     bufferInfo.offset = 0U;
     bufferInfo.range = sizeof(GlobalUniform);
 
-    VkDescriptorImageInfo imageInfo {};
-    imageInfo.sampler = m_shadowMap.sampler();
-    imageInfo.imageView = m_shadowMap.layered_view();
-    imageInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+    VkDescriptorImageInfo shadowInfo {};
+    shadowInfo.sampler = m_shadowMap.sampler();
+    shadowInfo.imageView = m_shadowMap.layered_view();
+    shadowInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
 
-    std::array<VkWriteDescriptorSet, 2U> writes {};
+    VkDescriptorImageInfo ssaoInfo {};
+    if(m_ssaoSampler != VK_NULL_HANDLE && !m_ssaoBlurViews.empty() && m_ssaoBlurViews.front() != VK_NULL_HANDLE) {
+        ssaoInfo.sampler = m_ssaoSampler;
+        ssaoInfo.imageView = m_ssaoBlurViews.front();
+        ssaoInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    } else if(m_fallbackAlbedoTexture != nullptr) {
+        ssaoInfo.sampler = m_fallbackAlbedoTexture->sampler();
+        ssaoInfo.imageView = m_fallbackAlbedoTexture->image_view();
+        ssaoInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    }
+
+    std::array<VkWriteDescriptorSet, 3U> writes {};
     writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     writes[0].dstSet = m_descriptorSet;
     writes[0].dstBinding = 0U;
@@ -1435,9 +1519,21 @@ void VulkanApplication::create_descriptor_resources() {
     writes[1].dstArrayElement = 0U;
     writes[1].descriptorCount = 1U;
     writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    writes[1].pImageInfo = &imageInfo;
+    writes[1].pImageInfo = &shadowInfo;
 
-    vkUpdateDescriptorSets(m_context.device(), static_cast<std::uint32_t>(writes.size()), writes.data(), 0U, nullptr);
+    std::uint32_t writeCount = 2U;
+    if(ssaoInfo.imageView != VK_NULL_HANDLE) {
+        writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[2].dstSet = m_descriptorSet;
+        writes[2].dstBinding = 2U;
+        writes[2].dstArrayElement = 0U;
+        writes[2].descriptorCount = 1U;
+        writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        writes[2].pImageInfo = &ssaoInfo;
+        writeCount = 3U;
+    }
+
+    vkUpdateDescriptorSets(m_context.device(), writeCount, writes.data(), 0U, nullptr);
 
     update_global_uniforms();
 
@@ -1822,6 +1918,10 @@ void VulkanApplication::create_ssao_resources() {
     m_ssaoOcclusionMemories.resize(imageCount, VK_NULL_HANDLE);
     m_ssaoOcclusionViews.resize(imageCount, VK_NULL_HANDLE);
     m_ssaoOcclusionLayouts.resize(imageCount, VK_IMAGE_LAYOUT_UNDEFINED);
+    m_ssaoBlurImages.resize(imageCount, VK_NULL_HANDLE);
+    m_ssaoBlurMemories.resize(imageCount, VK_NULL_HANDLE);
+    m_ssaoBlurViews.resize(imageCount, VK_NULL_HANDLE);
+    m_ssaoBlurLayouts.resize(imageCount, VK_IMAGE_LAYOUT_UNDEFINED);
 
     const VkDevice device = m_context.device();
     const VkPhysicalDevice physicalDevice = m_context.physical_device();
@@ -1942,6 +2042,21 @@ void VulkanApplication::create_ssao_resources() {
             VK_IMAGE_ASPECT_COLOR_BIT,
             "SSAO Occlusion View " + std::to_string(index));
         m_ssaoOcclusionLayouts.at(index) = VK_IMAGE_LAYOUT_UNDEFINED;
+
+        create_image(
+            extent,
+            ssaoOcclusionFormat,
+            VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+            m_ssaoBlurImages.at(index),
+            m_ssaoBlurMemories.at(index),
+            "SSAO Blur Image " + std::to_string(index));
+
+        m_ssaoBlurViews.at(index) = create_image_view(
+            m_ssaoBlurImages.at(index),
+            ssaoOcclusionFormat,
+            VK_IMAGE_ASPECT_COLOR_BIT,
+            "SSAO Blur View " + std::to_string(index));
+        m_ssaoBlurLayouts.at(index) = VK_IMAGE_LAYOUT_UNDEFINED;
     }
 
     VkSamplerCreateInfo samplerInfo {};
@@ -2232,6 +2347,14 @@ void VulkanApplication::destroy_ssao_resources() noexcept {
         vkDestroySampler(device, m_ssaoSampler, nullptr);
         m_ssaoSampler = VK_NULL_HANDLE;
     }
+    if(m_ssaoBlurPipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device, m_ssaoBlurPipeline, nullptr);
+        m_ssaoBlurPipeline = VK_NULL_HANDLE;
+    }
+    if(m_ssaoBlurPipelineLayout != VK_NULL_HANDLE) {
+        vkDestroyPipelineLayout(device, m_ssaoBlurPipelineLayout, nullptr);
+        m_ssaoBlurPipelineLayout = VK_NULL_HANDLE;
+    }
 
     auto destroy_image_resources = [&](std::vector<VkImage>& images,
                                        std::vector<VkDeviceMemory>& memories,
@@ -2259,7 +2382,9 @@ void VulkanApplication::destroy_ssao_resources() noexcept {
     destroy_image_resources(m_gbufferNormalImages, m_gbufferNormalMemories, m_gbufferNormalViews);
     destroy_image_resources(m_gbufferPositionImages, m_gbufferPositionMemories, m_gbufferPositionViews);
     destroy_image_resources(m_ssaoOcclusionImages, m_ssaoOcclusionMemories, m_ssaoOcclusionViews);
+    destroy_image_resources(m_ssaoBlurImages, m_ssaoBlurMemories, m_ssaoBlurViews);
     m_ssaoOcclusionLayouts.clear();
+    m_ssaoBlurLayouts.clear();
 }
 
 void VulkanApplication::create_ssao_descriptor_resources() {
@@ -2326,16 +2451,16 @@ void VulkanApplication::create_ssao_descriptor_resources() {
     const std::uint32_t imageCount = static_cast<std::uint32_t>(swapchainViews.size());
 
     std::array<VkDescriptorPoolSize, 3U> poolSizes {
-        VkDescriptorPoolSize {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, imageCount * 2U},
-        VkDescriptorPoolSize {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, imageCount * 3U},
-        VkDescriptorPoolSize {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, imageCount}
+        VkDescriptorPoolSize {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, imageCount * 3U},
+        VkDescriptorPoolSize {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, imageCount * 4U},
+        VkDescriptorPoolSize {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, imageCount * 2U}
     };
 
     VkDescriptorPoolCreateInfo poolInfo {};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.poolSizeCount = static_cast<std::uint32_t>(poolSizes.size());
     poolInfo.pPoolSizes = poolSizes.data();
-    poolInfo.maxSets = imageCount;
+    poolInfo.maxSets = imageCount * 2U;
 
     if(vkCreateDescriptorPool(m_context.device(), &poolInfo, nullptr, &m_ssaoDescriptorPool) != VK_SUCCESS) {
         throw std::runtime_error {"Failed to create SSAO descriptor pool"};
@@ -2396,6 +2521,85 @@ void VulkanApplication::create_ssao_descriptor_resources() {
 
     vkDestroyShaderModule(m_context.device(), computeModule, nullptr);
 
+    std::array<VkDescriptorSetLayoutBinding, 3U> blurBindings {} ;
+    blurBindings[0].binding = 0U;
+    blurBindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    blurBindings[0].descriptorCount = 1U;
+    blurBindings[0].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+    blurBindings[1].binding = 1U;
+    blurBindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    blurBindings[1].descriptorCount = 1U;
+    blurBindings[1].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+    blurBindings[2].binding = 2U;
+    blurBindings[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    blurBindings[2].descriptorCount = 1U;
+    blurBindings[2].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+    VkDescriptorSetLayoutCreateInfo blurLayoutInfo {} ;
+    blurLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    blurLayoutInfo.bindingCount = static_cast<std::uint32_t>(blurBindings.size());
+    blurLayoutInfo.pBindings = blurBindings.data();
+
+    if(vkCreateDescriptorSetLayout(m_context.device(), &blurLayoutInfo, nullptr, &m_ssaoBlurDescriptorSetLayout) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create SSAO blur descriptor set layout"};
+    }
+    m_context.set_object_name(
+        VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT,
+        reinterpret_cast<std::uint64_t>(m_ssaoBlurDescriptorSetLayout),
+        "SSAO Blur Descriptor Set Layout");
+
+    std::vector<VkDescriptorSetLayout> blurLayouts(imageCount, m_ssaoBlurDescriptorSetLayout);
+    VkDescriptorSetAllocateInfo blurAllocateInfo {};
+    blurAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    blurAllocateInfo.descriptorPool = m_ssaoDescriptorPool;
+    blurAllocateInfo.descriptorSetCount = imageCount;
+    blurAllocateInfo.pSetLayouts = blurLayouts.data();
+
+    m_ssaoBlurDescriptorSets.resize(imageCount, VK_NULL_HANDLE);
+    if(vkAllocateDescriptorSets(m_context.device(), &blurAllocateInfo, m_ssaoBlurDescriptorSets.data()) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to allocate SSAO blur descriptor sets"};
+    }
+
+    VkPipelineLayoutCreateInfo blurPipelineLayoutInfo {} ;
+    blurPipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    blurPipelineLayoutInfo.setLayoutCount = 1U;
+    blurPipelineLayoutInfo.pSetLayouts = &m_ssaoBlurDescriptorSetLayout;
+
+    if(vkCreatePipelineLayout(m_context.device(), &blurPipelineLayoutInfo, nullptr, &m_ssaoBlurPipelineLayout) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create SSAO blur pipeline layout"};
+    }
+    m_context.set_object_name(
+        VK_OBJECT_TYPE_PIPELINE_LAYOUT,
+        reinterpret_cast<std::uint64_t>(m_ssaoBlurPipelineLayout),
+        "SSAO Blur Pipeline Layout");
+
+    const auto blurCode = load_shader_code(shaderDir / "ssao_blur.comp.spv");
+    VkShaderModule blurModule = create_shader_module(m_context.device(), blurCode);
+
+    VkPipelineShaderStageCreateInfo blurStageInfo {} ;
+    blurStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    blurStageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+    blurStageInfo.module = blurModule;
+    blurStageInfo.pName = "main";
+
+    VkComputePipelineCreateInfo blurPipelineInfo {} ;
+    blurPipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+    blurPipelineInfo.stage = blurStageInfo;
+    blurPipelineInfo.layout = m_ssaoBlurPipelineLayout;
+
+    if(vkCreateComputePipelines(m_context.device(), VK_NULL_HANDLE, 1U, &blurPipelineInfo, nullptr, &m_ssaoBlurPipeline) != VK_SUCCESS) {
+        vkDestroyShaderModule(m_context.device(), blurModule, nullptr);
+        throw std::runtime_error {"Failed to create SSAO blur pipeline"};
+    }
+    m_context.set_object_name(
+        VK_OBJECT_TYPE_PIPELINE,
+        reinterpret_cast<std::uint64_t>(m_ssaoBlurPipeline),
+        "SSAO Blur Pipeline");
+
+    vkDestroyShaderModule(m_context.device(), blurModule, nullptr);
+
     update_ssao_descriptors();
 }
 
@@ -2404,12 +2608,18 @@ void VulkanApplication::destroy_ssao_descriptor_resources() noexcept {
         vkDestroyDescriptorPool(m_context.device(), m_ssaoDescriptorPool, nullptr);
         m_ssaoDescriptorPool = VK_NULL_HANDLE;
     }
+    if(m_ssaoBlurDescriptorSetLayout != VK_NULL_HANDLE) {
+        vkDestroyDescriptorSetLayout(m_context.device(), m_ssaoBlurDescriptorSetLayout, nullptr);
+        m_ssaoBlurDescriptorSetLayout = VK_NULL_HANDLE;
+    }
     if(m_ssaoDescriptorSetLayout != VK_NULL_HANDLE) {
         vkDestroyDescriptorSetLayout(m_context.device(), m_ssaoDescriptorSetLayout, nullptr);
         m_ssaoDescriptorSetLayout = VK_NULL_HANDLE;
     }
     m_ssaoDescriptorSets.clear();
+    m_ssaoBlurDescriptorSets.clear();
 }
+
 
 void VulkanApplication::update_ssao_descriptors() {
     if(m_ssaoDescriptorPool == VK_NULL_HANDLE || m_ssaoDescriptorSetLayout == VK_NULL_HANDLE) {
@@ -2424,11 +2634,11 @@ void VulkanApplication::update_ssao_descriptors() {
 
     const std::uint32_t imageCount = static_cast<std::uint32_t>(m_ssaoDescriptorSets.size());
     std::vector<VkWriteDescriptorSet> writes;
-    writes.reserve(imageCount * 6U);
+    writes.reserve(imageCount * 9U);
     std::vector<VkDescriptorBufferInfo> bufferInfos;
-    bufferInfos.reserve(imageCount * 2U);
+    bufferInfos.reserve(imageCount * 3U);
     std::vector<VkDescriptorImageInfo> imageInfos;
-    imageInfos.reserve(imageCount * 4U);
+    imageInfos.reserve(imageCount * 6U);
 
     for(std::uint32_t index {0U}; index < imageCount; ++index) {
         if(index >= m_gbufferNormalViews.size() || index >= m_gbufferPositionViews.size() || index >= m_ssaoOcclusionViews.size()) {
@@ -2490,6 +2700,39 @@ void VulkanApplication::update_ssao_descriptors() {
         occlusionWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
         occlusionWrite.pImageInfo = occlusionInfo;
         writes.push_back(occlusionWrite);
+
+        if(index < m_ssaoBlurDescriptorSets.size()
+           && index < m_ssaoBlurViews.size()
+           && m_ssaoBlurViews.at(index) != VK_NULL_HANDLE) {
+            imageInfos.push_back({m_ssaoSampler, m_ssaoOcclusionViews.at(index), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL});
+            VkDescriptorImageInfo* blurInputInfo = &imageInfos.back();
+
+            imageInfos.push_back({VK_NULL_HANDLE, m_ssaoBlurViews.at(index), VK_IMAGE_LAYOUT_GENERAL});
+            VkDescriptorImageInfo* blurOutputInfo = &imageInfos.back();
+
+            const VkDescriptorSet blurSet = m_ssaoBlurDescriptorSets.at(index);
+
+            VkWriteDescriptorSet blurSettingsWrite {kernelWrite};
+            blurSettingsWrite.dstSet = blurSet;
+            blurSettingsWrite.dstBinding = 0U;
+            blurSettingsWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            blurSettingsWrite.pBufferInfo = settingsInfo;
+            writes.push_back(blurSettingsWrite);
+
+            VkWriteDescriptorSet blurInputWrite {normalWrite};
+            blurInputWrite.dstSet = blurSet;
+            blurInputWrite.dstBinding = 1U;
+            blurInputWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            blurInputWrite.pImageInfo = blurInputInfo;
+            writes.push_back(blurInputWrite);
+
+            VkWriteDescriptorSet blurOutputWrite {occlusionWrite};
+            blurOutputWrite.dstSet = blurSet;
+            blurOutputWrite.dstBinding = 2U;
+            blurOutputWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+            blurOutputWrite.pImageInfo = blurOutputInfo;
+            writes.push_back(blurOutputWrite);
+        }
     }
 
     if(!writes.empty()) {
@@ -2617,6 +2860,78 @@ void VulkanApplication::record_depth_prepass(VkCommandBuffer commandBuffer, std:
     vkCmdEndRenderPass(commandBuffer);
 }
 
+void VulkanApplication::record_ssao_blur_pass(VkCommandBuffer commandBuffer, std::uint32_t imageIndex) {
+    if(!m_ssaoSettings.enabled || m_ssaoBlurPipeline == VK_NULL_HANDLE) {
+        return;
+    }
+    if(imageIndex >= m_ssaoBlurDescriptorSets.size() || imageIndex >= m_ssaoBlurImages.size()) {
+        return;
+    }
+
+    VkImage occlusionImage = m_ssaoOcclusionImages.at(imageIndex);
+    VkImage blurImage = m_ssaoBlurImages.at(imageIndex);
+    if(occlusionImage == VK_NULL_HANDLE || blurImage == VK_NULL_HANDLE) {
+        return;
+    }
+
+    if(m_ssaoOcclusionLayouts.at(imageIndex) != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+        transition_image_layout(
+            commandBuffer,
+            occlusionImage,
+            m_ssaoOcclusionLayouts.at(imageIndex),
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_ACCESS_SHADER_WRITE_BIT,
+            VK_ACCESS_SHADER_READ_BIT,
+            VK_IMAGE_ASPECT_COLOR_BIT);
+        m_ssaoOcclusionLayouts.at(imageIndex) = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    }
+
+    if(m_ssaoBlurLayouts.at(imageIndex) != VK_IMAGE_LAYOUT_GENERAL) {
+        transition_image_layout(
+            commandBuffer,
+            blurImage,
+            m_ssaoBlurLayouts.at(imageIndex),
+            VK_IMAGE_LAYOUT_GENERAL,
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            0U,
+            VK_ACCESS_SHADER_WRITE_BIT,
+            VK_IMAGE_ASPECT_COLOR_BIT);
+        m_ssaoBlurLayouts.at(imageIndex) = VK_IMAGE_LAYOUT_GENERAL;
+    }
+
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_ssaoBlurPipeline);
+    const VkDescriptorSet descriptorSet = m_ssaoBlurDescriptorSets.at(imageIndex);
+    vkCmdBindDescriptorSets(
+        commandBuffer,
+        VK_PIPELINE_BIND_POINT_COMPUTE,
+        m_ssaoBlurPipelineLayout,
+        0U,
+        1U,
+        &descriptorSet,
+        0U,
+        nullptr);
+
+    const std::uint32_t groupSize = 16U;
+    const std::uint32_t dispatchX = (m_ssaoExtent.width + groupSize - 1U) / groupSize;
+    const std::uint32_t dispatchY = (m_ssaoExtent.height + groupSize - 1U) / groupSize;
+    vkCmdDispatch(commandBuffer, dispatchX, dispatchY, 1U);
+
+    transition_image_layout(
+        commandBuffer,
+        blurImage,
+        VK_IMAGE_LAYOUT_GENERAL,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        VK_ACCESS_SHADER_WRITE_BIT,
+        VK_ACCESS_SHADER_READ_BIT,
+        VK_IMAGE_ASPECT_COLOR_BIT);
+    m_ssaoBlurLayouts.at(imageIndex) = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+}
+
 void VulkanApplication::record_ssao_pass(VkCommandBuffer commandBuffer, std::uint32_t imageIndex) {
     if(!m_ssaoSettings.enabled || m_ssaoPipeline == VK_NULL_HANDLE) {
         return;
@@ -2662,6 +2977,36 @@ void VulkanApplication::record_ssao_pass(VkCommandBuffer commandBuffer, std::uin
     const std::uint32_t dispatchX = (m_ssaoExtent.width + groupSize - 1U) / groupSize;
     const std::uint32_t dispatchY = (m_ssaoExtent.height + groupSize - 1U) / groupSize;
     vkCmdDispatch(commandBuffer, dispatchX, dispatchY, 1U);
+}
+
+void VulkanApplication::update_ssao_composition_descriptor(std::uint32_t imageIndex) {
+    if(m_descriptorSet == VK_NULL_HANDLE) {
+        return;
+    }
+
+    VkDescriptorImageInfo info {};
+    if(m_ssaoSettings.enabled && imageIndex < m_ssaoBlurViews.size() && m_ssaoBlurViews.at(imageIndex) != VK_NULL_HANDLE && m_ssaoSampler != VK_NULL_HANDLE) {
+        info.sampler = m_ssaoSampler;
+        info.imageView = m_ssaoBlurViews.at(imageIndex);
+        info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    } else if(m_fallbackAlbedoTexture != nullptr) {
+        info.sampler = m_fallbackAlbedoTexture->sampler();
+        info.imageView = m_fallbackAlbedoTexture->image_view();
+        info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    } else {
+        return;
+    }
+
+    VkWriteDescriptorSet write {} ;
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.dstSet = m_descriptorSet;
+    write.dstBinding = 2U;
+    write.dstArrayElement = 0U;
+    write.descriptorCount = 1U;
+    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    write.pImageInfo = &info;
+
+    vkUpdateDescriptorSets(m_context.device(), 1U, &write, 0U, nullptr);
 }
 
 void VulkanApplication::transition_image_layout(
@@ -2712,6 +3057,18 @@ void VulkanApplication::update_global_uniforms() {
     uniforms.view = compute_view_matrix(cameraPos, m_camera.yaw, m_camera.pitch, worldUp);
 
     const VkExtent2D extent = m_swapchain.extent();
+    float screenWidth = static_cast<float>(extent.width);
+    float screenHeight = static_cast<float>(extent.height);
+    if(screenWidth <= 0.0F) {
+        screenWidth = 1.0F;
+    }
+    if(screenHeight <= 0.0F) {
+        screenHeight = 1.0F;
+    }
+    const float invScreenWidth = 1.0F / screenWidth;
+    const float invScreenHeight = 1.0F / screenHeight;
+    uniforms.screenInfo = glm::vec4 {screenWidth, screenHeight, invScreenWidth, invScreenHeight};
+
     float aspect = 1.0F;
     if(extent.height > 0U) {
         aspect = static_cast<float>(extent.width) / static_cast<float>(extent.height);
@@ -2727,6 +3084,12 @@ void VulkanApplication::update_global_uniforms() {
     m_shadowSettings.pcfRadius = pcfRadius;
     uniforms.shadowParams = glm::vec4 {minBias, normalBias, static_cast<float>(pcfRadius), 0.0F};
     uniforms.cameraClip = glm::vec4 {m_camera.nearPlane, m_camera.farPlane, clipRange, aspect};
+    uniforms.ssaoConfig = glm::vec4 {
+        m_ssaoSettings.enabled ? 1.0F : 0.0F,
+        0.0F,
+        0.0F,
+        0.0F
+    };
 
     if(!m_shadowSettings.enabled) {
         m_activeCascadeCount = 0U;

@@ -64,6 +64,6 @@
 - [x] Summarize toggle/metal normal changes to user.
 - [x] Plan SSAO implementation approach.
 - [x] Implement G-buffer and SSAO sampling pipelines.
-- [ ] Add SSAO blur/composition and runtime controls.
+- [x] Add SSAO blur/composition and runtime controls.
 - [ ] Update docs/tests and verify SSAO integration.
 - [ ] Summarize SSAO feature to user.
