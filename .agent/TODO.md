@@ -44,6 +44,12 @@
 - [x] Extend tests for light split math and cascade selection.
 - [x] Rebuild project and run tests.
 - [x] Summarize cascaded shadow map feature to user.
+- [x] Plan texture/normal map extension tasks.
+- [ ] Implement per-primitive texture bindings with fallbacks.
+- [ ] Generate procedural checkerboard albedo and noisy normal maps.
+- [ ] Extend shaders, UI, and descriptors for textured lighting and normal strength.
+- [ ] Update docs/tests and verify build.
+- [ ] Summarize texture support changes to user.
 - [x] Plan shadow toggle implementation and acceptance checks.
 - [x] Implement runtime shadow toggle and shader bypass.
 - [x] Rebuild project, run tests, and summarize toggle feature.
