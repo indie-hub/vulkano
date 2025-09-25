@@ -57,4 +57,4 @@
 - [x] Implement cascade texture preview in UI.
 - [x] Rebuild project, run tests, and summarize visualization feature.
 - [x] Plan separate albedo and normal map toggles.
-- [ ] Plan metal-style normal map generator selection.
+- [x] Plan metal-style normal map generator selection.
