@@ -15,8 +15,8 @@
 #include <vulkano/shadow_render_pass.hpp>
 #include <vulkano/swapchain.hpp>
 #include <vulkano/synchronization.hpp>
-#include <vulkano/texture_types.hpp>
 #include <vulkano/texture.hpp>
+#include <vulkano/texture_types.hpp>
 #include <vulkano/vulkan_context.hpp>
 #include <vulkano/window.hpp>
 
@@ -91,6 +91,27 @@ private:
     void ensure_material_descriptor(ScenePrimitive& primitive);
     void update_material_descriptor(ScenePrimitive& primitive);
     [[nodiscard]] auto fallback_normal_texture(NormalMapStyle style) const noexcept -> TextureHandle;
+    void create_ssao_resources();
+    void destroy_ssao_resources() noexcept;
+    void recreate_ssao_resources();
+    void create_ssao_descriptor_resources();
+    void destroy_ssao_descriptor_resources() noexcept;
+    void generate_ssao_kernel();
+    void update_ssao_settings_buffer();
+    void ensure_ssao_noise_texture();
+    void update_ssao_descriptors();
+    void record_depth_prepass(VkCommandBuffer commandBuffer, std::uint32_t imageIndex);
+    void record_ssao_pass(VkCommandBuffer commandBuffer, std::uint32_t imageIndex);
+    void transition_image_layout(
+        VkCommandBuffer commandBuffer,
+        VkImage image,
+        VkImageLayout oldLayout,
+        VkImageLayout newLayout,
+        VkPipelineStageFlags srcStage,
+        VkPipelineStageFlags dstStage,
+        VkAccessFlags srcAccess,
+        VkAccessFlags dstAccess,
+        VkImageAspectFlags aspectMask) const;
     void update_global_uniforms();
     [[nodiscard]] auto camera_position() const noexcept -> glm::vec3;
     [[nodiscard]] auto camera_forward() const noexcept -> glm::vec3;
@@ -154,6 +175,17 @@ private:
         std::uint32_t resolution {ShadowMap::defaultResolution};
     };
 
+    struct SsaoSettings final {
+        bool enabled {true};
+        float radius {0.5F};
+        float bias {0.025F};
+        float power {1.5F};
+        float intensity {1.0F};
+        float blurSigma {2.0F};
+        std::uint32_t sampleCount {32U};
+        bool halfResolution {false};
+    };
+
     SceneState m_scene {};
     CameraState m_camera {};
     DepthResources m_depthResources {};
@@ -162,6 +194,7 @@ private:
     ShadowPipeline m_shadowPipeline {};
     std::vector<VkFramebuffer> m_shadowFramebuffers {};
     ShadowSettings m_shadowSettings {};
+    SsaoSettings m_ssaoSettings {};
     std::array<glm::mat4, maxCascades> m_cascadeMatrices {};
     std::array<float, maxCascades> m_cascadeSplits {};
     std::uint32_t m_activeCascadeCount {1U};
@@ -178,6 +211,31 @@ private:
     TextureHandle m_fallbackAlbedoTexture {};
     TextureHandle m_fallbackNormalNoiseTexture {};
     TextureHandle m_fallbackNormalMetalTexture {};
+    VkRenderPass m_depthPrepassRenderPass {VK_NULL_HANDLE};
+    VkPipelineLayout m_depthPrepassPipelineLayout {VK_NULL_HANDLE};
+    VkPipeline m_depthPrepassPipeline {VK_NULL_HANDLE};
+    std::vector<VkFramebuffer> m_depthPrepassFramebuffers {};
+    VkPipelineLayout m_ssaoPipelineLayout {VK_NULL_HANDLE};
+    VkPipeline m_ssaoPipeline {VK_NULL_HANDLE};
+    VkDescriptorSetLayout m_ssaoDescriptorSetLayout {VK_NULL_HANDLE};
+    VkDescriptorPool m_ssaoDescriptorPool {VK_NULL_HANDLE};
+    std::vector<VkDescriptorSet> m_ssaoDescriptorSets {};
+    std::vector<VkImage> m_gbufferNormalImages {};
+    std::vector<VkDeviceMemory> m_gbufferNormalMemories {};
+    std::vector<VkImageView> m_gbufferNormalViews {};
+    std::vector<VkImage> m_gbufferPositionImages {};
+    std::vector<VkDeviceMemory> m_gbufferPositionMemories {};
+    std::vector<VkImageView> m_gbufferPositionViews {};
+    std::vector<VkImage> m_ssaoOcclusionImages {};
+    std::vector<VkDeviceMemory> m_ssaoOcclusionMemories {};
+    std::vector<VkImageView> m_ssaoOcclusionViews {};
+    std::vector<VkImageLayout> m_ssaoOcclusionLayouts {};
+    VkSampler m_ssaoSampler {VK_NULL_HANDLE};
+    TextureHandle m_ssaoNoiseTexture {};
+    Buffer m_ssaoKernelBuffer;
+    Buffer m_ssaoSettingsBuffer;
+    std::vector<glm::vec4> m_ssaoKernel {};
+    VkExtent2D m_ssaoExtent {0U, 0U};
 
     std::vector<VkFence> m_imagesInFlight {};
     std::vector<VkSemaphore> m_renderFinishedSemaphores {};

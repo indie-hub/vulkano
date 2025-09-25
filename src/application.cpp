@@ -1,23 +1,30 @@
 #include <vulkano/application.hpp>
 #include <vulkano/camera_math.hpp>
 #include <vulkano/procedural_textures.hpp>
+#include <vulkano/texture_types.hpp>
 
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <fstream>
+#include <filesystem>
+#include <random>
 #include <memory>
 #include <limits>
 #include <span>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
+#include <vector>
 
 #include <GLFW/glfw3.h>
 #include <imgui.h>
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_vulkan.h>
 #include <glm/geometric.hpp>
+#include <glm/vec2.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtc/constants.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
@@ -40,6 +47,11 @@ namespace {
     constexpr float shadowFovRadians {glm::radians(60.0F)};
     constexpr float lightTargetEpsilon {1e-4F};
     constexpr glm::vec3 lightFallbackDirection {0.0F, -1.0F, 0.0F};
+    constexpr VkFormat ssaoNormalFormat {VK_FORMAT_R16G16B16A16_SFLOAT};
+    constexpr VkFormat ssaoPositionFormat {VK_FORMAT_R16G16B16A16_SFLOAT};
+    constexpr VkFormat ssaoOcclusionFormat {VK_FORMAT_R8_UNORM};
+    constexpr std::uint32_t ssaoKernelSize {64U};
+    constexpr std::uint32_t ssaoNoiseDimension {4U};
 
     struct GlobalUniform final {
         glm::mat4 view {1.0F};
@@ -53,6 +65,14 @@ namespace {
         glm::vec4 cameraClip {0.1F, 100.0F, 0.0F, 0.0F};
     };
 
+    struct SsaoUniform final {
+        glm::mat4 projection {1.0F};
+        glm::mat4 inverseProjection {1.0F};
+        glm::vec4 radiusBiasPowerIntensity {0.5F, 0.025F, 1.5F, 1.0F};
+        glm::vec4 screenSize {1.0F, 1.0F, 1.0F, 1.0F};
+        glm::vec4 sampleInfo {32.0F, 0.0F, 0.0F, 0.0F};
+    };
+
     struct PrimitivePushConstants final {
         glm::mat4 model {1.0F};
         glm::vec4 materialColor {1.0F, 1.0F, 1.0F, 1.0F};
@@ -64,6 +84,34 @@ namespace {
         glm::mat4 model {1.0F};
         glm::mat4 lightViewProjection {1.0F};
     };
+
+    auto load_shader_code(const std::filesystem::path& path) -> std::vector<std::uint32_t> {
+        std::ifstream file {path, std::ios::ate | std::ios::binary};
+        if(!file.is_open()) {
+            throw std::runtime_error {"Failed to open shader file: " + path.string()};
+        }
+        const std::streamsize fileSize = file.tellg();
+        if(fileSize <= 0) {
+            throw std::runtime_error {"Shader file is empty: " + path.string()};
+        }
+        std::vector<std::uint32_t> buffer(static_cast<std::size_t>(fileSize) / sizeof(std::uint32_t));
+        file.seekg(0);
+        file.read(reinterpret_cast<char*>(buffer.data()), fileSize);
+        return buffer;
+    }
+
+    auto create_shader_module(VkDevice device, const std::vector<std::uint32_t>& code) -> VkShaderModule {
+        VkShaderModuleCreateInfo createInfo {};
+        createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+        createInfo.codeSize = code.size() * sizeof(std::uint32_t);
+        createInfo.pCode = code.data();
+
+        VkShaderModule module {VK_NULL_HANDLE};
+        if(vkCreateShaderModule(device, &createInfo, nullptr, &module) != VK_SUCCESS) {
+            throw std::runtime_error {"Failed to create shader module"};
+        }
+        return module;
+    }
 }
 
 namespace vulkano {
@@ -100,6 +148,11 @@ VulkanApplication::VulkanApplication(const AppConfig& config)
     const std::array<VkDescriptorSetLayout, 2U> setLayouts {m_descriptorSetLayout, m_materialDescriptorSetLayout};
     m_pipeline = GraphicsPipeline::create(m_context, m_renderPass, setLayouts);
     create_fallback_textures();
+    generate_ssao_kernel();
+    ensure_ssao_noise_texture();
+    create_ssao_resources();
+    create_ssao_descriptor_resources();
+    update_ssao_settings_buffer();
     create_render_finished_semaphores();
     m_imagesInFlight.resize(m_swapchain.image_views().size(), VK_NULL_HANDLE);
 
@@ -112,6 +165,8 @@ VulkanApplication::VulkanApplication(const AppConfig& config)
 VulkanApplication::~VulkanApplication() {
     wait_for_device_idle();
     destroy_shadow_framebuffer();
+    destroy_ssao_resources();
+    destroy_ssao_descriptor_resources();
     destroy_descriptor_resources();
     destroy_fallback_textures();
     destroy_render_finished_semaphores();
@@ -219,6 +274,7 @@ void VulkanApplication::draw_frame() {
     update_camera_input(deltaSeconds, io);
     apply_scroll_input(io);
     update_global_uniforms();
+    update_ssao_settings_buffer();
 
     const VkExtent2D extent = m_swapchain.extent();
     ImGui::SetNextWindowBgAlpha(0.35F);
@@ -530,6 +586,7 @@ void VulkanApplication::recreate_swapchain() {
     const std::uint32_t commandBufferCount = static_cast<std::uint32_t>(m_framebuffers.size());
     m_commandAllocator.recreate(m_context, commandBufferCount);
     m_imagesInFlight.assign(commandBufferCount, VK_NULL_HANDLE);
+    recreate_ssao_resources();
     create_render_finished_semaphores();
     ImGui_ImplVulkan_SetMinImageCount(static_cast<std::uint32_t>(m_swapchain.image_views().size()));
     update_global_uniforms();
@@ -950,6 +1007,9 @@ void VulkanApplication::record_command_buffer(std::uint32_t imageIndex) {
     } else {
         ensure_shadow_map_read_layout(commandBuffer);
     }
+
+    record_depth_prepass(commandBuffer, imageIndex);
+    record_ssao_pass(commandBuffer, imageIndex);
 
     VkRenderPassBeginInfo renderPassInfo {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -1615,6 +1675,1031 @@ auto VulkanApplication::fallback_normal_texture(NormalMapStyle style) const noex
         break;
     }
     return (m_fallbackNormalNoiseTexture != nullptr) ? m_fallbackNormalNoiseTexture : m_fallbackNormalMetalTexture;
+}
+
+void VulkanApplication::generate_ssao_kernel() {
+    const std::uint32_t requestedSamples = std::clamp(m_ssaoSettings.sampleCount, 1U, ssaoKernelSize);
+    m_ssaoSettings.sampleCount = requestedSamples;
+
+    std::mt19937 rng {std::random_device {}()};
+    std::uniform_real_distribution<float> random01 {0.0F, 1.0F};
+    std::uniform_real_distribution<float> randomNegPos {-1.0F, 1.0F};
+
+    m_ssaoKernel.clear();
+    m_ssaoKernel.reserve(requestedSamples);
+    for(std::uint32_t index {0U}; index < requestedSamples; ++index) {
+        glm::vec3 sample {
+            randomNegPos(rng),
+            randomNegPos(rng),
+            random01(rng)
+        };
+        sample = glm::normalize(sample);
+        sample *= random01(rng);
+
+        float scale = static_cast<float>(index) / static_cast<float>(requestedSamples);
+        scale = std::lerp(0.1F, 1.0F, scale * scale);
+        sample *= scale;
+
+        m_ssaoKernel.push_back(glm::vec4 {sample, 0.0F});
+    }
+
+    if(m_ssaoKernel.empty()) {
+        m_ssaoKernel.emplace_back(0.0F, 0.0F, 1.0F, 0.0F);
+    }
+
+    const VkDeviceSize bufferSize = static_cast<VkDeviceSize>(m_ssaoKernel.size() * sizeof(glm::vec4));
+    m_ssaoKernelBuffer = Buffer::create_uniform_buffer(m_context, bufferSize);
+    m_ssaoKernelBuffer.write(m_context, m_ssaoKernel.data(), bufferSize);
+    update_ssao_descriptors();
+}
+
+void VulkanApplication::update_ssao_settings_buffer() {
+    if(m_ssaoKernel.empty()) {
+        generate_ssao_kernel();
+    }
+
+    VkExtent2D extent = m_ssaoExtent;
+    if(extent.width == 0U || extent.height == 0U) {
+        extent = m_swapchain.extent();
+    }
+
+    SsaoUniform uniform {};
+    const float aspect = (extent.height > 0U)
+        ? static_cast<float>(extent.width) / static_cast<float>(extent.height)
+        : 1.0F;
+    const glm::mat4 projection = glm::perspective(m_camera.fovY, aspect, m_camera.nearPlane, m_camera.farPlane);
+    uniform.projection = projection;
+    uniform.inverseProjection = glm::inverse(projection);
+    uniform.radiusBiasPowerIntensity = glm::vec4 {
+        m_ssaoSettings.radius,
+        m_ssaoSettings.bias,
+        m_ssaoSettings.power,
+        m_ssaoSettings.intensity
+    };
+    uniform.screenSize = glm::vec4 {
+        static_cast<float>(extent.width),
+        static_cast<float>(extent.height),
+        static_cast<float>(extent.width) / static_cast<float>(ssaoNoiseDimension),
+        static_cast<float>(extent.height) / static_cast<float>(ssaoNoiseDimension)
+    };
+    uniform.sampleInfo = glm::vec4 {
+        static_cast<float>(m_ssaoKernel.size()),
+        m_ssaoSettings.halfResolution ? 1.0F : 0.0F,
+        m_ssaoSettings.blurSigma,
+        0.0F
+    };
+
+    const VkDeviceSize bufferSize = static_cast<VkDeviceSize>(sizeof(SsaoUniform));
+    if(m_ssaoSettingsBuffer.handle() == VK_NULL_HANDLE) {
+        m_ssaoSettingsBuffer = Buffer::create_uniform_buffer(m_context, bufferSize);
+    }
+    m_ssaoSettingsBuffer.write(m_context, &uniform, bufferSize);
+    update_ssao_descriptors();
+}
+
+void VulkanApplication::ensure_ssao_noise_texture() {
+    if(m_ssaoNoiseTexture != nullptr) {
+        return;
+    }
+
+    std::mt19937 rng {std::random_device {}()};
+    std::uniform_real_distribution<float> randomNegPos {-1.0F, 1.0F};
+
+    std::vector<std::uint8_t> pixels(ssaoNoiseDimension * ssaoNoiseDimension * 4U, 255U);
+    for(std::uint32_t y {0U}; y < ssaoNoiseDimension; ++y) {
+        for(std::uint32_t x {0U}; x < ssaoNoiseDimension; ++x) {
+            const float rx = randomNegPos(rng);
+            const float ry = randomNegPos(rng);
+            const float mappedX = (rx * 0.5F) + 0.5F;
+            const float mappedY = (ry * 0.5F) + 0.5F;
+            const std::size_t index = (static_cast<std::size_t>(y) * ssaoNoiseDimension * 4U) + (static_cast<std::size_t>(x) * 4U);
+            pixels[index + 0U] = static_cast<std::uint8_t>(std::clamp(mappedX, 0.0F, 1.0F) * 255.0F);
+            pixels[index + 1U] = static_cast<std::uint8_t>(std::clamp(mappedY, 0.0F, 1.0F) * 255.0F);
+            pixels[index + 2U] = 128U;
+            pixels[index + 3U] = 255U;
+        }
+    }
+
+    const VkExtent2D extent {ssaoNoiseDimension, ssaoNoiseDimension};
+    Texture2D noise = Texture2D::create_rgba8(
+        m_context,
+        extent,
+        pixels,
+        VK_FORMAT_R8G8B8A8_UNORM,
+        VK_FILTER_NEAREST);
+    m_ssaoNoiseTexture = std::make_shared<Texture2D>(std::move(noise));
+}
+
+void VulkanApplication::create_ssao_resources() {
+    destroy_ssao_resources();
+
+    const auto& swapchainViews = m_swapchain.image_views();
+    if(swapchainViews.empty()) {
+        return;
+    }
+
+    VkExtent2D extent = m_swapchain.extent();
+    if(extent.width == 0U || extent.height == 0U) {
+        extent.width = 1U;
+        extent.height = 1U;
+    }
+
+    if(m_ssaoSettings.halfResolution) {
+        extent.width = std::max(1U, extent.width / 2U);
+        extent.height = std::max(1U, extent.height / 2U);
+    }
+
+    m_ssaoExtent = extent;
+
+    const std::uint32_t imageCount = static_cast<std::uint32_t>(swapchainViews.size());
+    m_gbufferNormalImages.resize(imageCount, VK_NULL_HANDLE);
+    m_gbufferNormalMemories.resize(imageCount, VK_NULL_HANDLE);
+    m_gbufferNormalViews.resize(imageCount, VK_NULL_HANDLE);
+    m_gbufferPositionImages.resize(imageCount, VK_NULL_HANDLE);
+    m_gbufferPositionMemories.resize(imageCount, VK_NULL_HANDLE);
+    m_gbufferPositionViews.resize(imageCount, VK_NULL_HANDLE);
+    m_ssaoOcclusionImages.resize(imageCount, VK_NULL_HANDLE);
+    m_ssaoOcclusionMemories.resize(imageCount, VK_NULL_HANDLE);
+    m_ssaoOcclusionViews.resize(imageCount, VK_NULL_HANDLE);
+    m_ssaoOcclusionLayouts.resize(imageCount, VK_IMAGE_LAYOUT_UNDEFINED);
+
+    const VkDevice device = m_context.device();
+    const VkPhysicalDevice physicalDevice = m_context.physical_device();
+
+    auto find_memory_type = [&](std::uint32_t typeFilter, VkMemoryPropertyFlags properties) -> std::uint32_t {
+        VkPhysicalDeviceMemoryProperties memoryProperties {};
+        vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memoryProperties);
+        for(std::uint32_t index {0U}; index < memoryProperties.memoryTypeCount; ++index) {
+            if((typeFilter & (1U << index)) != 0U
+               && (memoryProperties.memoryTypes[index].propertyFlags & properties) == properties) {
+                return index;
+            }
+        }
+        throw std::runtime_error {"Failed to find suitable memory type for SSAO resources"};
+    };
+
+    auto create_image = [&](VkExtent2D imageExtent,
+                            VkFormat format,
+                            VkImageUsageFlags usage,
+                            VkImage& image,
+                            VkDeviceMemory& memory,
+                            const std::string& name) {
+        VkImageCreateInfo imageInfo {};
+        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imageInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageInfo.extent = {imageExtent.width, imageExtent.height, 1U};
+        imageInfo.mipLevels = 1U;
+        imageInfo.arrayLayers = 1U;
+        imageInfo.format = format;
+        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        imageInfo.usage = usage;
+        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+        if(vkCreateImage(device, &imageInfo, nullptr, &image) != VK_SUCCESS) {
+            throw std::runtime_error {"Failed to create SSAO image"};
+        }
+        m_context.set_object_name(VK_OBJECT_TYPE_IMAGE, reinterpret_cast<std::uint64_t>(image), name);
+
+        VkMemoryRequirements requirements {};
+        vkGetImageMemoryRequirements(device, image, &requirements);
+
+        VkMemoryAllocateInfo allocInfo {};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = requirements.size;
+        allocInfo.memoryTypeIndex = find_memory_type(requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+        if(vkAllocateMemory(device, &allocInfo, nullptr, &memory) != VK_SUCCESS) {
+            throw std::runtime_error {"Failed to allocate SSAO image memory"};
+        }
+
+        if(vkBindImageMemory(device, image, memory, 0U) != VK_SUCCESS) {
+            throw std::runtime_error {"Failed to bind SSAO image memory"};
+        }
+    };
+
+    auto create_image_view = [&](VkImage image, VkFormat format, VkImageAspectFlags aspect, const std::string& name) -> VkImageView {
+        VkImageViewCreateInfo viewInfo {};
+        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        viewInfo.image = image;
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.format = format;
+        viewInfo.subresourceRange.aspectMask = aspect;
+        viewInfo.subresourceRange.baseMipLevel = 0U;
+        viewInfo.subresourceRange.levelCount = 1U;
+        viewInfo.subresourceRange.baseArrayLayer = 0U;
+        viewInfo.subresourceRange.layerCount = 1U;
+
+        VkImageView view {VK_NULL_HANDLE};
+        if(vkCreateImageView(device, &viewInfo, nullptr, &view) != VK_SUCCESS) {
+            throw std::runtime_error {"Failed to create SSAO image view"};
+        }
+        m_context.set_object_name(VK_OBJECT_TYPE_IMAGE_VIEW, reinterpret_cast<std::uint64_t>(view), name);
+        return view;
+    };
+
+    for(std::uint32_t index {0U}; index < imageCount; ++index) {
+        create_image(
+            extent,
+            ssaoNormalFormat,
+            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            m_gbufferNormalImages.at(index),
+            m_gbufferNormalMemories.at(index),
+            "SSAO Normal Image " + std::to_string(index));
+
+        m_gbufferNormalViews.at(index) = create_image_view(
+            m_gbufferNormalImages.at(index),
+            ssaoNormalFormat,
+            VK_IMAGE_ASPECT_COLOR_BIT,
+            "SSAO Normal View " + std::to_string(index));
+
+        create_image(
+            extent,
+            ssaoPositionFormat,
+            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            m_gbufferPositionImages.at(index),
+            m_gbufferPositionMemories.at(index),
+            "SSAO Position Image " + std::to_string(index));
+
+        m_gbufferPositionViews.at(index) = create_image_view(
+            m_gbufferPositionImages.at(index),
+            ssaoPositionFormat,
+            VK_IMAGE_ASPECT_COLOR_BIT,
+            "SSAO Position View " + std::to_string(index));
+
+        create_image(
+            extent,
+            ssaoOcclusionFormat,
+            VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            m_ssaoOcclusionImages.at(index),
+            m_ssaoOcclusionMemories.at(index),
+            "SSAO Occlusion Image " + std::to_string(index));
+
+        m_ssaoOcclusionViews.at(index) = create_image_view(
+            m_ssaoOcclusionImages.at(index),
+            ssaoOcclusionFormat,
+            VK_IMAGE_ASPECT_COLOR_BIT,
+            "SSAO Occlusion View " + std::to_string(index));
+        m_ssaoOcclusionLayouts.at(index) = VK_IMAGE_LAYOUT_UNDEFINED;
+    }
+
+    VkSamplerCreateInfo samplerInfo {};
+    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerInfo.magFilter = VK_FILTER_LINEAR;
+    samplerInfo.minFilter = VK_FILTER_LINEAR;
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.anisotropyEnable = VK_FALSE;
+    samplerInfo.maxAnisotropy = 1.0F;
+    samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    samplerInfo.unnormalizedCoordinates = VK_FALSE;
+    samplerInfo.compareEnable = VK_FALSE;
+    samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+
+    if(vkCreateSampler(device, &samplerInfo, nullptr, &m_ssaoSampler) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create SSAO sampler"};
+    }
+    m_context.set_object_name(
+        VK_OBJECT_TYPE_SAMPLER,
+        reinterpret_cast<std::uint64_t>(m_ssaoSampler),
+        "SSAO Sampler");
+
+    VkAttachmentDescription attachments[3] {};
+    attachments[0].format = ssaoNormalFormat;
+    attachments[0].samples = VK_SAMPLE_COUNT_1_BIT;
+    attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachments[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachments[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachments[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachments[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attachments[0].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    attachments[1] = attachments[0];
+    attachments[1].format = ssaoPositionFormat;
+
+    attachments[2].format = m_depthFormat;
+    attachments[2].samples = VK_SAMPLE_COUNT_1_BIT;
+    attachments[2].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachments[2].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachments[2].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachments[2].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachments[2].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    attachments[2].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentReference colorRefs[2] {};
+    colorRefs[0].attachment = 0U;
+    colorRefs[0].layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorRefs[1].attachment = 1U;
+    colorRefs[1].layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentReference depthRef {};
+    depthRef.attachment = 2U;
+    depthRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    VkSubpassDescription subpass {};
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount = 2U;
+    subpass.pColorAttachments = colorRefs;
+    subpass.pDepthStencilAttachment = &depthRef;
+
+    VkSubpassDependency dependency {};
+    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass = 0U;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependency.srcAccessMask = 0U;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+    VkRenderPassCreateInfo renderPassInfo {};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    renderPassInfo.attachmentCount = 3U;
+    renderPassInfo.pAttachments = attachments;
+    renderPassInfo.subpassCount = 1U;
+    renderPassInfo.pSubpasses = &subpass;
+    renderPassInfo.dependencyCount = 1U;
+    renderPassInfo.pDependencies = &dependency;
+
+    if(vkCreateRenderPass(device, &renderPassInfo, nullptr, &m_depthPrepassRenderPass) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create SSAO prepass render pass"};
+    }
+    m_context.set_object_name(
+        VK_OBJECT_TYPE_RENDER_PASS,
+        reinterpret_cast<std::uint64_t>(m_depthPrepassRenderPass),
+        "SSAO Prepass Render Pass");
+
+    std::array<VkDescriptorSetLayout, 2U> pipelineLayouts {m_descriptorSetLayout, m_materialDescriptorSetLayout};
+
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo {};
+    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutInfo.setLayoutCount = static_cast<std::uint32_t>(pipelineLayouts.size());
+    pipelineLayoutInfo.pSetLayouts = pipelineLayouts.data();
+
+    VkPushConstantRange pushRange {};
+    pushRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    pushRange.offset = 0U;
+    pushRange.size = sizeof(PrimitivePushConstants);
+    pipelineLayoutInfo.pushConstantRangeCount = 1U;
+    pipelineLayoutInfo.pPushConstantRanges = &pushRange;
+
+    if(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &m_depthPrepassPipelineLayout) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create SSAO prepass pipeline layout"};
+    }
+    m_context.set_object_name(
+        VK_OBJECT_TYPE_PIPELINE_LAYOUT,
+        reinterpret_cast<std::uint64_t>(m_depthPrepassPipelineLayout),
+        "SSAO Prepass Pipeline Layout");
+
+    const std::filesystem::path shaderDir {"shaders"};
+    const auto vertCode = load_shader_code(shaderDir / "ssao_prepass.vert.spv");
+    const auto fragCode = load_shader_code(shaderDir / "ssao_prepass.frag.spv");
+    VkShaderModule vertModule = create_shader_module(device, vertCode);
+    VkShaderModule fragModule = create_shader_module(device, fragCode);
+
+    VkPipelineShaderStageCreateInfo stages[2] {};
+    stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    stages[0].module = vertModule;
+    stages[0].pName = "main";
+    stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    stages[1].module = fragModule;
+    stages[1].pName = "main";
+
+    const auto bindingDescription = vertex_binding_description();
+    const auto attributeDescriptions = vertex_attribute_descriptions();
+    VkPipelineVertexInputStateCreateInfo vertexInput {};
+    vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vertexInput.vertexBindingDescriptionCount = 1U;
+    vertexInput.pVertexBindingDescriptions = &bindingDescription;
+    vertexInput.vertexAttributeDescriptionCount = static_cast<std::uint32_t>(attributeDescriptions.size());
+    vertexInput.pVertexAttributeDescriptions = attributeDescriptions.data();
+
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly {};
+    inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    inputAssembly.primitiveRestartEnable = VK_FALSE;
+
+    VkViewport viewport {};
+    viewport.x = 0.0F;
+    viewport.y = 0.0F;
+    viewport.width = static_cast<float>(extent.width);
+    viewport.height = static_cast<float>(extent.height);
+    viewport.minDepth = 0.0F;
+    viewport.maxDepth = 1.0F;
+
+    VkRect2D scissor {};
+    scissor.offset = {0, 0};
+    scissor.extent = extent;
+
+    VkPipelineViewportStateCreateInfo viewportState {};
+    viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewportState.viewportCount = 1U;
+    viewportState.pViewports = &viewport;
+    viewportState.scissorCount = 1U;
+    viewportState.pScissors = &scissor;
+
+    VkPipelineRasterizationStateCreateInfo rasterizer {};
+    rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rasterizer.depthClampEnable = VK_FALSE;
+    rasterizer.rasterizerDiscardEnable = VK_FALSE;
+    rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+    rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+    rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    rasterizer.depthBiasEnable = VK_FALSE;
+    rasterizer.lineWidth = 1.0F;
+
+    VkPipelineMultisampleStateCreateInfo multisampling {};
+    multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    VkPipelineColorBlendAttachmentState colorBlendAttachments[2] {};
+    for(auto& attachment : colorBlendAttachments) {
+        attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+        attachment.blendEnable = VK_FALSE;
+    }
+
+    VkPipelineColorBlendStateCreateInfo colorBlending {};
+    colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    colorBlending.attachmentCount = 2U;
+    colorBlending.pAttachments = colorBlendAttachments;
+
+    VkPipelineDepthStencilStateCreateInfo depthStencil {};
+    depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depthStencil.depthTestEnable = VK_TRUE;
+    depthStencil.depthWriteEnable = VK_TRUE;
+    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+    depthStencil.depthBoundsTestEnable = VK_FALSE;
+    depthStencil.stencilTestEnable = VK_FALSE;
+
+    VkPipelineDynamicStateCreateInfo dynamicState {};
+    const VkDynamicState dynamics[] {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+    dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamicState.dynamicStateCount = 2U;
+    dynamicState.pDynamicStates = dynamics;
+
+    VkGraphicsPipelineCreateInfo pipelineInfo {};
+    pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipelineInfo.stageCount = 2U;
+    pipelineInfo.pStages = stages;
+    pipelineInfo.pVertexInputState = &vertexInput;
+    pipelineInfo.pInputAssemblyState = &inputAssembly;
+    pipelineInfo.pViewportState = &viewportState;
+    pipelineInfo.pRasterizationState = &rasterizer;
+    pipelineInfo.pMultisampleState = &multisampling;
+    pipelineInfo.pDepthStencilState = &depthStencil;
+    pipelineInfo.pColorBlendState = &colorBlending;
+    pipelineInfo.pDynamicState = &dynamicState;
+    pipelineInfo.layout = m_depthPrepassPipelineLayout;
+    pipelineInfo.renderPass = m_depthPrepassRenderPass;
+    pipelineInfo.subpass = 0U;
+
+    if(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1U, &pipelineInfo, nullptr, &m_depthPrepassPipeline) != VK_SUCCESS) {
+        vkDestroyShaderModule(device, fragModule, nullptr);
+        vkDestroyShaderModule(device, vertModule, nullptr);
+        throw std::runtime_error {"Failed to create SSAO prepass pipeline"};
+    }
+    m_context.set_object_name(
+        VK_OBJECT_TYPE_PIPELINE,
+        reinterpret_cast<std::uint64_t>(m_depthPrepassPipeline),
+        "SSAO Prepass Pipeline");
+
+    vkDestroyShaderModule(device, fragModule, nullptr);
+    vkDestroyShaderModule(device, vertModule, nullptr);
+
+    m_depthPrepassFramebuffers.resize(imageCount, VK_NULL_HANDLE);
+    for(std::uint32_t index {0U}; index < imageCount; ++index) {
+        std::array<VkImageView, 3U> attachmentsViews {
+            m_gbufferNormalViews.at(index),
+            m_gbufferPositionViews.at(index),
+            m_depthResources.image_views().at(index)
+        };
+
+        VkFramebufferCreateInfo framebufferInfo {};
+        framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        framebufferInfo.renderPass = m_depthPrepassRenderPass;
+        framebufferInfo.attachmentCount = static_cast<std::uint32_t>(attachmentsViews.size());
+        framebufferInfo.pAttachments = attachmentsViews.data();
+        framebufferInfo.width = extent.width;
+        framebufferInfo.height = extent.height;
+        framebufferInfo.layers = 1U;
+
+        if(vkCreateFramebuffer(device, &framebufferInfo, nullptr, &m_depthPrepassFramebuffers.at(index)) != VK_SUCCESS) {
+            throw std::runtime_error {"Failed to create SSAO prepass framebuffer"};
+        }
+        m_context.set_object_name(
+            VK_OBJECT_TYPE_FRAMEBUFFER,
+            reinterpret_cast<std::uint64_t>(m_depthPrepassFramebuffers.at(index)),
+            "SSAO Prepass Framebuffer " + std::to_string(index));
+    }
+}
+
+void VulkanApplication::destroy_ssao_resources() noexcept {
+    const VkDevice device = m_context.device();
+
+    for(VkFramebuffer framebuffer : m_depthPrepassFramebuffers) {
+        if(framebuffer != VK_NULL_HANDLE) {
+            vkDestroyFramebuffer(device, framebuffer, nullptr);
+        }
+    }
+    m_depthPrepassFramebuffers.clear();
+
+    if(m_depthPrepassPipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device, m_depthPrepassPipeline, nullptr);
+        m_depthPrepassPipeline = VK_NULL_HANDLE;
+    }
+    if(m_depthPrepassPipelineLayout != VK_NULL_HANDLE) {
+        vkDestroyPipelineLayout(device, m_depthPrepassPipelineLayout, nullptr);
+        m_depthPrepassPipelineLayout = VK_NULL_HANDLE;
+    }
+    if(m_depthPrepassRenderPass != VK_NULL_HANDLE) {
+        vkDestroyRenderPass(device, m_depthPrepassRenderPass, nullptr);
+        m_depthPrepassRenderPass = VK_NULL_HANDLE;
+    }
+
+    if(m_ssaoPipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device, m_ssaoPipeline, nullptr);
+        m_ssaoPipeline = VK_NULL_HANDLE;
+    }
+    if(m_ssaoPipelineLayout != VK_NULL_HANDLE) {
+        vkDestroyPipelineLayout(device, m_ssaoPipelineLayout, nullptr);
+        m_ssaoPipelineLayout = VK_NULL_HANDLE;
+    }
+
+    if(m_ssaoSampler != VK_NULL_HANDLE) {
+        vkDestroySampler(device, m_ssaoSampler, nullptr);
+        m_ssaoSampler = VK_NULL_HANDLE;
+    }
+
+    auto destroy_image_resources = [&](std::vector<VkImage>& images,
+                                       std::vector<VkDeviceMemory>& memories,
+                                       std::vector<VkImageView>& views) {
+        for(VkImageView view : views) {
+            if(view != VK_NULL_HANDLE) {
+                vkDestroyImageView(device, view, nullptr);
+            }
+        }
+        for(VkImage image : images) {
+            if(image != VK_NULL_HANDLE) {
+                vkDestroyImage(device, image, nullptr);
+            }
+        }
+        for(VkDeviceMemory memory : memories) {
+            if(memory != VK_NULL_HANDLE) {
+                vkFreeMemory(device, memory, nullptr);
+            }
+        }
+        views.clear();
+        images.clear();
+        memories.clear();
+    };
+
+    destroy_image_resources(m_gbufferNormalImages, m_gbufferNormalMemories, m_gbufferNormalViews);
+    destroy_image_resources(m_gbufferPositionImages, m_gbufferPositionMemories, m_gbufferPositionViews);
+    destroy_image_resources(m_ssaoOcclusionImages, m_ssaoOcclusionMemories, m_ssaoOcclusionViews);
+    m_ssaoOcclusionLayouts.clear();
+}
+
+void VulkanApplication::create_ssao_descriptor_resources() {
+    destroy_ssao_descriptor_resources();
+
+    const auto& swapchainViews = m_swapchain.image_views();
+    if(swapchainViews.empty()) {
+        return;
+    }
+
+    if(m_ssaoPipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(m_context.device(), m_ssaoPipeline, nullptr);
+        m_ssaoPipeline = VK_NULL_HANDLE;
+    }
+    if(m_ssaoPipelineLayout != VK_NULL_HANDLE) {
+        vkDestroyPipelineLayout(m_context.device(), m_ssaoPipelineLayout, nullptr);
+        m_ssaoPipelineLayout = VK_NULL_HANDLE;
+    }
+
+    std::array<VkDescriptorSetLayoutBinding, 6U> bindings {};
+    bindings[0].binding = 0U;
+    bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    bindings[0].descriptorCount = 1U;
+    bindings[0].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+    bindings[1].binding = 1U;
+    bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    bindings[1].descriptorCount = 1U;
+    bindings[1].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+    bindings[2].binding = 2U;
+    bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    bindings[2].descriptorCount = 1U;
+    bindings[2].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+    bindings[3].binding = 3U;
+    bindings[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    bindings[3].descriptorCount = 1U;
+    bindings[3].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+    bindings[4].binding = 4U;
+    bindings[4].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    bindings[4].descriptorCount = 1U;
+    bindings[4].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+    bindings[5].binding = 5U;
+    bindings[5].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    bindings[5].descriptorCount = 1U;
+    bindings[5].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+    VkDescriptorSetLayoutCreateInfo layoutInfo {};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = static_cast<std::uint32_t>(bindings.size());
+    layoutInfo.pBindings = bindings.data();
+
+    if(vkCreateDescriptorSetLayout(m_context.device(), &layoutInfo, nullptr, &m_ssaoDescriptorSetLayout) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create SSAO descriptor set layout"};
+    }
+    m_context.set_object_name(
+        VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT,
+        reinterpret_cast<std::uint64_t>(m_ssaoDescriptorSetLayout),
+        "SSAO Descriptor Set Layout");
+
+    const std::uint32_t imageCount = static_cast<std::uint32_t>(swapchainViews.size());
+
+    std::array<VkDescriptorPoolSize, 3U> poolSizes {
+        VkDescriptorPoolSize {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, imageCount * 2U},
+        VkDescriptorPoolSize {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, imageCount * 3U},
+        VkDescriptorPoolSize {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, imageCount}
+    };
+
+    VkDescriptorPoolCreateInfo poolInfo {};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = static_cast<std::uint32_t>(poolSizes.size());
+    poolInfo.pPoolSizes = poolSizes.data();
+    poolInfo.maxSets = imageCount;
+
+    if(vkCreateDescriptorPool(m_context.device(), &poolInfo, nullptr, &m_ssaoDescriptorPool) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create SSAO descriptor pool"};
+    }
+    m_context.set_object_name(
+        VK_OBJECT_TYPE_DESCRIPTOR_POOL,
+        reinterpret_cast<std::uint64_t>(m_ssaoDescriptorPool),
+        "SSAO Descriptor Pool");
+
+    std::vector<VkDescriptorSetLayout> setLayouts(imageCount, m_ssaoDescriptorSetLayout);
+    VkDescriptorSetAllocateInfo allocateInfo {};
+    allocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocateInfo.descriptorPool = m_ssaoDescriptorPool;
+    allocateInfo.descriptorSetCount = imageCount;
+    allocateInfo.pSetLayouts = setLayouts.data();
+
+    m_ssaoDescriptorSets.resize(imageCount, VK_NULL_HANDLE);
+    if(vkAllocateDescriptorSets(m_context.device(), &allocateInfo, m_ssaoDescriptorSets.data()) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to allocate SSAO descriptor sets"};
+    }
+
+    VkPipelineLayoutCreateInfo computeLayoutInfo {};
+    computeLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    computeLayoutInfo.setLayoutCount = 1U;
+    computeLayoutInfo.pSetLayouts = &m_ssaoDescriptorSetLayout;
+
+    if(vkCreatePipelineLayout(m_context.device(), &computeLayoutInfo, nullptr, &m_ssaoPipelineLayout) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create SSAO compute pipeline layout"};
+    }
+    m_context.set_object_name(
+        VK_OBJECT_TYPE_PIPELINE_LAYOUT,
+        reinterpret_cast<std::uint64_t>(m_ssaoPipelineLayout),
+        "SSAO Compute Pipeline Layout");
+
+    const std::filesystem::path shaderDir {"shaders"};
+    const auto computeCode = load_shader_code(shaderDir / "ssao.comp.spv");
+    VkShaderModule computeModule = create_shader_module(m_context.device(), computeCode);
+
+    VkPipelineShaderStageCreateInfo stageInfo {};
+    stageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+    stageInfo.module = computeModule;
+    stageInfo.pName = "main";
+
+    VkComputePipelineCreateInfo computeInfo {};
+    computeInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+    computeInfo.stage = stageInfo;
+    computeInfo.layout = m_ssaoPipelineLayout;
+
+    if(vkCreateComputePipelines(m_context.device(), VK_NULL_HANDLE, 1U, &computeInfo, nullptr, &m_ssaoPipeline) != VK_SUCCESS) {
+        vkDestroyShaderModule(m_context.device(), computeModule, nullptr);
+        throw std::runtime_error {"Failed to create SSAO compute pipeline"};
+    }
+    m_context.set_object_name(
+        VK_OBJECT_TYPE_PIPELINE,
+        reinterpret_cast<std::uint64_t>(m_ssaoPipeline),
+        "SSAO Compute Pipeline");
+
+    vkDestroyShaderModule(m_context.device(), computeModule, nullptr);
+
+    update_ssao_descriptors();
+}
+
+void VulkanApplication::destroy_ssao_descriptor_resources() noexcept {
+    if(m_ssaoDescriptorPool != VK_NULL_HANDLE) {
+        vkDestroyDescriptorPool(m_context.device(), m_ssaoDescriptorPool, nullptr);
+        m_ssaoDescriptorPool = VK_NULL_HANDLE;
+    }
+    if(m_ssaoDescriptorSetLayout != VK_NULL_HANDLE) {
+        vkDestroyDescriptorSetLayout(m_context.device(), m_ssaoDescriptorSetLayout, nullptr);
+        m_ssaoDescriptorSetLayout = VK_NULL_HANDLE;
+    }
+    m_ssaoDescriptorSets.clear();
+}
+
+void VulkanApplication::update_ssao_descriptors() {
+    if(m_ssaoDescriptorPool == VK_NULL_HANDLE || m_ssaoDescriptorSetLayout == VK_NULL_HANDLE) {
+        return;
+    }
+    if(m_ssaoDescriptorSets.empty()) {
+        return;
+    }
+    if(m_ssaoNoiseTexture == nullptr || m_ssaoKernelBuffer.handle() == VK_NULL_HANDLE || m_ssaoSettingsBuffer.handle() == VK_NULL_HANDLE) {
+        return;
+    }
+
+    const std::uint32_t imageCount = static_cast<std::uint32_t>(m_ssaoDescriptorSets.size());
+    std::vector<VkWriteDescriptorSet> writes;
+    writes.reserve(imageCount * 6U);
+    std::vector<VkDescriptorBufferInfo> bufferInfos;
+    bufferInfos.reserve(imageCount * 2U);
+    std::vector<VkDescriptorImageInfo> imageInfos;
+    imageInfos.reserve(imageCount * 4U);
+
+    for(std::uint32_t index {0U}; index < imageCount; ++index) {
+        if(index >= m_gbufferNormalViews.size() || index >= m_gbufferPositionViews.size() || index >= m_ssaoOcclusionViews.size()) {
+            continue;
+        }
+
+        bufferInfos.push_back({m_ssaoKernelBuffer.handle(), 0U, static_cast<VkDeviceSize>(m_ssaoKernel.size() * sizeof(glm::vec4))});
+        VkDescriptorBufferInfo* kernelInfo = &bufferInfos.back();
+
+        bufferInfos.push_back({m_ssaoSettingsBuffer.handle(), 0U, sizeof(SsaoUniform)});
+        VkDescriptorBufferInfo* settingsInfo = &bufferInfos.back();
+
+        imageInfos.push_back({m_ssaoSampler, m_gbufferNormalViews.at(index), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL});
+        VkDescriptorImageInfo* normalInfo = &imageInfos.back();
+
+        imageInfos.push_back({m_ssaoSampler, m_gbufferPositionViews.at(index), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL});
+        VkDescriptorImageInfo* positionInfo = &imageInfos.back();
+
+        imageInfos.push_back({m_ssaoNoiseTexture->sampler(), m_ssaoNoiseTexture->image_view(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL});
+        VkDescriptorImageInfo* noiseInfo = &imageInfos.back();
+
+        imageInfos.push_back({VK_NULL_HANDLE, m_ssaoOcclusionViews.at(index), VK_IMAGE_LAYOUT_GENERAL});
+        VkDescriptorImageInfo* occlusionInfo = &imageInfos.back();
+
+        const VkDescriptorSet descriptorSet = m_ssaoDescriptorSets.at(index);
+
+        VkWriteDescriptorSet kernelWrite {};
+        kernelWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        kernelWrite.dstSet = descriptorSet;
+        kernelWrite.dstBinding = 0U;
+        kernelWrite.descriptorCount = 1U;
+        kernelWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        kernelWrite.pBufferInfo = kernelInfo;
+        writes.push_back(kernelWrite);
+
+        VkWriteDescriptorSet settingsWrite {kernelWrite};
+        settingsWrite.dstBinding = 1U;
+        settingsWrite.pBufferInfo = settingsInfo;
+        writes.push_back(settingsWrite);
+
+        VkWriteDescriptorSet normalWrite {kernelWrite};
+        normalWrite.dstBinding = 2U;
+        normalWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        normalWrite.pImageInfo = normalInfo;
+        writes.push_back(normalWrite);
+
+        VkWriteDescriptorSet positionWrite {normalWrite};
+        positionWrite.dstBinding = 3U;
+        positionWrite.pImageInfo = positionInfo;
+        writes.push_back(positionWrite);
+
+        VkWriteDescriptorSet noiseWrite {normalWrite};
+        noiseWrite.dstBinding = 4U;
+        noiseWrite.pImageInfo = noiseInfo;
+        writes.push_back(noiseWrite);
+
+        VkWriteDescriptorSet occlusionWrite {kernelWrite};
+        occlusionWrite.dstBinding = 5U;
+        occlusionWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        occlusionWrite.pImageInfo = occlusionInfo;
+        writes.push_back(occlusionWrite);
+    }
+
+    if(!writes.empty()) {
+        vkUpdateDescriptorSets(
+            m_context.device(),
+        static_cast<std::uint32_t>(writes.size()),
+        writes.data(),
+        0U,
+        nullptr);
+    }
+}
+
+void VulkanApplication::recreate_ssao_resources() {
+    destroy_ssao_resources();
+    destroy_ssao_descriptor_resources();
+    create_ssao_resources();
+    create_ssao_descriptor_resources();
+    update_ssao_settings_buffer();
+    update_ssao_descriptors();
+}
+
+void VulkanApplication::record_depth_prepass(VkCommandBuffer commandBuffer, std::uint32_t imageIndex) {
+    if(m_depthPrepassRenderPass == VK_NULL_HANDLE || imageIndex >= m_depthPrepassFramebuffers.size()) {
+        return;
+    }
+    const VkFramebuffer framebuffer = m_depthPrepassFramebuffers.at(imageIndex);
+    if(framebuffer == VK_NULL_HANDLE) {
+        return;
+    }
+
+    VkClearValue clears[3] {};
+    clears[0].color = {{0.0F, 0.0F, 0.0F, 0.0F}};
+    clears[1].color = {{0.0F, 0.0F, 0.0F, 0.0F}};
+    clears[2].depthStencil = {1.0F, 0U};
+
+    VkRenderPassBeginInfo beginInfo {};
+    beginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    beginInfo.renderPass = m_depthPrepassRenderPass;
+    beginInfo.framebuffer = framebuffer;
+    beginInfo.renderArea.offset = {0, 0};
+    beginInfo.renderArea.extent = m_ssaoExtent;
+    beginInfo.clearValueCount = 3U;
+    beginInfo.pClearValues = clears;
+
+    vkCmdBeginRenderPass(commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+    VkViewport viewport {};
+    viewport.x = 0.0F;
+    viewport.y = static_cast<float>(m_ssaoExtent.height);
+    viewport.width = static_cast<float>(m_ssaoExtent.width);
+    viewport.height = -static_cast<float>(m_ssaoExtent.height);
+    viewport.minDepth = 0.0F;
+    viewport.maxDepth = 1.0F;
+    vkCmdSetViewport(commandBuffer, 0U, 1U, &viewport);
+
+    VkRect2D scissor {};
+    scissor.offset = {0, 0};
+    scissor.extent = m_ssaoExtent;
+    vkCmdSetScissor(commandBuffer, 0U, 1U, &scissor);
+
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_depthPrepassPipeline);
+
+    if(m_descriptorSet != VK_NULL_HANDLE) {
+        vkCmdBindDescriptorSets(
+            commandBuffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            m_depthPrepassPipelineLayout,
+            0U,
+            1U,
+            &m_descriptorSet,
+            0U,
+            nullptr);
+    }
+
+    for(const ScenePrimitive& primitive : m_scene.primitives) {
+        if(primitive.primitive == nullptr || !primitive.gpu.has_geometry()) {
+            continue;
+        }
+
+        const VkBuffer vertexBuffers[] {primitive.gpu.vertex_buffer()};
+        const VkDeviceSize offsets[] {0U};
+        vkCmdBindVertexBuffers(commandBuffer, 0U, 1U, vertexBuffers, offsets);
+        vkCmdBindIndexBuffer(commandBuffer, primitive.gpu.index_buffer(), 0U, VK_INDEX_TYPE_UINT32);
+
+        if(primitive.materialDescriptor != VK_NULL_HANDLE) {
+            vkCmdBindDescriptorSets(
+                commandBuffer,
+                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                m_depthPrepassPipelineLayout,
+                1U,
+                1U,
+                &primitive.materialDescriptor,
+                0U,
+                nullptr);
+        }
+
+        const PrimitiveProperties& properties = primitive.primitive->properties();
+        PrimitivePushConstants pushConstants {};
+        pushConstants.model = compute_model_matrix(properties);
+        pushConstants.materialColor = glm::vec4 {properties.baseColor, 1.0F};
+        pushConstants.materialProperties = glm::vec4 {
+            properties.shininess,
+            properties.ambientStrength,
+            properties.specularStrength,
+            0.0F
+        };
+        pushConstants.textureControls = glm::vec4 {
+            properties.albedoEnabled ? 1.0F : 0.0F,
+            properties.normalEnabled ? 1.0F : 0.0F,
+            properties.normalStrength,
+            0.0F
+        };
+
+        vkCmdPushConstants(
+            commandBuffer,
+            m_depthPrepassPipelineLayout,
+            VK_SHADER_STAGE_VERTEX_BIT,
+            0U,
+            static_cast<std::uint32_t>(sizeof(PrimitivePushConstants)),
+            &pushConstants);
+
+        vkCmdDrawIndexed(commandBuffer, primitive.gpu.index_count(), 1U, 0U, 0, 0);
+    }
+
+    vkCmdEndRenderPass(commandBuffer);
+}
+
+void VulkanApplication::record_ssao_pass(VkCommandBuffer commandBuffer, std::uint32_t imageIndex) {
+    if(!m_ssaoSettings.enabled || m_ssaoPipeline == VK_NULL_HANDLE) {
+        return;
+    }
+    if(imageIndex >= m_ssaoDescriptorSets.size() || imageIndex >= m_ssaoOcclusionImages.size()) {
+        return;
+    }
+
+    VkImage occlusionImage = m_ssaoOcclusionImages.at(imageIndex);
+    if(occlusionImage == VK_NULL_HANDLE) {
+        return;
+    }
+
+    const VkImageLayout currentLayout = m_ssaoOcclusionLayouts.at(imageIndex);
+    if(currentLayout != VK_IMAGE_LAYOUT_GENERAL) {
+        transition_image_layout(
+            commandBuffer,
+            occlusionImage,
+            currentLayout,
+            VK_IMAGE_LAYOUT_GENERAL,
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            0U,
+            VK_ACCESS_SHADER_WRITE_BIT,
+            VK_IMAGE_ASPECT_COLOR_BIT);
+        m_ssaoOcclusionLayouts.at(imageIndex) = VK_IMAGE_LAYOUT_GENERAL;
+    }
+
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_ssaoPipeline);
+
+    const VkDescriptorSet descriptorSet = m_ssaoDescriptorSets.at(imageIndex);
+    vkCmdBindDescriptorSets(
+        commandBuffer,
+        VK_PIPELINE_BIND_POINT_COMPUTE,
+        m_ssaoPipelineLayout,
+        0U,
+        1U,
+        &descriptorSet,
+        0U,
+        nullptr);
+
+    const std::uint32_t groupSize = 16U;
+    const std::uint32_t dispatchX = (m_ssaoExtent.width + groupSize - 1U) / groupSize;
+    const std::uint32_t dispatchY = (m_ssaoExtent.height + groupSize - 1U) / groupSize;
+    vkCmdDispatch(commandBuffer, dispatchX, dispatchY, 1U);
+}
+
+void VulkanApplication::transition_image_layout(
+    VkCommandBuffer commandBuffer,
+    VkImage image,
+    VkImageLayout oldLayout,
+    VkImageLayout newLayout,
+    VkPipelineStageFlags srcStage,
+    VkPipelineStageFlags dstStage,
+    VkAccessFlags srcAccess,
+    VkAccessFlags dstAccess,
+    VkImageAspectFlags aspectMask) const {
+    VkImageMemoryBarrier barrier {};
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.srcAccessMask = srcAccess;
+    barrier.dstAccessMask = dstAccess;
+    barrier.oldLayout = oldLayout;
+    barrier.newLayout = newLayout;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = image;
+    barrier.subresourceRange.aspectMask = aspectMask;
+    barrier.subresourceRange.baseMipLevel = 0U;
+    barrier.subresourceRange.levelCount = 1U;
+    barrier.subresourceRange.baseArrayLayer = 0U;
+    barrier.subresourceRange.layerCount = 1U;
+
+    vkCmdPipelineBarrier(
+        commandBuffer,
+        srcStage,
+        dstStage,
+        0U,
+        0U,
+        nullptr,
+        0U,
+        nullptr,
+        1U,
+        &barrier);
 }
 
 void VulkanApplication::update_global_uniforms() {

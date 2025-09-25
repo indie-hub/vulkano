@@ -119,6 +119,9 @@ set(SHADER_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/shaders/mesh.frag
     ${CMAKE_CURRENT_SOURCE_DIR}/shaders/mesh.vert
     ${CMAKE_CURRENT_SOURCE_DIR}/shaders/shadow_depth.vert
+    ${CMAKE_CURRENT_SOURCE_DIR}/shaders/ssao_prepass.vert
+    ${CMAKE_CURRENT_SOURCE_DIR}/shaders/ssao_prepass.frag
+    ${CMAKE_CURRENT_SOURCE_DIR}/shaders/ssao.comp
 )
 
 set(SPIRV_OUTPUTS)

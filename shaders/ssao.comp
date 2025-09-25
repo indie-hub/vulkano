@@ -1,0 +1,77 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+layout(binding = 0) uniform KernelData {
+    vec4 samples[64];
+} kernelData;
+
+layout(binding = 1) uniform SsaoParams {
+    mat4 projection;
+    mat4 inverseProjection;
+    vec4 radiusBiasPowerIntensity; // radius, bias, power, intensity
+    vec4 screenSize;               // width, height, noiseScaleX, noiseScaleY
+    vec4 sampleInfo;               // sampleCount, halfResolutionFlag, blurSigma, unused
+} params;
+
+layout(binding = 2) uniform sampler2D normalBuffer;
+layout(binding = 3) uniform sampler2D positionBuffer;
+layout(binding = 4) uniform sampler2D noiseTexture;
+layout(binding = 5, rgba8) writeonly uniform image2D occlusionOutput;
+
+float getLinearDepth(vec3 viewPos) {
+    return viewPos.z;
+}
+
+void main() {
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if(pixel.x >= int(params.screenSize.x) || pixel.y >= int(params.screenSize.y)) {
+        return;
+    }
+
+    vec2 uv = (vec2(pixel) + vec2(0.5)) / params.screenSize.xy;
+
+    vec3 viewNormal = texture(normalBuffer, uv).xyz;
+    if(length(viewNormal) < 1e-5) {
+        viewNormal = vec3(0.0, 0.0, 1.0);
+    }
+    viewNormal = normalize(viewNormal);
+
+    vec3 viewPosition = texture(positionBuffer, uv).xyz;
+
+    vec3 randomVec = texture(noiseTexture, uv * params.screenSize.zw).xyz * 2.0 - 1.0;
+    vec3 tangent = normalize(randomVec - viewNormal * dot(randomVec, viewNormal));
+    vec3 bitangent = normalize(cross(viewNormal, tangent));
+    mat3 TBN = mat3(tangent, bitangent, viewNormal);
+
+    float radius = params.radiusBiasPowerIntensity.x;
+    float bias = params.radiusBiasPowerIntensity.y;
+    float power = params.radiusBiasPowerIntensity.z;
+    float intensity = params.radiusBiasPowerIntensity.w;
+    int sampleCount = int(params.sampleInfo.x);
+
+    float occlusion = 0.0;
+    for(int i = 0; i < sampleCount; ++i) {
+        vec3 sampleVec = kernelData.samples[i].xyz;
+        vec3 samplePos = viewPosition + (TBN * sampleVec) * radius;
+
+        vec4 clip = params.projection * vec4(samplePos, 1.0);
+        clip.xyz /= clip.w;
+        vec2 sampleUV = clip.xy * 0.5 + 0.5;
+        if(sampleUV.x < 0.0 || sampleUV.x > 1.0 || sampleUV.y < 0.0 || sampleUV.y > 1.0) {
+            continue;
+        }
+
+        vec3 samplePosition = texture(positionBuffer, sampleUV).xyz;
+        float rangeCheck = smoothstep(0.0, 1.0, radius / abs(viewPosition.z - samplePosition.z));
+        float occluded = samplePosition.z <= samplePos.z - bias ? 1.0 : 0.0;
+        occlusion += occluded * rangeCheck;
+    }
+
+    float denom = max(float(sampleCount), 1.0);
+    occlusion = 1.0 - (occlusion / denom);
+    occlusion = pow(clamp(occlusion, 0.0, 1.0), power);
+    occlusion = clamp(occlusion * intensity, 0.0, 1.0);
+
+    imageStore(occlusionOutput, pixel, vec4(occlusion, occlusion, occlusion, 1.0));
+}
