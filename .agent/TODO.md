@@ -48,7 +48,7 @@
 - [x] Implement per-primitive texture bindings with fallbacks.
 - [x] Generate procedural checkerboard albedo and noisy normal maps.
 - [x] Extend shaders, UI, and descriptors for textured lighting and normal strength.
-- [ ] Update docs/tests and verify build.
+- [x] Update docs/tests and verify build.
 - [ ] Summarize texture support changes to user.
 - [x] Plan shadow toggle implementation and acceptance checks.
 - [x] Implement runtime shadow toggle and shader bypass.
