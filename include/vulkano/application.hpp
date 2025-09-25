@@ -129,6 +129,7 @@ private:
     };
 
     struct ShadowSettings final {
+        bool enabled {true};
         float depthBiasConstant {1.25F};
         float depthBiasSlope {1.75F};
         float minBias {0.0025F};

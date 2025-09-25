@@ -15,6 +15,7 @@ layout(set = 0, binding = 0) uniform GlobalUniforms {
     vec4 lightPositionIntensity;
     vec4 cameraPosition;
     vec4 shadowParams;
+    vec4 shadowConfig;
     vec4 cascadeSplits;
     vec4 cameraClip;
 } globalUniforms;

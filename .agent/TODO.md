@@ -45,8 +45,8 @@
 - [x] Rebuild project and run tests.
 - [x] Summarize cascaded shadow map feature to user.
 - [x] Plan shadow toggle implementation and acceptance checks.
-- [ ] Implement runtime shadow toggle and shader bypass.
-- [ ] Rebuild project, run tests, and summarize toggle feature.
+- [x] Implement runtime shadow toggle and shader bypass.
+- [x] Rebuild project, run tests, and summarize toggle feature.
 - [x] Plan cascade debug visualization in ImGui.
 - [x] Implement cascade texture preview in UI.
 - [x] Rebuild project, run tests, and summarize visualization feature.

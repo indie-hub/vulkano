@@ -13,6 +13,7 @@ layout(set = 0, binding = 0) uniform GlobalUniforms {
     vec4 lightPositionIntensity;
     vec4 cameraPosition;
     vec4 shadowParams;
+    vec4 shadowConfig;
     vec4 cascadeSplits;
     vec4 cameraClip;
 } globalUniforms;
@@ -49,7 +50,19 @@ void main() {
     float clipRange = max(globalUniforms.cameraClip.z, 0.0001);
     float depthNormalized = clamp((viewDepth - nearPlane) / clipRange, 0.0, 1.0);
 
-    int cascadeCount = int(round(clamp(globalUniforms.shadowParams.w, 1.0, 4.0)));
+    if(globalUniforms.shadowConfig.x < 0.5) {
+        vec3 diffuse = diffuseStrength * lightIntensity * baseColor;
+        vec3 viewDirection = normalize(globalUniforms.cameraPosition.xyz - vWorldPos);
+        vec3 halfwayDirection = normalize(lightDirection + viewDirection);
+        float specAngle = max(dot(normal, halfwayDirection), 0.0);
+        float specularFactor = specularStrength * lightIntensity * pow(specAngle, shininess);
+        vec3 specular = specularFactor * vec3(1.0);
+        vec3 finalColor = ambient + diffuse + specular;
+        outColor = vec4(finalColor, primitiveConstants.materialColor.a);
+        return;
+    }
+
+    int cascadeCount = int(round(clamp(globalUniforms.shadowConfig.y, 1.0, 4.0)));
     int cascadeIndex = cascadeCount - 1;
     for(int index = 0; index < cascadeCount; ++index) {
         if(depthNormalized <= globalUniforms.cascadeSplits[index]) {

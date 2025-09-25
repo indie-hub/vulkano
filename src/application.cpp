@@ -46,7 +46,8 @@ namespace {
         std::array<glm::mat4, maxCascades> lightViewProjection {};
         glm::vec4 lightPositionIntensity {0.0F, 0.0F, 0.0F, 1.0F};
         glm::vec4 cameraPosition {0.0F, 0.0F, 0.0F, 1.0F};
-        glm::vec4 shadowParams {0.0025F, 0.05F, 1.0F, 1.0F};
+        glm::vec4 shadowParams {0.0025F, 0.05F, 1.0F, 0.0F};
+        glm::vec4 shadowConfig {1.0F, 1.0F, 0.0F, 0.0F};
         glm::vec4 cascadeSplits {1.0F, 1.0F, 1.0F, 1.0F};
         glm::vec4 cameraClip {0.1F, 100.0F, 0.0F, 0.0F};
     };
@@ -238,6 +239,16 @@ void VulkanApplication::draw_frame() {
     }
 
     if(ImGui::CollapsingHeader("Shadows", ImGuiTreeNodeFlags_DefaultOpen)) {
+        bool shadowsEnabled = m_shadowSettings.enabled;
+        if(ImGui::Checkbox("Enable Shadows", &shadowsEnabled)) {
+            m_shadowSettings.enabled = shadowsEnabled;
+            if(!m_shadowSettings.enabled) {
+                destroy_shadow_debug_textures();
+            }
+            m_shadowResourcesDirty = true;
+        }
+
+        ImGui::BeginDisabled(!m_shadowSettings.enabled);
         float depthBiasConstant = m_shadowSettings.depthBiasConstant;
         if(ImGui::SliderFloat("Depth Bias Constant", &depthBiasConstant, 0.0F, 10.0F, "%.3f")) {
             m_shadowSettings.depthBiasConstant = depthBiasConstant;
@@ -295,7 +306,7 @@ void VulkanApplication::draw_frame() {
         }
         ImGui::TextDisabled("Adjust bias to reduce acne; increasing PCF radius softens shadows at extra cost.");
 
-        if(!m_shadowDebugTextures.empty()) {
+        if(m_shadowSettings.enabled && !m_shadowDebugTextures.empty()) {
             if(ImGui::TreeNodeEx("Cascade Maps", ImGuiTreeNodeFlags_DefaultOpen)) {
                 const float previewSize {128.0F};
                 const std::size_t previewCount = std::min<std::size_t>(
@@ -317,6 +328,7 @@ void VulkanApplication::draw_frame() {
                 ImGui::TreePop();
             }
         }
+        ImGui::EndDisabled();
     }
 
     for(std::size_t index {0U}; index < m_scene.primitives.size(); ++index) {
@@ -568,6 +580,10 @@ void VulkanApplication::destroy_shadow_debug_textures() noexcept {
 
 void VulkanApplication::update_shadow_debug_textures() {
     if(ImGui::GetCurrentContext() == nullptr) {
+        return;
+    }
+    if(!m_shadowSettings.enabled) {
+        destroy_shadow_debug_textures();
         return;
     }
     destroy_shadow_debug_textures();
@@ -1285,15 +1301,36 @@ void VulkanApplication::update_global_uniforms() {
         uniforms.projection = glm::perspective(m_camera.fovY, aspect, m_camera.nearPlane, m_camera.farPlane);
     }
 
+    const float clipRange = m_camera.farPlane - m_camera.nearPlane;
+    const float minBias = std::clamp(m_shadowSettings.minBias, 0.0F, 0.02F);
+    const float normalBias = std::clamp(m_shadowSettings.normalBiasFactor, 0.0F, 0.5F);
+    const int pcfRadius = std::clamp(m_shadowSettings.pcfRadius, 0, 4);
+    m_shadowSettings.minBias = minBias;
+    m_shadowSettings.normalBiasFactor = normalBias;
+    m_shadowSettings.pcfRadius = pcfRadius;
+    uniforms.shadowParams = glm::vec4 {minBias, normalBias, static_cast<float>(pcfRadius), 0.0F};
+    uniforms.cameraClip = glm::vec4 {m_camera.nearPlane, m_camera.farPlane, clipRange, aspect};
+
+    if(!m_shadowSettings.enabled) {
+        m_activeCascadeCount = 0U;
+        m_cascadeMatrices.fill(glm::mat4 {1.0F});
+        m_cascadeSplits.fill(1.0F);
+        uniforms.lightViewProjection.fill(glm::mat4 {1.0F});
+        uniforms.cascadeSplits = glm::vec4 {1.0F, 1.0F, 1.0F, 1.0F};
+        uniforms.shadowConfig = glm::vec4 {0.0F, 0.0F, 0.0F, 0.0F};
+        uniforms.lightPositionIntensity = glm::vec4 {m_scene.lightPosition, m_scene.lightIntensity};
+        uniforms.cameraPosition = glm::vec4 {cameraPos, 1.0F};
+        m_globalUniformBuffer.write(m_context, &uniforms, sizeof(GlobalUniform));
+        return;
+    }
+
     const std::uint32_t requestedCascadeCount = std::max(1U, std::min<std::uint32_t>(m_shadowSettings.cascadeCount, static_cast<std::uint32_t>(maxCascades)));
     m_shadowSettings.cascadeCount = requestedCascadeCount;
     m_activeCascadeCount = std::min(requestedCascadeCount, m_shadowMap.layer_count());
+    const std::uint32_t cascadeCount = std::max(m_activeCascadeCount, 1U);
 
     const auto splits = compute_cascade_splits(m_camera.nearPlane, m_camera.farPlane, m_activeCascadeCount, m_shadowSettings.splitLambda);
     m_cascadeSplits.fill(1.0F);
-    const std::uint32_t cascadeCount = std::max(m_activeCascadeCount, 1U);
-
-    const float clipRange = m_camera.farPlane - m_camera.nearPlane;
     for(std::uint32_t index {0U}; index < cascadeCount; ++index) {
         m_cascadeSplits.at(index) = splits.at(index);
     }
@@ -1326,21 +1363,13 @@ void VulkanApplication::update_global_uniforms() {
 
     uniforms.lightPositionIntensity = glm::vec4 {m_scene.lightPosition, m_scene.lightIntensity};
     uniforms.cameraPosition = glm::vec4 {cameraPos, 1.0F};
-
-    const float minBias = std::clamp(m_shadowSettings.minBias, 0.0F, 0.02F);
-    const float normalBias = std::clamp(m_shadowSettings.normalBiasFactor, 0.0F, 0.5F);
-    const int pcfRadius = std::clamp(m_shadowSettings.pcfRadius, 0, 4);
-    m_shadowSettings.minBias = minBias;
-    m_shadowSettings.normalBiasFactor = normalBias;
-    m_shadowSettings.pcfRadius = pcfRadius;
-    uniforms.shadowParams = glm::vec4 {minBias, normalBias, static_cast<float>(pcfRadius), static_cast<float>(cascadeCount)};
+    uniforms.shadowConfig = glm::vec4 {1.0F, static_cast<float>(cascadeCount), 0.0F, 0.0F};
     uniforms.cascadeSplits = glm::vec4 {
         m_cascadeSplits.at(0U),
         m_cascadeSplits.at(1U),
         m_cascadeSplits.at(2U),
         m_cascadeSplits.at(3U)
     };
-    uniforms.cameraClip = glm::vec4 {m_camera.nearPlane, m_camera.farPlane, clipRange, aspect};
 
     m_globalUniformBuffer.write(m_context, &uniforms, sizeof(GlobalUniform));
 }
