@@ -42,5 +42,5 @@
 - [x] Render shadow cascades and bind layered sampler in lighting pass.
 - [x] Expose cascade controls in ImGui and document behavior.
 - [x] Extend tests for light split math and cascade selection.
-- [ ] Rebuild project and run tests.
+- [x] Rebuild project and run tests.
 - [ ] Summarize cascaded shadow map feature to user.
