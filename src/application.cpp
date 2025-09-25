@@ -167,6 +167,10 @@ void VulkanApplication::draw_frame() {
     m_lastFrameTime = now;
     update_timing(deltaSeconds);
     rebuild_dirty_meshes();
+    if(m_shadowResourcesDirty) {
+        recreate_shadow_resources();
+        m_shadowResourcesDirty = false;
+    }
 
     auto& frames = m_syncManager.frames();
     FrameSync& frameSync = frames.at(m_currentFrame);
@@ -292,24 +296,25 @@ void VulkanApplication::draw_frame() {
         ImGui::TextDisabled("Adjust bias to reduce acne; increasing PCF radius softens shadows at extra cost.");
 
         if(!m_shadowDebugTextures.empty()) {
-            ImGui::Separator();
-            ImGui::TextUnformatted("Cascade Maps");
-            const float previewSize {128.0F};
-            const std::size_t previewCount = std::min<std::size_t>(
-                m_shadowDebugTextures.size(),
-                static_cast<std::size_t>(m_activeCascadeCount));
-            for(std::size_t index {0U}; index < previewCount; ++index) {
-                ImGui::PushID(static_cast<int>(index));
-                ImGui::Image(m_shadowDebugTextures.at(index), ImVec2 {previewSize, previewSize});
-                if(ImGui::IsItemHovered()) {
-                    ImGui::BeginTooltip();
-                    ImGui::Text("Cascade %zu\nSplit <= %.3f", index, m_cascadeSplits.at(index));
-                    ImGui::EndTooltip();
+            if(ImGui::TreeNodeEx("Cascade Maps", ImGuiTreeNodeFlags_DefaultOpen)) {
+                const float previewSize {128.0F};
+                const std::size_t previewCount = std::min<std::size_t>(
+                    m_shadowDebugTextures.size(),
+                    static_cast<std::size_t>(m_activeCascadeCount));
+                for(std::size_t index {0U}; index < previewCount; ++index) {
+                    ImGui::PushID(static_cast<int>(index));
+                    ImGui::Image(m_shadowDebugTextures.at(index), ImVec2 {previewSize, previewSize});
+                    if(ImGui::IsItemHovered()) {
+                        ImGui::BeginTooltip();
+                        ImGui::Text("Cascade %zu\nSplit <= %.3f", index, m_cascadeSplits.at(index));
+                        ImGui::EndTooltip();
+                    }
+                    ImGui::PopID();
+                    if(index + 1U < previewCount) {
+                        ImGui::SameLine();
+                    }
                 }
-                ImGui::PopID();
-                if(index + 1U < previewCount) {
-                    ImGui::SameLine();
-                }
+                ImGui::TreePop();
             }
         }
     }
@@ -713,11 +718,6 @@ void VulkanApplication::begin_imgui_frame() {
 }
 
 void VulkanApplication::record_command_buffer(std::uint32_t imageIndex) {
-    if(m_shadowResourcesDirty) {
-        recreate_shadow_resources();
-        m_shadowResourcesDirty = false;
-    }
-
     VkCommandBuffer commandBuffer = m_commandAllocator.buffers().at(imageIndex);
     if(vkResetCommandBuffer(commandBuffer, 0U) != VK_SUCCESS) {
         throw std::runtime_error {"Failed to reset command buffer"};
