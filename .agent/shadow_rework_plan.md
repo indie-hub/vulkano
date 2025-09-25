@@ -33,6 +33,15 @@
 - Ensure layout transitions leave shadow layers in `VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL` before ImGui sampling.
 - Remove textures via `ImGui_ImplVulkan_RemoveTexture` when recreating shadow resources or on shutdown to avoid leaks.
 
+## Shadows Toggle Plan
+- Add `bool shadowsEnabled` to `ShadowSettings`, defaulting to true; expose a checkbox in the Shadows panel.
+- When disabled:
+  - Skip the shadow pass entirely.
+  - Force shader visibility to 1.0 without sampling the array texture.
+  - Pause cascade preview updates and hide the preview tree.
+- When (re)enabled, mark shadow resources dirty so layered maps regenerate.
+- Update uniforms to carry the toggle flag; fragment shader uses it to bypass visibility attenuation.
+
 ## Acceptance Checklist
 - ✔ Cascades render without seams and no significant shimmering.
 - ✔ Configurable cascade count, split lambda, bias, and PCF radius.
