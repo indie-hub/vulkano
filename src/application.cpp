@@ -247,6 +247,11 @@ void VulkanApplication::draw_frame() {
         recreate_shadow_resources();
         m_shadowResourcesDirty = false;
     }
+    if(m_ssaoResourcesDirty) {
+        wait_for_device_idle();
+        recreate_ssao_resources();
+        m_ssaoResourcesDirty = false;
+    }
 
     auto& frames = m_syncManager.frames();
     FrameSync& frameSync = frames.at(m_currentFrame);
@@ -456,7 +461,7 @@ void VulkanApplication::draw_frame() {
         bool halfResolution = m_ssaoSettings.halfResolution;
         if(ImGui::Checkbox("Half Resolution", &halfResolution)) {
             m_ssaoSettings.halfResolution = halfResolution;
-            recreate_ssao_resources();
+            m_ssaoResourcesDirty = true;
             ssaoSettingsDirty = false;
         }
 

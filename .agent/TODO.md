@@ -67,3 +67,5 @@
 - [x] Add SSAO blur/composition and runtime controls.
 - [x] Update docs/tests and verify SSAO integration.
 - [x] Summarize SSAO feature to user.
+- [x] Investigate and fix SSAO validation errors (descriptor set lifetime, blur image format).
+- [ ] Resolve vertex input mismatch for tangent attribute in graphics pipeline.

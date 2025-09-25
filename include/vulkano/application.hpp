@@ -250,6 +250,7 @@ private:
     Buffer m_ssaoSettingsBuffer;
     std::vector<glm::vec4> m_ssaoKernel {};
     VkExtent2D m_ssaoExtent {0U, 0U};
+    bool m_ssaoResourcesDirty {false};
 
     std::vector<VkFence> m_imagesInFlight {};
     std::vector<VkSemaphore> m_renderFinishedSemaphores {};

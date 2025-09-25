@@ -11,7 +11,7 @@ layout(binding = 0) uniform SsaoParams {
 } params;
 
 layout(binding = 1) uniform sampler2D occlusionInput;
-layout(binding = 2, rgba8) writeonly uniform image2D occlusionOutput;
+layout(binding = 2, r8) writeonly uniform image2D occlusionOutput;
 
 float gaussianWeight(float dist, float sigma) {
     float sigma2 = max(sigma * sigma, 1e-4);
