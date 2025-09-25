@@ -106,7 +106,6 @@ private:
     void record_depth_prepass(VkCommandBuffer commandBuffer, std::uint32_t imageIndex);
     void record_ssao_pass(VkCommandBuffer commandBuffer, std::uint32_t imageIndex);
     void record_ssao_blur_pass(VkCommandBuffer commandBuffer, std::uint32_t imageIndex);
-    void update_ssao_composition_descriptor(std::uint32_t imageIndex);
     void transition_image_layout(
         VkCommandBuffer commandBuffer,
         VkImage image,

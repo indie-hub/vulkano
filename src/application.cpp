@@ -87,14 +87,33 @@ namespace {
         glm::mat4 lightViewProjection {1.0F};
     };
 
+    auto resolve_shader_path(const std::filesystem::path& relativePath) -> std::filesystem::path {
+        std::vector<std::filesystem::path> candidates;
+        candidates.reserve(4U);
+        candidates.push_back(relativePath);
+        const std::filesystem::path cwd = std::filesystem::current_path();
+        candidates.push_back(cwd / relativePath);
+        candidates.push_back(cwd / "bin" / relativePath);
+        candidates.push_back(cwd / "build" / relativePath);
+
+        for(const std::filesystem::path& candidate : candidates) {
+            std::error_code ec;
+            if(std::filesystem::exists(candidate, ec)) {
+                return candidate;
+            }
+        }
+        return relativePath;
+    }
+
     auto load_shader_code(const std::filesystem::path& path) -> std::vector<std::uint32_t> {
-        std::ifstream file {path, std::ios::ate | std::ios::binary};
+        const std::filesystem::path resolvedPath = resolve_shader_path(path);
+        std::ifstream file {resolvedPath, std::ios::ate | std::ios::binary};
         if(!file.is_open()) {
-            throw std::runtime_error {"Failed to open shader file: " + path.string()};
+            throw std::runtime_error {"Failed to open shader file: " + resolvedPath.string()};
         }
         const std::streamsize fileSize = file.tellg();
         if(fileSize <= 0) {
-            throw std::runtime_error {"Shader file is empty: " + path.string()};
+            throw std::runtime_error {"Shader file is empty: " + resolvedPath.string()};
         }
         std::vector<std::uint32_t> buffer(static_cast<std::size_t>(fileSize) / sizeof(std::uint32_t));
         file.seekg(0);
@@ -146,13 +165,13 @@ VulkanApplication::VulkanApplication(const AppConfig& config)
         m_renderPass,
         m_depthResources.image_views());
     m_commandAllocator = CommandAllocator::create(m_context, static_cast<std::uint32_t>(m_framebuffers.size()));
-    create_descriptor_resources();
-    const std::array<VkDescriptorSetLayout, 2U> setLayouts {m_descriptorSetLayout, m_materialDescriptorSetLayout};
-    m_pipeline = GraphicsPipeline::create(m_context, m_renderPass, setLayouts);
     create_fallback_textures();
     generate_ssao_kernel();
     ensure_ssao_noise_texture();
     create_ssao_resources();
+    create_descriptor_resources();
+    const std::array<VkDescriptorSetLayout, 2U> setLayouts {m_descriptorSetLayout, m_materialDescriptorSetLayout};
+    m_pipeline = GraphicsPipeline::create(m_context, m_renderPass, setLayouts);
     create_ssao_descriptor_resources();
     update_ssao_settings_buffer();
     create_render_finished_semaphores();
@@ -666,9 +685,13 @@ void VulkanApplication::recreate_swapchain() {
     m_pipeline.recreate(m_context, m_renderPass, setLayouts);
     m_framebuffers.recreate(m_context, m_swapchain, m_renderPass, m_depthResources.image_views());
     const std::uint32_t commandBufferCount = static_cast<std::uint32_t>(m_framebuffers.size());
-    m_commandAllocator.recreate(m_context, commandBufferCount);
+   m_commandAllocator.recreate(m_context, commandBufferCount);
     m_imagesInFlight.assign(commandBufferCount, VK_NULL_HANDLE);
     recreate_ssao_resources();
+    create_descriptor_resources();
+    for(ScenePrimitive& primitive : m_scene.primitives) {
+        ensure_material_descriptor(primitive);
+    }
     create_render_finished_semaphores();
     ImGui_ImplVulkan_SetMinImageCount(static_cast<std::uint32_t>(m_swapchain.image_views().size()));
     update_global_uniforms();
@@ -1102,7 +1125,6 @@ void VulkanApplication::record_command_buffer(std::uint32_t imageIndex) {
     record_depth_prepass(commandBuffer, imageIndex);
     record_ssao_pass(commandBuffer, imageIndex);
     record_ssao_blur_pass(commandBuffer, imageIndex);
-    update_ssao_composition_descriptor(imageIndex);
 
     VkRenderPassBeginInfo renderPassInfo {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -3029,39 +3051,6 @@ void VulkanApplication::record_ssao_pass(VkCommandBuffer commandBuffer, std::uin
     vkCmdDispatch(commandBuffer, dispatchX, dispatchY, 1U);
 }
 
-void VulkanApplication::update_ssao_composition_descriptor(std::uint32_t imageIndex) {
-    if(m_descriptorSets.empty()) {
-        return;
-    }
-
-    VkDescriptorImageInfo info {};
-    if(m_ssaoSettings.enabled && imageIndex < m_ssaoBlurViews.size() && m_ssaoBlurViews.at(imageIndex) != VK_NULL_HANDLE && m_ssaoSampler != VK_NULL_HANDLE) {
-        info.sampler = m_ssaoSampler;
-        info.imageView = m_ssaoBlurViews.at(imageIndex);
-        info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    } else if(m_fallbackAlbedoTexture != nullptr) {
-        info.sampler = m_fallbackAlbedoTexture->sampler();
-        info.imageView = m_fallbackAlbedoTexture->image_view();
-        info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    } else {
-        return;
-    }
-
-    VkDescriptorSet targetSet = (imageIndex < m_descriptorSets.size())
-        ? m_descriptorSets.at(imageIndex)
-        : m_descriptorSets.front();
-
-    VkWriteDescriptorSet write {};
-    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write.dstSet = targetSet;
-    write.dstBinding = 2U;
-    write.dstArrayElement = 0U;
-    write.descriptorCount = 1U;
-    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    write.pImageInfo = &info;
-
-    vkUpdateDescriptorSets(m_context.device(), 1U, &write, 0U, nullptr);
-}
 
 void VulkanApplication::transition_image_layout(
     VkCommandBuffer commandBuffer,

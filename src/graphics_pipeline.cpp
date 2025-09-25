@@ -13,10 +13,28 @@ namespace {
     const std::filesystem::path vertexShaderFile {"mesh.vert.spv"};
     const std::filesystem::path fragmentShaderFile {"mesh.frag.spv"};
 
+    auto resolve_shader_path(const std::filesystem::path& relativePath) -> std::filesystem::path {
+        std::vector<std::filesystem::path> candidates;
+        candidates.reserve(4U);
+        candidates.push_back(relativePath);
+        const std::filesystem::path cwd = std::filesystem::current_path();
+        candidates.push_back(cwd / relativePath);
+        candidates.push_back(cwd / "bin" / relativePath);
+        candidates.push_back(cwd / "build" / relativePath);
+        for(const std::filesystem::path& candidate : candidates) {
+            std::error_code ec;
+            if(std::filesystem::exists(candidate, ec)) {
+                return candidate;
+            }
+        }
+        return relativePath;
+    }
+
     auto load_shader_code(const std::filesystem::path& path) -> std::vector<std::uint32_t> {
-        std::ifstream file {path, std::ios::ate | std::ios::binary};
+        const std::filesystem::path resolvedPath = resolve_shader_path(path);
+        std::ifstream file {resolvedPath, std::ios::ate | std::ios::binary};
         if(!file.is_open()) {
-            throw std::runtime_error {"Failed to open shader file: " + path.string()};
+            throw std::runtime_error {"Failed to open shader file: " + resolvedPath.string()};
         }
         const auto fileSize = static_cast<std::size_t>(file.tellg());
         std::vector<std::uint32_t> buffer(fileSize / sizeof(std::uint32_t));
