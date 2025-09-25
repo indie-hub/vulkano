@@ -23,6 +23,8 @@
 namespace {
     constexpr std::uint32_t maxFramesInFlight {2U};
     constexpr std::array<float, 4U> clearColour {0.0F, 0.0F, 0.0F, 1.0F};
+    constexpr std::uint32_t maxCascades {4U};
+    static_assert(maxCascades <= vulkano::ShadowMap::maxLayers, "Cascade count exceeds shadow map layer capacity");
     constexpr float timingSmoothingFactor {0.1F};
     constexpr float cameraBaseSpeed {4.0F};
     constexpr float cameraSprintMultiplier {2.5F};
@@ -34,8 +36,6 @@ namespace {
     constexpr float movementEpsilon {1e-5F};
     constexpr glm::vec3 worldUp {0.0F, 1.0F, 0.0F};
     constexpr glm::vec3 lightTarget {0.0F, 0.0F, 0.0F};
-    constexpr float shadowNearPlane {0.1F};
-    constexpr float shadowFarPlane {50.0F};
     constexpr float shadowFovRadians {glm::radians(60.0F)};
     constexpr float lightTargetEpsilon {1e-4F};
     constexpr glm::vec3 lightFallbackDirection {0.0F, -1.0F, 0.0F};
@@ -43,10 +43,12 @@ namespace {
     struct GlobalUniform final {
         glm::mat4 view {1.0F};
         glm::mat4 projection {1.0F};
-        glm::mat4 lightViewProjection {1.0F};
+        std::array<glm::mat4, maxCascades> lightViewProjection {};
         glm::vec4 lightPositionIntensity {0.0F, 0.0F, 0.0F, 1.0F};
         glm::vec4 cameraPosition {0.0F, 0.0F, 0.0F, 1.0F};
-        glm::vec4 shadowParams {0.0025F, 0.05F, 1.0F, 0.0F};
+        glm::vec4 shadowParams {0.0025F, 0.05F, 1.0F, 1.0F};
+        glm::vec4 cascadeSplits {1.0F, 1.0F, 1.0F, 1.0F};
+        glm::vec4 cameraClip {0.1F, 100.0F, 0.0F, 0.0F};
     };
 
     struct PrimitivePushConstants final {
@@ -80,7 +82,7 @@ VulkanApplication::VulkanApplication(const AppConfig& config)
 
     m_renderPass = RenderPass::create(m_context, m_swapchain.image_format(), m_depthFormat);
     m_depthResources = DepthResources::create(m_context, m_depthFormat, extent, imageCount);
-    m_shadowMap = ShadowMap::create(m_context, ShadowMap::defaultResolution);
+    m_shadowMap = ShadowMap::create(m_context, m_shadowSettings.resolution, m_shadowSettings.cascadeCount);
     m_shadowRenderPass = ShadowRenderPass::create(m_context, m_shadowMap.format());
     create_shadow_framebuffer();
     m_shadowPipeline = ShadowPipeline::create(m_context, m_shadowRenderPass, VK_NULL_HANDLE);
@@ -260,6 +262,37 @@ void VulkanApplication::draw_frame() {
         int pcfRadius = m_shadowSettings.pcfRadius;
         if(ImGui::SliderInt("PCF Radius", &pcfRadius, 0, 4)) {
             m_shadowSettings.pcfRadius = std::clamp(pcfRadius, 0, 4);
+        }
+
+        int cascadeCount = static_cast<int>(m_shadowSettings.cascadeCount);
+        if(ImGui::SliderInt("Cascade Count", &cascadeCount, 1, static_cast<int>(maxCascades))) {
+            cascadeCount = std::clamp(cascadeCount, 1, static_cast<int>(maxCascades));
+            if(m_shadowSettings.cascadeCount != static_cast<std::uint32_t>(cascadeCount)) {
+                m_shadowSettings.cascadeCount = static_cast<std::uint32_t>(cascadeCount);
+                m_shadowResourcesDirty = true;
+            }
+        }
+
+        float splitLambda = m_shadowSettings.splitLambda;
+        if(ImGui::SliderFloat("Split Lambda", &splitLambda, 0.0F, 1.0F, "%.2f")) {
+            m_shadowSettings.splitLambda = std::clamp(splitLambda, 0.0F, 1.0F);
+        }
+
+        static constexpr std::array<std::uint32_t, 3U> shadowResOptions {1024U, 2048U, 4096U};
+        int resolutionIndex = 0;
+        for(std::size_t optionIndex {0U}; optionIndex < shadowResOptions.size(); ++optionIndex) {
+            if(m_shadowSettings.resolution == shadowResOptions.at(optionIndex)) {
+                resolutionIndex = static_cast<int>(optionIndex);
+                break;
+            }
+        }
+        const char* resolutionLabels[] {"1024", "2048", "4096"};
+        if(ImGui::Combo("Resolution", &resolutionIndex, resolutionLabels, static_cast<int>(shadowResOptions.size()))) {
+            const std::uint32_t selectedResolution = shadowResOptions.at(static_cast<std::size_t>(resolutionIndex));
+            if(m_shadowSettings.resolution != selectedResolution) {
+                m_shadowSettings.resolution = selectedResolution;
+                m_shadowResourcesDirty = true;
+            }
         }
         ImGui::TextDisabled("Adjust bias to reduce acne; increasing PCF radius softens shadows at extra cost.");
     }
@@ -459,35 +492,67 @@ void VulkanApplication::create_render_finished_semaphores() {
 void VulkanApplication::create_shadow_framebuffer() {
     destroy_shadow_framebuffer();
 
-    if(m_shadowRenderPass.handle() == VK_NULL_HANDLE || m_shadowMap.image_view() == VK_NULL_HANDLE) {
+    if(m_shadowRenderPass.handle() == VK_NULL_HANDLE || m_shadowMap.layer_count() == 0U) {
         return;
     }
 
-    VkFramebufferCreateInfo framebufferInfo {};
-    framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-    framebufferInfo.renderPass = m_shadowRenderPass.handle();
-    framebufferInfo.attachmentCount = 1U;
-    const VkImageView attachment = m_shadowMap.image_view();
-    framebufferInfo.pAttachments = &attachment;
-    framebufferInfo.width = m_shadowMap.resolution();
-    framebufferInfo.height = m_shadowMap.resolution();
-    framebufferInfo.layers = 1U;
+    const std::vector<VkImageView>& layerViews = m_shadowMap.layer_views();
+    m_shadowFramebuffers.resize(layerViews.size(), VK_NULL_HANDLE);
 
-    if(vkCreateFramebuffer(m_context.device(), &framebufferInfo, nullptr, &m_shadowFramebuffer) != VK_SUCCESS) {
-        throw std::runtime_error {"Failed to create shadow framebuffer"};
+    for(std::size_t index {0U}; index < layerViews.size(); ++index) {
+        const VkImageView attachment = layerViews.at(index);
+        VkFramebufferCreateInfo framebufferInfo {};
+        framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        framebufferInfo.renderPass = m_shadowRenderPass.handle();
+        framebufferInfo.attachmentCount = 1U;
+        framebufferInfo.pAttachments = &attachment;
+        framebufferInfo.width = m_shadowMap.resolution();
+        framebufferInfo.height = m_shadowMap.resolution();
+        framebufferInfo.layers = 1U;
+
+        if(vkCreateFramebuffer(m_context.device(), &framebufferInfo, nullptr, &m_shadowFramebuffers.at(index)) != VK_SUCCESS) {
+            throw std::runtime_error {"Failed to create shadow framebuffer"};
+        }
+
+        const std::string name = "Shadow Framebuffer Layer " + std::to_string(index);
+        m_context.set_object_name(
+            VK_OBJECT_TYPE_FRAMEBUFFER,
+            reinterpret_cast<std::uint64_t>(m_shadowFramebuffers.at(index)),
+            name);
     }
-
-    m_context.set_object_name(
-        VK_OBJECT_TYPE_FRAMEBUFFER,
-        reinterpret_cast<std::uint64_t>(m_shadowFramebuffer),
-        "Shadow Framebuffer");
 }
 
 void VulkanApplication::destroy_shadow_framebuffer() noexcept {
-    if(m_shadowFramebuffer != VK_NULL_HANDLE) {
-        vkDestroyFramebuffer(m_context.device(), m_shadowFramebuffer, nullptr);
-        m_shadowFramebuffer = VK_NULL_HANDLE;
+    for(VkFramebuffer framebuffer : m_shadowFramebuffers) {
+        if(framebuffer != VK_NULL_HANDLE) {
+            vkDestroyFramebuffer(m_context.device(), framebuffer, nullptr);
+        }
     }
+    m_shadowFramebuffers.clear();
+}
+
+void VulkanApplication::recreate_shadow_resources() {
+    wait_for_device_idle();
+    m_shadowMap = ShadowMap::create(m_context, m_shadowSettings.resolution, m_shadowSettings.cascadeCount);
+    create_shadow_framebuffer();
+    if(m_descriptorSet != VK_NULL_HANDLE) {
+        VkDescriptorImageInfo imageInfo {};
+        imageInfo.sampler = m_shadowMap.sampler();
+        imageInfo.imageView = m_shadowMap.layered_view();
+        imageInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+
+        VkWriteDescriptorSet write {};
+        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write.dstSet = m_descriptorSet;
+        write.dstBinding = 1U;
+        write.dstArrayElement = 0U;
+        write.descriptorCount = 1U;
+        write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        write.pImageInfo = &imageInfo;
+
+        vkUpdateDescriptorSets(m_context.device(), 1U, &write, 0U, nullptr);
+    }
+    update_global_uniforms();
 }
 
 void VulkanApplication::destroy_render_finished_semaphores() noexcept {
@@ -598,6 +663,11 @@ void VulkanApplication::begin_imgui_frame() {
 }
 
 void VulkanApplication::record_command_buffer(std::uint32_t imageIndex) {
+    if(m_shadowResourcesDirty) {
+        recreate_shadow_resources();
+        m_shadowResourcesDirty = false;
+    }
+
     VkCommandBuffer commandBuffer = m_commandAllocator.buffers().at(imageIndex);
     if(vkResetCommandBuffer(commandBuffer, 0U) != VK_SUCCESS) {
         throw std::runtime_error {"Failed to reset command buffer"};
@@ -613,86 +683,89 @@ void VulkanApplication::record_command_buffer(std::uint32_t imageIndex) {
     clearValues[0].color = {{clearColour[0], clearColour[1], clearColour[2], clearColour[3]}};
     clearValues[1].depthStencil = {1.0F, 0U};
 
-    const glm::mat4 lightViewProjection = compute_light_view_projection(
-        m_scene.lightPosition,
-        lightTarget,
-        worldUp,
-        shadowFovRadians,
-        shadowNearPlane,
-        shadowFarPlane,
-        lightFallbackDirection,
-        lightTargetEpsilon);
+    const std::uint32_t availableCascadeCount = std::min<std::uint32_t>(
+        m_activeCascadeCount,
+        static_cast<std::uint32_t>(m_shadowFramebuffers.size()));
 
-    if(m_shadowFramebuffer != VK_NULL_HANDLE) {
+    if(!m_shadowFramebuffers.empty() && availableCascadeCount > 0U) {
         m_context.begin_debug_label(commandBuffer, "Shadow Map Pass");
 
-        VkClearValue depthClear {};
-        depthClear.depthStencil = {1.0F, 0U};
-
-        VkRenderPassBeginInfo shadowPassInfo {};
-        shadowPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        shadowPassInfo.renderPass = m_shadowRenderPass.handle();
-        shadowPassInfo.framebuffer = m_shadowFramebuffer;
-        shadowPassInfo.renderArea.offset = {0, 0};
-        shadowPassInfo.renderArea.extent = {
-            m_shadowMap.resolution(),
-            m_shadowMap.resolution()
-        };
-        shadowPassInfo.clearValueCount = 1U;
-        shadowPassInfo.pClearValues = &depthClear;
-
-        vkCmdBeginRenderPass(commandBuffer, &shadowPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-        VkViewport shadowViewport {};
-        shadowViewport.x = 0.0F;
-        shadowViewport.y = 0.0F;
-        shadowViewport.width = static_cast<float>(m_shadowMap.resolution());
-        shadowViewport.height = static_cast<float>(m_shadowMap.resolution());
-        shadowViewport.minDepth = 0.0F;
-        shadowViewport.maxDepth = 1.0F;
-        vkCmdSetViewport(commandBuffer, 0U, 1U, &shadowViewport);
-
-        VkRect2D shadowScissor {};
-        shadowScissor.offset = {0, 0};
-        shadowScissor.extent = {
-            m_shadowMap.resolution(),
-            m_shadowMap.resolution()
-        };
-        vkCmdSetScissor(commandBuffer, 0U, 1U, &shadowScissor);
-
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_shadowPipeline.handle());
         const float depthBiasConstant = std::max(m_shadowSettings.depthBiasConstant, 0.0F);
         const float depthBiasClamp = std::clamp(m_shadowSettings.depthBiasClamp, 0.0F, 1.0F);
         const float depthBiasSlope = std::max(m_shadowSettings.depthBiasSlope, 0.0F);
-        vkCmdSetDepthBias(commandBuffer, depthBiasConstant, depthBiasClamp, depthBiasSlope);
 
-        for(const ScenePrimitive& primitive : m_scene.primitives) {
-            if(primitive.primitive == nullptr || !primitive.gpu.has_geometry()) {
+        for(std::uint32_t cascadeIndex {0U}; cascadeIndex < availableCascadeCount; ++cascadeIndex) {
+            const VkFramebuffer framebuffer = m_shadowFramebuffers.at(cascadeIndex);
+            if(framebuffer == VK_NULL_HANDLE) {
                 continue;
             }
 
-            const VkBuffer vertexBuffers[] {primitive.gpu.vertex_buffer()};
-            const VkDeviceSize offsets[] {0U};
-            vkCmdBindVertexBuffers(commandBuffer, 0U, 1U, vertexBuffers, offsets);
-            vkCmdBindIndexBuffer(commandBuffer, primitive.gpu.index_buffer(), 0U, VK_INDEX_TYPE_UINT32);
+            VkClearValue depthClear {};
+            depthClear.depthStencil = {1.0F, 0U};
 
-            const PrimitiveProperties& properties = primitive.primitive->properties();
-            ShadowPushConstants shadowPush {};
-            shadowPush.model = compute_model_matrix(properties);
-            shadowPush.lightViewProjection = lightViewProjection;
+            VkRenderPassBeginInfo shadowPassInfo {};
+            shadowPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+            shadowPassInfo.renderPass = m_shadowRenderPass.handle();
+            shadowPassInfo.framebuffer = framebuffer;
+            shadowPassInfo.renderArea.offset = {0, 0};
+            shadowPassInfo.renderArea.extent = {
+                m_shadowMap.resolution(),
+                m_shadowMap.resolution()
+            };
+            shadowPassInfo.clearValueCount = 1U;
+            shadowPassInfo.pClearValues = &depthClear;
 
-            vkCmdPushConstants(
-                commandBuffer,
-                m_shadowPipeline.layout(),
-                VK_SHADER_STAGE_VERTEX_BIT,
-                0U,
-                static_cast<std::uint32_t>(sizeof(ShadowPushConstants)),
-                &shadowPush);
+            vkCmdBeginRenderPass(commandBuffer, &shadowPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-            vkCmdDrawIndexed(commandBuffer, primitive.gpu.index_count(), 1U, 0U, 0, 0);
+            VkViewport shadowViewport {};
+            shadowViewport.x = 0.0F;
+            shadowViewport.y = 0.0F;
+            shadowViewport.width = static_cast<float>(m_shadowMap.resolution());
+            shadowViewport.height = static_cast<float>(m_shadowMap.resolution());
+            shadowViewport.minDepth = 0.0F;
+            shadowViewport.maxDepth = 1.0F;
+            vkCmdSetViewport(commandBuffer, 0U, 1U, &shadowViewport);
+
+            VkRect2D shadowScissor {};
+            shadowScissor.offset = {0, 0};
+            shadowScissor.extent = {
+                m_shadowMap.resolution(),
+                m_shadowMap.resolution()
+            };
+            vkCmdSetScissor(commandBuffer, 0U, 1U, &shadowScissor);
+
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_shadowPipeline.handle());
+            vkCmdSetDepthBias(commandBuffer, depthBiasConstant, depthBiasClamp, depthBiasSlope);
+
+            for(const ScenePrimitive& primitive : m_scene.primitives) {
+                if(primitive.primitive == nullptr || !primitive.gpu.has_geometry()) {
+                    continue;
+                }
+
+                const VkBuffer vertexBuffers[] {primitive.gpu.vertex_buffer()};
+                const VkDeviceSize offsets[] {0U};
+                vkCmdBindVertexBuffers(commandBuffer, 0U, 1U, vertexBuffers, offsets);
+                vkCmdBindIndexBuffer(commandBuffer, primitive.gpu.index_buffer(), 0U, VK_INDEX_TYPE_UINT32);
+
+                const PrimitiveProperties& properties = primitive.primitive->properties();
+                ShadowPushConstants shadowPush {};
+                shadowPush.model = compute_model_matrix(properties);
+                shadowPush.lightViewProjection = m_cascadeMatrices.at(cascadeIndex);
+
+                vkCmdPushConstants(
+                    commandBuffer,
+                    m_shadowPipeline.layout(),
+                    VK_SHADER_STAGE_VERTEX_BIT,
+                    0U,
+                    static_cast<std::uint32_t>(sizeof(ShadowPushConstants)),
+                    &shadowPush);
+
+                vkCmdDrawIndexed(commandBuffer, primitive.gpu.index_count(), 1U, 0U, 0, 0);
+            }
+
+            vkCmdEndRenderPass(commandBuffer);
         }
 
-        vkCmdEndRenderPass(commandBuffer);
         m_context.end_debug_label(commandBuffer);
 
         VkImageMemoryBarrier shadowBarrier {};
@@ -708,7 +781,7 @@ void VulkanApplication::record_command_buffer(std::uint32_t imageIndex) {
         shadowBarrier.subresourceRange.baseMipLevel = 0U;
         shadowBarrier.subresourceRange.levelCount = 1U;
         shadowBarrier.subresourceRange.baseArrayLayer = 0U;
-        shadowBarrier.subresourceRange.layerCount = 1U;
+        shadowBarrier.subresourceRange.layerCount = availableCascadeCount;
 
         vkCmdPipelineBarrier(
             commandBuffer,
@@ -1109,7 +1182,7 @@ void VulkanApplication::create_descriptor_resources() {
 
     VkDescriptorImageInfo imageInfo {};
     imageInfo.sampler = m_shadowMap.sampler();
-    imageInfo.imageView = m_shadowMap.image_view();
+    imageInfo.imageView = m_shadowMap.layered_view();
     imageInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
 
     std::array<VkWriteDescriptorSet, 2U> writes {};
@@ -1157,20 +1230,50 @@ void VulkanApplication::update_global_uniforms() {
     uniforms.view = compute_view_matrix(cameraPos, m_camera.yaw, m_camera.pitch, worldUp);
 
     const VkExtent2D extent = m_swapchain.extent();
+    float aspect = 1.0F;
     if(extent.height > 0U) {
-        const float aspect = static_cast<float>(extent.width) / static_cast<float>(extent.height);
+        aspect = static_cast<float>(extent.width) / static_cast<float>(extent.height);
         uniforms.projection = glm::perspective(m_camera.fovY, aspect, m_camera.nearPlane, m_camera.farPlane);
     }
 
-    uniforms.lightViewProjection = compute_light_view_projection(
-        m_scene.lightPosition,
-        lightTarget,
-        worldUp,
-        shadowFovRadians,
-        shadowNearPlane,
-        shadowFarPlane,
-        lightFallbackDirection,
-        lightTargetEpsilon);
+    const std::uint32_t requestedCascadeCount = std::max(1U, std::min<std::uint32_t>(m_shadowSettings.cascadeCount, static_cast<std::uint32_t>(maxCascades)));
+    m_shadowSettings.cascadeCount = requestedCascadeCount;
+    m_activeCascadeCount = std::min(requestedCascadeCount, m_shadowMap.layer_count());
+
+    const auto splits = compute_cascade_splits(m_camera.nearPlane, m_camera.farPlane, m_activeCascadeCount, m_shadowSettings.splitLambda);
+    m_cascadeSplits.fill(1.0F);
+    const std::uint32_t cascadeCount = std::max(m_activeCascadeCount, 1U);
+
+    const float clipRange = m_camera.farPlane - m_camera.nearPlane;
+    for(std::uint32_t index {0U}; index < cascadeCount; ++index) {
+        m_cascadeSplits.at(index) = splits.at(index);
+    }
+
+    float previousSplit {m_camera.nearPlane};
+    for(std::uint32_t index {0U}; index < cascadeCount; ++index) {
+        const float splitNormalized = splits.at(index);
+        const float splitDistance = m_camera.nearPlane + clipRange * splitNormalized;
+
+        const glm::mat4 lightMatrix = compute_light_view_projection(
+            m_scene.lightPosition,
+            lightTarget,
+            worldUp,
+            shadowFovRadians,
+            previousSplit,
+            splitDistance,
+            lightFallbackDirection,
+            lightTargetEpsilon);
+
+        m_cascadeMatrices.at(index) = lightMatrix;
+        uniforms.lightViewProjection.at(index) = lightMatrix;
+        previousSplit = splitDistance;
+    }
+
+    for(std::uint32_t index {cascadeCount}; index < maxCascades; ++index) {
+        m_cascadeMatrices.at(index) = glm::mat4 {1.0F};
+        m_cascadeSplits.at(index) = 1.0F;
+        uniforms.lightViewProjection.at(index) = glm::mat4 {1.0F};
+    }
 
     uniforms.lightPositionIntensity = glm::vec4 {m_scene.lightPosition, m_scene.lightIntensity};
     uniforms.cameraPosition = glm::vec4 {cameraPos, 1.0F};
@@ -1181,7 +1284,14 @@ void VulkanApplication::update_global_uniforms() {
     m_shadowSettings.minBias = minBias;
     m_shadowSettings.normalBiasFactor = normalBias;
     m_shadowSettings.pcfRadius = pcfRadius;
-    uniforms.shadowParams = glm::vec4 {minBias, normalBias, static_cast<float>(pcfRadius), 0.0F};
+    uniforms.shadowParams = glm::vec4 {minBias, normalBias, static_cast<float>(pcfRadius), static_cast<float>(cascadeCount)};
+    uniforms.cascadeSplits = glm::vec4 {
+        m_cascadeSplits.at(0U),
+        m_cascadeSplits.at(1U),
+        m_cascadeSplits.at(2U),
+        m_cascadeSplits.at(3U)
+    };
+    uniforms.cameraClip = glm::vec4 {m_camera.nearPlane, m_camera.farPlane, clipRange, aspect};
 
     m_globalUniformBuffer.write(m_context, &uniforms, sizeof(GlobalUniform));
 }

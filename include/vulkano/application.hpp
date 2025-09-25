@@ -24,6 +24,8 @@
 #include <glm/mat4x4.hpp>
 #include <glm/gtc/constants.hpp>
 
+#include <array>
+#include <cstdint>
 #include <memory>
 #include <vector>
 #include <chrono>
@@ -49,6 +51,8 @@ public:
     [[nodiscard]] auto scene_light_intensity() const noexcept -> float;
 
 private:
+    static constexpr std::size_t maxCascades {4U};
+
     static void framebuffer_resize_callback(GLFWwindow* window, int width, int height);
 
     void register_callbacks();
@@ -67,6 +71,7 @@ private:
     void destroy_render_finished_semaphores() noexcept;
     void create_shadow_framebuffer();
     void destroy_shadow_framebuffer() noexcept;
+    void recreate_shadow_resources();
     void initialise_scene();
     void rebuild_dirty_meshes();
     void create_descriptor_resources();
@@ -126,6 +131,9 @@ private:
         float minBias {0.0025F};
         float normalBiasFactor {0.05F};
         int pcfRadius {1};
+        std::uint32_t cascadeCount {3U};
+        float splitLambda {0.5F};
+        std::uint32_t resolution {ShadowMap::defaultResolution};
     };
 
     SceneState m_scene {};
@@ -134,8 +142,12 @@ private:
     ShadowMap m_shadowMap {};
     ShadowRenderPass m_shadowRenderPass {};
     ShadowPipeline m_shadowPipeline {};
-    VkFramebuffer m_shadowFramebuffer {VK_NULL_HANDLE};
+    std::vector<VkFramebuffer> m_shadowFramebuffers {};
     ShadowSettings m_shadowSettings {};
+    std::array<glm::mat4, maxCascades> m_cascadeMatrices {};
+    std::array<float, maxCascades> m_cascadeSplits {};
+    std::uint32_t m_activeCascadeCount {1U};
+    bool m_shadowResourcesDirty {false};
     VkFormat m_depthFormat {VK_FORMAT_D32_SFLOAT};
     VkDescriptorSetLayout m_descriptorSetLayout {VK_NULL_HANDLE};
     VkDescriptorPool m_descriptorPool {VK_NULL_HANDLE};

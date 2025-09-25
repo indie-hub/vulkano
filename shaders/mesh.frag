@@ -3,20 +3,21 @@
 layout(location = 0) in vec3 vWorldPos;
 layout(location = 1) in vec3 vNormal;
 layout(location = 2) in vec2 vUv;
-layout(location = 3) in vec4 vLightSpacePos;
 
 layout(location = 0) out vec4 outColor;
 
 layout(set = 0, binding = 0) uniform GlobalUniforms {
     mat4 view;
     mat4 projection;
-    mat4 lightViewProjection;
+    mat4 lightViewProjection[4];
     vec4 lightPositionIntensity;
     vec4 cameraPosition;
     vec4 shadowParams;
+    vec4 cascadeSplits;
+    vec4 cameraClip;
 } globalUniforms;
 
-layout(set = 0, binding = 1) uniform sampler2DShadow shadowMap;
+layout(set = 0, binding = 1) uniform sampler2DArrayShadow shadowMap;
 
 layout(push_constant) uniform PrimitivePushConstants {
     mat4 model;
@@ -41,12 +42,31 @@ void main() {
 
     vec3 ambient = ambientStrength * lightIntensity * baseColor;
 
-    vec3 shadowCoord = vLightSpacePos.xyz / vLightSpacePos.w;
+    vec4 viewPosition = globalUniforms.view * vec4(vWorldPos, 1.0);
+    float viewDepth = abs(viewPosition.z);
+    float nearPlane = globalUniforms.cameraClip.x;
+    float farPlane = globalUniforms.cameraClip.y;
+    float clipRange = max(globalUniforms.cameraClip.z, 0.0001);
+    float depthNormalized = clamp((viewDepth - nearPlane) / clipRange, 0.0, 1.0);
+
+    int cascadeCount = int(round(clamp(globalUniforms.shadowParams.w, 1.0, 4.0)));
+    int cascadeIndex = cascadeCount - 1;
+    for(int index = 0; index < cascadeCount; ++index) {
+        if(depthNormalized <= globalUniforms.cascadeSplits[index]) {
+            cascadeIndex = index;
+            break;
+        }
+    }
+
+    mat4 lightMatrix = globalUniforms.lightViewProjection[cascadeIndex];
+    vec4 lightSpacePos = lightMatrix * vec4(vWorldPos, 1.0);
+    vec3 shadowCoord = lightSpacePos.xyz / lightSpacePos.w;
     shadowCoord = shadowCoord * 0.5 + 0.5;
     float visibility = 1.0;
 
     if(shadowCoord.x >= 0.0 && shadowCoord.x <= 1.0 && shadowCoord.y >= 0.0 && shadowCoord.y <= 1.0 && shadowCoord.z >= 0.0 && shadowCoord.z <= 1.0) {
-        vec2 texelSize = 1.0 / vec2(textureSize(shadowMap, 0));
+        ivec3 dimensions = textureSize(shadowMap, 0);
+        vec2 texelSize = 1.0 / vec2(dimensions.xy);
         float normalDotLight = max(dot(normal, lightDirection), 0.0);
         float biasBase = globalUniforms.shadowParams.x;
         float biasFactor = globalUniforms.shadowParams.y;
@@ -58,7 +78,7 @@ void main() {
         for(int x = -kernelRadius; x <= kernelRadius; ++x) {
             for(int y = -kernelRadius; y <= kernelRadius; ++y) {
                 vec2 offset = vec2(x, y) * texelSize;
-                sum += texture(shadowMap, vec3(shadowCoord.xy + offset, shadowCoord.z - bias));
+                sum += texture(shadowMap, vec4(shadowCoord.xy + offset, float(cascadeIndex), shadowCoord.z - bias));
             }
         }
         visibility = sum / float(sampleCount);

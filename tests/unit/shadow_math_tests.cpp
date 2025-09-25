@@ -64,3 +64,28 @@ TEST_CASE("compute_light_view_projection uses fallback direction when target mat
 
     expect_matrices_close(actual, expected);
 }
+
+TEST_CASE("compute_cascade_splits blends linear and logarithmic distributions") {
+    const float nearPlane {0.5F};
+    const float farPlane {50.0F};
+    constexpr std::uint32_t cascadeCount {3U};
+    const float lambda {0.6F};
+
+    const auto splits = vulkano::compute_cascade_splits(nearPlane, farPlane, cascadeCount, lambda);
+
+    REQUIRE(splits[0] > 0.0F);
+    REQUIRE(splits[0] < splits[1]);
+    REQUIRE(splits[1] < splits[2]);
+    REQUIRE(splits[2] <= 1.0F);
+}
+
+TEST_CASE("select_cascade clamps depth outside split range") {
+    const std::array<float, vulkano::maxShadowCascades> splits {0.1F, 0.3F, 0.6F, 1.0F};
+    constexpr std::uint32_t cascadeCount {4U};
+
+    REQUIRE(vulkano::select_cascade(-0.5F, splits, cascadeCount) == 0U);
+    REQUIRE(vulkano::select_cascade(0.15F, splits, cascadeCount) == 1U);
+    REQUIRE(vulkano::select_cascade(0.45F, splits, cascadeCount) == 2U);
+    REQUIRE(vulkano::select_cascade(0.9F, splits, cascadeCount) == 3U);
+    REQUIRE(vulkano::select_cascade(2.0F, splits, cascadeCount) == 3U);
+}

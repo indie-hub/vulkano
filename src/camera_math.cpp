@@ -94,4 +94,48 @@ namespace vulkano {
     return projection * view;
 }
 
+[[nodiscard]] auto compute_cascade_splits(
+    float nearPlane,
+    float farPlane,
+    std::uint32_t cascadeCount,
+    float lambda) noexcept -> std::array<float, maxShadowCascades> {
+    std::array<float, maxShadowCascades> splits {};
+    if(cascadeCount == 0U) {
+        return splits;
+    }
+
+    const float clampedLambda = std::clamp(lambda, 0.0F, 1.0F);
+    const float minZ = std::max(nearPlane, 0.0001F);
+    const float maxZ = std::max(farPlane, minZ + 0.0001F);
+    const float range = maxZ - minZ;
+
+    for(std::uint32_t index {0U}; index < cascadeCount; ++index) {
+        const float fraction = static_cast<float>(index + 1U) / static_cast<float>(cascadeCount);
+        const float logSplit = minZ * std::pow(maxZ / minZ, fraction);
+        const float linearSplit = minZ + range * fraction;
+        const float split = std::lerp(linearSplit, logSplit, clampedLambda);
+        splits.at(index) = (split - minZ) / range;
+    }
+
+    for(std::uint32_t index {cascadeCount}; index < maxShadowCascades; ++index) {
+        splits.at(index) = 1.0F;
+    }
+
+    return splits;
+}
+
+[[nodiscard]] auto select_cascade(
+    float depthNormalized,
+    const std::array<float, maxShadowCascades>& splits,
+    std::uint32_t cascadeCount) noexcept -> std::uint32_t {
+    const std::uint32_t clampedCount = std::max(1U, std::min<std::uint32_t>(cascadeCount, static_cast<std::uint32_t>(maxShadowCascades)));
+    const float depth = std::clamp(depthNormalized, 0.0F, 1.0F);
+    for(std::uint32_t index {0U}; index < clampedCount; ++index) {
+        if(depth <= splits.at(index)) {
+            return index;
+        }
+    }
+    return clampedCount - 1U;
+}
+
 } // namespace vulkano

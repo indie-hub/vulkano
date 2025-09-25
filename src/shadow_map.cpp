@@ -28,8 +28,8 @@ namespace {
 
 namespace vulkano {
 
-ShadowMap::ShadowMap(const VulkanContext& context, std::uint32_t resolution) {
-    initialise(context, resolution);
+ShadowMap::ShadowMap(const VulkanContext& context, std::uint32_t resolution, std::uint32_t layers) {
+    initialise(context, resolution, layers);
 }
 
 ShadowMap::ShadowMap(ShadowMap&& other) noexcept {
@@ -48,13 +48,13 @@ ShadowMap::~ShadowMap() noexcept {
     cleanup();
 }
 
-auto ShadowMap::create(const VulkanContext& context, std::uint32_t resolution) -> ShadowMap {
-    return ShadowMap {context, resolution};
+auto ShadowMap::create(const VulkanContext& context, std::uint32_t resolution, std::uint32_t layers) -> ShadowMap {
+    return ShadowMap {context, resolution, layers};
 }
 
-void ShadowMap::recreate(const VulkanContext& context, std::uint32_t resolution) {
+void ShadowMap::recreate(const VulkanContext& context, std::uint32_t resolution, std::uint32_t layers) {
     cleanup();
-    initialise(context, resolution);
+    initialise(context, resolution, layers);
 }
 
 auto ShadowMap::resolution() const noexcept -> std::uint32_t {
@@ -70,20 +70,36 @@ auto ShadowMap::image() const noexcept -> VkImage {
 }
 
 auto ShadowMap::image_view() const noexcept -> VkImageView {
-    return m_imageView;
+    return m_layeredView;
+}
+
+auto ShadowMap::layered_view() const noexcept -> VkImageView {
+    return m_layeredView;
+}
+
+auto ShadowMap::layer_views() const noexcept -> const std::vector<VkImageView>& {
+    return m_layerViews;
+}
+
+auto ShadowMap::layer_count() const noexcept -> std::uint32_t {
+    return m_layers;
 }
 
 auto ShadowMap::sampler() const noexcept -> VkSampler {
     return m_sampler;
 }
 
-void ShadowMap::initialise(const VulkanContext& context, std::uint32_t resolution) {
+void ShadowMap::initialise(const VulkanContext& context, std::uint32_t resolution, std::uint32_t layers) {
     if(resolution == 0U) {
         throw std::invalid_argument {"Shadow map resolution must be greater than zero"};
+    }
+    if(layers == 0U || layers > maxLayers) {
+        throw std::invalid_argument {"Shadow map layer count must be between 1 and maxLayers"};
     }
 
     m_device = context.device();
     m_resolution = resolution;
+    m_layers = layers;
     m_format = VK_FORMAT_D32_SFLOAT;
 
     VkImageCreateInfo imageInfo {};
@@ -93,7 +109,7 @@ void ShadowMap::initialise(const VulkanContext& context, std::uint32_t resolutio
     imageInfo.extent.height = resolution;
     imageInfo.extent.depth = 1U;
     imageInfo.mipLevels = 1U;
-    imageInfo.arrayLayers = 1U;
+    imageInfo.arrayLayers = layers;
     imageInfo.format = m_format;
     imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
     imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -129,21 +145,37 @@ void ShadowMap::initialise(const VulkanContext& context, std::uint32_t resolutio
     VkImageViewCreateInfo viewInfo {};
     viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     viewInfo.image = m_image;
-    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
     viewInfo.format = m_format;
     viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
     viewInfo.subresourceRange.baseMipLevel = 0U;
     viewInfo.subresourceRange.levelCount = 1U;
     viewInfo.subresourceRange.baseArrayLayer = 0U;
-    viewInfo.subresourceRange.layerCount = 1U;
+    viewInfo.subresourceRange.layerCount = layers;
 
-    if(vkCreateImageView(m_device, &viewInfo, nullptr, &m_imageView) != VK_SUCCESS) {
-        throw std::runtime_error {"Failed to create shadow map image view"};
+    if(vkCreateImageView(m_device, &viewInfo, nullptr, &m_layeredView) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create shadow map layered image view"};
     }
     context.set_object_name(
         VK_OBJECT_TYPE_IMAGE_VIEW,
-        reinterpret_cast<std::uint64_t>(m_imageView),
-        "Shadow Map Image View");
+        reinterpret_cast<std::uint64_t>(m_layeredView),
+        "Shadow Map Layered View");
+
+    m_layerViews.resize(layers, VK_NULL_HANDLE);
+    for(std::uint32_t layer {0U}; layer < layers; ++layer) {
+        VkImageViewCreateInfo layerViewInfo = viewInfo;
+        layerViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        layerViewInfo.subresourceRange.baseArrayLayer = layer;
+        layerViewInfo.subresourceRange.layerCount = 1U;
+        if(vkCreateImageView(m_device, &layerViewInfo, nullptr, &m_layerViews.at(layer)) != VK_SUCCESS) {
+            throw std::runtime_error {"Failed to create shadow map layer view"};
+        }
+        const std::string name = "Shadow Map Layer View " + std::to_string(layer);
+        context.set_object_name(
+            VK_OBJECT_TYPE_IMAGE_VIEW,
+            reinterpret_cast<std::uint64_t>(m_layerViews.at(layer)),
+            name);
+    }
 
     VkSamplerCreateInfo samplerInfo {};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -178,8 +210,14 @@ void ShadowMap::cleanup() noexcept {
     if(m_sampler != VK_NULL_HANDLE) {
         vkDestroySampler(m_device, m_sampler, nullptr);
     }
-    if(m_imageView != VK_NULL_HANDLE) {
-        vkDestroyImageView(m_device, m_imageView, nullptr);
+    for(VkImageView layerView : m_layerViews) {
+        if(layerView != VK_NULL_HANDLE) {
+            vkDestroyImageView(m_device, layerView, nullptr);
+        }
+    }
+    m_layerViews.clear();
+    if(m_layeredView != VK_NULL_HANDLE) {
+        vkDestroyImageView(m_device, m_layeredView, nullptr);
     }
     if(m_image != VK_NULL_HANDLE) {
         vkDestroyImage(m_device, m_image, nullptr);
@@ -189,29 +227,33 @@ void ShadowMap::cleanup() noexcept {
     }
 
     m_sampler = VK_NULL_HANDLE;
-    m_imageView = VK_NULL_HANDLE;
+    m_layeredView = VK_NULL_HANDLE;
     m_image = VK_NULL_HANDLE;
     m_memory = VK_NULL_HANDLE;
     m_device = VK_NULL_HANDLE;
     m_resolution = 0U;
+    m_layers = 0U;
 }
 
 void ShadowMap::move_from(ShadowMap&& other) noexcept {
     m_device = other.m_device;
     m_image = other.m_image;
     m_memory = other.m_memory;
-    m_imageView = other.m_imageView;
+    m_layeredView = other.m_layeredView;
     m_sampler = other.m_sampler;
     m_format = other.m_format;
     m_resolution = other.m_resolution;
+    m_layers = other.m_layers;
+    m_layerViews = std::move(other.m_layerViews);
 
     other.m_device = VK_NULL_HANDLE;
     other.m_image = VK_NULL_HANDLE;
     other.m_memory = VK_NULL_HANDLE;
-    other.m_imageView = VK_NULL_HANDLE;
+    other.m_layeredView = VK_NULL_HANDLE;
     other.m_sampler = VK_NULL_HANDLE;
     other.m_resolution = 0U;
+    other.m_layers = 0U;
+    other.m_layerViews.clear();
 }
 
 } // namespace vulkano
-

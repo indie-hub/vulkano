@@ -1,9 +1,14 @@
 #pragma once
 
+#include <array>
+#include <cstddef>
+
 #include <glm/mat4x4.hpp>
 #include <glm/vec3.hpp>
 
 namespace vulkano {
+
+inline constexpr std::size_t maxShadowCascades {4U};
 
 [[nodiscard]] auto compute_forward(float yaw, float pitch) noexcept -> glm::vec3;
 [[nodiscard]] auto compute_right(const glm::vec3& forward, const glm::vec3& worldUp) noexcept -> glm::vec3;
@@ -20,5 +25,16 @@ namespace vulkano {
     float farPlane,
     const glm::vec3& fallbackDirection,
     float epsilon) noexcept -> glm::mat4;
+
+[[nodiscard]] auto compute_cascade_splits(
+    float nearPlane,
+    float farPlane,
+    std::uint32_t cascadeCount,
+    float lambda) noexcept -> std::array<float, maxShadowCascades>;
+
+[[nodiscard]] auto select_cascade(
+    float depthNormalized,
+    const std::array<float, maxShadowCascades>& splits,
+    std::uint32_t cascadeCount) noexcept -> std::uint32_t;
 
 } // namespace vulkano
