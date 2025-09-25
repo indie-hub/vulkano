@@ -681,17 +681,18 @@ void VulkanApplication::recreate_swapchain() {
 
     m_renderPass = RenderPass::create(m_context, m_swapchain.image_format(), m_depthFormat);
     m_depthResources.recreate(m_context, m_depthFormat, extent, imageCount);
-    const std::array<VkDescriptorSetLayout, 2U> setLayouts {m_descriptorSetLayout, m_materialDescriptorSetLayout};
-    m_pipeline.recreate(m_context, m_renderPass, setLayouts);
-    m_framebuffers.recreate(m_context, m_swapchain, m_renderPass, m_depthResources.image_views());
-    const std::uint32_t commandBufferCount = static_cast<std::uint32_t>(m_framebuffers.size());
-   m_commandAllocator.recreate(m_context, commandBufferCount);
-    m_imagesInFlight.assign(commandBufferCount, VK_NULL_HANDLE);
     recreate_ssao_resources();
     create_descriptor_resources();
     for(ScenePrimitive& primitive : m_scene.primitives) {
         ensure_material_descriptor(primitive);
     }
+
+    const std::array<VkDescriptorSetLayout, 2U> setLayouts {m_descriptorSetLayout, m_materialDescriptorSetLayout};
+    m_pipeline.recreate(m_context, m_renderPass, setLayouts);
+    m_framebuffers.recreate(m_context, m_swapchain, m_renderPass, m_depthResources.image_views());
+    const std::uint32_t commandBufferCount = static_cast<std::uint32_t>(m_framebuffers.size());
+    m_commandAllocator.recreate(m_context, commandBufferCount);
+    m_imagesInFlight.assign(commandBufferCount, VK_NULL_HANDLE);
     create_render_finished_semaphores();
     ImGui_ImplVulkan_SetMinImageCount(static_cast<std::uint32_t>(m_swapchain.image_views().size()));
     update_global_uniforms();
@@ -1463,6 +1464,8 @@ void VulkanApplication::rebuild_dirty_meshes() {
 }
 
 void VulkanApplication::create_descriptor_resources() {
+    destroy_descriptor_resources();
+
     VkDescriptorSetLayoutBinding uniformBinding {};
     uniformBinding.binding = 0U;
     uniformBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;

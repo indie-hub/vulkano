@@ -103,6 +103,7 @@ private:
     void update_ssao_settings_buffer();
     void ensure_ssao_noise_texture();
     void update_ssao_descriptors();
+    void rebuild_global_descriptors();
     void record_depth_prepass(VkCommandBuffer commandBuffer, std::uint32_t imageIndex);
     void record_ssao_pass(VkCommandBuffer commandBuffer, std::uint32_t imageIndex);
     void record_ssao_blur_pass(VkCommandBuffer commandBuffer, std::uint32_t imageIndex);
