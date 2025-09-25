@@ -211,7 +211,7 @@ private:
     VkDescriptorSetLayout m_materialDescriptorSetLayout {VK_NULL_HANDLE};
     VkDescriptorPool m_descriptorPool {VK_NULL_HANDLE};
     VkDescriptorPool m_materialDescriptorPool {VK_NULL_HANDLE};
-    VkDescriptorSet m_descriptorSet {VK_NULL_HANDLE};
+    std::vector<VkDescriptorSet> m_descriptorSets {};
     Buffer m_globalUniformBuffer;
     TextureHandle m_fallbackAlbedoTexture {};
     TextureHandle m_fallbackNormalNoiseTexture {};

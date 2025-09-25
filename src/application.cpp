@@ -828,22 +828,31 @@ void VulkanApplication::recreate_shadow_resources() {
     m_shadowMap = ShadowMap::create(m_context, m_shadowSettings.resolution, m_shadowSettings.cascadeCount);
     m_shadowImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     create_shadow_framebuffer();
-    if(m_descriptorSet != VK_NULL_HANDLE) {
+    if(!m_descriptorSets.empty()) {
         VkDescriptorImageInfo imageInfo {};
         imageInfo.sampler = m_shadowMap.sampler();
         imageInfo.imageView = m_shadowMap.layered_view();
         imageInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
 
-        VkWriteDescriptorSet write {};
-        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        write.dstSet = m_descriptorSet;
-        write.dstBinding = 1U;
-        write.dstArrayElement = 0U;
-        write.descriptorCount = 1U;
-        write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        write.pImageInfo = &imageInfo;
-
-        vkUpdateDescriptorSets(m_context.device(), 1U, &write, 0U, nullptr);
+        std::vector<VkWriteDescriptorSet> writes;
+        writes.reserve(m_descriptorSets.size());
+        for(VkDescriptorSet set : m_descriptorSets) {
+            VkWriteDescriptorSet write {};
+            write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            write.dstSet = set;
+            write.dstBinding = 1U;
+            write.dstArrayElement = 0U;
+            write.descriptorCount = 1U;
+            write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            write.pImageInfo = &imageInfo;
+            writes.push_back(write);
+        }
+        vkUpdateDescriptorSets(
+            m_context.device(),
+            static_cast<std::uint32_t>(writes.size()),
+            writes.data(),
+            0U,
+            nullptr);
     }
     update_global_uniforms();
     update_shadow_debug_textures();
@@ -1125,14 +1134,17 @@ void VulkanApplication::record_command_buffer(std::uint32_t imageIndex) {
     m_context.begin_debug_label(commandBuffer, "Draw Primitives");
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline.handle());
 
-    if(m_descriptorSet != VK_NULL_HANDLE) {
+    if(!m_descriptorSets.empty()) {
+        const VkDescriptorSet globalSet = (imageIndex < m_descriptorSets.size())
+            ? m_descriptorSets.at(imageIndex)
+            : m_descriptorSets.front();
         vkCmdBindDescriptorSets(
             commandBuffer,
             VK_PIPELINE_BIND_POINT_GRAPHICS,
             m_pipeline.layout(),
             0U,
             1U,
-            &m_descriptorSet,
+            &globalSet,
             0U,
             nullptr);
     }
@@ -1429,8 +1441,6 @@ void VulkanApplication::rebuild_dirty_meshes() {
 }
 
 void VulkanApplication::create_descriptor_resources() {
-    destroy_descriptor_resources();
-
     VkDescriptorSetLayoutBinding uniformBinding {};
     uniformBinding.binding = 0U;
     uniformBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -1451,31 +1461,40 @@ void VulkanApplication::create_descriptor_resources() {
 
     std::array<VkDescriptorSetLayoutBinding, 3U> bindings {uniformBinding, shadowBinding, ssaoBinding};
 
-    VkDescriptorSetLayoutCreateInfo layoutInfo {};
-    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.bindingCount = static_cast<std::uint32_t>(bindings.size());
-    layoutInfo.pBindings = bindings.data();
+    if(m_descriptorSetLayout == VK_NULL_HANDLE) {
+        VkDescriptorSetLayoutCreateInfo layoutInfo {};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        layoutInfo.bindingCount = static_cast<std::uint32_t>(bindings.size());
+        layoutInfo.pBindings = bindings.data();
 
-    if(vkCreateDescriptorSetLayout(m_context.device(), &layoutInfo, nullptr, &m_descriptorSetLayout) != VK_SUCCESS) {
-        throw std::runtime_error {"Failed to create descriptor set layout"};
+        if(vkCreateDescriptorSetLayout(m_context.device(), &layoutInfo, nullptr, &m_descriptorSetLayout) != VK_SUCCESS) {
+            throw std::runtime_error {"Failed to create descriptor set layout"};
+        }
+        m_context.set_object_name(
+            VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT,
+            reinterpret_cast<std::uint64_t>(m_descriptorSetLayout),
+            "Global Descriptor Set Layout");
     }
-    m_context.set_object_name(
-        VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT,
-        reinterpret_cast<std::uint64_t>(m_descriptorSetLayout),
-        "Global Descriptor Set Layout");
+
+    const auto swapchainImageCount = static_cast<std::uint32_t>(m_swapchain.image_views().size());
+    const std::uint32_t descriptorSetCount = std::max(swapchainImageCount, 1U);
 
     std::array<VkDescriptorPoolSize, 2U> poolSizes {};
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSizes[0].descriptorCount = 1U;
+    poolSizes[0].descriptorCount = descriptorSetCount;
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSizes[1].descriptorCount = 2U;
+    poolSizes[1].descriptorCount = descriptorSetCount * 2U;
 
     VkDescriptorPoolCreateInfo poolInfo {};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.poolSizeCount = static_cast<std::uint32_t>(poolSizes.size());
     poolInfo.pPoolSizes = poolSizes.data();
-    poolInfo.maxSets = 1U;
+    poolInfo.maxSets = descriptorSetCount;
 
+    if(m_descriptorPool != VK_NULL_HANDLE) {
+        vkDestroyDescriptorPool(m_context.device(), m_descriptorPool, nullptr);
+        m_descriptorPool = VK_NULL_HANDLE;
+    }
     if(vkCreateDescriptorPool(m_context.device(), &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS) {
         throw std::runtime_error {"Failed to create descriptor pool"};
     }
@@ -1484,73 +1503,79 @@ void VulkanApplication::create_descriptor_resources() {
         reinterpret_cast<std::uint64_t>(m_descriptorPool),
         "Global Descriptor Pool");
 
+    std::vector<VkDescriptorSetLayout> layouts(descriptorSetCount, m_descriptorSetLayout);
     VkDescriptorSetAllocateInfo allocateInfo {};
     allocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     allocateInfo.descriptorPool = m_descriptorPool;
-    allocateInfo.descriptorSetCount = 1U;
-    allocateInfo.pSetLayouts = &m_descriptorSetLayout;
+    allocateInfo.descriptorSetCount = descriptorSetCount;
+    allocateInfo.pSetLayouts = layouts.data();
 
-    if(vkAllocateDescriptorSets(m_context.device(), &allocateInfo, &m_descriptorSet) != VK_SUCCESS) {
-        throw std::runtime_error {"Failed to allocate descriptor set"};
+    m_descriptorSets.resize(descriptorSetCount, VK_NULL_HANDLE);
+    if(vkAllocateDescriptorSets(m_context.device(), &allocateInfo, m_descriptorSets.data()) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to allocate descriptor sets"};
     }
 
-    m_globalUniformBuffer = Buffer::create_uniform_buffer(m_context, sizeof(GlobalUniform));
-    m_context.set_object_name(
-        VK_OBJECT_TYPE_BUFFER,
-        reinterpret_cast<std::uint64_t>(m_globalUniformBuffer.handle()),
-        "Global Uniform Buffer");
+    if(m_globalUniformBuffer.handle() == VK_NULL_HANDLE) {
+        m_globalUniformBuffer = Buffer::create_uniform_buffer(m_context, sizeof(GlobalUniform));
+        m_context.set_object_name(
+            VK_OBJECT_TYPE_BUFFER,
+            reinterpret_cast<std::uint64_t>(m_globalUniformBuffer.handle()),
+            "Global Uniform Buffer");
+    }
 
     VkDescriptorBufferInfo bufferInfo {};
     bufferInfo.buffer = m_globalUniformBuffer.handle();
     bufferInfo.offset = 0U;
     bufferInfo.range = sizeof(GlobalUniform);
 
-    VkDescriptorImageInfo shadowInfo {};
-    shadowInfo.sampler = m_shadowMap.sampler();
-    shadowInfo.imageView = m_shadowMap.layered_view();
-    shadowInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+    for(std::uint32_t index {0U}; index < descriptorSetCount; ++index) {
+        VkDescriptorImageInfo shadowInfo {};
+        shadowInfo.sampler = m_shadowMap.sampler();
+        shadowInfo.imageView = m_shadowMap.layered_view();
+        shadowInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
 
-    VkDescriptorImageInfo ssaoInfo {};
-    if(m_ssaoSampler != VK_NULL_HANDLE && !m_ssaoBlurViews.empty() && m_ssaoBlurViews.front() != VK_NULL_HANDLE) {
-        ssaoInfo.sampler = m_ssaoSampler;
-        ssaoInfo.imageView = m_ssaoBlurViews.front();
-        ssaoInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    } else if(m_fallbackAlbedoTexture != nullptr) {
-        ssaoInfo.sampler = m_fallbackAlbedoTexture->sampler();
-        ssaoInfo.imageView = m_fallbackAlbedoTexture->image_view();
-        ssaoInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        VkDescriptorImageInfo ssaoInfo {};
+        if(m_ssaoSampler != VK_NULL_HANDLE && index < m_ssaoBlurViews.size() && m_ssaoBlurViews.at(index) != VK_NULL_HANDLE) {
+            ssaoInfo.sampler = m_ssaoSampler;
+            ssaoInfo.imageView = m_ssaoBlurViews.at(index);
+            ssaoInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        } else if(m_fallbackAlbedoTexture != nullptr) {
+            ssaoInfo.sampler = m_fallbackAlbedoTexture->sampler();
+            ssaoInfo.imageView = m_fallbackAlbedoTexture->image_view();
+            ssaoInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        }
+
+        std::array<VkWriteDescriptorSet, 3U> writes {};
+        writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[0].dstSet = m_descriptorSets.at(index);
+        writes[0].dstBinding = 0U;
+        writes[0].dstArrayElement = 0U;
+        writes[0].descriptorCount = 1U;
+        writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        writes[0].pBufferInfo = &bufferInfo;
+
+        writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[1].dstSet = m_descriptorSets.at(index);
+        writes[1].dstBinding = 1U;
+        writes[1].dstArrayElement = 0U;
+        writes[1].descriptorCount = 1U;
+        writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        writes[1].pImageInfo = &shadowInfo;
+
+        std::uint32_t writeCount = 2U;
+        if(ssaoInfo.imageView != VK_NULL_HANDLE) {
+            writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            writes[2].dstSet = m_descriptorSets.at(index);
+            writes[2].dstBinding = 2U;
+            writes[2].dstArrayElement = 0U;
+            writes[2].descriptorCount = 1U;
+            writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            writes[2].pImageInfo = &ssaoInfo;
+            writeCount = 3U;
+        }
+
+        vkUpdateDescriptorSets(m_context.device(), writeCount, writes.data(), 0U, nullptr);
     }
-
-    std::array<VkWriteDescriptorSet, 3U> writes {};
-    writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    writes[0].dstSet = m_descriptorSet;
-    writes[0].dstBinding = 0U;
-    writes[0].dstArrayElement = 0U;
-    writes[0].descriptorCount = 1U;
-    writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    writes[0].pBufferInfo = &bufferInfo;
-
-    writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    writes[1].dstSet = m_descriptorSet;
-    writes[1].dstBinding = 1U;
-    writes[1].dstArrayElement = 0U;
-    writes[1].descriptorCount = 1U;
-    writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    writes[1].pImageInfo = &shadowInfo;
-
-    std::uint32_t writeCount = 2U;
-    if(ssaoInfo.imageView != VK_NULL_HANDLE) {
-        writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        writes[2].dstSet = m_descriptorSet;
-        writes[2].dstBinding = 2U;
-        writes[2].dstArrayElement = 0U;
-        writes[2].descriptorCount = 1U;
-        writes[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        writes[2].pImageInfo = &ssaoInfo;
-        writeCount = 3U;
-    }
-
-    vkUpdateDescriptorSets(m_context.device(), writeCount, writes.data(), 0U, nullptr);
 
     update_global_uniforms();
 
@@ -1616,7 +1641,7 @@ void VulkanApplication::destroy_descriptor_resources() noexcept {
         vkDestroyDescriptorSetLayout(m_context.device(), m_descriptorSetLayout, nullptr);
         m_descriptorSetLayout = VK_NULL_HANDLE;
     }
-    m_descriptorSet = VK_NULL_HANDLE;
+    m_descriptorSets.clear();
     m_globalUniformBuffer = Buffer {};
 
     destroy_material_descriptor_resources();
@@ -2817,14 +2842,17 @@ void VulkanApplication::record_depth_prepass(VkCommandBuffer commandBuffer, std:
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_depthPrepassPipeline);
 
-    if(m_descriptorSet != VK_NULL_HANDLE) {
+    if(!m_descriptorSets.empty()) {
+        const VkDescriptorSet globalSet = (imageIndex < m_descriptorSets.size())
+            ? m_descriptorSets.at(imageIndex)
+            : m_descriptorSets.front();
         vkCmdBindDescriptorSets(
             commandBuffer,
             VK_PIPELINE_BIND_POINT_GRAPHICS,
             m_depthPrepassPipelineLayout,
             0U,
             1U,
-            &m_descriptorSet,
+            &globalSet,
             0U,
             nullptr);
     }
@@ -3002,7 +3030,7 @@ void VulkanApplication::record_ssao_pass(VkCommandBuffer commandBuffer, std::uin
 }
 
 void VulkanApplication::update_ssao_composition_descriptor(std::uint32_t imageIndex) {
-    if(m_descriptorSet == VK_NULL_HANDLE) {
+    if(m_descriptorSets.empty()) {
         return;
     }
 
@@ -3019,9 +3047,13 @@ void VulkanApplication::update_ssao_composition_descriptor(std::uint32_t imageIn
         return;
     }
 
-    VkWriteDescriptorSet write {} ;
+    VkDescriptorSet targetSet = (imageIndex < m_descriptorSets.size())
+        ? m_descriptorSets.at(imageIndex)
+        : m_descriptorSets.front();
+
+    VkWriteDescriptorSet write {};
     write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write.dstSet = m_descriptorSet;
+    write.dstSet = targetSet;
     write.dstBinding = 2U;
     write.dstArrayElement = 0U;
     write.descriptorCount = 1U;

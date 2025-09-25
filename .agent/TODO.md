@@ -69,3 +69,4 @@
 - [x] Summarize SSAO feature to user.
 - [x] Investigate and fix SSAO validation errors (descriptor set lifetime, blur image format).
 - [x] Resolve vertex input mismatch for tangent attribute in graphics pipeline.
+- [x] Address lingering descriptor lifetime validation error when binding global descriptor set.
