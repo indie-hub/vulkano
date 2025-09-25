@@ -2201,7 +2201,12 @@ void VulkanApplication::create_ssao_resources() {
     stages[1].pName = "main";
 
     const auto bindingDescription = vertex_binding_description();
-    const auto attributeDescriptions = vertex_attribute_descriptions();
+    const auto fullAttributeDescriptions = vertex_attribute_descriptions();
+    std::array<VkVertexInputAttributeDescription, 3U> attributeDescriptions {
+        fullAttributeDescriptions.at(0U),
+        fullAttributeDescriptions.at(1U),
+        fullAttributeDescriptions.at(2U)
+    };
     VkPipelineVertexInputStateCreateInfo vertexInput {};
     vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     vertexInput.vertexBindingDescriptionCount = 1U;
