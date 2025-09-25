@@ -66,4 +66,4 @@
 - [x] Implement G-buffer and SSAO sampling pipelines.
 - [x] Add SSAO blur/composition and runtime controls.
 - [x] Update docs/tests and verify SSAO integration.
-- [ ] Summarize SSAO feature to user.
+- [x] Summarize SSAO feature to user.
