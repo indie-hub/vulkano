@@ -7,6 +7,7 @@
 #include <string_view>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include <glm/geometric.hpp>
 #include <glm/gtc/constants.hpp>
@@ -68,6 +69,70 @@ namespace {
         const std::uint32_t minValue = std::min(first, second);
         const std::uint32_t maxValue = std::max(first, second);
         return (static_cast<std::uint64_t>(minValue) << 32U) | static_cast<std::uint64_t>(maxValue);
+    }
+
+    void compute_tangents(vulkano::MeshData& mesh) {
+        using namespace vulkano;
+        if(mesh.vertices.empty() || mesh.indices.size() < 3U) {
+            return;
+        }
+
+        std::vector<glm::vec3> tangents(mesh.vertices.size(), glm::vec3 {0.0F});
+        std::vector<glm::vec3> bitangents(mesh.vertices.size(), glm::vec3 {0.0F});
+
+        constexpr float epsilon {1e-6F};
+
+        for(std::size_t index {0U}; index + 2U < mesh.indices.size(); index += 3U) {
+            const std::uint32_t i0 = mesh.indices.at(index + 0U);
+            const std::uint32_t i1 = mesh.indices.at(index + 1U);
+            const std::uint32_t i2 = mesh.indices.at(index + 2U);
+
+            const MeshVertex& v0 = mesh.vertices.at(i0);
+            const MeshVertex& v1 = mesh.vertices.at(i1);
+            const MeshVertex& v2 = mesh.vertices.at(i2);
+
+            const glm::vec3 edge1 = v1.position - v0.position;
+            const glm::vec3 edge2 = v2.position - v0.position;
+            const glm::vec2 deltaUV1 = v1.uv - v0.uv;
+            const glm::vec2 deltaUV2 = v2.uv - v0.uv;
+
+            const float determinant = (deltaUV1.x * deltaUV2.y) - (deltaUV2.x * deltaUV1.y);
+            if(std::fabs(determinant) <= epsilon) {
+                continue;
+            }
+
+            const float invDet = 1.0F / determinant;
+            const glm::vec3 tangent = (edge1 * deltaUV2.y - edge2 * deltaUV1.y) * invDet;
+            const glm::vec3 bitangent = (edge2 * deltaUV1.x - edge1 * deltaUV2.x) * invDet;
+
+            tangents.at(i0) += tangent;
+            tangents.at(i1) += tangent;
+            tangents.at(i2) += tangent;
+
+            bitangents.at(i0) += bitangent;
+            bitangents.at(i1) += bitangent;
+            bitangents.at(i2) += bitangent;
+        }
+
+        for(std::size_t vertexIndex {0U}; vertexIndex < mesh.vertices.size(); ++vertexIndex) {
+            MeshVertex& vertex = mesh.vertices.at(vertexIndex);
+            const glm::vec3 normal = glm::normalize(vertex.normal);
+
+            glm::vec3 tangent = tangents.at(vertexIndex);
+            if(glm::dot(tangent, tangent) <= epsilon) {
+                tangent = glm::vec3 {1.0F, 0.0F, 0.0F};
+            } else {
+                tangent = glm::normalize(tangent - normal * glm::dot(normal, tangent));
+            }
+
+            glm::vec3 bitangent = bitangents.at(vertexIndex);
+            if(glm::dot(bitangent, bitangent) <= epsilon) {
+                bitangent = glm::vec3 {0.0F, 1.0F, 0.0F};
+            }
+
+            const float handedness = glm::dot(glm::cross(normal, tangent), bitangent) < 0.0F ? -1.0F : 1.0F;
+            vertex.tangent = glm::vec4 {tangent, handedness};
+        }
     }
 }
 
@@ -166,6 +231,7 @@ auto PlanePrimitive::build_mesh() const -> MeshData {
     mesh.vertices[2].uv = glm::vec2 {m_parameters.uvTiling.x, m_parameters.uvTiling.y};
     mesh.vertices[3].uv = glm::vec2 {m_parameters.uvTiling.x, 0.0F};
 
+    compute_tangents(mesh);
     return mesh;
 }
 
@@ -201,6 +267,7 @@ auto CubePrimitive::build_mesh() const -> MeshData {
         }
     }
 
+    compute_tangents(mesh);
     return mesh;
 }
 

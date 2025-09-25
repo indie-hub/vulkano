@@ -41,8 +41,11 @@ namespace {
 
 namespace vulkano {
 
-GraphicsPipeline::GraphicsPipeline(const VulkanContext& context, const RenderPass& renderPass, VkDescriptorSetLayout descriptorSetLayout) {
-    initialise(context, renderPass, descriptorSetLayout);
+GraphicsPipeline::GraphicsPipeline(
+    const VulkanContext& context,
+    const RenderPass& renderPass,
+    std::span<const VkDescriptorSetLayout> descriptorSetLayouts) {
+    initialise(context, renderPass, descriptorSetLayouts);
 }
 
 GraphicsPipeline::GraphicsPipeline(GraphicsPipeline&& other) noexcept {
@@ -61,13 +64,19 @@ GraphicsPipeline::~GraphicsPipeline() noexcept {
     cleanup();
 }
 
-auto GraphicsPipeline::create(const VulkanContext& context, const RenderPass& renderPass, VkDescriptorSetLayout descriptorSetLayout) -> GraphicsPipeline {
-    return GraphicsPipeline {context, renderPass, descriptorSetLayout};
+auto GraphicsPipeline::create(
+    const VulkanContext& context,
+    const RenderPass& renderPass,
+    std::span<const VkDescriptorSetLayout> descriptorSetLayouts) -> GraphicsPipeline {
+    return GraphicsPipeline {context, renderPass, descriptorSetLayouts};
 }
 
-void GraphicsPipeline::recreate(const VulkanContext& context, const RenderPass& renderPass, VkDescriptorSetLayout descriptorSetLayout) {
+void GraphicsPipeline::recreate(
+    const VulkanContext& context,
+    const RenderPass& renderPass,
+    std::span<const VkDescriptorSetLayout> descriptorSetLayouts) {
     cleanup();
-    initialise(context, renderPass, descriptorSetLayout);
+    initialise(context, renderPass, descriptorSetLayouts);
 }
 
 auto GraphicsPipeline::handle() const noexcept -> VkPipeline {
@@ -78,7 +87,10 @@ auto GraphicsPipeline::layout() const noexcept -> VkPipelineLayout {
     return m_layout;
 }
 
-void GraphicsPipeline::initialise(const VulkanContext& context, const RenderPass& renderPass, VkDescriptorSetLayout descriptorSetLayout) {
+void GraphicsPipeline::initialise(
+    const VulkanContext& context,
+    const RenderPass& renderPass,
+    std::span<const VkDescriptorSetLayout> descriptorSetLayouts) {
     m_device = context.device();
 
     const auto vertexPath = shaderDirectory / vertexShaderFile;
@@ -171,9 +183,9 @@ void GraphicsPipeline::initialise(const VulkanContext& context, const RenderPass
 
     VkPipelineLayoutCreateInfo layoutInfo {};
     layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    if(descriptorSetLayout != VK_NULL_HANDLE) {
-        layoutInfo.setLayoutCount = 1U;
-        layoutInfo.pSetLayouts = &descriptorSetLayout;
+    if(!descriptorSetLayouts.empty()) {
+        layoutInfo.setLayoutCount = static_cast<std::uint32_t>(descriptorSetLayouts.size());
+        layoutInfo.pSetLayouts = descriptorSetLayouts.data();
     } else {
         layoutInfo.setLayoutCount = 0U;
         layoutInfo.pSetLayouts = nullptr;
