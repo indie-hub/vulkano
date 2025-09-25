@@ -290,6 +290,28 @@ void VulkanApplication::draw_frame() {
             }
         }
         ImGui::TextDisabled("Adjust bias to reduce acne; increasing PCF radius softens shadows at extra cost.");
+
+        if(!m_shadowDebugTextures.empty()) {
+            ImGui::Separator();
+            ImGui::TextUnformatted("Cascade Maps");
+            const float previewSize {128.0F};
+            const std::size_t previewCount = std::min<std::size_t>(
+                m_shadowDebugTextures.size(),
+                static_cast<std::size_t>(m_activeCascadeCount));
+            for(std::size_t index {0U}; index < previewCount; ++index) {
+                ImGui::PushID(static_cast<int>(index));
+                ImGui::Image(m_shadowDebugTextures.at(index), ImVec2 {previewSize, previewSize});
+                if(ImGui::IsItemHovered()) {
+                    ImGui::BeginTooltip();
+                    ImGui::Text("Cascade %zu\nSplit <= %.3f", index, m_cascadeSplits.at(index));
+                    ImGui::EndTooltip();
+                }
+                ImGui::PopID();
+                if(index + 1U < previewCount) {
+                    ImGui::SameLine();
+                }
+            }
+        }
     }
 
     for(std::size_t index {0U}; index < m_scene.primitives.size(); ++index) {
@@ -518,6 +540,7 @@ void VulkanApplication::create_shadow_framebuffer() {
 }
 
 void VulkanApplication::destroy_shadow_framebuffer() noexcept {
+    destroy_shadow_debug_textures();
     for(VkFramebuffer framebuffer : m_shadowFramebuffers) {
         if(framebuffer != VK_NULL_HANDLE) {
             vkDestroyFramebuffer(m_context.device(), framebuffer, nullptr);
@@ -526,8 +549,37 @@ void VulkanApplication::destroy_shadow_framebuffer() noexcept {
     m_shadowFramebuffers.clear();
 }
 
+void VulkanApplication::destroy_shadow_debug_textures() noexcept {
+    if(m_shadowDebugTextures.empty()) {
+        return;
+    }
+    for(ImTextureID texture : m_shadowDebugTextures) {
+        if(texture != nullptr) {
+            ImGui_ImplVulkan_RemoveTexture(static_cast<VkDescriptorSet>(texture));
+        }
+    }
+    m_shadowDebugTextures.clear();
+}
+
+void VulkanApplication::update_shadow_debug_textures() {
+    if(ImGui::GetCurrentContext() == nullptr) {
+        return;
+    }
+    destroy_shadow_debug_textures();
+    const auto& layerViews = m_shadowMap.layer_views();
+    m_shadowDebugTextures.reserve(layerViews.size());
+    for(VkImageView view : layerViews) {
+        VkDescriptorSet descriptor = ImGui_ImplVulkan_AddTexture(
+            m_shadowMap.sampler(),
+            view,
+            VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL);
+        m_shadowDebugTextures.push_back(descriptor);
+    }
+}
+
 void VulkanApplication::recreate_shadow_resources() {
     wait_for_device_idle();
+    destroy_shadow_debug_textures();
     m_shadowMap = ShadowMap::create(m_context, m_shadowSettings.resolution, m_shadowSettings.cascadeCount);
     create_shadow_framebuffer();
     if(m_descriptorSet != VK_NULL_HANDLE) {
@@ -548,6 +600,7 @@ void VulkanApplication::recreate_shadow_resources() {
         vkUpdateDescriptorSets(m_context.device(), 1U, &write, 0U, nullptr);
     }
     update_global_uniforms();
+    update_shadow_debug_textures();
 }
 
 void VulkanApplication::destroy_render_finished_semaphores() noexcept {
@@ -633,9 +686,11 @@ void VulkanApplication::init_imgui() {
         throw std::runtime_error {"Failed to initialise ImGui Vulkan backend"};
     }
     upload_imgui_fonts();
+    update_shadow_debug_textures();
 }
 
 void VulkanApplication::destroy_imgui() {
+    destroy_shadow_debug_textures();
     ImGui_ImplVulkan_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();

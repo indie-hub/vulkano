@@ -31,6 +31,8 @@
 #include <chrono>
 #include <string>
 
+#include <imgui.h>
+
 struct ImGuiIO;
 
 namespace vulkano {
@@ -71,6 +73,8 @@ private:
     void destroy_render_finished_semaphores() noexcept;
     void create_shadow_framebuffer();
     void destroy_shadow_framebuffer() noexcept;
+    void destroy_shadow_debug_textures() noexcept;
+    void update_shadow_debug_textures();
     void recreate_shadow_resources();
     void initialise_scene();
     void rebuild_dirty_meshes();
@@ -147,6 +151,7 @@ private:
     std::array<float, maxCascades> m_cascadeSplits {};
     std::uint32_t m_activeCascadeCount {1U};
     bool m_shadowResourcesDirty {false};
+    std::vector<ImTextureID> m_shadowDebugTextures {};
     VkFormat m_depthFormat {VK_FORMAT_D32_SFLOAT};
     VkDescriptorSetLayout m_descriptorSetLayout {VK_NULL_HANDLE};
     VkDescriptorPool m_descriptorPool {VK_NULL_HANDLE};
