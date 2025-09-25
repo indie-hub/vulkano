@@ -49,7 +49,7 @@
 - [x] Generate procedural checkerboard albedo and noisy normal maps.
 - [x] Extend shaders, UI, and descriptors for textured lighting and normal strength.
 - [x] Update docs/tests and verify build.
-- [ ] Summarize texture support changes to user.
+- [x] Summarize texture support changes to user.
 - [x] Plan shadow toggle implementation and acceptance checks.
 - [x] Implement runtime shadow toggle and shader bypass.
 - [x] Rebuild project, run tests, and summarize toggle feature.
