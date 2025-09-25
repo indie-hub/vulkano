@@ -186,7 +186,7 @@ void ShadowMap::initialise(const VulkanContext& context, std::uint32_t resolutio
     samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
     samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
     samplerInfo.mipLodBias = 0.0F;
-    samplerInfo.compareEnable = VK_TRUE;
+    samplerInfo.compareEnable = VK_FALSE;
     samplerInfo.compareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
     samplerInfo.minLod = 0.0F;
     samplerInfo.maxLod = 1.0F;

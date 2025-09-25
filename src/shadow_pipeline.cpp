@@ -107,7 +107,10 @@ void ShadowPipeline::initialise(
     const VkPipelineShaderStageCreateInfo shaderStages[] {vertexStage};
 
     const VkVertexInputBindingDescription bindingDescription = vertex_binding_description();
-    const auto attributeDescriptions = vertex_attribute_descriptions();
+    const auto fullAttributeDescriptions = vertex_attribute_descriptions();
+    std::array<VkVertexInputAttributeDescription, 1U> attributeDescriptions {
+        fullAttributeDescriptions.at(0)
+    };
 
     VkPipelineVertexInputStateCreateInfo vertexInputInfo {};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -140,7 +143,7 @@ void ShadowPipeline::initialise(
 
     VkPipelineRasterizationStateCreateInfo rasterizer {};
     rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-    rasterizer.depthClampEnable = VK_TRUE;
+    rasterizer.depthClampEnable = VK_FALSE;
     rasterizer.rasterizerDiscardEnable = VK_FALSE;
     rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
     rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;

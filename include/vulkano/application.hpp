@@ -127,7 +127,6 @@ private:
     struct ShadowSettings final {
         float depthBiasConstant {1.25F};
         float depthBiasSlope {1.75F};
-        float depthBiasClamp {0.0F};
         float minBias {0.0025F};
         float normalBiasFactor {0.05F};
         int pcfRadius {1};

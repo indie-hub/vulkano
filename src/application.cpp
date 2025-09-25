@@ -244,11 +244,6 @@ void VulkanApplication::draw_frame() {
             m_shadowSettings.depthBiasSlope = depthBiasSlope;
         }
 
-        float depthBiasClamp = m_shadowSettings.depthBiasClamp;
-        if(ImGui::SliderFloat("Depth Bias Clamp", &depthBiasClamp, 0.0F, 1.0F, "%.3f")) {
-            m_shadowSettings.depthBiasClamp = std::clamp(depthBiasClamp, 0.0F, 1.0F);
-        }
-
         float minBias = m_shadowSettings.minBias;
         if(ImGui::SliderFloat("Receiver Min Bias", &minBias, 0.0F, 0.02F, "%.5f")) {
             m_shadowSettings.minBias = std::clamp(minBias, 0.0F, 0.02F);
@@ -691,7 +686,6 @@ void VulkanApplication::record_command_buffer(std::uint32_t imageIndex) {
         m_context.begin_debug_label(commandBuffer, "Shadow Map Pass");
 
         const float depthBiasConstant = std::max(m_shadowSettings.depthBiasConstant, 0.0F);
-        const float depthBiasClamp = std::clamp(m_shadowSettings.depthBiasClamp, 0.0F, 1.0F);
         const float depthBiasSlope = std::max(m_shadowSettings.depthBiasSlope, 0.0F);
 
         for(std::uint32_t cascadeIndex {0U}; cascadeIndex < availableCascadeCount; ++cascadeIndex) {
@@ -735,7 +729,7 @@ void VulkanApplication::record_command_buffer(std::uint32_t imageIndex) {
             vkCmdSetScissor(commandBuffer, 0U, 1U, &shadowScissor);
 
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_shadowPipeline.handle());
-            vkCmdSetDepthBias(commandBuffer, depthBiasConstant, depthBiasClamp, depthBiasSlope);
+            vkCmdSetDepthBias(commandBuffer, depthBiasConstant, 0.0F, depthBiasSlope);
 
             for(const ScenePrimitive& primitive : m_scene.primitives) {
                 if(primitive.primitive == nullptr || !primitive.gpu.has_geometry()) {

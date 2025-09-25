@@ -17,7 +17,7 @@ layout(set = 0, binding = 0) uniform GlobalUniforms {
     vec4 cameraClip;
 } globalUniforms;
 
-layout(set = 0, binding = 1) uniform sampler2DArrayShadow shadowMap;
+layout(set = 0, binding = 1) uniform sampler2DArray shadowMap;
 
 layout(push_constant) uniform PrimitivePushConstants {
     mat4 model;
@@ -78,7 +78,8 @@ void main() {
         for(int x = -kernelRadius; x <= kernelRadius; ++x) {
             for(int y = -kernelRadius; y <= kernelRadius; ++y) {
                 vec2 offset = vec2(x, y) * texelSize;
-                sum += texture(shadowMap, vec4(shadowCoord.xy + offset, float(cascadeIndex), shadowCoord.z - bias));
+                float sampledDepth = texture(shadowMap, vec3(shadowCoord.xy + offset, float(cascadeIndex))).r;
+                sum += sampledDepth >= (shadowCoord.z - bias) ? 1.0 : 0.0;
             }
         }
         visibility = sum / float(sampleCount);
