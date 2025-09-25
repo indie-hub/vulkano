@@ -44,3 +44,6 @@
 - [x] Extend tests for light split math and cascade selection.
 - [x] Rebuild project and run tests.
 - [x] Summarize cascaded shadow map feature to user.
+- [x] Plan cascade debug visualization in ImGui.
+- [ ] Implement cascade texture preview in UI.
+- [ ] Rebuild project, run tests, and summarize visualization feature.
