@@ -190,7 +190,7 @@ void GraphicsPipeline::initialise(
         layoutInfo.setLayoutCount = 0U;
         layoutInfo.pSetLayouts = nullptr;
     }
-    const std::uint32_t pushConstantSize = static_cast<std::uint32_t>(sizeof(glm::mat4) + (2U * sizeof(glm::vec4)));
+    const std::uint32_t pushConstantSize = static_cast<std::uint32_t>(sizeof(glm::mat4) + (3U * sizeof(glm::vec4)));
     pushConstantRange.size = pushConstantSize;
     layoutInfo.pushConstantRangeCount = 1U;
     layoutInfo.pPushConstantRanges = &pushConstantRange;

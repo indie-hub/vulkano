@@ -57,6 +57,7 @@ namespace {
         glm::mat4 model {1.0F};
         glm::vec4 materialColor {1.0F, 1.0F, 1.0F, 1.0F};
         glm::vec4 materialProperties {32.0F, 0.1F, 0.5F, 0.0F};
+        glm::vec4 textureControls {1.0F, 1.0F, 0.0F, 0.0F};
     };
 
     struct ShadowPushConstants final {
@@ -391,6 +392,15 @@ void VulkanApplication::draw_frame() {
             if(ImGui::SliderFloat("Specular", &specular, 0.0F, 1.0F, "%.2f")) {
                 properties.specularStrength = std::clamp(specular, 0.0F, 1.0F);
             }
+
+            ImGui::Checkbox("Use Textures", &properties.texturesEnabled);
+
+            ImGui::BeginDisabled(!properties.texturesEnabled);
+            float normalStrength = properties.normalStrength;
+            if(ImGui::SliderFloat("Normal Strength", &normalStrength, 0.0F, 2.0F, "%.2f")) {
+                properties.normalStrength = std::clamp(normalStrength, 0.0F, 2.0F);
+            }
+            ImGui::EndDisabled();
 
             if(auto* icosphere = dynamic_cast<IcospherePrimitive*>(primitive.primitive.get())) {
                 const IcosphereParameters parameters = icosphere->parameters();
@@ -990,6 +1000,12 @@ void VulkanApplication::record_command_buffer(std::uint32_t imageIndex) {
             properties.shininess,
             properties.ambientStrength,
             properties.specularStrength,
+            0.0F
+        };
+        pushConstants.textureControls = glm::vec4 {
+            properties.texturesEnabled ? 1.0F : 0.0F,
+            properties.normalStrength,
+            0.0F,
             0.0F
         };
 

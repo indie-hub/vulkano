@@ -47,7 +47,7 @@
 - [x] Plan texture/normal map extension tasks.
 - [x] Implement per-primitive texture bindings with fallbacks.
 - [x] Generate procedural checkerboard albedo and noisy normal maps.
-- [ ] Extend shaders, UI, and descriptors for textured lighting and normal strength.
+- [x] Extend shaders, UI, and descriptors for textured lighting and normal strength.
 - [ ] Update docs/tests and verify build.
 - [ ] Summarize texture support changes to user.
 - [x] Plan shadow toggle implementation and acceptance checks.
