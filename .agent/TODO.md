@@ -43,4 +43,4 @@
 - [x] Expose cascade controls in ImGui and document behavior.
 - [x] Extend tests for light split math and cascade selection.
 - [x] Rebuild project and run tests.
-- [ ] Summarize cascaded shadow map feature to user.
+- [x] Summarize cascaded shadow map feature to user.
