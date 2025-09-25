@@ -46,4 +46,4 @@
 - [x] Summarize cascaded shadow map feature to user.
 - [x] Plan cascade debug visualization in ImGui.
 - [x] Implement cascade texture preview in UI.
-- [ ] Rebuild project, run tests, and summarize visualization feature.
+- [x] Rebuild project, run tests, and summarize visualization feature.
