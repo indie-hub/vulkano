@@ -88,7 +88,8 @@ private:
     void rebuild_dirty_meshes();
     void create_descriptor_resources();
     void destroy_descriptor_resources() noexcept;
-    void destroy_material_descriptor_resources() noexcept;
+    void destroy_material_descriptor_resources(bool destroyLayout) noexcept;
+    void ensure_descriptor_layouts();
     void create_fallback_textures();
     void destroy_fallback_textures() noexcept;
     void ensure_material_descriptor(ScenePrimitive& primitive);
