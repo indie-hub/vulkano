@@ -84,6 +84,7 @@ VulkanApplication::VulkanApplication(const AppConfig& config)
     m_renderPass = RenderPass::create(m_context, m_swapchain.image_format(), m_depthFormat);
     m_depthResources = DepthResources::create(m_context, m_depthFormat, extent, imageCount);
     m_shadowMap = ShadowMap::create(m_context, m_shadowSettings.resolution, m_shadowSettings.cascadeCount);
+    m_shadowImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     m_shadowRenderPass = ShadowRenderPass::create(m_context, m_shadowMap.format());
     create_shadow_framebuffer();
     m_shadowPipeline = ShadowPipeline::create(m_context, m_shadowRenderPass, VK_NULL_HANDLE);
@@ -578,6 +579,52 @@ void VulkanApplication::destroy_shadow_debug_textures() noexcept {
     m_shadowDebugTextures.clear();
 }
 
+void VulkanApplication::ensure_shadow_map_read_layout(VkCommandBuffer commandBuffer) {
+    if(m_shadowImageLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL) {
+        return;
+    }
+    if(m_shadowMap.image() == VK_NULL_HANDLE) {
+        return;
+    }
+
+    VkImageMemoryBarrier barrier {};
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.oldLayout = m_shadowImageLayout;
+    barrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = m_shadowMap.image();
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    barrier.subresourceRange.baseMipLevel = 0U;
+    barrier.subresourceRange.levelCount = 1U;
+    barrier.subresourceRange.baseArrayLayer = 0U;
+    barrier.subresourceRange.layerCount = std::max<std::uint32_t>(1U, m_shadowMap.layer_count());
+
+    VkPipelineStageFlags srcStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+    if(m_shadowImageLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+        barrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        srcStageMask = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+    } else {
+        barrier.srcAccessMask = 0U;
+    }
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    const VkPipelineStageFlags dstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+
+    vkCmdPipelineBarrier(
+        commandBuffer,
+        srcStageMask,
+        dstStage,
+        0U,
+        0U,
+        nullptr,
+        0U,
+        nullptr,
+        1U,
+        &barrier);
+
+    m_shadowImageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+}
+
 void VulkanApplication::update_shadow_debug_textures() {
     if(ImGui::GetCurrentContext() == nullptr) {
         return;
@@ -602,6 +649,7 @@ void VulkanApplication::recreate_shadow_resources() {
     wait_for_device_idle();
     destroy_shadow_debug_textures();
     m_shadowMap = ShadowMap::create(m_context, m_shadowSettings.resolution, m_shadowSettings.cascadeCount);
+    m_shadowImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     create_shadow_framebuffer();
     if(m_descriptorSet != VK_NULL_HANDLE) {
         VkDescriptorImageInfo imageInfo {};
@@ -753,7 +801,7 @@ void VulkanApplication::record_command_buffer(std::uint32_t imageIndex) {
         m_activeCascadeCount,
         static_cast<std::uint32_t>(m_shadowFramebuffers.size()));
 
-    if(!m_shadowFramebuffers.empty() && availableCascadeCount > 0U) {
+    if(m_shadowSettings.enabled && !m_shadowFramebuffers.empty() && availableCascadeCount > 0U) {
         m_context.begin_debug_label(commandBuffer, "Shadow Map Pass");
 
         const float depthBiasConstant = std::max(m_shadowSettings.depthBiasConstant, 0.0F);
@@ -781,6 +829,7 @@ void VulkanApplication::record_command_buffer(std::uint32_t imageIndex) {
             shadowPassInfo.pClearValues = &depthClear;
 
             vkCmdBeginRenderPass(commandBuffer, &shadowPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+            m_shadowImageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
             VkViewport shadowViewport {};
             shadowViewport.x = 0.0F;
@@ -859,6 +908,9 @@ void VulkanApplication::record_command_buffer(std::uint32_t imageIndex) {
             nullptr,
             1U,
             &shadowBarrier);
+        m_shadowImageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+    } else {
+        ensure_shadow_map_read_layout(commandBuffer);
     }
 
     VkRenderPassBeginInfo renderPassInfo {};
