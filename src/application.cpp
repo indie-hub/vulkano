@@ -70,6 +70,8 @@ namespace {
     struct SsaoUniform final {
         glm::mat4 projection {1.0F};
         glm::mat4 inverseProjection {1.0F};
+        glm::mat4 view {1.0F};
+        glm::mat4 viewProjection {1.0F};
         glm::vec4 radiusBiasPowerIntensity {0.5F, 0.025F, 1.5F, 1.0F};
         glm::vec4 screenSize {1.0F, 1.0F, 1.0F, 1.0F};
         glm::vec4 sampleInfo {32.0F, 0.0F, 0.0F, 0.0F};
@@ -1913,8 +1915,11 @@ void VulkanApplication::update_ssao_settings_buffer() {
         ? static_cast<float>(extent.width) / static_cast<float>(extent.height)
         : 1.0F;
     const glm::mat4 projection = glm::perspective(m_camera.fovY, aspect, m_camera.nearPlane, m_camera.farPlane);
+    const glm::mat4 view = compute_view_matrix(camera_position(), m_camera.yaw, m_camera.pitch, worldUp);
     uniform.projection = projection;
     uniform.inverseProjection = glm::inverse(projection);
+    uniform.view = view;
+    uniform.viewProjection = projection * view;
     uniform.radiusBiasPowerIntensity = glm::vec4 {
         m_ssaoSettings.radius,
         m_ssaoSettings.bias,

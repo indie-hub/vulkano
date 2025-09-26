@@ -9,6 +9,8 @@ layout(binding = 0) uniform KernelData {
 layout(binding = 1) uniform SsaoParams {
     mat4 projection;
     mat4 inverseProjection;
+    mat4 view;
+    mat4 viewProjection;
     vec4 radiusBiasPowerIntensity; // radius, bias, power, intensity
     vec4 screenSize;               // width, height, noiseScaleX, noiseScaleY
     vec4 sampleInfo;               // sampleCount, halfResolutionFlag, blurSigma, unused
@@ -31,18 +33,19 @@ void main() {
 
     vec2 uv = (vec2(pixel) + vec2(0.5)) / params.screenSize.xy;
 
-    vec3 viewNormal = texture(normalBuffer, uv).xyz;
-    if(length(viewNormal) < 1e-5) {
-        viewNormal = vec3(0.0, 0.0, 1.0);
+    vec3 worldNormal = texture(normalBuffer, uv).xyz;
+    if(length(worldNormal) < 1e-5) {
+        worldNormal = vec3(0.0, 1.0, 0.0);
     }
-    viewNormal = normalize(viewNormal);
+    worldNormal = normalize(worldNormal);
 
-    vec3 viewPosition = texture(positionBuffer, uv).xyz;
+    vec3 worldPosition = texture(positionBuffer, uv).xyz;
+    vec3 viewPosition = (params.view * vec4(worldPosition, 1.0)).xyz;
 
     vec3 randomVec = texture(noiseTexture, uv * params.screenSize.zw).xyz * 2.0 - 1.0;
-    vec3 tangent = normalize(randomVec - viewNormal * dot(randomVec, viewNormal));
-    vec3 bitangent = normalize(cross(viewNormal, tangent));
-    mat3 TBN = mat3(tangent, bitangent, viewNormal);
+    vec3 tangent = normalize(randomVec - worldNormal * dot(randomVec, worldNormal));
+    vec3 bitangent = normalize(cross(worldNormal, tangent));
+    mat3 TBN = mat3(tangent, bitangent, worldNormal);
 
     float radius = params.radiusBiasPowerIntensity.x;
     float bias = params.radiusBiasPowerIntensity.y;
@@ -53,22 +56,23 @@ void main() {
     float occlusion = 0.0;
     for(int i = 0; i < sampleCount; ++i) {
         vec3 sampleVec = kernelData.samples[i].xyz;
-        vec3 samplePos = viewPosition + (TBN * sampleVec) * radius;
-
-        vec4 clip = params.projection * vec4(samplePos, 1.0);
-        if(clip.w <= 0.0) {
+        vec3 samplePosWorld = worldPosition + (TBN * sampleVec) * radius;
+        vec4 sampleClip = params.viewProjection * vec4(samplePosWorld, 1.0);
+        if(sampleClip.w <= 0.0) {
             continue;
         }
-        clip.xyz /= clip.w;
-        clip.y = -clip.y;
-        vec2 sampleUV = clip.xy * 0.5 + 0.5;
+        sampleClip.xyz /= sampleClip.w;
+        sampleClip.y = -sampleClip.y;
+        vec2 sampleUV = sampleClip.xy * 0.5 + 0.5;
         if(sampleUV.x < 0.0 || sampleUV.x > 1.0 || sampleUV.y < 0.0 || sampleUV.y > 1.0) {
             continue;
         }
 
-        vec3 samplePosition = texture(positionBuffer, sampleUV).xyz;
-        float rangeCheck = smoothstep(0.0, 1.0, radius / abs(viewPosition.z - samplePosition.z));
-        float occluded = samplePosition.z <= samplePos.z - bias ? 1.0 : 0.0;
+        vec3 samplePositionWorld = texture(positionBuffer, sampleUV).xyz;
+        vec3 samplePositionView = (params.view * vec4(samplePositionWorld, 1.0)).xyz;
+        vec3 samplePosView = (params.view * vec4(samplePosWorld, 1.0)).xyz;
+        float rangeCheck = smoothstep(0.0, 1.0, radius / abs(viewPosition.z - samplePositionView.z));
+        float occluded = samplePositionView.z <= samplePosView.z - bias ? 1.0 : 0.0;
         occlusion += occluded * rangeCheck;
     }
 

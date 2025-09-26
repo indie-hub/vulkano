@@ -4,8 +4,8 @@ layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec2 inUv;
 
-layout(location = 0) out vec3 vViewPos;
-layout(location = 1) out vec3 vViewNormal;
+layout(location = 0) out vec3 vWorldPos;
+layout(location = 1) out vec3 vWorldNormal;
 
 layout(set = 0, binding = 0) uniform GlobalUniforms {
     mat4 view;
@@ -34,11 +34,9 @@ void main() {
     vec3 worldNormal = normalize(normalMatrix * inNormal);
 
     vec4 viewPosition = globalUniforms.view * worldPosition;
-    mat3 viewMatrix3 = mat3(globalUniforms.view);
-    vec3 viewNormal = normalize(viewMatrix3 * worldNormal);
 
-    vViewPos = viewPosition.xyz;
-    vViewNormal = viewNormal;
+    vWorldPos = worldPosition.xyz;
+    vWorldNormal = worldNormal;
 
     gl_Position = globalUniforms.projection * viewPosition;
 }
