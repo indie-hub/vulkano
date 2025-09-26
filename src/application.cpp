@@ -105,6 +105,14 @@ auto VulkanApplication::scene_light_intensity() const noexcept -> float {
     return m_scene.lightIntensity;
 }
 
+auto VulkanApplication::camera_eye() const noexcept -> glm::vec3 {
+    return camera_position();
+}
+
+auto VulkanApplication::camera_forward_direction() const noexcept -> glm::vec3 {
+    return camera_forward();
+}
+
 void VulkanApplication::register_callbacks() {
     GLFWwindow* windowHandle = m_window.handle();
     glfwSetWindowUserPointer(windowHandle, this);
@@ -659,7 +667,7 @@ void VulkanApplication::update_camera(double deltaSeconds) {
         movement -= up;
     }
 
-    if(glm::length2(movement) > std::numeric_limits<float>::epsilon()) {
+    if(glm::dot(movement, movement) > std::numeric_limits<float>::epsilon()) {
         float speed = m_camera.moveSpeed;
         if(glfwGetKey(windowHandle, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
             speed *= m_camera.fastMoveMultiplier;

@@ -40,6 +40,8 @@ public:
     [[nodiscard]] auto primitive_count() const noexcept -> std::size_t;
     [[nodiscard]] auto scene_light_position() const noexcept -> glm::vec3;
     [[nodiscard]] auto scene_light_intensity() const noexcept -> float;
+    [[nodiscard]] auto camera_eye() const noexcept -> glm::vec3;
+    [[nodiscard]] auto camera_forward_direction() const noexcept -> glm::vec3;
 
 private:
     static void framebuffer_resize_callback(GLFWwindow* window, int width, int height);

@@ -13,6 +13,7 @@ add_executable(vulkano_codex_tests
     unit/app_config_tests.cpp
     unit/vertex_tests.cpp
     unit/primitives_tests.cpp
+    unit/camera_tests.cpp
     integration/application_smoke_tests.cpp
 )
 

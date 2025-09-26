@@ -14,4 +14,4 @@
 - [x] Update documentation/tests and validate build after rollback.
 - [x] Analyse current camera/input flow to plan FPS controls.
 - [x] Implement FPS camera with RMB activation and update runtime behaviour.
-- [ ] Extend tests/docs and validate build for FPS camera feature.
+- [x] Extend tests/docs and validate build for FPS camera feature.

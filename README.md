@@ -34,6 +34,10 @@ A resizable GLFW window opens showing the lit plane, cube, and icosphere above a
 - `Runtime Stats` shows FPS, frame time, device name, and swapchain extent.
 - `Scene Controls` allows adjusting light position/intensity and each primitive's position, rotation, scale, base colour, shininess, ambient, and specular strengths. The icosphere also supports rebuilding with subdivisions 0–5.
 
+### Camera Controls
+- Hold the right mouse button to enter FPS look mode; move the mouse to orient the camera.
+- While holding the right mouse button, use `W/A/S/D` to move across the plane, `Q/E` to move vertically, and hold `Shift` for a faster movement rate.
+
 ## Tests
 Configure with testing enabled (default) and run Catch2-based tests:
 ```bash
