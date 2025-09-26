@@ -29,6 +29,10 @@ TEST_CASE("Vulkan application initialises and shuts down", "[integration]") {
         CHECK(application.ssao_noise_size() == 4U);
         CHECK(application.ssao_base_radius() > 0.0F);
         CHECK(application.ssao_bias() >= 0.0F);
+        application.set_ssao_debug_enabled(true);
+        CHECK(application.ssao_debug_enabled());
+        application.set_ssao_debug_enabled(false);
+        CHECK_FALSE(application.ssao_debug_enabled());
         application.request_close();
         application.run();
     };

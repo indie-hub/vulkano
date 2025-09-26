@@ -66,29 +66,21 @@ void main() {
     vec3 bitangent = normalize(cross(worldNormal, tangent));
     mat3 TBN = mat3(tangent, bitangent, worldNormal);
 
-    float baseRadius = max(params.radiusBiasPowerIntensity.x, 1e-4);
-    float bias = params.radiusBiasPowerIntensity.y;
-    float power = params.radiusBiasPowerIntensity.z;
-    float intensity = params.radiusBiasPowerIntensity.w;
-    int sampleCount = int(params.sampleInfo.x);
-    float depthScale = clamp(0.5 + 0.5 * abs(viewPosition.z), 0.5, 4.0);
-    float adaptiveRadius = baseRadius * depthScale;
+    const float radius = max(params.radiusBiasPowerIntensity.x, 1e-4);
+    const float bias = params.radiusBiasPowerIntensity.y;
+    const float power = params.radiusBiasPowerIntensity.z;
+    const float intensity = clamp(params.radiusBiasPowerIntensity.w, 0.0, 1.0);
+    const int sampleCount = max(int(params.sampleInfo.x), 1);
 
-    float occlusionHits = 0.0;
-    float occlusionWeight = 0.0;
+    float occlusionAccum = 0.0;
 
     for(int i = 0; i < sampleCount; ++i) {
         vec3 sampleVec = kernelData.samples[i].xyz;
-        float sampleLength = length(sampleVec);
-        if(sampleLength <= 1e-4) {
-            continue;
-        }
+        vec3 sampleOffset = TBN * sampleVec * radius;
+        vec3 sampleWorld = worldPosition + sampleOffset;
+        vec3 sampleView = (params.view * vec4(sampleWorld, 1.0)).xyz;
 
-        vec3 sampleDir = normalize(TBN * sampleVec);
-        float expectedDistance = adaptiveRadius * sampleLength;
-        vec3 probeWorld = worldPosition + sampleDir * expectedDistance;
-
-        vec4 sampleClip = params.viewProjection * vec4(probeWorld, 1.0);
+        vec4 sampleClip = params.projection * vec4(sampleView, 1.0);
         if(sampleClip.w <= 0.0) {
             continue;
         }
@@ -99,25 +91,28 @@ void main() {
             continue;
         }
 
-        vec3 samplePositionWorld = texture(positionBuffer, sampleUV).xyz;
-        vec3 offsetWorld = samplePositionWorld - worldPosition;
+        vec3 sceneWorld = texture(positionBuffer, sampleUV).xyz;
+        vec3 sceneView = (params.view * vec4(sceneWorld, 1.0)).xyz;
 
-        float alongDir = dot(offsetWorld, sampleDir);
-        if(alongDir <= bias || alongDir >= expectedDistance) {
+        float probeDepth = -sampleView.z;
+        float sceneDepth = -sceneView.z;
+        if(sceneDepth <= 0.0) {
             continue;
         }
 
-        float attenuation = 1.0 - (alongDir / expectedDistance);
-        occlusionHits += attenuation;
-        occlusionWeight += 1.0;
+        if(sceneDepth > probeDepth - bias) {
+            continue;
+        }
+
+        float depthDelta = probeDepth - sceneDepth;
+        float rangeWeight = clamp(1.0 - (depthDelta / radius), 0.0, 1.0);
+        occlusionAccum += rangeWeight;
     }
 
-    float occlusion = 1.0;
-    if(occlusionWeight > 0.0) {
-        float occlusionRatio = clamp(occlusionHits / occlusionWeight, 0.0, 1.0);
-        occlusion = 1.0 - (intensity * pow(occlusionRatio, power));
-    }
+    float occlusion = 1.0 - (occlusionAccum / float(sampleCount));
     occlusion = clamp(occlusion, 0.0, 1.0);
+    occlusion = pow(occlusion, power);
+    occlusion = mix(1.0, occlusion, intensity);
 
     imageStore(occlusionOutput, pixel, vec4(occlusion, occlusion, occlusion, 1.0));
 }
