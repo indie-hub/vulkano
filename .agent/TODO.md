@@ -71,3 +71,9 @@
 - [x] Resolve vertex input mismatch for tangent attribute in graphics pipeline.
 - [x] Address lingering descriptor lifetime validation error when binding global descriptor set.
 - [x] Perform full lifecycle audit to eliminate remaining validation errors/crash on exit.
+- [x] Align SSAO sample reprojection UVs with Vulkan orientation.
+- [ ] Normalize SSAO coordinate space usage between passes.
+- [ ] Integrate normal map influence into SSAO data.
+- [ ] Stabilize SSAO kernel orientation/noise behaviour.
+- [ ] Revisit SSAO radius/depth range checks.
+- [ ] Add SSAO diagnostics and regression tests.

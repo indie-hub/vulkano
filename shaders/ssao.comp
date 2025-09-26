@@ -56,7 +56,11 @@ void main() {
         vec3 samplePos = viewPosition + (TBN * sampleVec) * radius;
 
         vec4 clip = params.projection * vec4(samplePos, 1.0);
+        if(clip.w <= 0.0) {
+            continue;
+        }
         clip.xyz /= clip.w;
+        clip.y = -clip.y;
         vec2 sampleUV = clip.xy * 0.5 + 0.5;
         if(sampleUV.x < 0.0 || sampleUV.x > 1.0 || sampleUV.y < 0.0 || sampleUV.y > 1.0) {
             continue;
