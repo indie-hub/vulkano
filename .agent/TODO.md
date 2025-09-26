@@ -76,4 +76,4 @@
 - [x] Integrate normal map influence into SSAO data.
 - [x] Stabilize SSAO kernel orientation/noise behaviour.
 - [x] Revisit SSAO radius/depth range checks.
-- [ ] Add SSAO diagnostics and regression tests.
+- [x] Add SSAO diagnostics and regression tests.

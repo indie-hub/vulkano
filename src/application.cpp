@@ -233,6 +233,18 @@ auto VulkanApplication::ssao_extent() const noexcept -> std::array<std::uint32_t
     return {m_ssaoExtent.width, m_ssaoExtent.height};
 }
 
+auto VulkanApplication::ssao_noise_size() const noexcept -> std::uint32_t {
+    return ssaoNoiseDimension;
+}
+
+auto VulkanApplication::ssao_base_radius() const noexcept -> float {
+    return m_ssaoSettings.radius;
+}
+
+auto VulkanApplication::ssao_bias() const noexcept -> float {
+    return m_ssaoSettings.bias;
+}
+
 void VulkanApplication::register_callbacks() {
     GLFWwindow* windowHandle = m_window.handle();
     if(windowHandle == nullptr) {
@@ -493,6 +505,12 @@ void VulkanApplication::draw_frame() {
         if(ssaoSettingsDirty) {
             update_ssao_settings_buffer();
         }
+
+        ImGui::SeparatorText("Diagnostics");
+        ImGui::Text("Kernel Samples: %u", m_ssaoSettings.sampleCount);
+        ImGui::Text("Base Radius: %.3f", m_ssaoSettings.radius);
+        ImGui::Text("Depth Bias: %.4f", m_ssaoSettings.bias);
+        ImGui::Text("Noise Texture: %ux%u", ssaoNoiseDimension, ssaoNoiseDimension);
     }
 
     for(std::size_t index {0U}; index < m_scene.primitives.size(); ++index) {

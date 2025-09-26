@@ -56,6 +56,9 @@ public:
     [[nodiscard]] auto ssao_enabled() const noexcept -> bool;
     [[nodiscard]] auto ssao_sample_count() const noexcept -> std::uint32_t;
     [[nodiscard]] auto ssao_extent() const noexcept -> std::array<std::uint32_t, 2U>;
+    [[nodiscard]] auto ssao_noise_size() const noexcept -> std::uint32_t;
+    [[nodiscard]] auto ssao_base_radius() const noexcept -> float;
+    [[nodiscard]] auto ssao_bias() const noexcept -> float;
 
 private:
     struct ScenePrimitive;

@@ -26,6 +26,9 @@ TEST_CASE("Vulkan application initialises and shuts down", "[integration]") {
         const auto extent = application.ssao_extent();
         CHECK(extent[0] > 0U);
         CHECK(extent[1] > 0U);
+        CHECK(application.ssao_noise_size() == 4U);
+        CHECK(application.ssao_base_radius() > 0.0F);
+        CHECK(application.ssao_bias() >= 0.0F);
         application.request_close();
         application.run();
     };
