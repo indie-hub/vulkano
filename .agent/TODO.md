@@ -9,3 +9,6 @@
 - [x] Build, package binaries in bin/, and refresh documentation as needed.
 - [x] Inspect repository structure and key modules for high-level overview.
 - [x] Compile high-level repository overview for current request.
+- [x] Determine changes required to restore Vulkan 1.3 compatibility.
+- [ ] Revert build/runtime code to target Vulkan 1.3 while preserving safety checks.
+- [ ] Update documentation/tests and validate build after rollback.
