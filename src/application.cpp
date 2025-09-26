@@ -15,6 +15,7 @@
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_vulkan.h>
 #include <glm/geometric.hpp>
+#include <glm/ext/matrix_clip_space.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/constants.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -643,16 +644,30 @@ void VulkanApplication::update_camera(double deltaSeconds) {
     constexpr float pitchLimit = glm::radians(89.0F);
     m_camera.pitch = std::clamp(m_camera.pitch, -pitchLimit, pitchLimit);
 
-    glm::vec3 movement {0.0F};
+    const glm::vec3 worldUp {0.0F, 1.0F, 0.0F};
     const glm::vec3 forward = camera_forward();
-    const glm::vec3 right = glm::normalize(glm::cross(forward, glm::vec3 {0.0F, 1.0F, 0.0F}));
-    const glm::vec3 up {0.0F, 1.0F, 0.0F};
+
+    glm::vec3 right = glm::cross(worldUp, forward);
+    if(glm::dot(right, right) <= std::numeric_limits<float>::epsilon()) {
+        right = glm::vec3 {1.0F, 0.0F, 0.0F};
+    } else {
+        right = glm::normalize(right);
+    }
+
+    glm::vec3 horizontalForward {forward.x, 0.0F, forward.z};
+    if(glm::dot(horizontalForward, horizontalForward) > std::numeric_limits<float>::epsilon()) {
+        horizontalForward = glm::normalize(horizontalForward);
+    } else {
+        horizontalForward = glm::vec3 {0.0F};
+    }
+
+    glm::vec3 movement {0.0F};
 
     if(glfwGetKey(windowHandle, GLFW_KEY_W) == GLFW_PRESS) {
-        movement += forward;
+        movement += horizontalForward;
     }
     if(glfwGetKey(windowHandle, GLFW_KEY_S) == GLFW_PRESS) {
-        movement -= forward;
+        movement -= horizontalForward;
     }
     if(glfwGetKey(windowHandle, GLFW_KEY_D) == GLFW_PRESS) {
         movement += right;
@@ -661,10 +676,10 @@ void VulkanApplication::update_camera(double deltaSeconds) {
         movement -= right;
     }
     if(glfwGetKey(windowHandle, GLFW_KEY_E) == GLFW_PRESS) {
-        movement += up;
+        movement += worldUp;
     }
     if(glfwGetKey(windowHandle, GLFW_KEY_Q) == GLFW_PRESS) {
-        movement -= up;
+        movement -= worldUp;
     }
 
     if(glm::dot(movement, movement) > std::numeric_limits<float>::epsilon()) {
@@ -832,14 +847,23 @@ void VulkanApplication::update_global_uniforms() {
 
     GlobalUniform uniforms {};
     const glm::vec3 cameraPos = camera_position();
-    const glm::vec3 up {0.0F, 1.0F, 0.0F};
+    const glm::vec3 worldUp {0.0F, 1.0F, 0.0F};
     const glm::vec3 forward = camera_forward();
-    uniforms.view = glm::lookAt(cameraPos, cameraPos + forward, up);
+
+    glm::vec3 right = glm::cross(worldUp, forward);
+    if(glm::dot(right, right) <= std::numeric_limits<float>::epsilon()) {
+        right = glm::vec3 {1.0F, 0.0F, 0.0F};
+    } else {
+        right = glm::normalize(right);
+    }
+    const glm::vec3 cameraUp = glm::normalize(glm::cross(forward, right));
+
+    uniforms.view = glm::lookAtLH(cameraPos, cameraPos + forward, cameraUp);
 
     const VkExtent2D extent = m_swapchain.extent();
     if(extent.height > 0U) {
         const float aspect = static_cast<float>(extent.width) / static_cast<float>(extent.height);
-        uniforms.projection = glm::perspective(m_camera.fovY, aspect, m_camera.nearPlane, m_camera.farPlane);
+        uniforms.projection = glm::perspectiveLH_ZO(m_camera.fovY, aspect, m_camera.nearPlane, m_camera.farPlane);
         uniforms.projection[1][1] *= -1.0F;
     }
 
@@ -860,9 +884,9 @@ auto VulkanApplication::camera_forward() const noexcept -> glm::vec3 {
     const float sinYaw = std::sin(m_camera.yaw);
 
     glm::vec3 forward {
-        cosPitch * cosYaw,
+        cosPitch * sinYaw,
         sinPitch,
-        cosPitch * sinYaw
+        cosPitch * cosYaw
     };
     const float lengthSquared = glm::dot(forward, forward);
     if(lengthSquared <= std::numeric_limits<float>::epsilon()) {

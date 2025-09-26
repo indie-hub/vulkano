@@ -16,5 +16,5 @@
 - [x] Implement FPS camera with RMB activation and update runtime behaviour.
 - [x] Extend tests/docs and validate build for FPS camera feature.
 - [x] Analyse reported world-axis orientation mismatch.
-- [ ] Correct axis definitions so X right, Y up, Z forward for FPS camera.
+- [x] Correct axis definitions so X right, Y up, Z forward for FPS camera.
 - [ ] Rebuild, test, and document axis fixes.

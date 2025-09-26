@@ -92,8 +92,8 @@ private:
     };
 
     struct CameraState final {
-        glm::vec3 position {0.0F, 1.5F, 6.0F};
-        float yaw {-1.57079637F};
+        glm::vec3 position {0.0F, 1.5F, -6.0F};
+        float yaw {0.0F};
         float pitch {-0.165806278F};
         float moveSpeed {4.0F};
         float fastMoveMultiplier {2.0F};
