@@ -245,6 +245,14 @@ auto VulkanApplication::ssao_bias() const noexcept -> float {
     return m_ssaoSettings.bias;
 }
 
+auto VulkanApplication::ssao_debug_enabled() const noexcept -> bool {
+    return m_ssaoDebugView;
+}
+
+void VulkanApplication::set_ssao_debug_enabled(bool enabled) noexcept {
+    m_ssaoDebugView = enabled;
+}
+
 void VulkanApplication::register_callbacks() {
     GLFWwindow* windowHandle = m_window.handle();
     if(windowHandle == nullptr) {
@@ -511,6 +519,7 @@ void VulkanApplication::draw_frame() {
         ImGui::Text("Base Radius: %.3f", m_ssaoSettings.radius);
         ImGui::Text("Depth Bias: %.4f", m_ssaoSettings.bias);
         ImGui::Text("Noise Texture: %ux%u", ssaoNoiseDimension, ssaoNoiseDimension);
+        ImGui::Checkbox("Preview SSAO buffer", &m_ssaoDebugView);
     }
 
     for(std::size_t index {0U}; index < m_scene.primitives.size(); ++index) {
@@ -3182,7 +3191,7 @@ void VulkanApplication::update_global_uniforms() {
     uniforms.cameraClip = glm::vec4 {m_camera.nearPlane, m_camera.farPlane, clipRange, aspect};
     uniforms.ssaoConfig = glm::vec4 {
         m_ssaoSettings.enabled ? 1.0F : 0.0F,
-        0.0F,
+        m_ssaoDebugView ? 1.0F : 0.0F,
         0.0F,
         0.0F
     };

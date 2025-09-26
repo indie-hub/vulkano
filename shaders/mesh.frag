@@ -83,6 +83,11 @@ void main() {
     const float diffuseOcclusion = mix(1.0, occlusion, 0.35);
     const float specularOcclusion = mix(1.0, occlusion, 0.15);
 
+    if(globalUniforms.ssaoConfig.y > 0.5) {
+        outColor = vec4(vec3(occlusion), 1.0);
+        return;
+    }
+
     vec4 viewPosition = globalUniforms.view * vec4(vWorldPos, 1.0);
     float viewDepth = abs(viewPosition.z);
     float nearPlane = globalUniforms.cameraClip.x;

@@ -59,6 +59,8 @@ public:
     [[nodiscard]] auto ssao_noise_size() const noexcept -> std::uint32_t;
     [[nodiscard]] auto ssao_base_radius() const noexcept -> float;
     [[nodiscard]] auto ssao_bias() const noexcept -> float;
+    [[nodiscard]] auto ssao_debug_enabled() const noexcept -> bool;
+    void set_ssao_debug_enabled(bool enabled) noexcept;
 
 private:
     struct ScenePrimitive;
@@ -204,6 +206,7 @@ private:
     std::vector<VkFramebuffer> m_shadowFramebuffers {};
     ShadowSettings m_shadowSettings {};
     SsaoSettings m_ssaoSettings {};
+    bool m_ssaoDebugView {false};
     std::array<glm::mat4, maxCascades> m_cascadeMatrices {};
     std::array<float, maxCascades> m_cascadeSplits {};
     std::uint32_t m_activeCascadeCount {1U};
