@@ -118,6 +118,11 @@ auto VulkanApplication::camera_fov_y() const noexcept -> float {
     return m_camera.fovY;
 }
 
+void VulkanApplication::translate_camera(glm::vec3 translation) noexcept {
+    m_camera.position += translation;
+    update_global_uniforms();
+}
+
 void VulkanApplication::register_callbacks() {
     GLFWwindow* windowHandle = m_window.handle();
     glfwSetWindowUserPointer(windowHandle, this);
@@ -184,9 +189,14 @@ void VulkanApplication::draw_frame() {
     ImGui::Begin("Runtime Stats", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse);
     ImGui::Text("FPS: %.2f", m_fps);
     ImGui::Text("Frame Time: %.2f ms", m_frameTimeMs);
-   ImGui::Text("Device: %s", m_deviceName.c_str());
-   ImGui::Text("Swapchain: %u x %u", extent.width, extent.height);
-   ImGui::End();
+    ImGui::Text("Device: %s", m_deviceName.c_str());
+    ImGui::Text("Swapchain: %u x %u", extent.width, extent.height);
+    ImGui::Text(
+        "Light: %.2f, %.2f, %.2f",
+        static_cast<double>(m_scene.lightPosition.x),
+        static_cast<double>(m_scene.lightPosition.y),
+        static_cast<double>(m_scene.lightPosition.z));
+    ImGui::End();
 
     ImGui::Begin("Scene Controls", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
 

@@ -19,6 +19,7 @@ TEST_CASE("FPS camera defaults look towards scene origin", "[camera]") {
         const glm::vec3 eye = application.camera_eye();
         const glm::vec3 forward = application.camera_forward_direction();
         const float fovY = application.camera_fov_y();
+        const glm::vec3 light = application.scene_light_position();
 
         const glm::vec3 expectedEye {0.0F, 1.5F, -6.0F};
         const glm::vec3 expectedDirection = glm::normalize(glm::vec3 {0.0F, -1.5F, 6.0F});
@@ -30,6 +31,13 @@ TEST_CASE("FPS camera defaults look towards scene origin", "[camera]") {
         CHECK(glm::length(forward) == Approx(1.0F).margin(0.001F));
         CHECK(glm::dot(forward, expectedDirection) == Approx(1.0F).margin(0.001F));
         CHECK(fovY == Approx(expectedFovY).margin(0.0001F));
+
+        application.translate_camera(glm::vec3 {1.0F, 0.0F, 0.0F});
+        const glm::vec3 movedEye = application.camera_eye();
+        CHECK(movedEye.x == Approx(expectedEye.x + 1.0F).margin(0.001F));
+        CHECK(application.scene_light_position().x == Approx(light.x).margin(0.0001F));
+        CHECK(application.scene_light_position().y == Approx(light.y).margin(0.0001F));
+        CHECK(application.scene_light_position().z == Approx(light.z).margin(0.0001F));
     };
 
     try {

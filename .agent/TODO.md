@@ -20,4 +20,4 @@
 - [ ] Rebuild, test, and document axis fixes.
 - [x] Diagnose and correct plane normal orientation.
 - [x] Expose and validate camera field-of-view configuration.
-- [ ] Ensure light remains world-space static relative to camera movement.
+- [x] Ensure light remains world-space static relative to camera movement.

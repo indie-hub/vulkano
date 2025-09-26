@@ -43,6 +43,7 @@ public:
     [[nodiscard]] auto camera_eye() const noexcept -> glm::vec3;
     [[nodiscard]] auto camera_forward_direction() const noexcept -> glm::vec3;
     [[nodiscard]] auto camera_fov_y() const noexcept -> float;
+    void translate_camera(glm::vec3 translation) noexcept;
 
 private:
     static void framebuffer_resize_callback(GLFWwindow* window, int width, int height);
