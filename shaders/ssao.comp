@@ -92,7 +92,9 @@ void main() {
         vec3 samplePositionWorld = texture(positionBuffer, sampleUV).xyz;
         vec3 samplePositionView = (params.view * vec4(samplePositionWorld, 1.0)).xyz;
         vec3 samplePosView = (params.view * vec4(samplePosWorld, 1.0)).xyz;
-        float viewDepthDelta = samplePosView.z - samplePositionView.z;
+        float sampleDepth = abs(samplePositionView.z);
+        float probeDepth = abs(samplePosView.z);
+        float viewDepthDelta = sampleDepth - probeDepth;
         float distanceWorld = length(samplePositionWorld - worldPosition);
         float distanceView = length(samplePositionView - viewPosition);
         float distance = min(distanceWorld, distanceView);
@@ -103,7 +105,7 @@ void main() {
             continue;
         }
 
-        float occluded = (viewDepthDelta > bias) ? 1.0 : 0.0;
+        float occluded = (viewDepthDelta <= bias) ? 1.0 : 0.0;
         occlusion += occluded * rangeWeight;
     }
 
