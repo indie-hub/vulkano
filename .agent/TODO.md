@@ -7,3 +7,4 @@
 - [x] Extend ImGui controls for lights and per-primitive properties.
 - [x] Add unit and end-to-end tests for mesh generation and rendering configuration.
 - [x] Build, package binaries in bin/, and refresh documentation as needed.
+- [x] Inspect repository structure and key modules for high-level overview.
