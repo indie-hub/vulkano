@@ -73,7 +73,7 @@
 - [x] Perform full lifecycle audit to eliminate remaining validation errors/crash on exit.
 - [x] Align SSAO sample reprojection UVs with Vulkan orientation.
 - [x] Normalize SSAO coordinate space usage between passes.
-- [ ] Integrate normal map influence into SSAO data.
+- [x] Integrate normal map influence into SSAO data.
 - [ ] Stabilize SSAO kernel orientation/noise behaviour.
 - [ ] Revisit SSAO radius/depth range checks.
 - [ ] Add SSAO diagnostics and regression tests.

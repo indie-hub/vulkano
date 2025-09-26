@@ -2250,7 +2250,7 @@ void VulkanApplication::create_ssao_resources() {
     pipelineLayoutInfo.pSetLayouts = pipelineLayouts.data();
 
     VkPushConstantRange pushRange {};
-    pushRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    pushRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     pushRange.offset = 0U;
     pushRange.size = sizeof(PrimitivePushConstants);
     pipelineLayoutInfo.pushConstantRangeCount = 1U;
@@ -2282,10 +2282,11 @@ void VulkanApplication::create_ssao_resources() {
 
     const auto bindingDescription = vertex_binding_description();
     const auto fullAttributeDescriptions = vertex_attribute_descriptions();
-    std::array<VkVertexInputAttributeDescription, 3U> attributeDescriptions {
+    std::array<VkVertexInputAttributeDescription, 4U> attributeDescriptions {
         fullAttributeDescriptions.at(0U),
         fullAttributeDescriptions.at(1U),
-        fullAttributeDescriptions.at(2U)
+        fullAttributeDescriptions.at(2U),
+        fullAttributeDescriptions.at(3U)
     };
     VkPipelineVertexInputStateCreateInfo vertexInput {};
     vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -2955,7 +2956,7 @@ void VulkanApplication::record_depth_prepass(VkCommandBuffer commandBuffer, std:
         vkCmdPushConstants(
             commandBuffer,
             m_depthPrepassPipelineLayout,
-            VK_SHADER_STAGE_VERTEX_BIT,
+            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
             0U,
             static_cast<std::uint32_t>(sizeof(PrimitivePushConstants)),
             &pushConstants);
