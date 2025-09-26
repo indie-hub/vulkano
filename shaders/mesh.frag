@@ -77,7 +77,11 @@ void main() {
         vec2 ssaoUV = gl_FragCoord.xy * globalUniforms.screenInfo.zw;
         occlusion = texture(ssaoTexture, ssaoUV).r;
     }
+    occlusion = clamp(occlusion, 0.0, 1.0);
     ambient *= occlusion;
+
+    const float diffuseOcclusion = mix(1.0, occlusion, 0.35);
+    const float specularOcclusion = mix(1.0, occlusion, 0.15);
 
     vec4 viewPosition = globalUniforms.view * vec4(vWorldPos, 1.0);
     float viewDepth = abs(viewPosition.z);
@@ -87,12 +91,12 @@ void main() {
     float depthNormalized = clamp((viewDepth - nearPlane) / clipRange, 0.0, 1.0);
 
     if(globalUniforms.shadowConfig.x < 0.5) {
-        vec3 diffuse = diffuseStrength * lightIntensity * baseColor;
+        vec3 diffuse = diffuseStrength * lightIntensity * baseColor * diffuseOcclusion;
         vec3 viewDirection = normalize(globalUniforms.cameraPosition.xyz - vWorldPos);
         vec3 halfwayDirection = normalize(lightDirection + viewDirection);
         float specAngle = max(dot(normal, halfwayDirection), 0.0);
         float specularFactor = specularStrength * lightIntensity * pow(specAngle, shininess);
-        vec3 specular = specularFactor * vec3(1.0);
+        vec3 specular = specularFactor * vec3(1.0) * specularOcclusion;
         vec3 finalColor = ambient + diffuse + specular;
         outColor = vec4(finalColor, primitiveConstants.materialColor.a);
         return;
@@ -134,13 +138,13 @@ void main() {
         visibility = sum / float(sampleCount);
     }
 
-    vec3 diffuse = diffuseStrength * lightIntensity * baseColor * visibility;
+    vec3 diffuse = diffuseStrength * lightIntensity * baseColor * visibility * diffuseOcclusion;
 
     vec3 viewDirection = normalize(globalUniforms.cameraPosition.xyz - vWorldPos);
     vec3 halfwayDirection = normalize(lightDirection + viewDirection);
     float specAngle = max(dot(normal, halfwayDirection), 0.0);
     float specularFactor = specularStrength * lightIntensity * pow(specAngle, shininess);
-    vec3 specular = specularFactor * vec3(1.0) * visibility;
+    vec3 specular = specularFactor * vec3(1.0) * visibility * specularOcclusion;
 
     vec3 finalColor = ambient + diffuse + specular;
     outColor = vec4(finalColor, primitiveConstants.materialColor.a);

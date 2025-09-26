@@ -74,11 +74,21 @@ void main() {
     float depthScale = clamp(0.5 + 0.5 * abs(viewPosition.z), 0.5, 4.0);
     float adaptiveRadius = baseRadius * depthScale;
 
-    float occlusion = 0.0;
+    float occlusionHits = 0.0;
+    float occlusionWeight = 0.0;
+
     for(int i = 0; i < sampleCount; ++i) {
         vec3 sampleVec = kernelData.samples[i].xyz;
-        vec3 samplePosWorld = worldPosition + (TBN * sampleVec) * adaptiveRadius;
-        vec4 sampleClip = params.viewProjection * vec4(samplePosWorld, 1.0);
+        float sampleLength = length(sampleVec);
+        if(sampleLength <= 1e-4) {
+            continue;
+        }
+
+        vec3 sampleDir = normalize(TBN * sampleVec);
+        float expectedDistance = adaptiveRadius * sampleLength;
+        vec3 probeWorld = worldPosition + sampleDir * expectedDistance;
+
+        vec4 sampleClip = params.viewProjection * vec4(probeWorld, 1.0);
         if(sampleClip.w <= 0.0) {
             continue;
         }
@@ -90,29 +100,24 @@ void main() {
         }
 
         vec3 samplePositionWorld = texture(positionBuffer, sampleUV).xyz;
-        vec3 samplePositionView = (params.view * vec4(samplePositionWorld, 1.0)).xyz;
-        vec3 samplePosView = (params.view * vec4(samplePosWorld, 1.0)).xyz;
-        float sampleDepth = abs(samplePositionView.z);
-        float probeDepth = abs(samplePosView.z);
-        float viewDepthDelta = sampleDepth - probeDepth;
-        float distanceWorld = length(samplePositionWorld - worldPosition);
-        float distanceView = length(samplePositionView - viewPosition);
-        float distance = min(distanceWorld, distanceView);
-        float rangeWeight = clamp(1.0 - (distance / adaptiveRadius), 0.0, 1.0);
-        float depthWeight = clamp(1.0 - (abs(viewDepthDelta) / adaptiveRadius), 0.0, 1.0);
-        rangeWeight *= depthWeight;
-        if(rangeWeight <= 0.0) {
+        vec3 offsetWorld = samplePositionWorld - worldPosition;
+
+        float alongDir = dot(offsetWorld, sampleDir);
+        if(alongDir <= bias || alongDir >= expectedDistance) {
             continue;
         }
 
-        float occluded = (viewDepthDelta <= bias) ? 1.0 : 0.0;
-        occlusion += occluded * rangeWeight;
+        float attenuation = 1.0 - (alongDir / expectedDistance);
+        occlusionHits += attenuation;
+        occlusionWeight += 1.0;
     }
 
-    float denom = max(float(sampleCount), 1.0);
-    occlusion = 1.0 - (occlusion / denom);
-    occlusion = pow(clamp(occlusion, 0.0, 1.0), power);
-    occlusion = clamp(occlusion * intensity, 0.0, 1.0);
+    float occlusion = 1.0;
+    if(occlusionWeight > 0.0) {
+        float occlusionRatio = clamp(occlusionHits / occlusionWeight, 0.0, 1.0);
+        occlusion = 1.0 - (intensity * pow(occlusionRatio, power));
+    }
+    occlusion = clamp(occlusion, 0.0, 1.0);
 
     imageStore(occlusionOutput, pixel, vec4(occlusion, occlusion, occlusion, 1.0));
 }
