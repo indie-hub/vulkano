@@ -1882,10 +1882,20 @@ void VulkanApplication::generate_ssao_kernel() {
         m_ssaoKernel.emplace_back(0.0F, 0.0F, 1.0F, 0.0F);
     }
 
-    const VkDeviceSize bufferSize = static_cast<VkDeviceSize>(m_ssaoKernel.size() * sizeof(glm::vec4));
-    m_ssaoKernelBuffer = Buffer::create_uniform_buffer(m_context, bufferSize);
-    m_ssaoKernelBuffer.write(m_context, m_ssaoKernel.data(), bufferSize);
-    update_ssao_descriptors();
+    constexpr VkDeviceSize maxKernelBufferSize = static_cast<VkDeviceSize>(ssaoKernelSize * sizeof(glm::vec4));
+    bool recreatedBuffer {false};
+    if(m_ssaoKernelBuffer.handle() == VK_NULL_HANDLE || m_ssaoKernelBuffer.size() != maxKernelBufferSize) {
+        m_ssaoKernelBuffer = Buffer::create_uniform_buffer(m_context, maxKernelBufferSize);
+        recreatedBuffer = true;
+    }
+
+    std::array<glm::vec4, ssaoKernelSize> paddedKernel {};
+    std::copy(m_ssaoKernel.begin(), m_ssaoKernel.end(), paddedKernel.begin());
+    m_ssaoKernelBuffer.write(m_context, paddedKernel.data(), maxKernelBufferSize);
+
+    if(recreatedBuffer) {
+        update_ssao_descriptors();
+    }
 }
 
 void VulkanApplication::update_ssao_settings_buffer() {
@@ -1925,11 +1935,14 @@ void VulkanApplication::update_ssao_settings_buffer() {
     };
 
     const VkDeviceSize bufferSize = static_cast<VkDeviceSize>(sizeof(SsaoUniform));
-    if(m_ssaoSettingsBuffer.handle() == VK_NULL_HANDLE) {
+    const bool createdSettingsBuffer = (m_ssaoSettingsBuffer.handle() == VK_NULL_HANDLE);
+    if(createdSettingsBuffer) {
         m_ssaoSettingsBuffer = Buffer::create_uniform_buffer(m_context, bufferSize);
     }
     m_ssaoSettingsBuffer.write(m_context, &uniform, bufferSize);
-    update_ssao_descriptors();
+    if(createdSettingsBuffer) {
+        update_ssao_descriptors();
+    }
 }
 
 void VulkanApplication::ensure_ssao_noise_texture() {
@@ -2712,7 +2725,8 @@ void VulkanApplication::update_ssao_descriptors() {
     if(m_ssaoDescriptorSets.empty()) {
         return;
     }
-    if(m_ssaoNoiseTexture == nullptr || m_ssaoKernelBuffer.handle() == VK_NULL_HANDLE || m_ssaoSettingsBuffer.handle() == VK_NULL_HANDLE) {
+    if(m_ssaoNoiseTexture == nullptr || m_ssaoKernelBuffer.handle() == VK_NULL_HANDLE
+       || m_ssaoSettingsBuffer.handle() == VK_NULL_HANDLE || m_ssaoKernelBuffer.size() == 0U) {
         return;
     }
 
@@ -2729,7 +2743,7 @@ void VulkanApplication::update_ssao_descriptors() {
             continue;
         }
 
-        bufferInfos.push_back({m_ssaoKernelBuffer.handle(), 0U, static_cast<VkDeviceSize>(m_ssaoKernel.size() * sizeof(glm::vec4))});
+        bufferInfos.push_back({m_ssaoKernelBuffer.handle(), 0U, m_ssaoKernelBuffer.size()});
         VkDescriptorBufferInfo* kernelInfo = &bufferInfos.back();
 
         bufferInfos.push_back({m_ssaoSettingsBuffer.handle(), 0U, sizeof(SsaoUniform)});
