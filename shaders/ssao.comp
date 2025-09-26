@@ -66,16 +66,18 @@ void main() {
     vec3 bitangent = normalize(cross(worldNormal, tangent));
     mat3 TBN = mat3(tangent, bitangent, worldNormal);
 
-    float radius = params.radiusBiasPowerIntensity.x;
+    float baseRadius = max(params.radiusBiasPowerIntensity.x, 1e-4);
     float bias = params.radiusBiasPowerIntensity.y;
     float power = params.radiusBiasPowerIntensity.z;
     float intensity = params.radiusBiasPowerIntensity.w;
     int sampleCount = int(params.sampleInfo.x);
+    float depthScale = clamp(0.5 + 0.5 * abs(viewPosition.z), 0.5, 4.0);
+    float adaptiveRadius = baseRadius * depthScale;
 
     float occlusion = 0.0;
     for(int i = 0; i < sampleCount; ++i) {
         vec3 sampleVec = kernelData.samples[i].xyz;
-        vec3 samplePosWorld = worldPosition + (TBN * sampleVec) * radius;
+        vec3 samplePosWorld = worldPosition + (TBN * sampleVec) * adaptiveRadius;
         vec4 sampleClip = params.viewProjection * vec4(samplePosWorld, 1.0);
         if(sampleClip.w <= 0.0) {
             continue;
@@ -90,9 +92,19 @@ void main() {
         vec3 samplePositionWorld = texture(positionBuffer, sampleUV).xyz;
         vec3 samplePositionView = (params.view * vec4(samplePositionWorld, 1.0)).xyz;
         vec3 samplePosView = (params.view * vec4(samplePosWorld, 1.0)).xyz;
-        float rangeCheck = smoothstep(0.0, 1.0, radius / abs(viewPosition.z - samplePositionView.z));
-        float occluded = samplePositionView.z <= samplePosView.z - bias ? 1.0 : 0.0;
-        occlusion += occluded * rangeCheck;
+        float viewDepthDelta = samplePosView.z - samplePositionView.z;
+        float distanceWorld = length(samplePositionWorld - worldPosition);
+        float distanceView = length(samplePositionView - viewPosition);
+        float distance = min(distanceWorld, distanceView);
+        float rangeWeight = clamp(1.0 - (distance / adaptiveRadius), 0.0, 1.0);
+        float depthWeight = clamp(1.0 - (abs(viewDepthDelta) / adaptiveRadius), 0.0, 1.0);
+        rangeWeight *= depthWeight;
+        if(rangeWeight <= 0.0) {
+            continue;
+        }
+
+        float occluded = (viewDepthDelta > bias) ? 1.0 : 0.0;
+        occlusion += occluded * rangeWeight;
     }
 
     float denom = max(float(sampleCount), 1.0);

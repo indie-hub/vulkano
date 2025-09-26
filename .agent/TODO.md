@@ -75,5 +75,5 @@
 - [x] Normalize SSAO coordinate space usage between passes.
 - [x] Integrate normal map influence into SSAO data.
 - [x] Stabilize SSAO kernel orientation/noise behaviour.
-- [ ] Revisit SSAO radius/depth range checks.
+- [x] Revisit SSAO radius/depth range checks.
 - [ ] Add SSAO diagnostics and regression tests.
