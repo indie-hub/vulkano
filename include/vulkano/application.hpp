@@ -53,6 +53,7 @@ private:
     void begin_imgui_frame();
     void upload_imgui_fonts();
     void record_command_buffer(std::uint32_t imageIndex);
+    void update_camera(double deltaSeconds);
     void update_timing(double deltaSeconds);
     void create_render_finished_semaphores();
     void destroy_render_finished_semaphores() noexcept;
@@ -62,6 +63,7 @@ private:
     void destroy_descriptor_resources() noexcept;
     void update_global_uniforms();
     [[nodiscard]] auto camera_position() const noexcept -> glm::vec3;
+    [[nodiscard]] auto camera_forward() const noexcept -> glm::vec3;
     [[nodiscard]] auto compute_model_matrix(const PrimitiveProperties& properties) const noexcept -> glm::mat4;
 
     AppConfig m_config;
@@ -88,17 +90,27 @@ private:
     };
 
     struct CameraState final {
-        glm::vec3 target {0.0F, 0.5F, 0.0F};
-        float distance {6.0F};
-        float yaw {0.785398163F};
-        float pitch {-0.523598776F};
+        glm::vec3 position {0.0F, 1.5F, 6.0F};
+        float yaw {-1.57079637F};
+        float pitch {-0.165806278F};
+        float moveSpeed {4.0F};
+        float fastMoveMultiplier {2.0F};
+        float mouseSensitivity {0.0025F};
         float fovY {0.959931088F};
         float nearPlane {0.1F};
         float farPlane {100.0F};
     };
 
+    struct CameraInputState final {
+        bool rotating {false};
+        bool firstCapture {true};
+        double lastCursorX {0.0};
+        double lastCursorY {0.0};
+    };
+
     SceneState m_scene {};
     CameraState m_camera {};
+    CameraInputState m_cameraInput {};
     DepthResources m_depthResources {};
     VkFormat m_depthFormat {VK_FORMAT_D32_SFLOAT};
     VkDescriptorSetLayout m_descriptorSetLayout {VK_NULL_HANDLE};

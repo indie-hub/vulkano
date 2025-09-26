@@ -13,5 +13,5 @@
 - [x] Revert build/runtime code to target Vulkan 1.3 while preserving safety checks.
 - [x] Update documentation/tests and validate build after rollback.
 - [x] Analyse current camera/input flow to plan FPS controls.
-- [ ] Implement FPS camera with RMB activation and update runtime behaviour.
+- [x] Implement FPS camera with RMB activation and update runtime behaviour.
 - [ ] Extend tests/docs and validate build for FPS camera feature.

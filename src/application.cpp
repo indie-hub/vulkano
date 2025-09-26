@@ -14,6 +14,7 @@
 #include <imgui.h>
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_vulkan.h>
+#include <glm/geometric.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/constants.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -123,6 +124,7 @@ void VulkanApplication::draw_frame() {
     const double deltaSeconds = std::chrono::duration<double>(now - m_lastFrameTime).count();
     m_lastFrameTime = now;
     update_timing(deltaSeconds);
+    update_camera(deltaSeconds);
     rebuild_dirty_meshes();
     update_global_uniforms();
 
@@ -580,6 +582,93 @@ void VulkanApplication::update_timing(double deltaSeconds) {
     m_fps = (m_frameTimeMs > 0.0) ? 1000.0 / m_frameTimeMs : 0.0;
 }
 
+void VulkanApplication::update_camera(double deltaSeconds) {
+    if(deltaSeconds <= 0.0) {
+        return;
+    }
+
+    GLFWwindow* windowHandle = m_window.handle();
+    if(windowHandle == nullptr) {
+        return;
+    }
+
+    const bool windowFocused = glfwGetWindowAttrib(windowHandle, GLFW_FOCUSED) == GLFW_TRUE;
+    ImGuiIO& io = ImGui::GetIO();
+    const bool wantCaptureMouse = io.WantCaptureMouse;
+    const bool rightMousePressed = glfwGetMouseButton(windowHandle, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS;
+
+    const bool shouldCapture = windowFocused && rightMousePressed && !wantCaptureMouse;
+    if(!shouldCapture) {
+        if(m_cameraInput.rotating) {
+            glfwSetInputMode(windowHandle, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            m_cameraInput.rotating = false;
+        }
+        m_cameraInput.firstCapture = true;
+        return;
+    }
+
+    if(!m_cameraInput.rotating) {
+        glfwSetInputMode(windowHandle, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        m_cameraInput.rotating = true;
+        m_cameraInput.firstCapture = true;
+    }
+
+    double cursorX {0.0};
+    double cursorY {0.0};
+    glfwGetCursorPos(windowHandle, &cursorX, &cursorY);
+
+    if(m_cameraInput.firstCapture) {
+        m_cameraInput.lastCursorX = cursorX;
+        m_cameraInput.lastCursorY = cursorY;
+        m_cameraInput.firstCapture = false;
+    }
+
+    const double deltaX = cursorX - m_cameraInput.lastCursorX;
+    const double deltaY = cursorY - m_cameraInput.lastCursorY;
+    m_cameraInput.lastCursorX = cursorX;
+    m_cameraInput.lastCursorY = cursorY;
+
+    const float sensitivity = m_camera.mouseSensitivity;
+    m_camera.yaw += static_cast<float>(deltaX) * sensitivity;
+    m_camera.pitch -= static_cast<float>(deltaY) * sensitivity;
+
+    constexpr float pitchLimit = glm::radians(89.0F);
+    m_camera.pitch = std::clamp(m_camera.pitch, -pitchLimit, pitchLimit);
+
+    glm::vec3 movement {0.0F};
+    const glm::vec3 forward = camera_forward();
+    const glm::vec3 right = glm::normalize(glm::cross(forward, glm::vec3 {0.0F, 1.0F, 0.0F}));
+    const glm::vec3 up {0.0F, 1.0F, 0.0F};
+
+    if(glfwGetKey(windowHandle, GLFW_KEY_W) == GLFW_PRESS) {
+        movement += forward;
+    }
+    if(glfwGetKey(windowHandle, GLFW_KEY_S) == GLFW_PRESS) {
+        movement -= forward;
+    }
+    if(glfwGetKey(windowHandle, GLFW_KEY_D) == GLFW_PRESS) {
+        movement += right;
+    }
+    if(glfwGetKey(windowHandle, GLFW_KEY_A) == GLFW_PRESS) {
+        movement -= right;
+    }
+    if(glfwGetKey(windowHandle, GLFW_KEY_E) == GLFW_PRESS) {
+        movement += up;
+    }
+    if(glfwGetKey(windowHandle, GLFW_KEY_Q) == GLFW_PRESS) {
+        movement -= up;
+    }
+
+    if(glm::length2(movement) > std::numeric_limits<float>::epsilon()) {
+        float speed = m_camera.moveSpeed;
+        if(glfwGetKey(windowHandle, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
+            speed *= m_camera.fastMoveMultiplier;
+        }
+        const glm::vec3 direction = glm::normalize(movement);
+        m_camera.position += direction * speed * static_cast<float>(deltaSeconds);
+    }
+}
+
 void VulkanApplication::initialise_scene() {
     constexpr PlaneParameters planeParameters {
         .width = 10.0F,
@@ -736,7 +825,8 @@ void VulkanApplication::update_global_uniforms() {
     GlobalUniform uniforms {};
     const glm::vec3 cameraPos = camera_position();
     const glm::vec3 up {0.0F, 1.0F, 0.0F};
-    uniforms.view = glm::lookAt(cameraPos, m_camera.target, up);
+    const glm::vec3 forward = camera_forward();
+    uniforms.view = glm::lookAt(cameraPos, cameraPos + forward, up);
 
     const VkExtent2D extent = m_swapchain.extent();
     if(extent.height > 0U) {
@@ -752,15 +842,25 @@ void VulkanApplication::update_global_uniforms() {
 }
 
 auto VulkanApplication::camera_position() const noexcept -> glm::vec3 {
+    return m_camera.position;
+}
+
+auto VulkanApplication::camera_forward() const noexcept -> glm::vec3 {
     const float cosPitch = std::cos(m_camera.pitch);
     const float sinPitch = std::sin(m_camera.pitch);
     const float cosYaw = std::cos(m_camera.yaw);
     const float sinYaw = std::sin(m_camera.yaw);
 
-    const float x = m_camera.target.x + (m_camera.distance * cosPitch * cosYaw);
-    const float y = m_camera.target.y + (m_camera.distance * sinPitch);
-    const float z = m_camera.target.z + (m_camera.distance * cosPitch * sinYaw);
-    return glm::vec3 {x, y, z};
+    glm::vec3 forward {
+        cosPitch * cosYaw,
+        sinPitch,
+        cosPitch * sinYaw
+    };
+    const float lengthSquared = glm::dot(forward, forward);
+    if(lengthSquared <= std::numeric_limits<float>::epsilon()) {
+        return glm::vec3 {0.0F, 0.0F, -1.0F};
+    }
+    return glm::normalize(forward);
 }
 
 auto VulkanApplication::compute_model_matrix(const PrimitiveProperties& properties) const noexcept -> glm::mat4 {
