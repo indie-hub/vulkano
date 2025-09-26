@@ -74,6 +74,6 @@
 - [x] Align SSAO sample reprojection UVs with Vulkan orientation.
 - [x] Normalize SSAO coordinate space usage between passes.
 - [x] Integrate normal map influence into SSAO data.
-- [ ] Stabilize SSAO kernel orientation/noise behaviour.
+- [x] Stabilize SSAO kernel orientation/noise behaviour.
 - [ ] Revisit SSAO radius/depth range checks.
 - [ ] Add SSAO diagnostics and regression tests.
