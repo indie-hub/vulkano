@@ -18,15 +18,18 @@ TEST_CASE("FPS camera defaults look towards scene origin", "[camera]") {
         vulkano::VulkanApplication application {config};
         const glm::vec3 eye = application.camera_eye();
         const glm::vec3 forward = application.camera_forward_direction();
+        const float fovY = application.camera_fov_y();
 
         const glm::vec3 expectedEye {0.0F, 1.5F, -6.0F};
         const glm::vec3 expectedDirection = glm::normalize(glm::vec3 {0.0F, -1.5F, 6.0F});
+        constexpr float expectedFovY {0.959931088F};
 
         CHECK(eye.x == Approx(expectedEye.x).margin(0.001F));
         CHECK(eye.y == Approx(expectedEye.y).margin(0.001F));
         CHECK(eye.z == Approx(expectedEye.z).margin(0.001F));
         CHECK(glm::length(forward) == Approx(1.0F).margin(0.001F));
         CHECK(glm::dot(forward, expectedDirection) == Approx(1.0F).margin(0.001F));
+        CHECK(fovY == Approx(expectedFovY).margin(0.0001F));
     };
 
     try {

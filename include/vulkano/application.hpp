@@ -42,6 +42,7 @@ public:
     [[nodiscard]] auto scene_light_intensity() const noexcept -> float;
     [[nodiscard]] auto camera_eye() const noexcept -> glm::vec3;
     [[nodiscard]] auto camera_forward_direction() const noexcept -> glm::vec3;
+    [[nodiscard]] auto camera_fov_y() const noexcept -> float;
 
 private:
     static void framebuffer_resize_callback(GLFWwindow* window, int width, int height);

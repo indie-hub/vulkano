@@ -114,6 +114,10 @@ auto VulkanApplication::camera_forward_direction() const noexcept -> glm::vec3 {
     return camera_forward();
 }
 
+auto VulkanApplication::camera_fov_y() const noexcept -> float {
+    return m_camera.fovY;
+}
+
 void VulkanApplication::register_callbacks() {
     GLFWwindow* windowHandle = m_window.handle();
     glfwSetWindowUserPointer(windowHandle, this);
@@ -195,6 +199,16 @@ void VulkanApplication::draw_frame() {
         float lightIntensity = m_scene.lightIntensity;
         if(ImGui::SliderFloat("Intensity", &lightIntensity, 0.0F, 10.0F, "%.2f")) {
             m_scene.lightIntensity = std::max(lightIntensity, 0.0F);
+        }
+    }
+
+    if(ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_DefaultOpen)) {
+        float fovDegrees = glm::degrees(m_camera.fovY);
+        constexpr float minFovDegrees {30.0F};
+        constexpr float maxFovDegrees {110.0F};
+        if(ImGui::SliderFloat("Vertical FOV", &fovDegrees, minFovDegrees, maxFovDegrees, "%.1f deg")) {
+            fovDegrees = std::clamp(fovDegrees, minFovDegrees, maxFovDegrees);
+            m_camera.fovY = glm::radians(fovDegrees);
         }
     }
 
