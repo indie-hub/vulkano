@@ -18,3 +18,6 @@
 - [x] Analyse reported world-axis orientation mismatch.
 - [x] Correct axis definitions so X right, Y up, Z forward for FPS camera.
 - [ ] Rebuild, test, and document axis fixes.
+- [x] Diagnose and correct plane normal orientation.
+- [ ] Expose and validate camera field-of-view configuration.
+- [ ] Ensure light remains world-space static relative to camera movement.
