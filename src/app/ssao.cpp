@@ -409,4 +409,152 @@ void SSAOGpuResources::destroy() noexcept {
     m_noiseDimension = 0U;
     m_noiseFormat = VK_FORMAT_UNDEFINED;
 }
+
+SSAODescriptors::SSAODescriptors(const VulkanContext& context, const SSAOGpuResources& resources)
+    : m_device {context.device()} {
+    try {
+        const VkDevice device = m_device;
+
+        VkDescriptorPoolSize poolSizes[2] = {
+            {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1U},
+            {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1U}
+        };
+
+        VkDescriptorPoolCreateInfo poolInfo {};
+        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        poolInfo.poolSizeCount = 2U;
+        poolInfo.pPoolSizes = poolSizes;
+        poolInfo.maxSets = 1U;
+
+        if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS) {
+            throw std::runtime_error {"Failed to create SSAO descriptor pool"};
+        }
+
+        VkDescriptorSetLayoutBinding bindings[2] = {};
+        bindings[0].binding = 0U;
+        bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        bindings[0].descriptorCount = 1U;
+        bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        bindings[1].binding = 1U;
+        bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        bindings[1].descriptorCount = 1U;
+        bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        VkDescriptorSetLayoutCreateInfo layoutInfo {};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        layoutInfo.bindingCount = 2U;
+        layoutInfo.pBindings = bindings;
+
+        if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &m_layout) != VK_SUCCESS) {
+            throw std::runtime_error {"Failed to create SSAO descriptor set layout"};
+        }
+
+        VkDescriptorSetAllocateInfo allocateInfo {};
+        allocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        allocateInfo.descriptorPool = m_descriptorPool;
+        allocateInfo.descriptorSetCount = 1U;
+        allocateInfo.pSetLayouts = &m_layout;
+
+        if (vkAllocateDescriptorSets(device, &allocateInfo, &m_descriptorSet) != VK_SUCCESS) {
+            throw std::runtime_error {"Failed to allocate SSAO descriptor set"};
+        }
+
+        VkDescriptorBufferInfo bufferInfo {};
+        bufferInfo.buffer = resources.kernel_buffer();
+        bufferInfo.offset = 0U;
+        bufferInfo.range = VK_WHOLE_SIZE;
+
+        VkDescriptorImageInfo imageInfo {};
+        imageInfo.sampler = resources.noise_sampler();
+        imageInfo.imageView = resources.noise_image_view();
+        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+        std::array<VkWriteDescriptorSet, 2> writes {
+            VkWriteDescriptorSet {
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .pNext = nullptr,
+                .dstSet = m_descriptorSet,
+                .dstBinding = 0U,
+                .dstArrayElement = 0U,
+                .descriptorCount = 1U,
+                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                .pImageInfo = nullptr,
+                .pBufferInfo = &bufferInfo,
+                .pTexelBufferView = nullptr
+            },
+            VkWriteDescriptorSet {
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .pNext = nullptr,
+                .dstSet = m_descriptorSet,
+                .dstBinding = 1U,
+                .dstArrayElement = 0U,
+                .descriptorCount = 1U,
+                .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                .pImageInfo = &imageInfo,
+                .pBufferInfo = nullptr,
+                .pTexelBufferView = nullptr
+            }
+        };
+
+        vkUpdateDescriptorSets(device, static_cast<std::uint32_t>(writes.size()), writes.data(), 0U, nullptr);
+    } catch (...) {
+        destroy();
+        throw;
+    }
+}
+
+SSAODescriptors::~SSAODescriptors() noexcept {
+    destroy();
+}
+
+SSAODescriptors::SSAODescriptors(SSAODescriptors&& other) noexcept {
+    *this = std::move(other);
+}
+
+SSAODescriptors& SSAODescriptors::operator=(SSAODescriptors&& other) noexcept {
+    if (this == &other) {
+        return *this;
+    }
+
+    destroy();
+
+    m_device = other.m_device;
+    m_descriptorPool = other.m_descriptorPool;
+    m_layout = other.m_layout;
+    m_descriptorSet = other.m_descriptorSet;
+
+    other.m_device = VK_NULL_HANDLE;
+    other.m_descriptorPool = VK_NULL_HANDLE;
+    other.m_layout = VK_NULL_HANDLE;
+    other.m_descriptorSet = VK_NULL_HANDLE;
+
+    return *this;
+}
+
+VkDescriptorSetLayout SSAODescriptors::layout() const noexcept {
+    return m_layout;
+}
+
+VkDescriptorSet SSAODescriptors::descriptor_set() const noexcept {
+    return m_descriptorSet;
+}
+
+void SSAODescriptors::destroy() noexcept {
+    if (m_device == VK_NULL_HANDLE) {
+        return;
+    }
+
+    if (m_descriptorPool != VK_NULL_HANDLE) {
+        vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
+        m_descriptorPool = VK_NULL_HANDLE;
+    }
+    if (m_layout != VK_NULL_HANDLE) {
+        vkDestroyDescriptorSetLayout(m_device, m_layout, nullptr);
+        m_layout = VK_NULL_HANDLE;
+    }
+
+    m_descriptorSet = VK_NULL_HANDLE;
+    m_device = VK_NULL_HANDLE;
+}
 } // namespace vulkano::app
