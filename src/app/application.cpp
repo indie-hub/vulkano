@@ -96,7 +96,7 @@ int Application::run() noexcept {
 
             const VkSemaphore waitSemaphores[] = {frameResources.image_available_semaphore(currentFrame)};
             const VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-            const VkSemaphore signalSemaphores[] = {frameResources.render_finished_semaphore(currentFrame)};
+            const VkSemaphore signalSemaphores[] = {frameResources.render_finished_semaphore(imageIndex)};
 
             VkSubmitInfo submitInfo {};
             submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;

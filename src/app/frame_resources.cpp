@@ -17,13 +17,16 @@ FrameResources::~FrameResources() noexcept {
             vkDestroySemaphore(m_context.device(), m_imageAvailableSemaphores[i], nullptr);
             m_imageAvailableSemaphores[i] = VK_NULL_HANDLE;
         }
-        if (m_renderFinishedSemaphores[i] != VK_NULL_HANDLE) {
-            vkDestroySemaphore(m_context.device(), m_renderFinishedSemaphores[i], nullptr);
-            m_renderFinishedSemaphores[i] = VK_NULL_HANDLE;
-        }
-        if (m_inFlightFences[i] != VK_NULL_HANDLE) {
+        if (i < m_inFlightFences.size() && m_inFlightFences[i] != VK_NULL_HANDLE) {
             vkDestroyFence(m_context.device(), m_inFlightFences[i], nullptr);
             m_inFlightFences[i] = VK_NULL_HANDLE;
+        }
+    }
+
+    for (std::size_t i {0U}; i < m_imageRenderFinishedSemaphores.size(); ++i) {
+        if (m_imageRenderFinishedSemaphores[i] != VK_NULL_HANDLE) {
+            vkDestroySemaphore(m_context.device(), m_imageRenderFinishedSemaphores[i], nullptr);
+            m_imageRenderFinishedSemaphores[i] = VK_NULL_HANDLE;
         }
     }
 
@@ -49,8 +52,8 @@ VkSemaphore FrameResources::image_available_semaphore(std::size_t index) const n
     return m_imageAvailableSemaphores[index];
 }
 
-VkSemaphore FrameResources::render_finished_semaphore(std::size_t index) const noexcept {
-    return m_renderFinishedSemaphores[index];
+VkSemaphore FrameResources::render_finished_semaphore(std::uint32_t imageIndex) const noexcept {
+    return m_imageRenderFinishedSemaphores.at(static_cast<std::size_t>(imageIndex));
 }
 
 VkFence FrameResources::in_flight_fence(std::size_t index) const noexcept {
@@ -98,10 +101,12 @@ void FrameResources::create_command_resources() {
 }
 
 void FrameResources::create_synchronization_objects() {
+    const std::size_t imageCount = m_context.swapchain_image_views().size();
+
     m_imageAvailableSemaphores.resize(FramesInFlight, VK_NULL_HANDLE);
-    m_renderFinishedSemaphores.resize(FramesInFlight, VK_NULL_HANDLE);
     m_inFlightFences.resize(FramesInFlight, VK_NULL_HANDLE);
-    m_imagesInFlight.resize(m_context.swapchain_image_views().size(), VK_NULL_HANDLE);
+    m_imageRenderFinishedSemaphores.resize(imageCount, VK_NULL_HANDLE);
+    m_imagesInFlight.resize(imageCount, VK_NULL_HANDLE);
 
     VkSemaphoreCreateInfo semaphoreInfo {};
     semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -112,9 +117,14 @@ void FrameResources::create_synchronization_objects() {
 
     for (std::size_t i {0U}; i < FramesInFlight; ++i) {
         if (vkCreateSemaphore(m_context.device(), &semaphoreInfo, nullptr, &m_imageAvailableSemaphores[i]) != VK_SUCCESS
-            || vkCreateSemaphore(m_context.device(), &semaphoreInfo, nullptr, &m_renderFinishedSemaphores[i]) != VK_SUCCESS
             || vkCreateFence(m_context.device(), &fenceInfo, nullptr, &m_inFlightFences[i]) != VK_SUCCESS) {
-            throw std::runtime_error {"Failed to create synchronization objects for a frame"};
+            throw std::runtime_error {"Failed to create frame synchronization objects"};
+        }
+    }
+
+    for (std::size_t i {0U}; i < imageCount; ++i) {
+        if (vkCreateSemaphore(m_context.device(), &semaphoreInfo, nullptr, &m_imageRenderFinishedSemaphores[i]) != VK_SUCCESS) {
+            throw std::runtime_error {"Failed to create render finished semaphore"};
         }
     }
 }
