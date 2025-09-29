@@ -27,7 +27,7 @@ MeshData MeshFactory::create_plane(float size, const glm::vec3& color) noexcept 
         make_vertex(glm::vec3 {halfSize, 0.0F, halfSize}, glm::vec3 {0.0F, 1.0F, 0.0F}, color),
         make_vertex(glm::vec3 {-halfSize, 0.0F, halfSize}, glm::vec3 {0.0F, 1.0F, 0.0F}, color)
     };
-    data.indices = {0U, 1U, 2U, 0U, 2U, 3U};
+    data.indices = {0U, 2U, 1U, 0U, 3U, 2U};
     return data;
 }
 
