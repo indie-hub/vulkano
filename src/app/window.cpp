@@ -7,7 +7,14 @@
 #include <stdexcept>
 
 namespace {
-[[nodiscard]] GLFWwindow* create_window(const char* title, std::uint32_t width, std::uint32_t height) {
+void framebuffer_size_callback(GLFWwindow* window, int /*width*/, int /*height*/) {
+    auto* userdata = static_cast<vulkano::app::Window*>(glfwGetWindowUserPointer(window));
+    if (userdata != nullptr) {
+        userdata->mark_framebuffer_resized();
+    }
+}
+
+GLFWwindow* create_window(const char* title, std::uint32_t width, std::uint32_t height) {
     if (title == nullptr) {
         throw std::runtime_error {"Window title must not be null"};
     }
@@ -33,10 +40,13 @@ namespace {
 namespace vulkano::app {
 Window::Window(const char* title, std::uint32_t width, std::uint32_t height)
     : m_window {create_window(title, width, height)} {
+    glfwSetWindowUserPointer(m_window, this);
+    glfwSetFramebufferSizeCallback(m_window, framebuffer_size_callback);
 }
 
 Window::~Window() noexcept {
     if (m_window != nullptr) {
+        glfwSetWindowUserPointer(m_window, nullptr);
         glfwDestroyWindow(m_window);
         m_window = nullptr;
     }
@@ -68,4 +78,17 @@ VkExtent2D Window::framebuffer_extent() const noexcept {
     const std::uint32_t clampedHeight {static_cast<std::uint32_t>(std::max(height, 0))};
     return VkExtent2D {clampedWidth, clampedHeight};
 }
+
+bool Window::framebuffer_resized() const noexcept {
+    return m_framebufferResized;
+}
+
+void Window::clear_framebuffer_resized() noexcept {
+    m_framebufferResized = false;
+}
+
+void Window::mark_framebuffer_resized() noexcept {
+    m_framebufferResized = true;
+}
+
 } // namespace vulkano::app

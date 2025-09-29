@@ -16,7 +16,7 @@ class SwapchainManager final {
 public:
     SwapchainManager() noexcept = default;
     static SwapchainManager create(VkPhysicalDevice physicalDevice, VkDevice device, VkSurfaceKHR surface,
-        const QueueFamilySelection& queues, const app::Window& window);
+        const QueueFamilySelection& queues, const app::Window& window, VkSwapchainKHR oldSwapchain = VK_NULL_HANDLE);
 
     SwapchainManager(const SwapchainManager&) = delete;
     SwapchainManager& operator=(const SwapchainManager&) = delete;
