@@ -9,3 +9,5 @@
 - [x] Implement fixes and verify clean validation run
 - [x] Draft SOLID refactor plan for VulkanContext
 - [x] Execute VulkanContext refactor based on plan
+- [ ] Plan multi-primitive renderer upgrade (plane, sphere, cube)
+- [ ] Implement geometry rendering upgrade per plan
