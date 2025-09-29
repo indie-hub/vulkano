@@ -3,5 +3,5 @@
 - [x] Update plan to state macOS runtime support requirement
 - [x] Implement Vulkan and GLFW initialization for rendering window
 - [x] Add triangle rendering pipeline and validation logic
-- [ ] Integrate ImGui overlay with renderer lifecycle
+- [x] Integrate ImGui overlay with renderer lifecycle
 - [ ] Add automated tests and package runnable binaries

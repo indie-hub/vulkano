@@ -178,7 +178,7 @@ std::uint32_t TriangleRenderer::vertex_count() const noexcept {
     return m_vertexCount;
 }
 
-void TriangleRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::uint32_t imageIndex) const {
+void TriangleRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::uint32_t imageIndex, const CommandRecorder& overlayRecorder) const {
     VkCommandBufferBeginInfo beginInfo {};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
@@ -225,6 +225,11 @@ void TriangleRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std:
         static_cast<std::uint32_t>(sizeof(TrianglePushConstants)), &pushConstants);
 
     vkCmdDraw(commandBuffer, m_vertexCount, 1U, 0U, 0U);
+
+    if (overlayRecorder) {
+        overlayRecorder(commandBuffer);
+    }
+
     vkCmdEndRenderPass(commandBuffer);
 
     if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {

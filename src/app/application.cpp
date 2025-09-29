@@ -1,6 +1,7 @@
 #include <vulkano/app/application.hpp>
 
 #include <vulkano/app/frame_resources.hpp>
+#include <vulkano/app/imgui_renderer.hpp>
 #include <vulkano/app/glfw_library.hpp>
 #include <vulkano/app/triangle_renderer.hpp>
 #include <vulkano/app/vulkan_context.hpp>
@@ -12,6 +13,7 @@
 #include <iostream>
 #include <limits>
 #include <stdexcept>
+#include <chrono>
 
 namespace vulkano::app {
 namespace {
@@ -28,7 +30,10 @@ int Application::run() noexcept {
         Window window {"Vulkano Renderer", 1280U, 720U};
         VulkanContext context {window};
         TriangleRenderer renderer {context, window};
+        ImGuiRenderer imgui {context, window, renderer.render_pass()};
         FrameResources frameResources {context};
+
+        auto previousFrameTime = std::chrono::steady_clock::now();
 
         const char* maxFramesEnv = std::getenv("VULKANO_MAX_FRAMES");
         std::size_t maxFrames = std::numeric_limits<std::size_t>::max();
@@ -43,7 +48,16 @@ int Application::run() noexcept {
         std::size_t currentFrame {0U};
         std::size_t frameCount {0U};
         while (!window.should_close()) {
+            const auto frameStart = std::chrono::steady_clock::now();
+            const float deltaSeconds = std::chrono::duration<float>(frameStart - previousFrameTime).count();
+            previousFrameTime = frameStart;
+
             window.poll_events();
+
+            imgui.begin_frame();
+            imgui.update_metrics(deltaSeconds);
+            imgui.draw_overlay();
+            imgui.end_frame();
 
             const VkFence inFlightFence = frameResources.in_flight_fence(currentFrame);
             if (vkWaitForFences(context.device(), 1U, &inFlightFence, VK_TRUE, UINT64_MAX) != VK_SUCCESS) {
@@ -75,7 +89,10 @@ int Application::run() noexcept {
             if (vkResetCommandBuffer(commandBuffer, 0U) != VK_SUCCESS) {
                 throw std::runtime_error {"Failed to reset command buffer"};
             }
-            renderer.record_command_buffer(commandBuffer, imageIndex);
+            const TriangleRenderer::CommandRecorder overlayRecorder {[&imgui](VkCommandBuffer buffer) {
+                imgui.render(buffer);
+            }};
+            renderer.record_command_buffer(commandBuffer, imageIndex, overlayRecorder);
 
             const VkSemaphore waitSemaphores[] = {frameResources.image_available_semaphore(currentFrame)};
             const VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};

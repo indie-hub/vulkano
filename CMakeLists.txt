@@ -68,11 +68,57 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(glm)
 
+FetchContent_Declare(
+    imgui
+    GIT_REPOSITORY https://github.com/ocornut/imgui.git
+    GIT_TAG v1.90.8
+)
+FetchContent_MakeAvailable(imgui)
+
+FetchContent_GetProperties(imgui)
+if(NOT imgui_POPULATED)
+    FetchContent_Populate(imgui)
+endif()
+
+set(IMGUI_SOURCE_DIR ${imgui_SOURCE_DIR})
+set(IMGUI_BACKENDS_DIR ${IMGUI_SOURCE_DIR}/backends)
+
+add_library(imgui STATIC
+    ${IMGUI_SOURCE_DIR}/imgui.cpp
+    ${IMGUI_SOURCE_DIR}/imgui_demo.cpp
+    ${IMGUI_SOURCE_DIR}/imgui_draw.cpp
+    ${IMGUI_SOURCE_DIR}/imgui_tables.cpp
+    ${IMGUI_SOURCE_DIR}/imgui_widgets.cpp
+    ${IMGUI_BACKENDS_DIR}/imgui_impl_glfw.cpp
+    ${IMGUI_BACKENDS_DIR}/imgui_impl_vulkan.cpp
+)
+
+set_target_properties(imgui PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+target_include_directories(imgui
+    PUBLIC
+        ${IMGUI_SOURCE_DIR}
+        ${IMGUI_BACKENDS_DIR}
+)
+
+
+target_link_libraries(imgui
+    PUBLIC
+        glfw
+        Vulkan::Vulkan
+)
+
+target_compile_definitions(imgui
+    PUBLIC
+        GLFW_INCLUDE_NONE
+)
+
 add_library(vulkano_app STATIC
     src/app/application.cpp
     src/app/frame_resources.cpp
     src/app/glfw_library.cpp
     src/app/triangle_renderer.cpp
+    src/app/imgui_renderer.cpp
     src/app/vulkan_context.cpp
     src/app/window.cpp
 )
@@ -88,6 +134,7 @@ target_sources(vulkano_app
             include/vulkano/app/frame_resources.hpp
             include/vulkano/app/glfw_library.hpp
             include/vulkano/app/triangle_renderer.hpp
+            include/vulkano/app/imgui_renderer.hpp
             include/vulkano/app/vulkan_context.hpp
             include/vulkano/app/window.hpp
 )
@@ -103,6 +150,7 @@ target_link_libraries(vulkano_app
     PRIVATE
         glfw
         Vulkan::Vulkan
+        imgui
 )
 
 target_compile_definitions(vulkano_app
