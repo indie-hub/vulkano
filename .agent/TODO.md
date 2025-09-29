@@ -33,4 +33,4 @@
 - [x] Rebuild, run tests, and validate scene visuals
 - [x] Evaluate renderer baseline for SSAO integration points
 - [x] Draft SSAO implementation plan with acceptance criteria
-
+- [x] Persist SSAO implementation plan to .agent/plan.md
