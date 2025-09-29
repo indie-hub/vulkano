@@ -72,7 +72,8 @@ int Application::run() noexcept {
         bool ssaoEnabled = true;
         float ssaoStrength = 1.0F;
         float ssaoBaseAmbient = 0.2F;
-        ssaoComposite->set_config(ssaoStrength, ssaoBaseAmbient);
+        bool ssaoDebugView = false;
+        ssaoComposite->set_config(ssaoStrength, ssaoBaseAmbient, ssaoDebugView);
 
         auto imgui = std::make_unique<ImGuiRenderer>(context, window, renderer->render_pass());
         auto frameResources = std::make_unique<FrameResources>(context);
@@ -145,10 +146,11 @@ int Application::run() noexcept {
                 ImGui::Checkbox("Enable", &ssaoEnabled);
                 ImGui::SliderFloat("Strength", &ssaoStrength, 0.0F, 2.0F);
                 ImGui::SliderFloat("Base Ambient", &ssaoBaseAmbient, 0.0F, 1.0F);
+                ImGui::Checkbox("Debug Occlusion", &ssaoDebugView);
             }
             ImGui::End();
             float effectiveStrength = ssaoEnabled ? ssaoStrength : 0.0F;
-            ssaoComposite->set_config(effectiveStrength, ssaoBaseAmbient);
+            ssaoComposite->set_config(effectiveStrength, ssaoBaseAmbient, ssaoDebugView);
             imgui->end_frame();
 
             const VkFence inFlightFence = frameResources->in_flight_fence(currentFrame);

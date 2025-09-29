@@ -40,3 +40,6 @@
 - [x] Create SSAO descriptor set layout and descriptor writes
 - [x] Implement SSAO occlusion pass pipeline and shader integration
 - [x] Integrate SSAO occlusion into final composite and expose controls
+- [x] Add SSAO debug visualisation toggle to ImGui overlay
+- [x] Render raw SSAO occlusion texture when debug view is enabled
+- [x] Rebuild, run tests, and validate SSAO debug visualisation
