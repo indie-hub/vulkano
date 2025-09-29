@@ -162,7 +162,9 @@ int Application::run() noexcept {
             renderer->record_command_buffer(commandBuffer, imageIndex, camera.view_matrix(), camera.projection_matrix(), overlayRecorder);
 
             const VkSemaphore waitSemaphores[] = {frameResources->image_available_semaphore(currentFrame)};
-            const VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+            const VkPipelineStageFlags waitStages[] = {
+                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT
+            };
             const VkSemaphore signalSemaphores[] = {frameResources->render_finished_semaphore(imageIndex)};
 
             VkSubmitInfo submitInfo {};
