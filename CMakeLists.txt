@@ -19,6 +19,36 @@ include(FetchContent)
 
 find_package(Vulkan REQUIRED)
 
+if(NOT Vulkan_GLSLC_EXECUTABLE)
+    message(FATAL_ERROR "glslc executable not found in Vulkan SDK")
+endif()
+
+set(VULKANO_SHADER_SOURCES
+    ${CMAKE_SOURCE_DIR}/shaders/triangle.vert
+    ${CMAKE_SOURCE_DIR}/shaders/triangle.frag
+)
+
+set(VULKANO_SHADER_OUTPUT_DIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders)
+set(VULKANO_SHADER_TARGETS)
+
+foreach(shader ${VULKANO_SHADER_SOURCES})
+    get_filename_component(shader_name ${shader} NAME)
+    set(output ${VULKANO_SHADER_OUTPUT_DIR}/${shader_name}.spv)
+    add_custom_command(
+        OUTPUT ${output}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${VULKANO_SHADER_OUTPUT_DIR}
+        COMMAND ${Vulkan_GLSLC_EXECUTABLE} -o ${output} ${shader}
+        DEPENDS ${shader}
+        COMMENT "Compiling ${shader_name} to SPIR-V"
+        VERBATIM
+    )
+    list(APPEND VULKANO_SHADER_TARGETS ${output})
+endforeach()
+
+add_custom_target(vulkano_shaders ALL
+    DEPENDS ${VULKANO_SHADER_TARGETS}
+)
+
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
@@ -40,9 +70,11 @@ FetchContent_MakeAvailable(glm)
 
 add_library(vulkano_app STATIC
     src/app/application.cpp
+    src/app/frame_resources.cpp
     src/app/glfw_library.cpp
-    src/app/window.cpp
+    src/app/triangle_renderer.cpp
     src/app/vulkan_context.cpp
+    src/app/window.cpp
 )
 
 set_target_properties(vulkano_app PROPERTIES OUTPUT_NAME vulkano_app)
@@ -53,9 +85,11 @@ target_sources(vulkano_app
         BASE_DIRS include
         FILES
             include/vulkano/app/application.hpp
+            include/vulkano/app/frame_resources.hpp
             include/vulkano/app/glfw_library.hpp
-            include/vulkano/app/window.hpp
+            include/vulkano/app/triangle_renderer.hpp
             include/vulkano/app/vulkan_context.hpp
+            include/vulkano/app/window.hpp
 )
 
 target_include_directories(vulkano_app
@@ -71,6 +105,15 @@ target_link_libraries(vulkano_app
         Vulkan::Vulkan
 )
 
+target_compile_definitions(vulkano_app
+    PUBLIC
+        GLM_FORCE_RADIANS
+        GLM_FORCE_DEPTH_ZERO_TO_ONE
+        GLM_FORCE_RIGHT_HANDED
+)
+
+add_dependencies(vulkano_app vulkano_shaders)
+
 if(APPLE)
     target_compile_definitions(vulkano_app PRIVATE VK_USE_PLATFORM_MACOS_MVK)
 endif()
@@ -83,6 +126,8 @@ target_link_libraries(vulkano_renderer
     PRIVATE
         vulkano_app
 )
+
+add_dependencies(vulkano_renderer vulkano_shaders)
 
 if(APPLE)
     target_compile_definitions(vulkano_renderer PRIVATE VK_USE_PLATFORM_MACOS_MVK)

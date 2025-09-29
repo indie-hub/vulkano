@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <vector>
 #include <vulkan/vulkan.h>
 
@@ -19,10 +20,13 @@ public:
     void wait_idle() const noexcept;
 
     [[nodiscard]] VkInstance instance() const noexcept;
+    [[nodiscard]] VkPhysicalDevice physical_device() const noexcept;
     [[nodiscard]] VkDevice device() const noexcept;
     [[nodiscard]] VkSurfaceKHR surface() const noexcept;
     [[nodiscard]] VkQueue graphics_queue() const noexcept;
     [[nodiscard]] VkQueue present_queue() const noexcept;
+    [[nodiscard]] std::uint32_t graphics_queue_family_index() const noexcept;
+    [[nodiscard]] std::uint32_t present_queue_family_index() const noexcept;
     [[nodiscard]] VkSwapchainKHR swapchain() const noexcept;
     [[nodiscard]] VkFormat swapchain_image_format() const noexcept;
     [[nodiscard]] VkExtent2D swapchain_extent() const noexcept;
@@ -36,6 +40,8 @@ private:
     VkDevice m_device {VK_NULL_HANDLE};
     VkQueue m_graphicsQueue {VK_NULL_HANDLE};
     VkQueue m_presentQueue {VK_NULL_HANDLE};
+    std::uint32_t m_graphicsQueueFamilyIndex {0U};
+    std::uint32_t m_presentQueueFamilyIndex {0U};
     VkSwapchainKHR m_swapchain {VK_NULL_HANDLE};
     VkFormat m_swapchainFormat {VK_FORMAT_UNDEFINED};
     VkExtent2D m_swapchainExtent {0U, 0U};
