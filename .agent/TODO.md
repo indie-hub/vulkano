@@ -38,4 +38,5 @@
 - [x] Implement SSAO sample kernel and noise texture generation
 - [x] Upload SSAO kernel/noise data to GPU resources
 - [x] Create SSAO descriptor set layout and descriptor writes
-
+- [x] Implement SSAO occlusion pass pipeline and shader integration
+- [x] Integrate SSAO occlusion into final composite and expose controls

@@ -41,7 +41,7 @@ ImGuiRenderer::ImGuiRenderer(const VulkanContext& context, const Window& window,
     initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
     initInfo.PipelineCache = VK_NULL_HANDLE;
     initInfo.Subpass = 0U;
-    initInfo.ColorAttachmentCount = 3U;
+    initInfo.ColorAttachmentCount = 4U;
     initInfo.Allocator = nullptr;
     initInfo.CheckVkResultFn = nullptr;
     initInfo.UseDynamicRendering = false;

@@ -6,6 +6,7 @@ layout(location = 2) in vec3 inColor;
 
 layout(location = 0) out vec3 fragColor;
 layout(location = 1) out vec3 fragNormal;
+layout(location = 2) out vec3 fragViewPos;
 
 layout(push_constant) uniform PushConstants {
     mat4 model;
@@ -14,7 +15,17 @@ layout(push_constant) uniform PushConstants {
 } pushConstants;
 
 void main() {
+    mat4 model = pushConstants.model;
+    mat4 view = pushConstants.view;
+    mat4 projection = pushConstants.projection;
+    mat3 normalMatrix = mat3(transpose(inverse(model)));
+
     fragColor = inColor;
-    fragNormal = mat3(pushConstants.model) * inNormal;
-    gl_Position = pushConstants.projection * pushConstants.view * pushConstants.model * vec4(inPosition, 1.0);
+    fragNormal = normalMatrix * inNormal;
+
+    vec4 worldPosition = model * vec4(inPosition, 1.0);
+    vec4 viewPosition = view * worldPosition;
+    fragViewPos = viewPosition.xyz;
+
+    gl_Position = projection * viewPosition;
 }

@@ -63,9 +63,10 @@ private:
     VkFormat m_noiseFormat {VK_FORMAT_UNDEFINED};
 };
 
+
 class SSAODescriptors final {
 public:
-    SSAODescriptors(const VulkanContext& context, const SSAOGpuResources& resources);
+    SSAODescriptors(const VulkanContext& context, const SSAOGpuResources& resources, VkImageView normalView, VkImageView depthView);
     ~SSAODescriptors() noexcept;
 
     SSAODescriptors(const SSAODescriptors&) = delete;
@@ -75,6 +76,7 @@ public:
 
     [[nodiscard]] VkDescriptorSetLayout layout() const noexcept;
     [[nodiscard]] VkDescriptorSet descriptor_set() const noexcept;
+    void update_gbuffer_views(VkImageView normalView, VkImageView depthView);
 
 private:
     void destroy() noexcept;
@@ -83,5 +85,77 @@ private:
     VkDescriptorPool m_descriptorPool {VK_NULL_HANDLE};
     VkDescriptorSetLayout m_layout {VK_NULL_HANDLE};
     VkDescriptorSet m_descriptorSet {VK_NULL_HANDLE};
+    VkSampler m_normalSampler {VK_NULL_HANDLE};
+    VkSampler m_depthSampler {VK_NULL_HANDLE};
+};
+
+class SSAOPass final {
+public:
+    SSAOPass(const VulkanContext& context, VkDescriptorSetLayout descriptorLayout, VkExtent2D extent);
+    ~SSAOPass() noexcept;
+
+    SSAOPass(const SSAOPass&) = delete;
+    SSAOPass& operator=(const SSAOPass&) = delete;
+    SSAOPass(SSAOPass&& other) noexcept;
+    SSAOPass& operator=(SSAOPass&& other) noexcept;
+
+    void resize(const VulkanContext& context, VkExtent2D extent);
+    void record(VkCommandBuffer commandBuffer, const SSAODescriptors& descriptors) const;
+
+    [[nodiscard]] VkImageView occlusion_view() const noexcept;
+    [[nodiscard]] VkFormat occlusion_format() const noexcept;
+
+private:
+    void destroy() noexcept;
+    void create_static_resources(const VulkanContext& context, VkDescriptorSetLayout descriptorLayout);
+    void recreate_framebuffer(const VulkanContext& context, VkExtent2D extent);
+
+    VkDevice m_device {VK_NULL_HANDLE};
+    VkPhysicalDevice m_physicalDevice {VK_NULL_HANDLE};
+    VkDescriptorSetLayout m_descriptorLayout {VK_NULL_HANDLE};
+    VkExtent2D m_extent {0U, 0U};
+    VkFormat m_occlusionFormat {VK_FORMAT_R16_SFLOAT};
+    vk::ColorImage m_occlusionImage;
+    VkRenderPass m_renderPass {VK_NULL_HANDLE};
+    VkPipelineLayout m_pipelineLayout {VK_NULL_HANDLE};
+    VkPipeline m_pipeline {VK_NULL_HANDLE};
+    VkFramebuffer m_framebuffer {VK_NULL_HANDLE};
+};
+
+class SSAOCompositeDescriptors final {
+public:
+    SSAOCompositeDescriptors(const VulkanContext& context, VkImageView initialOcclusionView = VK_NULL_HANDLE);
+    ~SSAOCompositeDescriptors() noexcept;
+
+    SSAOCompositeDescriptors(const SSAOCompositeDescriptors&) = delete;
+    SSAOCompositeDescriptors& operator=(const SSAOCompositeDescriptors&) = delete;
+    SSAOCompositeDescriptors(SSAOCompositeDescriptors&& other) noexcept;
+    SSAOCompositeDescriptors& operator=(SSAOCompositeDescriptors&& other) noexcept;
+
+    void update_occlusion_view(VkImageView view);
+    void set_config(float strength, float baseAmbient);
+
+    [[nodiscard]] VkDescriptorSetLayout layout() const noexcept;
+    [[nodiscard]] VkDescriptorSet descriptor_set() const noexcept;
+
+private:
+    void destroy() noexcept;
+    void write_config() const;
+
+    struct Config final {
+        float occlusionStrength {1.0F};
+        float baseAmbient {0.2F};
+        glm::vec2 padding {0.0F};
+    };
+
+    VkDevice m_device {VK_NULL_HANDLE};
+    VkDescriptorPool m_descriptorPool {VK_NULL_HANDLE};
+    VkDescriptorSetLayout m_layout {VK_NULL_HANDLE};
+    VkDescriptorSet m_descriptorSet {VK_NULL_HANDLE};
+    VkBuffer m_configBuffer {VK_NULL_HANDLE};
+    VkDeviceMemory m_configMemory {VK_NULL_HANDLE};
+    VkSampler m_occlusionSampler {VK_NULL_HANDLE};
+    Config m_config {};
+    VkImageView m_currentOcclusionView {VK_NULL_HANDLE};
 };
 }

@@ -22,7 +22,7 @@ public:
         glm::mat4 model {1.0F};
     };
 
-    SceneRenderer(const VulkanContext& context, const Window& window);
+    SceneRenderer(const VulkanContext& context, const Window& window, VkDescriptorSetLayout ssaoLayout = VK_NULL_HANDLE);
     ~SceneRenderer() noexcept;
 
     SceneRenderer(const SceneRenderer&) = delete;
@@ -40,10 +40,13 @@ public:
     [[nodiscard]] VkImageView normal_image_view() const noexcept;
     [[nodiscard]] VkFormat albedo_format() const noexcept;
     [[nodiscard]] VkFormat normal_format() const noexcept;
+    [[nodiscard]] VkImageView linear_depth_image_view() const noexcept;
+    [[nodiscard]] VkFormat linear_depth_format() const noexcept;
 
     using CommandRecorder = std::function<void(VkCommandBuffer)>;
     void record_command_buffer(VkCommandBuffer commandBuffer, std::uint32_t imageIndex,
-        const glm::mat4& view, const glm::mat4& projection, const CommandRecorder& overlayRecorder) const;
+        const glm::mat4& view, const glm::mat4& projection, const CommandRecorder& overlayRecorder,
+        VkDescriptorSet ssaoDescriptor = VK_NULL_HANDLE) const;
 
 private:
     struct GpuMesh final {
@@ -80,5 +83,8 @@ private:
     vk::DepthImage m_depthImage;
     vk::ColorImage m_albedoImage;
     vk::ColorImage m_normalImage;
+    vk::ColorImage m_linearDepthImage;
+    VkFormat m_linearDepthFormat {VK_FORMAT_R32_SFLOAT};
+    VkDescriptorSetLayout m_descriptorLayout {VK_NULL_HANDLE};
 };
 } // namespace vulkano::app

@@ -26,6 +26,8 @@ endif()
 set(VULKANO_SHADER_SOURCES
     ${CMAKE_SOURCE_DIR}/shaders/scene.vert
     ${CMAKE_SOURCE_DIR}/shaders/scene.frag
+    ${CMAKE_SOURCE_DIR}/shaders/ssao.vert
+    ${CMAKE_SOURCE_DIR}/shaders/ssao.frag
 )
 
 set(VULKANO_SHADER_OUTPUT_DIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders)
