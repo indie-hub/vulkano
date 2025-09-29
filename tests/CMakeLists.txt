@@ -1,1 +1,22 @@
-# Tests will be added in subsequent steps.
+set(VULKANO_TEST_SOURCES
+    triangle_transforms_tests.cpp
+)
+
+add_executable(vulkano_tests
+    ${VULKANO_TEST_SOURCES}
+)
+
+target_link_libraries(vulkano_tests
+    PRIVATE
+        Catch2::Catch2WithMain
+        vulkano_math
+)
+
+target_compile_definitions(vulkano_tests
+    PRIVATE
+        GLM_FORCE_RADIANS
+        GLM_FORCE_DEPTH_ZERO_TO_ONE
+        GLM_FORCE_RIGHT_HANDED
+)
+
+add_test(NAME vulkano_tests COMMAND vulkano_tests)

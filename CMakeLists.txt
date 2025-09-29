@@ -113,6 +113,37 @@ target_compile_definitions(imgui
         GLFW_INCLUDE_NONE
 )
 
+FetchContent_Declare(
+    catch2
+    GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+    GIT_TAG v3.5.2
+)
+FetchContent_MakeAvailable(catch2)
+
+add_library(vulkano_math STATIC
+    src/app/math.cpp
+)
+
+set_target_properties(vulkano_math PROPERTIES OUTPUT_NAME vulkano_math)
+
+target_sources(vulkano_math
+    PUBLIC
+        FILE_SET HEADERS
+        BASE_DIRS include
+        FILES
+            include/vulkano/app/math.hpp
+)
+
+target_include_directories(vulkano_math
+    PUBLIC
+        include
+)
+
+target_link_libraries(vulkano_math
+    PUBLIC
+        glm::glm
+)
+
 add_library(vulkano_app STATIC
     src/app/application.cpp
     src/app/frame_resources.cpp
@@ -151,6 +182,7 @@ target_link_libraries(vulkano_app
         glfw
         Vulkan::Vulkan
         imgui
+        vulkano_math
 )
 
 target_compile_definitions(vulkano_app
@@ -180,6 +212,18 @@ add_dependencies(vulkano_renderer vulkano_shaders)
 if(APPLE)
     target_compile_definitions(vulkano_renderer PRIVATE VK_USE_PLATFORM_MACOS_MVK)
 endif()
+
+set(VULKANO_PACKAGE_DIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/package)
+
+add_custom_target(vulkano_package
+    COMMAND ${CMAKE_COMMAND} -E rm -rf ${VULKANO_PACKAGE_DIR}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${VULKANO_PACKAGE_DIR}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${VULKANO_PACKAGE_DIR}/shaders
+    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:vulkano_renderer> ${VULKANO_PACKAGE_DIR}/
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders ${VULKANO_PACKAGE_DIR}/shaders
+    COMMENT "Packaging runtime bundle to ${VULKANO_PACKAGE_DIR}"
+    DEPENDS vulkano_renderer vulkano_shaders
+)
 
 include(CTest)
 if(BUILD_TESTING)

@@ -2,6 +2,7 @@
 
 #include <vulkano/app/vulkan_context.hpp>
 #include <vulkano/app/window.hpp>
+#include <vulkano/app/math.hpp>
 
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/matrix_transform.hpp>
@@ -483,12 +484,9 @@ void TriangleRenderer::configure_push_constants(const Window& window) noexcept {
     const VkExtent2D extent = window.framebuffer_extent();
     const float aspect = extent.height == 0U ? 1.0F : static_cast<float>(extent.width) / static_cast<float>(extent.height);
 
-    m_pushConstants.model = glm::mat4(1.0F);
-    const glm::vec3 eye {0.0F, 0.0F, 2.0F};
-    const glm::vec3 center {0.0F, 0.0F, 0.0F};
-    const glm::vec3 up {0.0F, 1.0F, 0.0F};
-    m_pushConstants.view = glm::lookAtRH(eye, center, up);
-    m_pushConstants.projection = glm::perspectiveRH_ZO(glm::radians(60.0F), aspect, 0.1F, 10.0F);
-    m_pushConstants.projection[1][1] *= -1.0F;
+    const TriangleTransforms transforms = make_triangle_transforms(aspect);
+    m_pushConstants.model = transforms.model;
+    m_pushConstants.view = transforms.view;
+    m_pushConstants.projection = transforms.projection;
 }
 } // namespace vulkano::app
