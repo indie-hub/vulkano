@@ -3,6 +3,9 @@
 #include <vulkano/app/vulkan_context.hpp>
 #include <vulkano/app/window.hpp>
 
+#include <vulkano/vk/depth_format.hpp>
+#include <vulkano/vk/depth_image.hpp>
+
 #include <array>
 #include <cstring>
 #include <filesystem>
@@ -147,9 +150,11 @@ namespace vulkano::app {
 SceneRenderer::SceneRenderer(const VulkanContext& context, const Window& window)
     : m_context {context} {
     static_cast<void>(window);
+    m_depthFormat = vk::DepthFormatResolver::select_depth_format(m_context.physical_device());
     create_render_pass();
     create_pipeline_layout();
     create_graphics_pipeline();
+    create_depth_resources();
     create_framebuffers();
 
 }
@@ -157,6 +162,7 @@ SceneRenderer::SceneRenderer(const VulkanContext& context, const Window& window)
 SceneRenderer::~SceneRenderer() noexcept {
     destroy_meshes();
     destroy_framebuffers();
+    destroy_depth_resources();
 
     if (m_pipeline != VK_NULL_HANDLE) {
         vkDestroyPipeline(m_context.device(), m_pipeline, nullptr);
@@ -206,9 +212,11 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
         throw std::runtime_error {"Failed to begin recording command buffer"};
     }
 
-    VkClearValue clearValue {};
-    clearValue.color = {{0.0F, 0.0F, 0.0F, 1.0F}};
-    const std::array<VkClearValue, 1> clearValues {clearValue};
+    VkClearValue colorClear {};
+    colorClear.color = {{0.0F, 0.0F, 0.0F, 1.0F}};
+    VkClearValue depthClear {};
+    depthClear.depthStencil = {1.0F, 0U};
+    const std::array<VkClearValue, 2> clearValues {colorClear, depthClear};
 
     VkRenderPassBeginInfo renderPassInfo {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -275,23 +283,39 @@ void SceneRenderer::create_render_pass() {
     colorAttachmentRef.attachment = 0U;
     colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
+    VkAttachmentDescription depthAttachment {};
+    depthAttachment.format = m_depthFormat;
+    depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentReference depthAttachmentRef {};
+    depthAttachmentRef.attachment = 1U;
+    depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
     VkSubpassDescription subpass {};
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 1U;
     subpass.pColorAttachments = &colorAttachmentRef;
+    subpass.pDepthStencilAttachment = &depthAttachmentRef;
 
     VkSubpassDependency dependency {};
     dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
     dependency.dstSubpass = 0U;
-    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
     dependency.srcAccessMask = 0U;
-    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
     VkRenderPassCreateInfo renderPassInfo {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    renderPassInfo.attachmentCount = 1U;
-    renderPassInfo.pAttachments = &colorAttachment;
+    const std::array<VkAttachmentDescription, 2> attachments {colorAttachment, depthAttachment};
+    renderPassInfo.attachmentCount = static_cast<std::uint32_t>(attachments.size());
+    renderPassInfo.pAttachments = attachments.data();
     renderPassInfo.subpassCount = 1U;
     renderPassInfo.pSubpasses = &subpass;
     renderPassInfo.dependencyCount = 1U;
@@ -379,6 +403,18 @@ void SceneRenderer::create_graphics_pipeline() {
     multisampling.sampleShadingEnable = VK_FALSE;
     multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
+    VkPipelineDepthStencilStateCreateInfo depthStencil {};
+    depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depthStencil.depthTestEnable = VK_TRUE;
+    depthStencil.depthWriteEnable = VK_TRUE;
+    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+    depthStencil.depthBoundsTestEnable = VK_FALSE;
+    depthStencil.stencilTestEnable = VK_FALSE;
+    depthStencil.front = {};
+    depthStencil.back = {};
+    depthStencil.minDepthBounds = 0.0F;
+    depthStencil.maxDepthBounds = 1.0F;
+
     VkPipelineColorBlendAttachmentState colorBlendAttachment {};
     colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT
         | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
@@ -409,7 +445,7 @@ void SceneRenderer::create_graphics_pipeline() {
     pipelineInfo.pViewportState = &viewportState;
     pipelineInfo.pRasterizationState = &rasterizer;
     pipelineInfo.pMultisampleState = &multisampling;
-    pipelineInfo.pDepthStencilState = nullptr;
+    pipelineInfo.pDepthStencilState = &depthStencil;
     pipelineInfo.pColorBlendState = &colorBlending;
     pipelineInfo.pDynamicState = &dynamicState;
     pipelineInfo.layout = m_pipelineLayout;
@@ -432,12 +468,12 @@ void SceneRenderer::create_framebuffers() {
     m_framebuffers.resize(imageViews.size());
 
     for (std::size_t i {0U}; i < imageViews.size(); ++i) {
-        const VkImageView attachments[] = {imageViews[i]};
+        const VkImageView attachments[] = {imageViews[i], m_depthImage.view()};
 
         VkFramebufferCreateInfo framebufferInfo {};
         framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         framebufferInfo.renderPass = m_renderPass;
-        framebufferInfo.attachmentCount = 1U;
+        framebufferInfo.attachmentCount = 2U;
         framebufferInfo.pAttachments = attachments;
         framebufferInfo.width = m_context.swapchain_extent().width;
         framebufferInfo.height = m_context.swapchain_extent().height;
@@ -478,6 +514,15 @@ void SceneRenderer::destroy_meshes() noexcept {
         }
     }
     m_meshes.clear();
+}
+
+void SceneRenderer::create_depth_resources() {
+    m_depthImage = vk::DepthImage::create(
+        m_context.physical_device(), m_context.device(), m_context.swapchain_extent(), m_depthFormat);
+}
+
+void SceneRenderer::destroy_depth_resources() noexcept {
+    m_depthImage = vk::DepthImage {};
 }
 
 void SceneRenderer::upload_mesh(const SceneMesh& mesh) {
