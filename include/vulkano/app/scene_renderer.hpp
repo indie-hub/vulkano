@@ -37,7 +37,7 @@ public:
 
     using CommandRecorder = std::function<void(VkCommandBuffer)>;
     void record_command_buffer(VkCommandBuffer commandBuffer, std::uint32_t imageIndex,
-        const CommandRecorder& overlayRecorder) const;
+        const glm::mat4& view, const glm::mat4& projection, const CommandRecorder& overlayRecorder) const;
 
 private:
     struct GpuMesh final {
@@ -64,7 +64,5 @@ private:
     VkPipeline m_pipeline {VK_NULL_HANDLE};
     std::vector<VkFramebuffer> m_framebuffers;
     std::vector<GpuMesh> m_meshes;
-    glm::mat4 m_view {1.0F};
-    glm::mat4 m_projection {1.0F};
 };
 } // namespace vulkano::app

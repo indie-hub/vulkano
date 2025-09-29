@@ -146,6 +146,8 @@ target_link_libraries(vulkano_math
 
 add_library(vulkano_app STATIC
     src/app/application.cpp
+    src/app/camera.cpp
+    src/app/camera_controller.cpp
     src/app/frame_resources.cpp
     src/app/glfw_library.cpp
     src/app/scene_renderer.cpp
@@ -167,6 +169,8 @@ target_sources(vulkano_app
         BASE_DIRS include
         FILES
             include/vulkano/app/application.hpp
+            include/vulkano/app/camera.hpp
+            include/vulkano/app/camera_controller.hpp
             include/vulkano/app/frame_resources.hpp
             include/vulkano/app/glfw_library.hpp
             include/vulkano/app/scene_renderer.hpp
