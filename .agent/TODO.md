@@ -26,3 +26,6 @@
 - [x] Integrate depth attachment into renderer pipeline and clear commands
 - [x] Update synchronization and swapchain recreation for depth resources
 - [x] Build, run tests, and verify depth occlusion at runtime
+- [x] Verify plane normal orientation
+- [ ] Correct plane normal generation and update coverage
+
