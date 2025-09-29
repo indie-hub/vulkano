@@ -1,16 +1,10 @@
-#include <vulkano/app/triangle_renderer.hpp>
+#include <vulkano/app/scene_renderer.hpp>
 
+#include <vulkano/app/math.hpp>
 #include <vulkano/app/vulkan_context.hpp>
 #include <vulkano/app/window.hpp>
-#include <vulkano/app/math.hpp>
-
-#include <glm/ext/matrix_clip_space.hpp>
-#include <glm/ext/matrix_transform.hpp>
-#include <glm/glm.hpp>
 
 #include <array>
-#include <cstddef>
-#include <cstdint>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -19,8 +13,20 @@
 #include <vector>
 
 namespace {
+struct ShaderPaths final {
+    std::filesystem::path vertexPath;
+    std::filesystem::path fragmentPath;
+};
+
+struct ScenePushConstants final {
+    glm::mat4 model {};
+    glm::mat4 view {};
+    glm::mat4 projection {};
+};
+
 struct Vertex final {
     glm::vec3 position {};
+    glm::vec3 normal {};
     glm::vec3 color {};
 };
 
@@ -32,8 +38,8 @@ struct Vertex final {
     return binding;
 }
 
-[[nodiscard]] std::array<VkVertexInputAttributeDescription, 2> vertex_attribute_descriptions() noexcept {
-    std::array<VkVertexInputAttributeDescription, 2> attributes {};
+[[nodiscard]] std::array<VkVertexInputAttributeDescription, 3> vertex_attribute_descriptions() noexcept {
+    std::array<VkVertexInputAttributeDescription, 3> attributes {};
     attributes[0].location = 0U;
     attributes[0].binding = 0U;
     attributes[0].format = VK_FORMAT_R32G32B32_SFLOAT;
@@ -42,7 +48,12 @@ struct Vertex final {
     attributes[1].location = 1U;
     attributes[1].binding = 0U;
     attributes[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-    attributes[1].offset = static_cast<std::uint32_t>(offsetof(Vertex, color));
+    attributes[1].offset = static_cast<std::uint32_t>(offsetof(Vertex, normal));
+
+    attributes[2].location = 2U;
+    attributes[2].binding = 0U;
+    attributes[2].format = VK_FORMAT_R32G32B32_SFLOAT;
+    attributes[2].offset = static_cast<std::uint32_t>(offsetof(Vertex, color));
     return attributes;
 }
 
@@ -74,9 +85,9 @@ struct Vertex final {
     return shaderModule;
 }
 
-[[nodiscard]] std::filesystem::path shader_directory() {
-    const std::filesystem::path current = std::filesystem::current_path();
-    return current / "bin" / "shaders";
+[[nodiscard]] ShaderPaths shader_paths() {
+    const std::filesystem::path base = std::filesystem::current_path() / "bin" / "shaders";
+    return ShaderPaths {.vertexPath = base / "scene.vert.spv", .fragmentPath = base / "scene.frag.spv"};
 }
 
 [[nodiscard]] std::uint32_t find_memory_type(VkPhysicalDevice physicalDevice, std::uint32_t typeFilter,
@@ -95,91 +106,103 @@ struct Vertex final {
     throw std::runtime_error {"Failed to find suitable memory type"};
 }
 
-[[nodiscard]] std::array<Vertex, 3> triangle_vertices() noexcept {
-    return {
-        Vertex {glm::vec3 {-0.5F, -0.5F, 0.0F}, glm::vec3 {1.0F, 1.0F, 1.0F}},
-        Vertex {glm::vec3 {0.5F, -0.5F, 0.0F}, glm::vec3 {1.0F, 1.0F, 1.0F}},
-        Vertex {glm::vec3 {0.0F, 0.5F, 0.0F}, glm::vec3 {1.0F, 1.0F, 1.0F}}
-    };
+void create_buffer(VkPhysicalDevice physicalDevice, VkDevice device, VkDeviceSize size, VkBufferUsageFlags usage,
+    VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& memory) {
+    VkBufferCreateInfo bufferInfo {};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = size;
+    bufferInfo.usage = usage;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    if (vkCreateBuffer(device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create buffer"};
+    }
+
+    VkMemoryRequirements requirements {};
+    vkGetBufferMemoryRequirements(device, buffer, &requirements);
+
+    VkMemoryAllocateInfo allocateInfo {};
+    allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocateInfo.allocationSize = requirements.size;
+    allocateInfo.memoryTypeIndex = find_memory_type(physicalDevice, requirements.memoryTypeBits, properties);
+
+    if (vkAllocateMemory(device, &allocateInfo, nullptr, &memory) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to allocate buffer memory"};
+    }
+
+    if (vkBindBufferMemory(device, buffer, memory, 0U) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to bind buffer memory"};
+    }
 }
-} // namespace
+
+[[nodiscard]] std::vector<std::uint32_t> build_default_indices(const std::size_t vertexCount) {
+    std::vector<std::uint32_t> indices(vertexCount);
+    for (std::uint32_t i {0U}; i < static_cast<std::uint32_t>(vertexCount); ++i) {
+        indices[i] = i;
+    }
+    return indices;
+}
+}
 
 namespace vulkano::app {
-TriangleRenderer::TriangleRenderer(const VulkanContext& context, const Window& window)
+SceneRenderer::SceneRenderer(const VulkanContext& context, const Window& window)
     : m_context {context} {
+    static_cast<void>(window);
     create_render_pass();
     create_pipeline_layout();
     create_graphics_pipeline();
     create_framebuffers();
-    create_vertex_buffer();
-    configure_push_constants(window);
+
+    const TriangleTransforms transforms = make_triangle_transforms(static_cast<float>(context.swapchain_extent().width)
+        / static_cast<float>(context.swapchain_extent().height));
+    m_view = transforms.view;
+    m_projection = transforms.projection;
 }
 
-TriangleRenderer::~TriangleRenderer() noexcept {
-    if (m_vertexBuffer != VK_NULL_HANDLE) {
-        vkDestroyBuffer(m_context.device(), m_vertexBuffer, nullptr);
-        m_vertexBuffer = VK_NULL_HANDLE;
-    }
-
-    if (m_vertexMemory != VK_NULL_HANDLE) {
-        vkFreeMemory(m_context.device(), m_vertexMemory, nullptr);
-        m_vertexMemory = VK_NULL_HANDLE;
-    }
-
-    if (!m_framebuffers.empty()) {
-        for (VkFramebuffer framebuffer : m_framebuffers) {
-            if (framebuffer != VK_NULL_HANDLE) {
-                vkDestroyFramebuffer(m_context.device(), framebuffer, nullptr);
-            }
-        }
-        m_framebuffers.clear();
-    }
+SceneRenderer::~SceneRenderer() noexcept {
+    destroy_meshes();
+    destroy_framebuffers();
 
     if (m_pipeline != VK_NULL_HANDLE) {
         vkDestroyPipeline(m_context.device(), m_pipeline, nullptr);
         m_pipeline = VK_NULL_HANDLE;
     }
-
     if (m_pipelineLayout != VK_NULL_HANDLE) {
         vkDestroyPipelineLayout(m_context.device(), m_pipelineLayout, nullptr);
         m_pipelineLayout = VK_NULL_HANDLE;
     }
-
     if (m_renderPass != VK_NULL_HANDLE) {
         vkDestroyRenderPass(m_context.device(), m_renderPass, nullptr);
         m_renderPass = VK_NULL_HANDLE;
     }
 }
 
-VkRenderPass TriangleRenderer::render_pass() const noexcept {
+void SceneRenderer::set_scene(const std::vector<SceneMesh>& meshes) {
+    destroy_meshes();
+    m_meshes.reserve(meshes.size());
+    for (const SceneMesh& mesh : meshes) {
+        upload_mesh(mesh);
+    }
+}
+
+VkRenderPass SceneRenderer::render_pass() const noexcept {
     return m_renderPass;
 }
 
-VkPipeline TriangleRenderer::pipeline() const noexcept {
+VkPipeline SceneRenderer::pipeline() const noexcept {
     return m_pipeline;
 }
 
-VkPipelineLayout TriangleRenderer::pipeline_layout() const noexcept {
+VkPipelineLayout SceneRenderer::pipeline_layout() const noexcept {
     return m_pipelineLayout;
 }
 
-const std::vector<VkFramebuffer>& TriangleRenderer::framebuffers() const noexcept {
+const std::vector<VkFramebuffer>& SceneRenderer::framebuffers() const noexcept {
     return m_framebuffers;
 }
 
-TrianglePushConstants TriangleRenderer::push_constants() const noexcept {
-    return m_pushConstants;
-}
-
-VkBuffer TriangleRenderer::vertex_buffer() const noexcept {
-    return m_vertexBuffer;
-}
-
-std::uint32_t TriangleRenderer::vertex_count() const noexcept {
-    return m_vertexCount;
-}
-
-void TriangleRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::uint32_t imageIndex, const CommandRecorder& overlayRecorder) const {
+void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::uint32_t imageIndex,
+    const CommandRecorder& overlayRecorder) const {
     VkCommandBufferBeginInfo beginInfo {};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
@@ -218,14 +241,18 @@ void TriangleRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std:
         .extent = m_context.swapchain_extent()};
     vkCmdSetScissor(commandBuffer, 0U, 1U, &scissor);
 
-    const VkDeviceSize offsets[] = {0U};
-    vkCmdBindVertexBuffers(commandBuffer, 0U, 1U, &m_vertexBuffer, offsets);
+    for (const GpuMesh& mesh : m_meshes) {
+        const VkBuffer vertexBuffers[] = {mesh.vertexBuffer};
+        const VkDeviceSize offsets[] = {0U};
+        vkCmdBindVertexBuffers(commandBuffer, 0U, 1U, vertexBuffers, offsets);
+        vkCmdBindIndexBuffer(commandBuffer, mesh.indexBuffer, 0U, VK_INDEX_TYPE_UINT32);
 
-    const TrianglePushConstants pushConstants = m_pushConstants;
-    vkCmdPushConstants(commandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0U,
-        static_cast<std::uint32_t>(sizeof(TrianglePushConstants)), &pushConstants);
+        const ScenePushConstants pushConstants {.model = mesh.model, .view = m_view, .projection = m_projection};
+        vkCmdPushConstants(commandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0U,
+            static_cast<std::uint32_t>(sizeof(ScenePushConstants)), &pushConstants);
 
-    vkCmdDraw(commandBuffer, m_vertexCount, 1U, 0U, 0U);
+        vkCmdDrawIndexed(commandBuffer, mesh.indexCount, 1U, 0U, 0, 0U);
+    }
 
     if (overlayRecorder) {
         overlayRecorder(commandBuffer);
@@ -238,7 +265,7 @@ void TriangleRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std:
     }
 }
 
-void TriangleRenderer::create_render_pass() {
+void SceneRenderer::create_render_pass() {
     VkAttachmentDescription colorAttachment {};
     colorAttachment.format = m_context.swapchain_image_format();
     colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -280,11 +307,11 @@ void TriangleRenderer::create_render_pass() {
     }
 }
 
-void TriangleRenderer::create_pipeline_layout() {
+void SceneRenderer::create_pipeline_layout() {
     VkPushConstantRange pushConstantRange {};
     pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
     pushConstantRange.offset = 0U;
-    pushConstantRange.size = static_cast<std::uint32_t>(sizeof(TrianglePushConstants));
+    pushConstantRange.size = static_cast<std::uint32_t>(sizeof(ScenePushConstants));
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo {};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -298,30 +325,32 @@ void TriangleRenderer::create_pipeline_layout() {
     }
 }
 
-void TriangleRenderer::create_graphics_pipeline() {
-    const std::filesystem::path shadersPath = shader_directory();
-    const std::vector<char> vertexShaderCode = read_binary_file(shadersPath / "triangle.vert.spv");
-    const std::vector<char> fragmentShaderCode = read_binary_file(shadersPath / "triangle.frag.spv");
+void SceneRenderer::create_graphics_pipeline() {
+    const ShaderPaths paths = shader_paths();
+    const VkDevice device = m_context.device();
 
-    VkShaderModule vertexShaderModule = create_shader_module(m_context.device(), vertexShaderCode);
-    VkShaderModule fragmentShaderModule = create_shader_module(m_context.device(), fragmentShaderCode);
+    const std::vector<char> vertexShaderCode = read_binary_file(paths.vertexPath);
+    const std::vector<char> fragmentShaderCode = read_binary_file(paths.fragmentPath);
+
+    VkShaderModule vertexShader = create_shader_module(device, vertexShaderCode);
+    VkShaderModule fragmentShader = create_shader_module(device, fragmentShaderCode);
 
     VkPipelineShaderStageCreateInfo vertShaderStageInfo {};
     vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-    vertShaderStageInfo.module = vertexShaderModule;
+    vertShaderStageInfo.module = vertexShader;
     vertShaderStageInfo.pName = "main";
 
     VkPipelineShaderStageCreateInfo fragShaderStageInfo {};
     fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    fragShaderStageInfo.module = fragmentShaderModule;
+    fragShaderStageInfo.module = fragmentShader;
     fragShaderStageInfo.pName = "main";
 
     const VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
 
     const VkVertexInputBindingDescription bindingDescription = vertex_binding_description();
-    const std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions = vertex_attribute_descriptions();
+    const std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions = vertex_attribute_descriptions();
 
     VkPipelineVertexInputStateCreateInfo vertexInputInfo {};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -335,24 +364,10 @@ void TriangleRenderer::create_graphics_pipeline() {
     inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     inputAssembly.primitiveRestartEnable = VK_FALSE;
 
-    VkViewport viewport {};
-    viewport.x = 0.0F;
-    viewport.y = 0.0F;
-    viewport.width = static_cast<float>(m_context.swapchain_extent().width);
-    viewport.height = static_cast<float>(m_context.swapchain_extent().height);
-    viewport.minDepth = 0.0F;
-    viewport.maxDepth = 1.0F;
-
-    VkRect2D scissor {};
-    scissor.offset = {0, 0};
-    scissor.extent = m_context.swapchain_extent();
-
     VkPipelineViewportStateCreateInfo viewportState {};
     viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
     viewportState.viewportCount = 1U;
-    viewportState.pViewports = &viewport;
     viewportState.scissorCount = 1U;
-    viewportState.pScissors = &scissor;
 
     VkPipelineRasterizationStateCreateInfo rasterizer {};
     rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
@@ -405,25 +420,24 @@ void TriangleRenderer::create_graphics_pipeline() {
     pipelineInfo.layout = m_pipelineLayout;
     pipelineInfo.renderPass = m_renderPass;
     pipelineInfo.subpass = 0U;
-    pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 
     if (vkCreateGraphicsPipelines(m_context.device(), VK_NULL_HANDLE, 1U, &pipelineInfo, nullptr, &m_pipeline)
         != VK_SUCCESS) {
-        vkDestroyShaderModule(m_context.device(), fragmentShaderModule, nullptr);
-        vkDestroyShaderModule(m_context.device(), vertexShaderModule, nullptr);
+        vkDestroyShaderModule(device, fragmentShader, nullptr);
+        vkDestroyShaderModule(device, vertexShader, nullptr);
         throw std::runtime_error {"Failed to create graphics pipeline"};
     }
 
-    vkDestroyShaderModule(m_context.device(), fragmentShaderModule, nullptr);
-    vkDestroyShaderModule(m_context.device(), vertexShaderModule, nullptr);
+    vkDestroyShaderModule(device, fragmentShader, nullptr);
+    vkDestroyShaderModule(device, vertexShader, nullptr);
 }
 
-void TriangleRenderer::create_framebuffers() {
-    const std::vector<VkImageView>& imageViews = m_context.swapchain_image_views();
+void SceneRenderer::create_framebuffers() {
+    const auto& imageViews = m_context.swapchain_image_views();
     m_framebuffers.resize(imageViews.size());
 
     for (std::size_t i {0U}; i < imageViews.size(); ++i) {
-        VkImageView attachments[] = {imageViews[i]};
+        const VkImageView attachments[] = {imageViews[i]};
 
         VkFramebufferCreateInfo framebufferInfo {};
         framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -440,53 +454,82 @@ void TriangleRenderer::create_framebuffers() {
     }
 }
 
-void TriangleRenderer::create_vertex_buffer() {
-    const std::array<Vertex, 3> vertices = triangle_vertices();
-    m_vertexCount = static_cast<std::uint32_t>(vertices.size());
-
-    VkBufferCreateInfo bufferInfo {};
-    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size = sizeof(Vertex) * vertices.size();
-    bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-    if (vkCreateBuffer(m_context.device(), &bufferInfo, nullptr, &m_vertexBuffer) != VK_SUCCESS) {
-        throw std::runtime_error {"Failed to create vertex buffer"};
+void SceneRenderer::destroy_framebuffers() noexcept {
+    for (VkFramebuffer framebuffer : m_framebuffers) {
+        if (framebuffer != VK_NULL_HANDLE) {
+            vkDestroyFramebuffer(m_context.device(), framebuffer, nullptr);
+        }
     }
-
-    VkMemoryRequirements memoryRequirements {};
-    vkGetBufferMemoryRequirements(m_context.device(), m_vertexBuffer, &memoryRequirements);
-
-    VkMemoryAllocateInfo allocateInfo {};
-    allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocateInfo.allocationSize = memoryRequirements.size;
-    allocateInfo.memoryTypeIndex = find_memory_type(m_context.physical_device(), memoryRequirements.memoryTypeBits,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-    if (vkAllocateMemory(m_context.device(), &allocateInfo, nullptr, &m_vertexMemory) != VK_SUCCESS) {
-        throw std::runtime_error {"Failed to allocate vertex buffer memory"};
-    }
-
-    if (vkBindBufferMemory(m_context.device(), m_vertexBuffer, m_vertexMemory, 0U) != VK_SUCCESS) {
-        throw std::runtime_error {"Failed to bind vertex buffer memory"};
-    }
-
-    void* data = nullptr;
-    if (vkMapMemory(m_context.device(), m_vertexMemory, 0U, bufferInfo.size, 0U, &data) != VK_SUCCESS) {
-        throw std::runtime_error {"Failed to map vertex buffer memory"};
-    }
-
-    std::memcpy(data, vertices.data(), static_cast<std::size_t>(bufferInfo.size));
-    vkUnmapMemory(m_context.device(), m_vertexMemory);
+    m_framebuffers.clear();
 }
 
-void TriangleRenderer::configure_push_constants(const Window& window) noexcept {
-    const VkExtent2D extent = window.framebuffer_extent();
-    const float aspect = extent.height == 0U ? 1.0F : static_cast<float>(extent.width) / static_cast<float>(extent.height);
+void SceneRenderer::destroy_meshes() noexcept {
+    for (GpuMesh& mesh : m_meshes) {
+        if (mesh.vertexBuffer != VK_NULL_HANDLE) {
+            vkDestroyBuffer(m_context.device(), mesh.vertexBuffer, nullptr);
+            mesh.vertexBuffer = VK_NULL_HANDLE;
+        }
+        if (mesh.vertexMemory != VK_NULL_HANDLE) {
+            vkFreeMemory(m_context.device(), mesh.vertexMemory, nullptr);
+            mesh.vertexMemory = VK_NULL_HANDLE;
+        }
+        if (mesh.indexBuffer != VK_NULL_HANDLE) {
+            vkDestroyBuffer(m_context.device(), mesh.indexBuffer, nullptr);
+            mesh.indexBuffer = VK_NULL_HANDLE;
+        }
+        if (mesh.indexMemory != VK_NULL_HANDLE) {
+            vkFreeMemory(m_context.device(), mesh.indexMemory, nullptr);
+            mesh.indexMemory = VK_NULL_HANDLE;
+        }
+    }
+    m_meshes.clear();
+}
 
-    const TriangleTransforms transforms = make_triangle_transforms(aspect);
-    m_pushConstants.model = transforms.model;
-    m_pushConstants.view = transforms.view;
-    m_pushConstants.projection = transforms.projection;
+void SceneRenderer::upload_mesh(const SceneMesh& mesh) {
+    const VkDevice device = m_context.device();
+    const VkPhysicalDevice physicalDevice = m_context.physical_device();
+
+    const std::vector<Vertex> vertices = [&mesh]() {
+        std::vector<Vertex> converted;
+        converted.reserve(mesh.mesh.vertices.size());
+        for (const scene::Vertex& vertex : mesh.mesh.vertices) {
+            converted.push_back(Vertex {.position = vertex.position, .normal = vertex.normal, .color = vertex.color});
+        }
+        return converted;
+    }();
+
+    std::vector<std::uint32_t> indices = mesh.mesh.indices;
+    if (indices.empty()) {
+        indices = build_default_indices(vertices.size());
+    }
+
+    GpuMesh gpuMesh {};
+    gpuMesh.model = mesh.model;
+    gpuMesh.indexCount = static_cast<std::uint32_t>(indices.size());
+
+    const VkDeviceSize vertexBufferSize {static_cast<VkDeviceSize>(sizeof(Vertex) * vertices.size())};
+    const VkDeviceSize indexBufferSize {static_cast<VkDeviceSize>(sizeof(std::uint32_t) * indices.size())};
+
+    create_buffer(physicalDevice, device, vertexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, gpuMesh.vertexBuffer, gpuMesh.vertexMemory);
+
+    create_buffer(physicalDevice, device, indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, gpuMesh.indexBuffer, gpuMesh.indexMemory);
+
+    void* vertexData = nullptr;
+    if (vkMapMemory(device, gpuMesh.vertexMemory, 0U, vertexBufferSize, 0U, &vertexData) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to map vertex buffer memory"};
+    }
+    std::memcpy(vertexData, vertices.data(), static_cast<std::size_t>(vertexBufferSize));
+    vkUnmapMemory(device, gpuMesh.vertexMemory);
+
+    void* indexData = nullptr;
+    if (vkMapMemory(device, gpuMesh.indexMemory, 0U, indexBufferSize, 0U, &indexData) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to map index buffer memory"};
+    }
+    std::memcpy(indexData, indices.data(), static_cast<std::size_t>(indexBufferSize));
+    vkUnmapMemory(device, gpuMesh.indexMemory);
+
+    m_meshes.push_back(gpuMesh);
 }
 } // namespace vulkano::app
