@@ -25,4 +25,4 @@
 - [x] Introduce depth image RAII wrapper
 - [x] Integrate depth attachment into renderer pipeline and clear commands
 - [x] Update synchronization and swapchain recreation for depth resources
-- [ ] Build, run tests, and verify depth occlusion at runtime
+- [x] Build, run tests, and verify depth occlusion at runtime
