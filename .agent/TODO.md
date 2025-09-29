@@ -16,3 +16,5 @@
 
 - [x] Investigate swapchain recreation crash
 - [x] Fix swapchain recreation crash
+- [ ] Plan FPS camera integration
+- [ ] Implement FPS camera per plan

@@ -170,3 +170,43 @@ Deliver a right-handed Vulkan renderer that opens a GLFW window, renders a white
 - Resizing the window rebuilds swapchain and scene without stretching.
 - Scene projection and aspect ratio update correctly; cube/sphere maintain positions.
 - Validation layers remain silent during resize sequences.
+
+# FPS Camera Plan
+
+## Objectives
+- Introduce a first-person camera system with WASD + mouse look controls while preserving right-handed coordinates.
+- Update view/projection matrices dynamically in the scene renderer.
+- Keep code SOLID: separate input handling, camera state, and renderer responsibilities.
+
+## Proposed Architecture
+1. **Camera Component**
+   - Add `Camera` class storing position, orientation (yaw/pitch), and matrices.
+   - Provide methods for forward/right/up vectors, movement, and look adjustments with clamped pitch.
+2. **Input Controller**
+   - Extend window/input system with cursor capture/toggle and per-frame delta retrieval.
+   - Use GLFW callbacks for mouse movement; store state in new `CameraController` (update on `poll_events`).
+3. **Renderer Integration**
+   - SceneRenderer uses camera-provided view/projection each frame (no stored view/projection inside renderer).
+   - Push constants updated per draw call with camera matrices.
+4. **Application Glue**
+   - Maintain camera state in `Application`; update based on delta time, keyboard, and mouse input.
+   - Toggle mouse capture with e.g. Escape to free cursor.
+5. **Testing**
+   - Unit tests for camera vector math (forward/right/up and matrix generation).
+   - Manual validation: move around the scene; ensure right-handed controls (W forward, S backward, A left, D right).
+
+## Steps
+1. Implement `Camera` (position, yaw, pitch, `view_matrix`, `projection`, `move` including Q/E vertical motion, and `rotate` with pitch clamp).
+2. Add input handling: GLFW cursor position callback (store last cursor positions and deltas), key state queries, and RMB-based cursor capture so movement/rotation only apply while RMB held (release restores cursor).
+3. Create `CameraController` to process input each frame and adjust camera accordingly.
+4. Update SceneRenderer to accept camera view/projection each frame (remove internal stored matrices).
+5. Modify Application loop to update camera before rendering: when RMB pressed, capture cursor, process WASD/QE movement and mouse deltas each frame; when released, skip camera updates. Pass camera view/projection to renderer push constants.
+6. Add unit tests for camera math (Catch2) and integration checks (e.g., small camera move results expected view).
+7. Build, run tests, manual validation of FPS movement/mouse look.
+
+## Acceptance Criteria
+- W/A/S/D move camera (right-handed: W forward along -Z, A left, etc.), Q/E move vertically; mouse look adjusts yaw/pitch while RMB held with clamped pitch range.
+- Renderer uses updated camera view/projection; objects maintain correct orientation and lighting.
+- Cursor hidden/captured during camera control and can be released (Escape).
+- Unit tests for camera math pass and overall test suite remains green.
+- Application remains validation-clean after movement and resizing.
