@@ -7,3 +7,5 @@
 - [x] Add automated tests and package runnable binaries
 - [x] Diagnose Vulkan validation errors during runtime
 - [x] Implement fixes and verify clean validation run
+- [x] Draft SOLID refactor plan for VulkanContext
+- [ ] Execute VulkanContext refactor based on plan
