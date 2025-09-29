@@ -90,7 +90,7 @@ add_library(imgui STATIC
     ${IMGUI_SOURCE_DIR}/imgui_tables.cpp
     ${IMGUI_SOURCE_DIR}/imgui_widgets.cpp
     ${IMGUI_BACKENDS_DIR}/imgui_impl_glfw.cpp
-    ${IMGUI_BACKENDS_DIR}/imgui_impl_vulkan.cpp
+    ${CMAKE_SOURCE_DIR}/third_party/imgui_backend/imgui_impl_vulkan.cpp
 )
 
 set_target_properties(imgui PROPERTIES POSITION_INDEPENDENT_CODE ON)
