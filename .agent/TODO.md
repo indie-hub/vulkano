@@ -31,4 +31,6 @@
 - [x] Fix plane vertex winding to produce upward normals
 - [x] Update geometry tests for plane normals
 - [x] Rebuild, run tests, and validate scene visuals
+- [x] Evaluate renderer baseline for SSAO integration points
+- [x] Draft SSAO implementation plan with acceptance criteria
 
