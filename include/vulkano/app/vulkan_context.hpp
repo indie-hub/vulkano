@@ -4,6 +4,10 @@
 #include <vector>
 #include <vulkan/vulkan.h>
 
+#include <vulkano/vk/instance.hpp>
+#include <vulkano/vk/logical_device.hpp>
+#include <vulkano/vk/swapchain.hpp>
+
 namespace vulkano::app {
 class Window;
 
@@ -33,19 +37,12 @@ public:
     [[nodiscard]] const std::vector<VkImageView>& swapchain_image_views() const noexcept;
 
 private:
-    VkInstance m_instance {VK_NULL_HANDLE};
-    VkDebugUtilsMessengerEXT m_debugMessenger {VK_NULL_HANDLE};
+    vk::Instance m_instance {};
     VkSurfaceKHR m_surface {VK_NULL_HANDLE};
     VkPhysicalDevice m_physicalDevice {VK_NULL_HANDLE};
-    VkDevice m_device {VK_NULL_HANDLE};
-    VkQueue m_graphicsQueue {VK_NULL_HANDLE};
-    VkQueue m_presentQueue {VK_NULL_HANDLE};
+    vk::LogicalDevice m_device {};
     std::uint32_t m_graphicsQueueFamilyIndex {0U};
     std::uint32_t m_presentQueueFamilyIndex {0U};
-    VkSwapchainKHR m_swapchain {VK_NULL_HANDLE};
-    VkFormat m_swapchainFormat {VK_FORMAT_UNDEFINED};
-    VkExtent2D m_swapchainExtent {0U, 0U};
-    std::vector<VkImage> m_swapchainImages;
-    std::vector<VkImageView> m_swapchainImageViews;
+    vk::SwapchainManager m_swapchain {};
 };
 } // namespace vulkano::app
