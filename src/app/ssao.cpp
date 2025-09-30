@@ -660,7 +660,8 @@ void SSAODescriptors::update_gbuffer_views(VkImageView normalView, VkImageView d
 }
 
 void SSAODescriptors::set_camera_parameters(const glm::mat4& projection, const glm::mat4& inverseProjection,
-    VkExtent2D extent, float radius, float bias, std::uint32_t noiseDimension) noexcept {
+    VkExtent2D extent, float radius, float bias, std::uint32_t noiseDimension, float angleCosThreshold,
+    float depthFalloff, float distanceFalloff, float normalEpsilon) noexcept {
     if (m_device == VK_NULL_HANDLE || m_paramsMemory == VK_NULL_HANDLE) {
         return;
     }
@@ -673,11 +674,11 @@ void SSAODescriptors::set_camera_parameters(const glm::mat4& projection, const g
     m_params.projection = projection;
     m_params.sampleParams = glm::vec4 {width / noiseDim, height / noiseDim, radius, bias};
 
-    const float safeRadius = std::max(radius, 0.01F);
-    const float angleCosThreshold = 0.3F; // around 72 degrees
-    const float depthFalloff = 2.0F / safeRadius;
-    const float distanceFalloff = 1.0F / safeRadius;
-    m_params.attenuationParams = glm::vec4 {angleCosThreshold, depthFalloff, distanceFalloff, 0.0F};
+    const float angleCos = std::clamp(angleCosThreshold, -1.0F, 1.0F);
+    const float depthAtt = std::max(depthFalloff, 0.01F);
+    const float distanceAtt = std::max(distanceFalloff, 0.01F);
+    const float normalEps = std::clamp(normalEpsilon, 0.0F, 1.0F);
+    m_params.attenuationParams = glm::vec4 {angleCos, depthAtt, distanceAtt, normalEps};
 
     copy_to_memory(m_device, m_paramsMemory, &m_params, sizeof(ShaderParams));
 }

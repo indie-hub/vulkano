@@ -80,7 +80,8 @@ public:
     [[nodiscard]] VkDescriptorSet descriptor_set() const noexcept;
     void update_gbuffer_views(VkImageView normalView, VkImageView depthView);
     void set_camera_parameters(const glm::mat4& projection, const glm::mat4& inverseProjection, VkExtent2D extent,
-        float radius, float bias, std::uint32_t noiseDimension) noexcept;
+        float radius, float bias, std::uint32_t noiseDimension, float angleCosThreshold, float depthFalloff,
+        float distanceFalloff, float normalEpsilon) noexcept;
 
 private:
     void destroy() noexcept;
