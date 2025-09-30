@@ -99,7 +99,7 @@ private:
         glm::mat4 inverseProjection {1.0F};
         glm::mat4 projection {1.0F};
         glm::vec4 sampleParams {1.0F, 1.0F, 0.75F, 0.025F};
-        glm::vec4 attenuationParams {0.3F, 2.0F, 1.0F, 0.0F};
+        glm::vec4 attenuationParams {0.3F, 0.2F, 0.5F, 0.05F};
     };
 
     ShaderParams m_params {};

@@ -57,8 +57,8 @@ void main() {
     float weightAccum = 0.0;
 
     float angleCosThreshold = clamp(uParams.attenuationParams.x, -1.0, 1.0);
-    float depthFalloff = max(uParams.attenuationParams.y, 0.01);
-    float distanceFalloff = max(uParams.attenuationParams.z, 0.01);
+    float depthRange = max(uParams.attenuationParams.y, 0.01);
+    float distanceRange = max(uParams.attenuationParams.z, 0.01);
 
     const int sampleCount = 64;
     for (int i = 0; i < sampleCount; ++i) {
@@ -103,8 +103,8 @@ void main() {
         continue;
     }
 
-    float depthWeight = exp(-depthDifference * depthFalloff);
-    float distanceWeight = exp(-occluderDistance * distanceFalloff);
+    float depthWeight = exp(-depthDifference / depthRange);
+    float distanceWeight = exp(-occluderDistance / distanceRange);
     float weight = depthWeight * distanceWeight;
 
     occlusionAccum += weight;

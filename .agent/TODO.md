@@ -60,4 +60,5 @@
 - [x] Reconstruct SSAO occluder positions using depth buffer
 - [x] Apply angular/normal filtering and exponential falloff in shader
 - [x] Add ImGui controls for SSAO sampling heuristics
+- [x] Interpret SSAO falloff sliders as range values and retune shader
 - [ ] Extend SSAO tests and revalidate runtime

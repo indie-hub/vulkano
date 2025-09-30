@@ -78,12 +78,12 @@ int Application::run() noexcept {
         float ssaoRadius = 0.75F;
         float ssaoBias = 0.025F;
         float ssaoAngleCos = 0.3F;
-        float ssaoDepthFalloff = 2.0F;
-        float ssaoDistanceFalloff = 1.0F;
+        float ssaoDepthRange = 0.2F;
+        float ssaoDistanceRange = 0.5F;
         float ssaoNormalEpsilon = 0.05F;
         ssaoDescriptors->set_camera_parameters(camera.projection_matrix(), glm::inverse(camera.projection_matrix()),
             context.swapchain_extent(), ssaoRadius, ssaoBias, ssaoResources.noise_dimension(), ssaoAngleCos,
-            ssaoDepthFalloff, ssaoDistanceFalloff, ssaoNormalEpsilon);
+            ssaoDepthRange, ssaoDistanceRange, ssaoNormalEpsilon);
 
         bool ssaoEnabled = true;
         float ssaoStrength = 1.0F;
@@ -125,7 +125,7 @@ int Application::run() noexcept {
             ssaoComposite->update_occlusion_view(ssaoBlurPass->blurred_view());
             ssaoDescriptors->set_camera_parameters(camera.projection_matrix(), glm::inverse(camera.projection_matrix()),
                 context.swapchain_extent(), ssaoRadius, ssaoBias, ssaoResources.noise_dimension(), ssaoAngleCos,
-                ssaoDepthFalloff, ssaoDistanceFalloff, ssaoNormalEpsilon);
+                ssaoDepthRange, ssaoDistanceRange, ssaoNormalEpsilon);
             ssaoBlurPass->set_parameters(ssaoBlurRadius, ssaoBlurDepthSigma);
 
             imgui = std::make_unique<ImGuiRenderer>(context, window, renderer->render_pass());
@@ -174,8 +174,8 @@ int Application::run() noexcept {
                 ImGui::SliderFloat("SSAORadius", &ssaoRadius, 0.1F, 4.0F);
                 ImGui::SliderFloat("SSAOBias", &ssaoBias, 0.0F, 0.1F);
                 ImGui::SliderFloat("SSAOCos", &ssaoAngleCos, 0.0F, 1.0F);
-                ImGui::SliderFloat("SSAODepthFalloff", &ssaoDepthFalloff, 0.1F, 8.0F);
-                ImGui::SliderFloat("SSAODistanceFalloff", &ssaoDistanceFalloff, 0.1F, 8.0F);
+                ImGui::SliderFloat("SSAODepthRange", &ssaoDepthRange, 0.01F, 1.0F);
+                ImGui::SliderFloat("SSAODistanceRange", &ssaoDistanceRange, 0.05F, 3.0F);
                 ImGui::SliderFloat("SSAONormalEps", &ssaoNormalEpsilon, 0.0F, 0.5F);
                 ImGui::SliderFloat("Blur Radius", &ssaoBlurRadius, 0.5F, 6.0F);
                 ImGui::SliderFloat("Blur Depth Sigma", &ssaoBlurDepthSigma, 0.01F, 1.0F);
@@ -186,7 +186,7 @@ int Application::run() noexcept {
             ssaoComposite->set_config(effectiveStrength, ssaoBaseAmbient, ssaoDebugView);
             ssaoDescriptors->set_camera_parameters(camera.projection_matrix(), glm::inverse(camera.projection_matrix()),
                 context.swapchain_extent(), ssaoRadius, ssaoBias, ssaoResources.noise_dimension(), ssaoAngleCos,
-                ssaoDepthFalloff, ssaoDistanceFalloff, ssaoNormalEpsilon);
+                ssaoDepthRange, ssaoDistanceRange, ssaoNormalEpsilon);
             ssaoBlurPass->set_parameters(ssaoBlurRadius, ssaoBlurDepthSigma);
             // Descriptor already points at blurred occlusion; no per-frame update needed
             imgui->end_frame();
