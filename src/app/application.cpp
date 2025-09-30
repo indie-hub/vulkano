@@ -61,6 +61,7 @@ int Application::run() noexcept {
         planeMaterial.properties.roughness = 0.9F;
         planeMaterial.textures.baseColorPath = "assets/textures/plane.png";
         planeMaterial.useBaseColorTexture = true;
+        planeMaterial.useNormalTexture = true;
         const scene::MaterialId planeMaterialId = materialRegistry.add_material(planeMaterial);
 
         scene::Material cubeMaterial {};
@@ -69,6 +70,7 @@ int Application::run() noexcept {
         cubeMaterial.properties.metallic = 0.05F;
         cubeMaterial.textures.baseColorPath = "assets/textures/cube.png";
         cubeMaterial.useBaseColorTexture = true;
+        cubeMaterial.useNormalTexture = true;
         const scene::MaterialId cubeMaterialId = materialRegistry.add_material(cubeMaterial);
 
         scene::Material sphereMaterial {};
@@ -77,6 +79,7 @@ int Application::run() noexcept {
         sphereMaterial.properties.metallic = 0.6F;
         sphereMaterial.textures.baseColorPath = "assets/textures/sphere.png";
         sphereMaterial.useBaseColorTexture = true;
+        sphereMaterial.useNormalTexture = true;
         const scene::MaterialId sphereMaterialId = materialRegistry.add_material(sphereMaterial);
 
         std::vector<SceneRenderer::SceneMesh> sceneMeshes {
