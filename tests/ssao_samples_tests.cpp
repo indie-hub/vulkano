@@ -112,3 +112,38 @@ TEST_CASE("SSAO noise is tangent-space and deterministic") {
         REQUIRE(glm::length(glm::vec2 {n.x, n.y}) <= 1.0F + epsilon);
     }
 }
+
+TEST_CASE("SSAO kernel generation is deterministic and seed-dependent") {
+    const vulkano::app::SSAOSampleGenerator generatorA {1234U};
+    const auto kernelFirst = generatorA.generate_kernel(kernelSize);
+    const auto kernelSecond = generatorA.generate_kernel(kernelSize);
+    REQUIRE(kernelFirst == kernelSecond);
+
+    const vulkano::app::SSAOSampleGenerator generatorB {1235U};
+    const auto kernelDifferentSeed = generatorB.generate_kernel(kernelSize);
+    REQUIRE(kernelFirst != kernelDifferentSeed);
+}
+
+TEST_CASE("SSAO kernel radius grows monotonically") {
+    const vulkano::app::SSAOSampleGenerator generator {314U};
+    const auto kernel = generator.generate_kernel(kernelSize);
+
+    REQUIRE(kernel.size() == kernelSize);
+
+    float previousLength {0.0F};
+    for (const glm::vec3& sample : kernel) {
+        const float currentLength = glm::length(sample);
+        REQUIRE(currentLength + epsilon >= previousLength);
+        previousLength = currentLength;
+    }
+    REQUIRE(previousLength <= 1.0F + epsilon);
+}
+
+TEST_CASE("SSAO generator handles empty requests") {
+    const vulkano::app::SSAOSampleGenerator generator {777U};
+    const auto emptyKernel = generator.generate_kernel(0U);
+    REQUIRE(emptyKernel.empty());
+
+    const auto emptyNoise = generator.generate_noise(0U);
+    REQUIRE(emptyNoise.empty());
+}
