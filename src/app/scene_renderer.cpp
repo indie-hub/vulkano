@@ -172,6 +172,7 @@ SceneRenderer::SceneRenderer(const VulkanContext& context, const Window& window,
     create_color_resources();
     create_depth_resources();
     create_framebuffers();
+    create_light_debug_mesh();
 
 }
 
@@ -191,6 +192,7 @@ SceneRenderer::~SceneRenderer() noexcept {
     }
     destroy_light_descriptors();
     destroy_material_descriptors();
+    destroy_light_debug_mesh();
     if (m_renderPass != VK_NULL_HANDLE) {
         vkDestroyRenderPass(m_context.device(), m_renderPass, nullptr);
         m_renderPass = VK_NULL_HANDLE;
@@ -252,7 +254,7 @@ void SceneRenderer::set_material_resources(const MaterialBuffer& buffer, const M
     m_materialBuffer = &buffer;
 }
 
-void SceneRenderer::set_light_buffer(const LightBuffer& buffer) {
+void SceneRenderer::set_light_resources(const LightBuffer& buffer, const scene::LightRegistry& registry) {
     if (m_lightDescriptorSet == VK_NULL_HANDLE) {
         throw std::logic_error {"Light descriptor set not initialised"};
     }
@@ -272,7 +274,41 @@ void SceneRenderer::set_light_buffer(const LightBuffer& buffer) {
 
     vkUpdateDescriptorSets(m_context.device(), 1U, &write, 0U, nullptr);
 
+    if (registry.size() > 0U) {
+        const scene::Light& primary = registry.light(scene::LightId {0U});
+        const glm::vec3 dir = primary.direction;
+        m_lightDirection = glm::length(dir) > 0.0F ? glm::normalize(dir) : glm::vec3 {0.0F, -1.0F, 0.0F};
+        m_lightColor = primary.color;
+        m_lightIntensity = primary.intensity;
+
+        if (m_lightDebugMesh.vertexMemory != VK_NULL_HANDLE) {
+            std::array<Vertex, 5> vertices = {
+                Vertex {.position = glm::vec3 {0.0F, 0.0F, 0.0F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+                    .color = m_lightColor, .uv = glm::vec2 {0.0F, 0.0F}},
+                Vertex {.position = glm::vec3 {0.05F, 0.05F, -0.2F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+                    .color = m_lightColor, .uv = glm::vec2 {0.0F, 0.0F}},
+                Vertex {.position = glm::vec3 {-0.05F, 0.05F, -0.2F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+                    .color = m_lightColor, .uv = glm::vec2 {0.0F, 0.0F}},
+                Vertex {.position = glm::vec3 {-0.05F, -0.05F, -0.2F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+                    .color = m_lightColor, .uv = glm::vec2 {0.0F, 0.0F}},
+                Vertex {.position = glm::vec3 {0.05F, -0.05F, -0.2F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+                    .color = m_lightColor, .uv = glm::vec2 {0.0F, 0.0F}}
+            };
+
+            VkDeviceSize size = static_cast<VkDeviceSize>(sizeof(Vertex) * vertices.size());
+            void* mapped = nullptr;
+            if (vkMapMemory(m_context.device(), m_lightDebugMesh.vertexMemory, 0U, size, 0U, &mapped) == VK_SUCCESS) {
+                std::memcpy(mapped, vertices.data(), static_cast<std::size_t>(size));
+                vkUnmapMemory(m_context.device(), m_lightDebugMesh.vertexMemory);
+            }
+        }
+    }
+
     m_lightBuffer = &buffer;
+}
+
+void SceneRenderer::set_show_light_debug(bool enabled) noexcept {
+    m_showLightDebug = enabled;
 }
 
 VkRenderPass SceneRenderer::render_pass() const noexcept {
@@ -396,6 +432,39 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
             static_cast<std::uint32_t>(sizeof(ScenePushConstants)), &pushConstants);
 
         vkCmdDrawIndexed(commandBuffer, mesh.indexCount, 1U, 0U, 0, 0U);
+    }
+
+    if (m_showLightDebug && m_lightDebugMesh.indexCount > 0U && m_lightBuffer != nullptr) {
+        const glm::vec3 dir = glm::length(m_lightDirection) > 0.0F ? glm::normalize(m_lightDirection)
+            : glm::vec3 {0.0F, -1.0F, 0.0F};
+        const float length = glm::max(m_lightIntensity, 0.1F);
+
+        glm::vec3 forward = -dir;
+        glm::vec3 upReference = glm::abs(forward.y) > 0.99F ? glm::vec3 {0.0F, 0.0F, 1.0F} : glm::vec3 {0.0F, 1.0F, 0.0F};
+        glm::vec3 right = glm::normalize(glm::cross(upReference, forward));
+        glm::vec3 up = glm::normalize(glm::cross(forward, right));
+
+        glm::mat4 debugModel {1.0F};
+        debugModel[0] = glm::vec4(right * 0.5F, 0.0F);
+        debugModel[1] = glm::vec4(up * 0.5F, 0.0F);
+        debugModel[2] = glm::vec4(forward * length, 0.0F);
+        debugModel[3] = glm::vec4(0.0F, 0.0F, 0.0F, 1.0F);
+
+        const ScenePushConstants debugConstants {
+            .model = debugModel,
+            .view = view,
+            .projection = projection,
+            .material = glm::uvec4 {0U, 0U, 0U, 0U},
+            .camera = glm::vec4 {cameraPosition, 1.0F}
+        };
+
+        const VkBuffer lightBuffers[] = {m_lightDebugMesh.vertexBuffer};
+        const VkDeviceSize lightOffsets[] = {0U};
+        vkCmdBindVertexBuffers(commandBuffer, 0U, 1U, lightBuffers, lightOffsets);
+        vkCmdBindIndexBuffer(commandBuffer, m_lightDebugMesh.indexBuffer, 0U, VK_INDEX_TYPE_UINT32);
+        vkCmdPushConstants(commandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0U,
+            static_cast<std::uint32_t>(sizeof(ScenePushConstants)), &debugConstants);
+        vkCmdDrawIndexed(commandBuffer, m_lightDebugMesh.indexCount, 1U, 0U, 0, 0U);
     }
 
     if (overlayRecorder) {
@@ -996,6 +1065,123 @@ void SceneRenderer::upload_mesh(const SceneMesh& mesh) {
     std::memcpy(indexData, indices.data(), static_cast<std::size_t>(indexBufferSize));
     vkUnmapMemory(device, gpuMesh.indexMemory);
 
-    m_meshes.push_back(gpuMesh);
+m_meshes.push_back(gpuMesh);
+}
+
+void SceneRenderer::create_light_debug_mesh() {
+    const VkDevice device = m_context.device();
+    const VkPhysicalDevice physicalDevice = m_context.physical_device();
+
+    const std::array<Vertex, 5> vertices {
+        Vertex {.position = glm::vec3 {0.0F, 0.0F, 0.0F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+            .color = glm::vec3 {1.0F, 1.0F, 0.0F}, .uv = glm::vec2 {0.0F, 0.0F}},
+        Vertex {.position = glm::vec3 {0.05F, 0.05F, -0.2F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+            .color = glm::vec3 {1.0F, 1.0F, 0.0F}, .uv = glm::vec2 {0.0F, 0.0F}},
+        Vertex {.position = glm::vec3 {-0.05F, 0.05F, -0.2F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+            .color = glm::vec3 {1.0F, 1.0F, 0.0F}, .uv = glm::vec2 {0.0F, 0.0F}},
+        Vertex {.position = glm::vec3 {-0.05F, -0.05F, -0.2F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+            .color = glm::vec3 {1.0F, 1.0F, 0.0F}, .uv = glm::vec2 {0.0F, 0.0F}},
+        Vertex {.position = glm::vec3 {0.05F, -0.05F, -0.2F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+            .color = glm::vec3 {1.0F, 1.0F, 0.0F}, .uv = glm::vec2 {0.0F, 0.0F}}
+    };
+    const std::array<std::uint32_t, 12> indices {
+        0U, 1U, 2U,
+        0U, 2U, 3U,
+        0U, 3U, 4U,
+        0U, 4U, 1U
+    };
+
+    VkDeviceSize vertexBufferSize {static_cast<VkDeviceSize>(sizeof(Vertex) * vertices.size())};
+    VkBufferCreateInfo vertexInfo {};
+    vertexInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    vertexInfo.size = vertexBufferSize;
+    vertexInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    vertexInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    if (vkCreateBuffer(device, &vertexInfo, nullptr, &m_lightDebugMesh.vertexBuffer) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create light debug vertex buffer"};
+    }
+
+    VkMemoryRequirements vertexReq {};
+    vkGetBufferMemoryRequirements(device, m_lightDebugMesh.vertexBuffer, &vertexReq);
+
+    VkMemoryAllocateInfo vertexAlloc {};
+    vertexAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    vertexAlloc.allocationSize = vertexReq.size;
+    vertexAlloc.memoryTypeIndex = find_memory_type(physicalDevice, vertexReq.memoryTypeBits,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    if (vkAllocateMemory(device, &vertexAlloc, nullptr, &m_lightDebugMesh.vertexMemory) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to allocate light debug vertex memory"};
+    }
+
+    if (vkBindBufferMemory(device, m_lightDebugMesh.vertexBuffer, m_lightDebugMesh.vertexMemory, 0U) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to bind light debug vertex memory"};
+    }
+
+    void* vertexData = nullptr;
+    if (vkMapMemory(device, m_lightDebugMesh.vertexMemory, 0U, vertexBufferSize, 0U, &vertexData) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to map light debug vertex memory"};
+    }
+    std::memcpy(vertexData, vertices.data(), static_cast<std::size_t>(vertexBufferSize));
+    vkUnmapMemory(device, m_lightDebugMesh.vertexMemory);
+
+    VkDeviceSize indexBufferSize {static_cast<VkDeviceSize>(sizeof(std::uint32_t) * indices.size())};
+    VkBufferCreateInfo indexInfo {};
+    indexInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    indexInfo.size = indexBufferSize;
+    indexInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+    indexInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    if (vkCreateBuffer(device, &indexInfo, nullptr, &m_lightDebugMesh.indexBuffer) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create light debug index buffer"};
+    }
+
+    VkMemoryRequirements indexReq {};
+    vkGetBufferMemoryRequirements(device, m_lightDebugMesh.indexBuffer, &indexReq);
+
+    VkMemoryAllocateInfo indexAlloc {};
+    indexAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    indexAlloc.allocationSize = indexReq.size;
+    indexAlloc.memoryTypeIndex = find_memory_type(physicalDevice, indexReq.memoryTypeBits,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    if (vkAllocateMemory(device, &indexAlloc, nullptr, &m_lightDebugMesh.indexMemory) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to allocate light debug index memory"};
+    }
+
+    if (vkBindBufferMemory(device, m_lightDebugMesh.indexBuffer, m_lightDebugMesh.indexMemory, 0U) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to bind light debug index memory"};
+    }
+
+    void* indexData = nullptr;
+    if (vkMapMemory(device, m_lightDebugMesh.indexMemory, 0U, indexBufferSize, 0U, &indexData) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to map light debug index memory"};
+    }
+    std::memcpy(indexData, indices.data(), static_cast<std::size_t>(indexBufferSize));
+    vkUnmapMemory(device, m_lightDebugMesh.indexMemory);
+
+    m_lightDebugMesh.indexCount = static_cast<std::uint32_t>(indices.size());
+}
+
+void SceneRenderer::destroy_light_debug_mesh() noexcept {
+    const VkDevice device = m_context.device();
+    if (m_lightDebugMesh.vertexBuffer != VK_NULL_HANDLE) {
+        vkDestroyBuffer(device, m_lightDebugMesh.vertexBuffer, nullptr);
+        m_lightDebugMesh.vertexBuffer = VK_NULL_HANDLE;
+    }
+    if (m_lightDebugMesh.vertexMemory != VK_NULL_HANDLE) {
+        vkFreeMemory(device, m_lightDebugMesh.vertexMemory, nullptr);
+        m_lightDebugMesh.vertexMemory = VK_NULL_HANDLE;
+    }
+    if (m_lightDebugMesh.indexBuffer != VK_NULL_HANDLE) {
+        vkDestroyBuffer(device, m_lightDebugMesh.indexBuffer, nullptr);
+        m_lightDebugMesh.indexBuffer = VK_NULL_HANDLE;
+    }
+    if (m_lightDebugMesh.indexMemory != VK_NULL_HANDLE) {
+        vkFreeMemory(device, m_lightDebugMesh.indexMemory, nullptr);
+        m_lightDebugMesh.indexMemory = VK_NULL_HANDLE;
+    }
+    m_lightDebugMesh.indexCount = 0U;
 }
 } // namespace vulkano::app

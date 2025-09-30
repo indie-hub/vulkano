@@ -102,6 +102,7 @@ int Application::run() noexcept {
         lightBuffer.update(lightRegistry);
         bool materialsDirty = false;
         bool lightsDirty = false;
+        bool showLightDebug = true;
 
         SSAOSampleGenerator ssaoGenerator {};
         SSAOGpuResources ssaoResources {context, ssaoGenerator, 64U, 4U};
@@ -110,7 +111,8 @@ int Application::run() noexcept {
         auto renderer = std::make_unique<SceneRenderer>(context, window, ssaoComposite->layout());
         renderer->set_scene(sceneMeshes);
         renderer->set_material_resources(materialBuffer, materialTextures);
-        renderer->set_light_buffer(lightBuffer);
+        renderer->set_light_resources(lightBuffer, lightRegistry);
+        renderer->set_show_light_debug(showLightDebug);
 
         auto ssaoDescriptors = std::make_unique<SSAODescriptors>(context, ssaoResources,
             renderer->normal_image_view(), renderer->linear_depth_image_view());
@@ -165,7 +167,8 @@ int Application::run() noexcept {
             renderer = std::make_unique<SceneRenderer>(context, window, ssaoComposite->layout());
             renderer->set_scene(sceneMeshes);
             renderer->set_material_resources(materialBuffer, materialTextures);
-            renderer->set_light_buffer(lightBuffer);
+            renderer->set_light_resources(lightBuffer, lightRegistry);
+            renderer->set_show_light_debug(showLightDebug);
             ssaoDescriptors->update_gbuffer_views(renderer->normal_image_view(), renderer->linear_depth_image_view());
             ssaoPass->resize(context, context.swapchain_extent());
             ssaoBlurPass->resize(context, context.swapchain_extent());
@@ -240,6 +243,9 @@ int Application::run() noexcept {
             ImGui::End();
 
             if (ImGui::Begin("Lighting")) {
+                if (ImGui::Checkbox("Show Light Gizmo", &showLightDebug)) {
+                    renderer->set_show_light_debug(showLightDebug);
+                }
                 for (std::size_t index {0U}; index < lightRegistry.size(); ++index) {
                     const scene::LightId id {static_cast<std::uint32_t>(index)};
                     scene::Light& editableLight = lightRegistry.light(id);
@@ -364,10 +370,11 @@ int Application::run() noexcept {
                 materialsDirty = false;
             }
 
-            if (lightsDirty) {
+           if (lightsDirty) {
                 context.wait_idle();
                 lightBuffer.update(lightRegistry);
-                renderer->set_light_buffer(lightBuffer);
+                renderer->set_light_resources(lightBuffer, lightRegistry);
+                renderer->set_show_light_debug(showLightDebug);
                 lightsDirty = false;
             }
 

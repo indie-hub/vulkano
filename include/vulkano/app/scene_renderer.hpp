@@ -8,6 +8,7 @@
 #include <glm/mat4x4.hpp>
 
 #include <vulkano/scene/material.hpp>
+#include <vulkano/scene/light.hpp>
 #include <vulkano/scene/mesh.hpp>
 #include <vulkano/vk/color_image.hpp>
 #include <vulkano/vk/depth_image.hpp>
@@ -37,7 +38,8 @@ public:
 
     void set_scene(const std::vector<SceneMesh>& meshes);
     void set_material_resources(const MaterialBuffer& buffer, const MaterialTextureCache& textures);
-    void set_light_buffer(const LightBuffer& buffer);
+    void set_light_resources(const LightBuffer& buffer, const scene::LightRegistry& registry);
+    void set_show_light_debug(bool enabled) noexcept;
 
     [[nodiscard]] VkRenderPass render_pass() const noexcept;
     [[nodiscard]] VkPipeline pipeline() const noexcept;
@@ -67,6 +69,14 @@ private:
         scene::MaterialId material {scene::MaterialId::invalid()};
     };
 
+    struct DebugMesh final {
+        VkBuffer vertexBuffer {VK_NULL_HANDLE};
+        VkDeviceMemory vertexMemory {VK_NULL_HANDLE};
+        VkBuffer indexBuffer {VK_NULL_HANDLE};
+        VkDeviceMemory indexMemory {VK_NULL_HANDLE};
+        std::uint32_t indexCount {0U};
+    };
+
     void create_render_pass();
     void create_pipeline_layout();
     void create_graphics_pipeline();
@@ -81,6 +91,8 @@ private:
     void destroy_material_descriptors() noexcept;
     void create_light_descriptors();
     void destroy_light_descriptors() noexcept;
+    void create_light_debug_mesh();
+    void destroy_light_debug_mesh() noexcept;
 
     void upload_mesh(const SceneMesh& mesh);
 
@@ -90,6 +102,7 @@ private:
     VkPipeline m_pipeline {VK_NULL_HANDLE};
     std::vector<VkFramebuffer> m_framebuffers;
     std::vector<GpuMesh> m_meshes;
+    DebugMesh m_lightDebugMesh;
     VkFormat m_depthFormat {VK_FORMAT_UNDEFINED};
     VkFormat m_albedoFormat {VK_FORMAT_R8G8B8A8_UNORM};
     VkFormat m_normalFormat {VK_FORMAT_R8G8B8A8_UNORM};
@@ -108,5 +121,9 @@ private:
     VkDescriptorPool m_lightDescriptorPool {VK_NULL_HANDLE};
     VkDescriptorSet m_lightDescriptorSet {VK_NULL_HANDLE};
     const LightBuffer* m_lightBuffer {nullptr};
+    bool m_showLightDebug {false};
+    glm::vec3 m_lightDirection {0.0F, -1.0F, 0.0F};
+    glm::vec3 m_lightColor {1.0F, 1.0F, 1.0F};
+    float m_lightIntensity {1.0F};
 };
 } // namespace vulkano::app
