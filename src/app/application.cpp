@@ -70,6 +70,7 @@ int Application::run() noexcept {
         auto ssaoPass = std::make_unique<SSAOPass>(context, ssaoDescriptors->layout(), context.swapchain_extent());
         auto ssaoBlurPass = std::make_unique<SSAOBlurPass>(context, context.swapchain_extent());
         ssaoBlurPass->set_depth_view(renderer->linear_depth_image_view());
+        ssaoBlurPass->set_occlusion_view(ssaoPass->occlusion_view());
         ssaoBlurPass->set_parameters(2.0F, 0.1F);
         ssaoComposite->update_occlusion_view(ssaoBlurPass->blurred_view());
         const float ssaoRadius = 0.75F;
@@ -80,7 +81,6 @@ int Application::run() noexcept {
         bool ssaoEnabled = true;
         float ssaoStrength = 1.0F;
         float ssaoBaseAmbient = 0.2F;
-        bool ssaoBlurEnabled = true;
         float ssaoBlurRadius = 2.0F;
         float ssaoBlurDepthSigma = 0.1F;
         bool ssaoDebugView = false;
@@ -116,7 +116,8 @@ int Application::run() noexcept {
             ssaoPass->resize(context, context.swapchain_extent());
             ssaoBlurPass->resize(context, context.swapchain_extent());
             ssaoBlurPass->set_depth_view(renderer->linear_depth_image_view());
-            ssaoComposite->update_occlusion_view(ssaoBlurEnabled ? ssaoBlurPass->blurred_view() : ssaoPass->occlusion_view());
+            ssaoBlurPass->set_occlusion_view(ssaoPass->occlusion_view());
+            ssaoComposite->update_occlusion_view(ssaoBlurPass->blurred_view());
             ssaoDescriptors->set_camera_parameters(camera.projection_matrix(), glm::inverse(camera.projection_matrix()),
                 context.swapchain_extent(), ssaoRadius, ssaoBias, ssaoResources.noise_dimension());
             ssaoBlurPass->set_parameters(ssaoBlurRadius, ssaoBlurDepthSigma);
@@ -165,7 +166,6 @@ int Application::run() noexcept {
                 ImGui::Checkbox("Enable", &ssaoEnabled);
                 ImGui::SliderFloat("Strength", &ssaoStrength, 0.0F, 2.0F);
                 ImGui::SliderFloat("Base Ambient", &ssaoBaseAmbient, 0.0F, 1.0F);
-                ImGui::Checkbox("Blur", &ssaoBlurEnabled);
                 ImGui::SliderFloat("Blur Radius", &ssaoBlurRadius, 0.5F, 6.0F);
                 ImGui::SliderFloat("Blur Depth Sigma", &ssaoBlurDepthSigma, 0.01F, 1.0F);
                 ImGui::Checkbox("Debug Occlusion", &ssaoDebugView);
@@ -173,7 +173,7 @@ int Application::run() noexcept {
             ImGui::End();
             float effectiveStrength = ssaoEnabled ? ssaoStrength : 0.0F;
             ssaoComposite->set_config(effectiveStrength, ssaoBaseAmbient, ssaoDebugView);
-            ssaoComposite->update_occlusion_view(ssaoBlurEnabled ? ssaoBlurPass->blurred_view() : ssaoPass->occlusion_view());
+            // Descriptor already points at blurred occlusion; no per-frame update needed
             imgui->end_frame();
 
             const VkFence inFlightFence = frameResources->in_flight_fence(currentFrame);
@@ -213,9 +213,7 @@ int Application::run() noexcept {
             }};
             renderer->record_command_buffer(commandBuffer, imageIndex, camera.view_matrix(), camera.projection_matrix(), overlayRecorder, ssaoComposite->descriptor_set());
             ssaoPass->record(commandBuffer, *ssaoDescriptors);
-            if (ssaoBlurEnabled) {
-                ssaoBlurPass->record(commandBuffer, ssaoPass->occlusion_view());
-            }
+            ssaoBlurPass->record(commandBuffer, ssaoPass->occlusion_view());
 
             if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
                 throw std::runtime_error {"Failed to record command buffer"};

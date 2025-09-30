@@ -148,6 +148,7 @@ public:
 
     void resize(const VulkanContext& context, VkExtent2D extent);
     void set_depth_view(VkImageView depthView) noexcept;
+    void set_occlusion_view(VkImageView occlusionView) noexcept;
     void set_parameters(float radius, float depthSigma) noexcept;
     void record(VkCommandBuffer commandBuffer, VkImageView occlusionView) const;
 
@@ -157,6 +158,8 @@ private:
     void destroy() noexcept;
     void create_resources(const VulkanContext& context);
     void recreate_framebuffer(const VulkanContext& context, VkExtent2D extent);
+    void transition_blur_image(VkCommandBuffer commandBuffer, VkImageLayout oldLayout,
+        VkImageLayout newLayout, VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage) const;
 
     VkDevice m_device {VK_NULL_HANDLE};
     VkPhysicalDevice m_physicalDevice {VK_NULL_HANDLE};
@@ -177,6 +180,7 @@ private:
     vk::ColorImage m_blurImage;
 
     VkImageView m_depthView {VK_NULL_HANDLE};
+    VkImageView m_occlusionView {VK_NULL_HANDLE};
 
     struct BlurUniform final {
         float radius {2.0F};
