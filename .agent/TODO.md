@@ -79,6 +79,6 @@
 - [x] Validate materials applied per mesh (build, tests, runtime)
 
 - [x] Plan texture asset pipeline and GPU sampler strategy for Phase 3
-- [ ] Implement texture loading utilities and placeholder textures
+- [x] Implement texture loading utilities and placeholder textures
 - [ ] Extend material registry to reference GPU texture handles and update descriptors
 - [ ] Validate textured materials via build, tests, and runtime run
