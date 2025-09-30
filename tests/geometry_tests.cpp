@@ -21,6 +21,10 @@ TEST_CASE("plane mesh has four vertices and unit normals") {
     for (const auto& vertex : mesh.vertices) {
         REQUIRE(glm::all(glm::epsilonEqual(vertex.normal, glm::vec3 {0.0F, 1.0F, 0.0F}, EPS)));
         REQUIRE(vertex.color == color);
+        REQUIRE(vertex.uv.x >= 0.0F);
+        REQUIRE(vertex.uv.x <= 1.0F);
+        REQUIRE(vertex.uv.y >= 0.0F);
+        REQUIRE(vertex.uv.y <= 1.0F);
     }
 }
 
@@ -35,7 +39,14 @@ TEST_CASE("cube mesh builds 6 faces with outward normals") {
         const glm::vec3 normal = mesh.vertices[base].normal;
         for (std::uint32_t i {0U}; i < 4U; ++i) {
             REQUIRE(glm::all(glm::epsilonEqual(mesh.vertices[base + i].normal, normal, EPS)));
+            REQUIRE(mesh.vertices[base + i].uv.x >= 0.0F);
+            REQUIRE(mesh.vertices[base + i].uv.x <= 1.0F);
+            REQUIRE(mesh.vertices[base + i].uv.y >= 0.0F);
+            REQUIRE(mesh.vertices[base + i].uv.y <= 1.0F);
         }
+        const glm::vec2 uv0 = mesh.vertices[base].uv;
+        const glm::vec2 uv1 = mesh.vertices[base + 1U].uv;
+        REQUIRE(uv0 != uv1);
     }
 }
 
@@ -53,5 +64,9 @@ TEST_CASE("sphere mesh respects segment counts") {
     for (const auto& vertex : mesh.vertices) {
         const float length = glm::length(vertex.normal);
         REQUIRE(length == Catch::Approx(1.0F).margin(EPS));
+        REQUIRE(vertex.uv.x >= 0.0F);
+        REQUIRE(vertex.uv.x <= 1.0F);
+        REQUIRE(vertex.uv.y >= 0.0F);
+        REQUIRE(vertex.uv.y <= 1.0F);
     }
 }

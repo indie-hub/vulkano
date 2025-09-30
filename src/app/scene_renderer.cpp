@@ -35,6 +35,7 @@ struct Vertex final {
     glm::vec3 position {};
     glm::vec3 normal {};
     glm::vec3 color {};
+    glm::vec2 uv {};
 };
 
 [[nodiscard]] VkVertexInputBindingDescription vertex_binding_description() noexcept {
@@ -45,8 +46,8 @@ struct Vertex final {
     return binding;
 }
 
-[[nodiscard]] std::array<VkVertexInputAttributeDescription, 3> vertex_attribute_descriptions() noexcept {
-    std::array<VkVertexInputAttributeDescription, 3> attributes {};
+[[nodiscard]] std::array<VkVertexInputAttributeDescription, 4> vertex_attribute_descriptions() noexcept {
+    std::array<VkVertexInputAttributeDescription, 4> attributes {};
     attributes[0].location = 0U;
     attributes[0].binding = 0U;
     attributes[0].format = VK_FORMAT_R32G32B32_SFLOAT;
@@ -61,6 +62,10 @@ struct Vertex final {
     attributes[2].binding = 0U;
     attributes[2].format = VK_FORMAT_R32G32B32_SFLOAT;
     attributes[2].offset = static_cast<std::uint32_t>(offsetof(Vertex, color));
+    attributes[3].location = 3U;
+    attributes[3].binding = 0U;
+    attributes[3].format = VK_FORMAT_R32G32_SFLOAT;
+    attributes[3].offset = static_cast<std::uint32_t>(offsetof(Vertex, uv));
     return attributes;
 }
 
@@ -524,7 +529,7 @@ void SceneRenderer::create_graphics_pipeline() {
     const VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
 
     const VkVertexInputBindingDescription bindingDescription = vertex_binding_description();
-    const std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions = vertex_attribute_descriptions();
+    const auto attributeDescriptions = vertex_attribute_descriptions();
 
     VkPipelineVertexInputStateCreateInfo vertexInputInfo {};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -851,7 +856,12 @@ void SceneRenderer::upload_mesh(const SceneMesh& mesh) {
         std::vector<Vertex> converted;
         converted.reserve(mesh.mesh.vertices.size());
         for (const scene::Vertex& vertex : mesh.mesh.vertices) {
-            converted.push_back(Vertex {.position = vertex.position, .normal = vertex.normal, .color = vertex.color});
+            converted.push_back(Vertex {
+                .position = vertex.position,
+                .normal = vertex.normal,
+                .color = vertex.color,
+                .uv = vertex.uv
+            });
         }
         return converted;
     }();
