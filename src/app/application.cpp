@@ -9,6 +9,7 @@
 #include <vulkano/app/scene_renderer.hpp>
 #include <vulkano/app/vulkan_context.hpp>
 #include <vulkano/app/window.hpp>
+#include <vulkano/scene/material.hpp>
 #include <vulkano/scene/mesh.hpp>
 
 #include <GLFW/glfw3.h>
@@ -43,18 +44,41 @@ int Application::run() noexcept {
         CameraController cameraController {camera, window};
         cameraController.set_move_speed(6.0F);
         cameraController.set_mouse_sensitivity(0.1F);
+
+        scene::MaterialRegistry materialRegistry {};
+
+        scene::Material planeMaterial {};
+        planeMaterial.properties.baseColor = glm::vec3 {0.7F, 0.7F, 0.7F};
+        planeMaterial.properties.roughness = 0.9F;
+        const scene::MaterialId planeMaterialId = materialRegistry.add_material(planeMaterial);
+
+        scene::Material cubeMaterial {};
+        cubeMaterial.properties.baseColor = glm::vec3 {0.8F, 0.2F, 0.2F};
+        cubeMaterial.properties.roughness = 0.4F;
+        cubeMaterial.properties.metallic = 0.05F;
+        const scene::MaterialId cubeMaterialId = materialRegistry.add_material(cubeMaterial);
+
+        scene::Material sphereMaterial {};
+        sphereMaterial.properties.baseColor = glm::vec3 {0.2F, 0.4F, 0.85F};
+        sphereMaterial.properties.roughness = 0.2F;
+        sphereMaterial.properties.metallic = 0.6F;
+        const scene::MaterialId sphereMaterialId = materialRegistry.add_material(sphereMaterial);
+
         std::vector<SceneRenderer::SceneMesh> sceneMeshes {
             SceneRenderer::SceneMesh {
                 .mesh = vulkano::scene::MeshFactory::create_plane(10.0F, glm::vec3 {0.7F, 0.7F, 0.7F}),
-                .model = glm::mat4(1.0F)
+                .model = glm::mat4(1.0F),
+                .material = planeMaterialId
             },
             SceneRenderer::SceneMesh {
                 .mesh = vulkano::scene::MeshFactory::create_cube(1.0F, glm::vec3 {0.8F, 0.2F, 0.2F}),
-                .model = glm::translate(glm::mat4(1.0F), glm::vec3 {-1.5F, 0.5F, 0.0F})
+                .model = glm::translate(glm::mat4(1.0F), glm::vec3 {-1.5F, 0.5F, 0.0F}),
+                .material = cubeMaterialId
             },
             SceneRenderer::SceneMesh {
                 .mesh = vulkano::scene::MeshFactory::create_uv_sphere(0.5F, 32U, 16U, glm::vec3 {0.2F, 0.4F, 0.85F}),
-                .model = glm::translate(glm::mat4(1.0F), glm::vec3 {1.5F, 0.5F, 0.0F})
+                .model = glm::translate(glm::mat4(1.0F), glm::vec3 {1.5F, 0.5F, 0.0F}),
+                .material = sphereMaterialId
             }
         };
 
