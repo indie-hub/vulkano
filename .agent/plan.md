@@ -403,7 +403,12 @@ Introduce a material-driven forward renderer that supports multiple material typ
 ## Phase 1 – Material Abstractions
 1. Define CPU-side material structs (albedo color, roughness, metallic, texture handles) and a material registry that assigns stable IDs.
 2. Extend scene mesh definitions to reference a material ID.
-3. Acceptance: Scene setup can assign different materials to objects; renderer compiles with placeholder uniform uploads.
+
+### Acceptance Criteria
+- Inventory of current scene asset flow captured (meshes, textures, shader bindings) and reflected in updated plan notes.
+- Material registry exposes stable identifiers, default material, and basic allocation tests pass.
+- Each scene mesh references a valid material ID with placeholder parameters propagating through frame data without crashes.
+- Project builds with `cmake --build build`, `ctest` remains green, and runtime (`VULKANO_MAX_FRAMES=120 ./bin/vulkano_renderer`) renders existing scene unchanged visually.
 
 ## Phase 2 – GPU Data & Shaders
 1. Create a GPU material buffer (structured UBO/SSBO) and descriptor set for material parameters plus combined texture array.
