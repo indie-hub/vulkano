@@ -4,6 +4,7 @@ set(VULKANO_TEST_SOURCES
     camera_tests.cpp
     ssao_samples_tests.cpp
     depth_format_tests.cpp
+    material_registry_tests.cpp
 )
 
 add_executable(vulkano_tests
