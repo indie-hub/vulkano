@@ -4,6 +4,7 @@
 #include <vulkano/app/window.hpp>
 #include <vulkano/app/material_buffer.hpp>
 #include <vulkano/app/material_texture_cache.hpp>
+#include <vulkano/app/light_buffer.hpp>
 
 #include <vulkano/vk/depth_format.hpp>
 #include <vulkano/vk/depth_image.hpp>
@@ -164,6 +165,7 @@ SceneRenderer::SceneRenderer(const VulkanContext& context, const Window& window,
     m_depthFormat = vk::DepthFormatResolver::select_depth_format(m_context.physical_device());
     create_render_pass();
     create_material_descriptors();
+    create_light_descriptors();
     create_pipeline_layout();
     create_graphics_pipeline();
     create_color_resources();
@@ -186,6 +188,7 @@ SceneRenderer::~SceneRenderer() noexcept {
         vkDestroyPipelineLayout(m_context.device(), m_pipelineLayout, nullptr);
         m_pipelineLayout = VK_NULL_HANDLE;
     }
+    destroy_light_descriptors();
     destroy_material_descriptors();
     if (m_renderPass != VK_NULL_HANDLE) {
         vkDestroyRenderPass(m_context.device(), m_renderPass, nullptr);
@@ -246,6 +249,29 @@ void SceneRenderer::set_material_resources(const MaterialBuffer& buffer, const M
     vkUpdateDescriptorSets(m_context.device(), static_cast<std::uint32_t>(writes.size()), writes.data(), 0U, nullptr);
 
     m_materialBuffer = &buffer;
+}
+
+void SceneRenderer::set_light_buffer(const LightBuffer& buffer) {
+    if (m_lightDescriptorSet == VK_NULL_HANDLE) {
+        throw std::logic_error {"Light descriptor set not initialised"};
+    }
+
+    const VkDescriptorBufferInfo info = buffer.descriptor_info();
+    if (info.buffer == VK_NULL_HANDLE || info.range == 0U) {
+        throw std::invalid_argument {"Light buffer descriptor info is invalid"};
+    }
+
+    VkWriteDescriptorSet write {};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.dstSet = m_lightDescriptorSet;
+    write.dstBinding = 0U;
+    write.descriptorCount = 1U;
+    write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    write.pBufferInfo = &info;
+
+    vkUpdateDescriptorSets(m_context.device(), 1U, &write, 0U, nullptr);
+
+    m_lightBuffer = &buffer;
 }
 
 VkRenderPass SceneRenderer::render_pass() const noexcept {
@@ -329,6 +355,11 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
     if (m_materialDescriptorSet != VK_NULL_HANDLE) {
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout,
             MaterialDescriptorBindings::set, 1U, &m_materialDescriptorSet, 0U, nullptr);
+    }
+    if (m_lightDescriptorSet != VK_NULL_HANDLE) {
+        const VkDescriptorSet lightSet = m_lightDescriptorSet;
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 2U, 1U, &lightSet, 0U,
+            nullptr);
     }
 
     const VkViewport viewport {
@@ -484,7 +515,7 @@ void SceneRenderer::create_pipeline_layout() {
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo {};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    std::array<VkDescriptorSetLayout, 2> layouts {};
+    std::array<VkDescriptorSetLayout, 3> layouts {};
     std::uint32_t layoutCount {0U};
     if (m_descriptorLayout == VK_NULL_HANDLE) {
         throw std::logic_error {"SceneRenderer requires SSAO descriptor layout for set 0"};
@@ -492,10 +523,14 @@ void SceneRenderer::create_pipeline_layout() {
     if (m_materialDescriptorLayout == VK_NULL_HANDLE) {
         throw std::logic_error {"SceneRenderer material descriptor layout not initialised"};
     }
+    if (m_lightDescriptorLayout == VK_NULL_HANDLE) {
+        throw std::logic_error {"SceneRenderer light descriptor layout not initialised"};
+    }
     layouts[layoutCount++] = m_descriptorLayout;
     layouts[layoutCount++] = m_materialDescriptorLayout;
+    layouts[layoutCount++] = m_lightDescriptorLayout;
     pipelineLayoutInfo.setLayoutCount = layoutCount;
-    pipelineLayoutInfo.pSetLayouts = layoutCount > 0U ? layouts.data() : nullptr;
+    pipelineLayoutInfo.pSetLayouts = layouts.data();
     pipelineLayoutInfo.pushConstantRangeCount = 1U;
     pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
@@ -833,6 +868,64 @@ void SceneRenderer::destroy_material_descriptors() noexcept {
     m_materialDescriptorSet = VK_NULL_HANDLE;
     m_materialBuffer = nullptr;
     m_materialTextureInfos.clear();
+}
+
+void SceneRenderer::create_light_descriptors() {
+    if (m_lightDescriptorLayout != VK_NULL_HANDLE) {
+        return;
+    }
+
+    VkDescriptorSetLayoutBinding lightBinding {};
+    lightBinding.binding = 0U;
+    lightBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    lightBinding.descriptorCount = 1U;
+    lightBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutCreateInfo layoutInfo {};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = 1U;
+    layoutInfo.pBindings = &lightBinding;
+
+    if (vkCreateDescriptorSetLayout(m_context.device(), &layoutInfo, nullptr, &m_lightDescriptorLayout) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create light descriptor set layout"};
+    }
+
+    VkDescriptorPoolSize poolSize {};
+    poolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    poolSize.descriptorCount = 1U;
+
+    VkDescriptorPoolCreateInfo poolInfo {};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.maxSets = 1U;
+    poolInfo.poolSizeCount = 1U;
+    poolInfo.pPoolSizes = &poolSize;
+
+    if (vkCreateDescriptorPool(m_context.device(), &poolInfo, nullptr, &m_lightDescriptorPool) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create light descriptor pool"};
+    }
+
+    VkDescriptorSetAllocateInfo allocateInfo {};
+    allocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocateInfo.descriptorPool = m_lightDescriptorPool;
+    allocateInfo.descriptorSetCount = 1U;
+    allocateInfo.pSetLayouts = &m_lightDescriptorLayout;
+
+    if (vkAllocateDescriptorSets(m_context.device(), &allocateInfo, &m_lightDescriptorSet) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to allocate light descriptor set"};
+    }
+}
+
+void SceneRenderer::destroy_light_descriptors() noexcept {
+    if (m_lightDescriptorPool != VK_NULL_HANDLE) {
+        vkDestroyDescriptorPool(m_context.device(), m_lightDescriptorPool, nullptr);
+        m_lightDescriptorPool = VK_NULL_HANDLE;
+    }
+    if (m_lightDescriptorLayout != VK_NULL_HANDLE) {
+        vkDestroyDescriptorSetLayout(m_context.device(), m_lightDescriptorLayout, nullptr);
+        m_lightDescriptorLayout = VK_NULL_HANDLE;
+    }
+    m_lightDescriptorSet = VK_NULL_HANDLE;
+    m_lightBuffer = nullptr;
 }
 
 void SceneRenderer::create_depth_resources() {
