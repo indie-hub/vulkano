@@ -8,22 +8,37 @@ import zlib
 
 WIDTH = 512
 HEIGHT = 512
-AMPLITUDE_X = 0.25  # tangent perturbation along x (brushing direction)
-AMPLITUDE_Y = 0.18  # tangent perturbation along y
-FREQUENCY_X = 24.0
-FREQUENCY_Y = 14.0
-NOISE_FREQUENCY = 7.0
-PHASE_SHIFT = 1.7
+AMPLITUDE_X = 0.35  # tangent perturbation along x (brushing direction)
+AMPLITUDE_Y = 0.22  # tangent perturbation along y
+FREQUENCY_X = 30.0
+FREQUENCY_Y = 18.0
+NOISE_FREQUENCY = 11.0
+PHASE_SHIFT = 1.3
+OCTAVES = 4
+NOISE_DECAY = 0.55
+
+
+def fbm_noise(u: float, v: float, base_freq: float) -> float:
+    value = 0.0
+    amplitude = 1.0
+    frequency = 1.0
+    for _ in range(OCTAVES):
+        value += amplitude * math.sin((u + v * 0.37) * math.tau * base_freq * frequency)
+        value += amplitude * 0.5 * math.sin((u * 0.67 - v) * math.tau * base_freq * frequency * 0.83)
+        amplitude *= NOISE_DECAY
+        frequency *= 1.9
+    return value
 
 
 def normal_components(u: float, v: float) -> tuple[float, float, float]:
     """Compute tangent-space normal components from procedural functions."""
     stripe = math.sin(u * math.tau * FREQUENCY_X)
-    swirl = math.sin(v * math.tau * FREQUENCY_Y + stripe * 0.35 + PHASE_SHIFT)
-    micro = math.sin((u + v) * math.tau * NOISE_FREQUENCY + stripe * 0.5)
+    brushed = math.sin((u * 1.4 + v * 0.2) * math.tau * FREQUENCY_X * 0.5 + PHASE_SHIFT)
+    swirl = math.sin(v * math.tau * FREQUENCY_Y + stripe * 0.45 + PHASE_SHIFT * 0.75)
+    micro = fbm_noise(u, v, NOISE_FREQUENCY)
 
-    nx = (stripe * (1.0 - abs(swirl) * 0.35) + micro * 0.15) * AMPLITUDE_X
-    ny = (swirl + micro * 0.25) * AMPLITUDE_Y
+    nx = (stripe * (1.0 - abs(swirl) * 0.25) + brushed * 0.2 + micro * 0.12) * AMPLITUDE_X
+    ny = (swirl * 0.7 + brushed * 0.35 + micro * 0.3) * AMPLITUDE_Y
     nz_sq = max(0.0, 1.0 - nx * nx - ny * ny)
     nz = math.sqrt(nz_sq)
     return nx, ny, nz
