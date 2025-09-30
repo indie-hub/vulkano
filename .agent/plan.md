@@ -342,3 +342,24 @@ Lift the placeholder SSAO implementation to a production-quality ambient occlusi
 - Blurred SSAO integrates into the lighting pass without flicker or shading seams during camera motion.
 - Parameter tweaks (radius/strength/bias/blur) respond in real time via ImGui.
 - Automated tests cover reconstruction helpers and blur weights, and the render validation scene confirms occlusion ordering.
+
+## SSAO Blur Resource Plan
+1. **Render Targets**
+   - Allocate a dedicated `VK_FORMAT_R16_SFLOAT` image for the blurred occlusion output; usage flags: `COLOR_ATTACHMENT_BIT | SAMPLED_BIT`.
+   - Ensure the blur target shares the same extent as the swapchain and is recreated alongside G-buffer images.
+
+2. **Shader Inputs**
+   - Horizontal/vertical blur shaders read: raw SSAO occlusion, linear depth texture, configurable kernel weights (via UBO).
+   - Descriptor set layout: binding 0 = occlusion sampler, binding 1 = depth sampler, binding 2 = blur parameters uniform buffer.
+
+3. **Pipelines**
+   - Fullscreen triangle vertex shader (reuse existing screen-space VS pattern).
+   - Fragment shader performs bilateral weighting using radius and depth sigma uniforms; outputs to blur target.
+
+4. **Command Flow**
+   - SSAO pass writes to occlusion image, transitions to read-only.
+   - Blur pass consumes occlusion/depth, writes to blur target, transitions result for sampling by composition.
+
+5. **Integration Hooks**
+   - Blur descriptor owns adjustable parameters (radius, depth falloff) controlled through ImGui.
+   - Final composition samples blurred texture instead of raw occlusion when blur enabled.
