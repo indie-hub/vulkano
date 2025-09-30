@@ -33,8 +33,9 @@ MaterialBuffer::~MaterialBuffer() noexcept {
     destroy();
 }
 
-void MaterialBuffer::update(const scene::MaterialRegistry& registry) {
-    std::vector<MaterialGpu> gpuMaterials = build_material_gpu_buffer(registry);
+void MaterialBuffer::update(const scene::MaterialRegistry& registry,
+    const std::vector<scene::MaterialTextureHandles>& handles) {
+    std::vector<MaterialGpu> gpuMaterials = build_material_gpu_buffer(registry, handles);
     const VkDeviceSize requiredSize {static_cast<VkDeviceSize>(sizeof(MaterialGpu) * gpuMaterials.size())};
 
     if (requiredSize == 0U) {
@@ -130,4 +131,3 @@ void MaterialBuffer::destroy() noexcept {
     m_descriptorInfo = VkDescriptorBufferInfo {};
 }
 } // namespace vulkano::app
-

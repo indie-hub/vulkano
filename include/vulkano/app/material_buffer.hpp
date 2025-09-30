@@ -20,7 +20,7 @@ public:
     MaterialBuffer(MaterialBuffer&&) noexcept = delete;
     MaterialBuffer& operator=(MaterialBuffer&&) noexcept = delete;
 
-    void update(const scene::MaterialRegistry& registry);
+    void update(const scene::MaterialRegistry& registry, const std::vector<scene::MaterialTextureHandles>& handles);
 
     [[nodiscard]] VkBuffer buffer() const noexcept;
     [[nodiscard]] VkDescriptorBufferInfo descriptor_info() const noexcept;
@@ -38,4 +38,3 @@ private:
     VkDescriptorBufferInfo m_descriptorInfo {};
 };
 }
-

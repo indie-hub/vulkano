@@ -3,6 +3,7 @@
 #include <vulkano/app/vulkan_context.hpp>
 #include <vulkano/app/window.hpp>
 #include <vulkano/app/material_buffer.hpp>
+#include <vulkano/app/material_texture_cache.hpp>
 
 #include <vulkano/vk/depth_format.hpp>
 #include <vulkano/vk/depth_image.hpp>
@@ -195,7 +196,7 @@ void SceneRenderer::set_scene(const std::vector<SceneMesh>& meshes) {
     }
 }
 
-void SceneRenderer::set_material_buffer(const MaterialBuffer& buffer) {
+void SceneRenderer::set_material_resources(const MaterialBuffer& buffer, const MaterialTextureCache& textures) {
     if (m_materialDescriptorSet == VK_NULL_HANDLE) {
         throw std::logic_error {"Material descriptor set not initialised"};
     }
@@ -205,15 +206,39 @@ void SceneRenderer::set_material_buffer(const MaterialBuffer& buffer) {
         throw std::invalid_argument {"Material buffer descriptor info is invalid"};
     }
 
-    VkWriteDescriptorSet write {};
-    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write.dstSet = m_materialDescriptorSet;
-    write.dstBinding = MaterialDescriptorBindings::materialBufferBinding;
-    write.descriptorCount = 1U;
-    write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    write.pBufferInfo = &info;
+    const auto& handles = textures.handles();
+    if (handles.empty()) {
+        throw std::invalid_argument {"Material textures cache is empty"};
+    }
 
-    vkUpdateDescriptorSets(m_context.device(), 1U, &write, 0U, nullptr);
+    m_materialTextureInfos = textures.descriptor_infos();
+    if (m_materialTextureInfos.empty()) {
+        throw std::invalid_argument {"Material textures descriptors are empty"};
+    }
+    if (m_materialTextureInfos.size() > MaterialDescriptorBindings::maxTextureSamplers) {
+        throw std::invalid_argument {"Material textures exceed descriptor capacity"};
+    }
+
+    const VkDescriptorImageInfo filler = m_materialTextureInfos.back();
+    m_materialTextureInfos.resize(MaterialDescriptorBindings::maxTextureSamplers, filler);
+
+    std::array<VkWriteDescriptorSet, 2> writes {};
+
+    writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes[0].dstSet = m_materialDescriptorSet;
+    writes[0].dstBinding = MaterialDescriptorBindings::materialBufferBinding;
+    writes[0].descriptorCount = 1U;
+    writes[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    writes[0].pBufferInfo = &info;
+
+    writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes[1].dstSet = m_materialDescriptorSet;
+    writes[1].dstBinding = MaterialDescriptorBindings::textureArrayBinding;
+    writes[1].descriptorCount = MaterialDescriptorBindings::maxTextureSamplers;
+    writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writes[1].pImageInfo = m_materialTextureInfos.data();
+
+    vkUpdateDescriptorSets(m_context.device(), static_cast<std::uint32_t>(writes.size()), writes.data(), 0U, nullptr);
 
     m_materialBuffer = &buffer;
 }
@@ -743,30 +768,38 @@ void SceneRenderer::create_material_descriptors() {
         return;
     }
 
-    VkDescriptorSetLayoutBinding materialBinding {};
-    materialBinding.binding = MaterialDescriptorBindings::materialBufferBinding;
-    materialBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    materialBinding.descriptorCount = 1U;
-    materialBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    std::array<VkDescriptorSetLayoutBinding, 2> bindings {};
+
+    bindings[0].binding = MaterialDescriptorBindings::materialBufferBinding;
+    bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    bindings[0].descriptorCount = 1U;
+    bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    bindings[1].binding = MaterialDescriptorBindings::textureArrayBinding;
+    bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    bindings[1].descriptorCount = MaterialDescriptorBindings::maxTextureSamplers;
+    bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
     VkDescriptorSetLayoutCreateInfo layoutInfo {};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.bindingCount = 1U;
-    layoutInfo.pBindings = &materialBinding;
+    layoutInfo.bindingCount = static_cast<std::uint32_t>(bindings.size());
+    layoutInfo.pBindings = bindings.data();
 
     if (vkCreateDescriptorSetLayout(m_context.device(), &layoutInfo, nullptr, &m_materialDescriptorLayout) != VK_SUCCESS) {
         throw std::runtime_error {"Failed to create material descriptor set layout"};
     }
 
-    VkDescriptorPoolSize poolSize {};
-    poolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    poolSize.descriptorCount = 1U;
+    std::array<VkDescriptorPoolSize, 2> poolSizes {};
+    poolSizes[0].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    poolSizes[0].descriptorCount = 1U;
+    poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[1].descriptorCount = MaterialDescriptorBindings::maxTextureSamplers;
 
     VkDescriptorPoolCreateInfo poolInfo {};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.maxSets = 1U;
-    poolInfo.poolSizeCount = 1U;
-    poolInfo.pPoolSizes = &poolSize;
+    poolInfo.poolSizeCount = static_cast<std::uint32_t>(poolSizes.size());
+    poolInfo.pPoolSizes = poolSizes.data();
 
     if (vkCreateDescriptorPool(m_context.device(), &poolInfo, nullptr, &m_materialDescriptorPool) != VK_SUCCESS) {
         throw std::runtime_error {"Failed to create material descriptor pool"};
@@ -794,6 +827,7 @@ void SceneRenderer::destroy_material_descriptors() noexcept {
     }
     m_materialDescriptorSet = VK_NULL_HANDLE;
     m_materialBuffer = nullptr;
+    m_materialTextureInfos.clear();
 }
 
 void SceneRenderer::create_depth_resources() {
