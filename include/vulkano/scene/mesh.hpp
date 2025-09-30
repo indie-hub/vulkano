@@ -12,6 +12,8 @@ struct Vertex final {
     glm::vec3 normal {};
     glm::vec3 color {};
     glm::vec2 uv {};
+    glm::vec3 tangent {};
+    float bitangentSign {1.0F};
 };
 
 struct MeshData final {

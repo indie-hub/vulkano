@@ -110,6 +110,6 @@
 - [x] Expose ImGui toggle for light gizmo visibility
 - [x] Validate debug mesh rendering via build, tests (where possible), and runtime run
 
-- [ ] Extend mesh vertex data to include tangents for normal mapping
+- [x] Extend mesh vertex data to include tangents for normal mapping
 - [ ] Update vertex input/shaders to consume tangent frame and sample normal maps
 - [ ] Validate normal mapping via build, tests, and runtime run
