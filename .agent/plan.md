@@ -430,9 +430,17 @@ Introduce a material-driven forward renderer that supports multiple material typ
 - Shader updates scoped (inputs, bindings, uniform names) and reflected in plan to guide implementation.
 
 ## Phase 3 – Texture/Resource Management
-1. Implement texture loading utilities (stb_image or existing assets), create Vulkan images/samplers, and integrate with material registry.
-2. Handle lifetime/cleanup and swapchain recreation edge cases.
-3. Acceptance: Multiple textures load from disk, bind correctly, and survive resize events.
+1. Adopt stb_image (or provided loader) under `third_party` with RAII wrapper that decodes sRGB colour, linear data, and exposes dimensions/channel info.
+2. Define `TextureAsset` pipeline: disk path -> CPU pixel buffer -> `vk::ColorImage` + sampler creation (choose mipmapping strategy, filtering, address modes documented).
+3. Extend `MaterialRegistry` to map texture IDs (albedo/normal/metallic-roughness/AO) to GPU handles with reference counting and hot-reload hooks.
+4. Update descriptor set plan: pack texture array bindings into set 1 alongside the material buffer, ensuring descriptor pool sizes cover worst-case material counts.
+5. Plan swapchain recreation + shutdown teardown order so images/samplers survive and are released cleanly.
+
+### Acceptance Criteria
+- Written loading flow covers asset discovery, format assumptions (sRGB vs linear), and fallback textures for missing assets.
+- GPU sampler settings (filtering, wrap, anisotropy) are specified and justified for PBR use.
+- Material registry stores texture handles without leaks; plan describes how updates propagate to descriptor sets.
+- Resize/recreation lifecycle spelled out ensuring textures persist across swapchain rebuilds.
 
 ## Phase 4 – ImGui Material Editor
 1. Add ImGui panel to list materials, adjust parameters (color, roughness, metallic), and trigger texture reloads.
