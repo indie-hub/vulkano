@@ -343,6 +343,35 @@ Lift the placeholder SSAO implementation to a production-quality ambient occlusi
 - Parameter tweaks (radius/strength/bias/blur) respond in real time via ImGui.
 - Automated tests cover reconstruction helpers and blur weights, and the render validation scene confirms occlusion ordering.
 
+## SSAO Self-Occlusion Refinement Plan
+
+### Goal
+Reduce artificial self-occlusion on convex surfaces (e.g., sphere) while preserving contact shadows at geometry intersections.
+
+### Phase A – Sampling Heuristics
+1. **Angular Filtering**
+   - In the SSAO fragment shader, reject a sample whenever the angle between the surface normal and sample vector exceeds a threshold (e.g., 45°). This prevents backwards-facing samples from contributing to occlusion.
+   - Acceptance: Debug view shows lighter shading on convex surface tops; contact shadows remain at base intersections.
+
+2. **Depth Falloff Recalibration**
+   - Replace current `radius / range` heuristic with a smoother falloff (e.g., linear or exponential) clamped to [0,1], and clamp negative depth differences more aggressively via a configurable bias.*
+   - Acceptance: Occlusion transitions appear gradual without banding; sphere retains highlight on top.
+
+3. **Same-Surface Normal Check**
+   - Skip samples whose view-space normal differs from the current normal by less than a configurable epsilon—indicating same surface points.
+   - Acceptance: SSAO debug shows reduced uniform darkening on smooth surfaces, but maintains occlusion in creases.
+
+### Phase B – Runtime Controls & Persistence
+1. Add ImGui sliders for angular cutoff, depth falloff strength, and normal epsilon; plumb them into the SSAO descriptor UBO.
+2. Ensure SSAO blur pass consumes the updated occlusion texture automatically without descriptor rewrites.
+   - Acceptance: Sliders adjust occlusion intensity in real time with no validation warnings.
+
+### Phase C – Testing & Validation
+1. Extend SSAO unit tests to cover new math helpers (e.g., angle rejection, falloff function).
+2. Capture debug renders for sphere/cube plane scenes before/after to confirm improvement.
+3. Run full validation (build, ctest, runtime with VULKANO_MAX_FRAMES=120) and ensure no Vulkan warnings.
+   - Acceptance: Tests pass; debug image shows realistic SSAO; validation layers remain clean.
+
 ## SSAO Blur Resource Plan
 1. **Render Targets**
    - Allocate a dedicated `VK_FORMAT_R16_SFLOAT` image for the blurred occlusion output; usage flags: `COLOR_ATTACHMENT_BIT | SAMPLED_BIT`.

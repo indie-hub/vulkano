@@ -56,3 +56,6 @@
 - [x] Rebuild, run tests, and validate blurred SSAO output
 - [x] Expose SSAO radius and bias controls in ImGui and descriptor updates
 - [x] Rebuild, run tests, and validate SSAO parameter adjustments
+- [ ] Implement SSAO angular sample rejection and depth falloff tuning
+- [ ] Add ImGui controls for SSAO sampling heuristics
+- [ ] Extend SSAO tests and revalidate runtime
