@@ -29,6 +29,15 @@ layout(set = 1, binding = 0) readonly buffer MaterialBuffer {
 } materialBuffer;
 layout(set = 1, binding = 1) uniform sampler2D materialTextures[MATERIAL_TEXTURE_COUNT];
 
+struct LightGpu {
+    vec4 directionIntensity;
+    vec4 colorType;
+};
+
+layout(set = 2, binding = 0) readonly buffer LightBuffer {
+    LightGpu lights[];
+} lightBuffer;
+
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out vec4 outAlbedo;
 layout(location = 2) out vec4 outNormal;
@@ -62,8 +71,9 @@ void main() {
         float aoSample = texture(materialTextures[aoIndex], fragUV).r;
         ambientOcclusion = clamp(aoSample, 0.0, 1.0);
     }
-    vec3 lightDir = normalize(vec3(0.5, 1.0, 0.3));
-    float diffuse = max(dot(normalWorld, lightDir), 0.0);
+    LightGpu keyLight = lightBuffer.lights[0];
+    vec3 lightDirection = normalize(-keyLight.directionIntensity.xyz);
+    float diffuse = max(dot(normalWorld, lightDirection), 0.0) * keyLight.directionIntensity.w;
 
     vec2 occlusionUV = gl_FragCoord.xy / vec2(textureSize(ssaoTex, 0));
     float occlusion = texture(ssaoTex, occlusionUV).r;
@@ -80,7 +90,8 @@ void main() {
     float occlusionFactor = mix(1.0, occlusion, clamp(uConfig.occlusionStrength, 0.0, 1.0));
     float ambient = uConfig.baseAmbient * occlusionFactor * ambientOcclusion;
 
-    vec3 lit = albedo * (diffuse + ambient);
+    vec3 direct = albedo * diffuse * keyLight.colorType.rgb;
+    vec3 lit = direct + albedo * ambient;
 
     outColor = vec4(lit, 1.0);
     outAlbedo = vec4(albedo, 1.0);
