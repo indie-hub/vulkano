@@ -105,3 +105,7 @@
 - [x] Implement Cook-Torrance BRDF (GGX, Smith, Schlick) in fragment shader
 - [x] Update material buffer to expose emissive term and validate PBR math
 - [x] Validate PBR shading via build, tests, and runtime run
+
+- [ ] Add lightweight light-direction debug mesh (line/cone) rendered via SceneRenderer
+- [ ] Expose ImGui toggle for light gizmo visibility
+- [ ] Validate debug mesh rendering via build, tests (where possible), and runtime run
