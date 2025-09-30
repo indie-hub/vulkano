@@ -40,6 +40,13 @@ const Material& MaterialRegistry::material(MaterialId id) const {
     return m_materials[id.value];
 }
 
+Material& MaterialRegistry::material(MaterialId id) {
+    if (!is_valid(id)) {
+        throw std::out_of_range {"MaterialRegistry::material received invalid material id"};
+    }
+    return m_materials[id.value];
+}
+
 const Material& MaterialRegistry::default_material() const noexcept {
     return m_materials[m_defaultId.value];
 }
@@ -64,4 +71,3 @@ bool MaterialRegistry::is_valid(MaterialId id) const noexcept {
     return id.value < m_materials.size();
 }
 } // namespace vulkano::scene
-

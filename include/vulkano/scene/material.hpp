@@ -55,6 +55,7 @@ public:
     void update_material(MaterialId id, const Material& material);
 
     [[nodiscard]] const Material& material(MaterialId id) const;
+    [[nodiscard]] Material& material(MaterialId id);
     [[nodiscard]] const Material& default_material() const noexcept;
     [[nodiscard]] MaterialId default_material_id() const noexcept;
     [[nodiscard]] bool contains(MaterialId id) const noexcept;

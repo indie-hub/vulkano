@@ -20,6 +20,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/matrix_inverse.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 #include <chrono>
 #include <cstdint>
@@ -89,8 +90,9 @@ int Application::run() noexcept {
             }
         };
 
-        materialBuffer.update(materialRegistry, materialTextures.handles());
         materialTextures.rebuild(materialRegistry);
+        materialBuffer.update(materialRegistry, materialTextures.handles());
+        bool materialsDirty = false;
 
         SSAOSampleGenerator ssaoGenerator {};
         SSAOGpuResources ssaoResources {context, ssaoGenerator, 64U, 4U};
@@ -225,6 +227,40 @@ int Application::run() noexcept {
                 ImGui::Checkbox("Show Raw Occlusion", &ssaoDebugView);
             }
             ImGui::End();
+
+            if (ImGui::Begin("Materials")) {
+                for (std::size_t index {0U}; index < materialRegistry.size(); ++index) {
+                    const scene::MaterialId id {static_cast<std::uint32_t>(index)};
+                    scene::Material& editable = materialRegistry.material(id);
+                    const std::string label = "Material " + std::to_string(index);
+
+                    if (ImGui::TreeNode(label.c_str())) {
+                        glm::vec3 baseColor = editable.properties.baseColor;
+                        if (ImGui::ColorEdit3("Base Color", glm::value_ptr(baseColor))) {
+                            editable.properties.baseColor = baseColor;
+                            materialsDirty = true;
+                        }
+
+                        float metallic = editable.properties.metallic;
+                        if (ImGui::SliderFloat("Metallic", &metallic, 0.0F, 1.0F)) {
+                            editable.properties.metallic = metallic;
+                            materialsDirty = true;
+                        }
+
+                        float roughness = editable.properties.roughness;
+                        if (ImGui::SliderFloat("Roughness", &roughness, 0.0F, 1.0F)) {
+                            editable.properties.roughness = roughness;
+                            materialsDirty = true;
+                        }
+
+                        ImGui::TextUnformatted("Base texture path:");
+                        ImGui::TextWrapped("%s", editable.textures.baseColorPath.empty() ? "<none>"
+                            : editable.textures.baseColorPath.c_str());
+                        ImGui::TreePop();
+                    }
+                }
+            }
+            ImGui::End();
             float effectiveStrength = ssaoEnabled ? ssaoStrength : 0.0F;
             ssaoComposite->set_config(effectiveStrength, ssaoBaseAmbient, ssaoDebugView);
             ssaoDescriptors->set_camera_parameters(camera.projection_matrix(), glm::inverse(camera.projection_matrix()),
@@ -233,6 +269,13 @@ int Application::run() noexcept {
             ssaoBlurPass->set_parameters(ssaoBlurRadius, ssaoBlurDepthSigma);
             // Descriptor already points at blurred occlusion; no per-frame update needed
             imgui->end_frame();
+
+            if (materialsDirty) {
+                materialTextures.rebuild(materialRegistry);
+                materialBuffer.update(materialRegistry, materialTextures.handles());
+                renderer->set_material_resources(materialBuffer, materialTextures);
+                materialsDirty = false;
+            }
 
             const VkFence inFlightFence = frameResources->in_flight_fence(currentFrame);
             if (vkWaitForFences(context.device(), 1U, &inFlightFence, VK_TRUE, UINT64_MAX) != VK_SUCCESS) {
