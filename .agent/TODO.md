@@ -112,4 +112,4 @@
 
 - [x] Extend mesh vertex data to include tangents for normal mapping
 - [x] Update vertex input/shaders to consume tangent frame and sample normal maps
-- [ ] Validate normal mapping via build, tests, and runtime run
+- [x] Validate normal mapping via build, tests, and runtime run
