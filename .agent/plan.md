@@ -418,9 +418,16 @@ Introduce a material-driven forward renderer that supports multiple material typ
 - **Frame orchestration:** `Application` records per-frame push constants (model/view/projection) and reuses the same mesh list during swapchain recreation; there is no runtime path to vary material parameters independently from geometry.
 
 ## Phase 2 – GPU Data & Shaders
-1. Create a GPU material buffer (structured UBO/SSBO) and descriptor set for material parameters plus combined texture array.
-2. Update scene shader(s) to index into the material buffer using per-draw material index and to sample bound textures.
-3. Acceptance: Materials influence shading (e.g., distinct albedo colors/textures per mesh) without validation errors.
+1. Define `MaterialGpu` struct layout (align to std140/430) carrying base color, metallic, roughness, ambient, texture indices; document alignment decisions in comments.
+2. Choose descriptor set slot (e.g., set 2) hosting a storage buffer for materials and optional sampled texture arrays; outline push-constant material index passage.
+3. Extend pipeline layout plan: add descriptor set layout creation, descriptor pool sizing, and binding updates during renderer initialization and swapchain recreation.
+4. Plan CPU upload flow: stage `MaterialGpu` buffer on application init and refresh when materials mutate; integrate with `FrameResources` or dedicated uploader to avoid per-frame reallocations.
+5. Update shader TODOs: vertex stage forwards instance material index; fragment stage dereferences storage buffer and optionally samples textures.
+
+### Acceptance Criteria
+- Plan captures concrete GPU structure, descriptor bindings, and pipeline layout changes with attention to alignment and lifetime management.
+- Identified update path ensures material buffer refresh occurs before command recording without stalls.
+- Shader updates scoped (inputs, bindings, uniform names) and reflected in plan to guide implementation.
 
 ## Phase 3 – Texture/Resource Management
 1. Implement texture loading utilities (stb_image or existing assets), create Vulkan images/samplers, and integrate with material registry.
