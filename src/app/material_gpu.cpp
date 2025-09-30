@@ -27,6 +27,12 @@ MaterialGpu make_material_gpu(const scene::Material& material, const scene::Mate
         handles.metallicRoughness,
         handles.ambientOcclusion
     };
+    gpu.textureUsage = glm::vec4 {
+        material.useBaseColorTexture ? 1.0F : 0.0F,
+        material.useNormalTexture ? 1.0F : 0.0F,
+        material.useMetallicRoughnessTexture ? 1.0F : 0.0F,
+        material.useAmbientOcclusionTexture ? 1.0F : 0.0F
+    };
 
     return gpu;
 }

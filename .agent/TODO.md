@@ -93,6 +93,6 @@
 - [x] Update material buffer when ImGui edits occur, respecting in-flight frames
 - [x] Validate ImGui-driven material edits via build, tests, and runtime run
 
-- [ ] Sample metallic/roughness/AO textures in fragment shader and expose toggles
-- [ ] Add ImGui controls for texture usage flags and preview thumbnails
-- [ ] Validate textured shading changes via build, tests, and runtime run
+- [x] Sample metallic/roughness/AO textures in fragment shader and expose toggles
+- [x] Add ImGui controls for texture usage flags and preview thumbnails
+- [x] Validate textured shading changes via build, tests, and runtime run

@@ -34,6 +34,10 @@ struct MaterialTextures final {
 struct Material final {
     MaterialProperties properties {};
     MaterialTextures textures {};
+    bool useBaseColorTexture {false};
+    bool useNormalTexture {false};
+    bool useMetallicRoughnessTexture {false};
+    bool useAmbientOcclusionTexture {false};
 };
 
 struct MaterialTextureHandles final {

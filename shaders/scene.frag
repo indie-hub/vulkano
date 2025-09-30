@@ -21,6 +21,7 @@ struct MaterialGpu {
     vec4 baseColorMetallic;
     vec4 roughnessAoFlags;
     uvec4 textureIndices;
+    vec4 textureUsage;
 };
 
 layout(set = 1, binding = 0) readonly buffer MaterialBuffer {
@@ -44,9 +45,22 @@ void main() {
     float ambientOcclusion = material.roughnessAoFlags.y;
 
     uint baseIndex = material.textureIndices.x;
-    if (baseIndex < MATERIAL_TEXTURE_COUNT) {
+    if (material.textureUsage.x > 0.5 && baseIndex < MATERIAL_TEXTURE_COUNT) {
         vec4 sampleBase = texture(materialTextures[baseIndex], fragUV);
         albedo *= sampleBase.rgb;
+    }
+
+    uint metallicIndex = material.textureIndices.z;
+    if (material.textureUsage.z > 0.5 && metallicIndex < MATERIAL_TEXTURE_COUNT) {
+        vec4 mrSample = texture(materialTextures[metallicIndex], fragUV);
+        metallic = clamp(mrSample.r, 0.0, 1.0);
+        roughness = clamp(mrSample.g, 0.0, 1.0);
+    }
+
+    uint aoIndex = material.textureIndices.w;
+    if (material.textureUsage.w > 0.5 && aoIndex < MATERIAL_TEXTURE_COUNT) {
+        float aoSample = texture(materialTextures[aoIndex], fragUV).r;
+        ambientOcclusion = clamp(aoSample, 0.0, 1.0);
     }
     vec3 lightDir = normalize(vec3(0.5, 1.0, 0.3));
     float diffuse = max(dot(normalWorld, lightDir), 0.0);

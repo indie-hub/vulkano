@@ -15,6 +15,10 @@ TEST_CASE("Material GPU conversion clamps values") {
     material.properties.metallic = 2.0F;
     material.properties.roughness = -1.0F;
     material.properties.ambientOcclusion = 4.0F;
+    material.useBaseColorTexture = true;
+    material.useNormalTexture = false;
+    material.useMetallicRoughnessTexture = true;
+    material.useAmbientOcclusionTexture = true;
 
     vulkano::scene::MaterialTextureHandles handles {};
     handles.baseColor = 5U;
@@ -35,6 +39,11 @@ TEST_CASE("Material GPU conversion clamps values") {
     REQUIRE(gpu.textureIndices.y == 6U);
     REQUIRE(gpu.textureIndices.z == 7U);
     REQUIRE(gpu.textureIndices.w == 8U);
+    using Catch::Matchers::WithinAbs;
+    REQUIRE_THAT(gpu.textureUsage.x, WithinAbs(1.0F, epsilon));
+    REQUIRE_THAT(gpu.textureUsage.y, WithinAbs(0.0F, epsilon));
+    REQUIRE_THAT(gpu.textureUsage.z, WithinAbs(1.0F, epsilon));
+    REQUIRE_THAT(gpu.textureUsage.w, WithinAbs(1.0F, epsilon));
 }
 
 TEST_CASE("Material descriptor bindings expose layout constants") {
@@ -51,6 +60,7 @@ TEST_CASE("Material GPU buffer builder always returns at least one entry") {
 
     vulkano::scene::Material extra {};
     extra.properties.baseColor = glm::vec3 {0.25F, 0.5F, 0.75F};
+    extra.useMetallicRoughnessTexture = true;
     const auto newId = registry.add_material(extra);
 
     handles.push_back(vulkano::scene::MaterialTextureHandles {.baseColor = 3U, .normal = 4U, .metallicRoughness = 5U, .ambientOcclusion = 6U});
@@ -59,5 +69,6 @@ TEST_CASE("Material GPU buffer builder always returns at least one entry") {
     using Catch::Matchers::WithinAbs;
     REQUIRE_THAT(buffer[1].baseColorMetallic.x, WithinAbs(0.25F, epsilon));
     REQUIRE(buffer[1].textureIndices.x == 3U);
+    REQUIRE_THAT(buffer[1].textureUsage.z, WithinAbs(1.0F, epsilon));
     REQUIRE(newId.value == 1U);
 }
