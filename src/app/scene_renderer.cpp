@@ -2,6 +2,7 @@
 
 #include <vulkano/app/vulkan_context.hpp>
 #include <vulkano/app/window.hpp>
+#include <vulkano/app/material_buffer.hpp>
 
 #include <vulkano/vk/depth_format.hpp>
 #include <vulkano/vk/depth_image.hpp>
@@ -14,6 +15,8 @@
 #include <string>
 #include <vector>
 
+#include <glm/vec4.hpp>
+
 namespace {
 struct ShaderPaths final {
     std::filesystem::path vertexPath;
@@ -24,6 +27,7 @@ struct ScenePushConstants final {
     glm::mat4 model {};
     glm::mat4 view {};
     glm::mat4 projection {};
+    glm::uvec4 material {0U, 0U, 0U, 0U};
 };
 
 struct Vertex final {
@@ -153,6 +157,7 @@ SceneRenderer::SceneRenderer(const VulkanContext& context, const Window& window,
     static_cast<void>(window);
     m_depthFormat = vk::DepthFormatResolver::select_depth_format(m_context.physical_device());
     create_render_pass();
+    create_material_descriptors();
     create_pipeline_layout();
     create_graphics_pipeline();
     create_color_resources();
@@ -175,6 +180,7 @@ SceneRenderer::~SceneRenderer() noexcept {
         vkDestroyPipelineLayout(m_context.device(), m_pipelineLayout, nullptr);
         m_pipelineLayout = VK_NULL_HANDLE;
     }
+    destroy_material_descriptors();
     if (m_renderPass != VK_NULL_HANDLE) {
         vkDestroyRenderPass(m_context.device(), m_renderPass, nullptr);
         m_renderPass = VK_NULL_HANDLE;
@@ -187,6 +193,29 @@ void SceneRenderer::set_scene(const std::vector<SceneMesh>& meshes) {
     for (const SceneMesh& mesh : meshes) {
         upload_mesh(mesh);
     }
+}
+
+void SceneRenderer::set_material_buffer(const MaterialBuffer& buffer) {
+    if (m_materialDescriptorSet == VK_NULL_HANDLE) {
+        throw std::logic_error {"Material descriptor set not initialised"};
+    }
+
+    const VkDescriptorBufferInfo info = buffer.descriptor_info();
+    if (info.buffer == VK_NULL_HANDLE || info.range == 0U) {
+        throw std::invalid_argument {"Material buffer descriptor info is invalid"};
+    }
+
+    VkWriteDescriptorSet write {};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.dstSet = m_materialDescriptorSet;
+    write.dstBinding = MaterialDescriptorBindings::materialBufferBinding;
+    write.descriptorCount = 1U;
+    write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    write.pBufferInfo = &info;
+
+    vkUpdateDescriptorSets(m_context.device(), 1U, &write, 0U, nullptr);
+
+    m_materialBuffer = &buffer;
 }
 
 VkRenderPass SceneRenderer::render_pass() const noexcept {
@@ -267,6 +296,10 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0U, 1U,
             &ssaoDescriptor, 0U, nullptr);
     }
+    if (m_materialDescriptorSet != VK_NULL_HANDLE) {
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout,
+            MaterialDescriptorBindings::set, 1U, &m_materialDescriptorSet, 0U, nullptr);
+    }
 
     const VkViewport viewport {
         .x = 0.0F,
@@ -288,7 +321,12 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
         vkCmdBindVertexBuffers(commandBuffer, 0U, 1U, vertexBuffers, offsets);
         vkCmdBindIndexBuffer(commandBuffer, mesh.indexBuffer, 0U, VK_INDEX_TYPE_UINT32);
 
-        const ScenePushConstants pushConstants {.model = mesh.model, .view = view, .projection = projection};
+        const ScenePushConstants pushConstants {
+            .model = mesh.model,
+            .view = view,
+            .projection = projection,
+            .material = glm::uvec4 {mesh.material.value, 0U, 0U, 0U}
+        };
         vkCmdPushConstants(commandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0U,
             static_cast<std::uint32_t>(sizeof(ScenePushConstants)), &pushConstants);
 
@@ -416,13 +454,18 @@ void SceneRenderer::create_pipeline_layout() {
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo {};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    if (m_descriptorLayout != VK_NULL_HANDLE) {
-        pipelineLayoutInfo.setLayoutCount = 1U;
-        pipelineLayoutInfo.pSetLayouts = &m_descriptorLayout;
-    } else {
-        pipelineLayoutInfo.setLayoutCount = 0U;
-        pipelineLayoutInfo.pSetLayouts = nullptr;
+    std::array<VkDescriptorSetLayout, 2> layouts {};
+    std::uint32_t layoutCount {0U};
+    if (m_descriptorLayout == VK_NULL_HANDLE) {
+        throw std::logic_error {"SceneRenderer requires SSAO descriptor layout for set 0"};
     }
+    if (m_materialDescriptorLayout == VK_NULL_HANDLE) {
+        throw std::logic_error {"SceneRenderer material descriptor layout not initialised"};
+    }
+    layouts[layoutCount++] = m_descriptorLayout;
+    layouts[layoutCount++] = m_materialDescriptorLayout;
+    pipelineLayoutInfo.setLayoutCount = layoutCount;
+    pipelineLayoutInfo.pSetLayouts = layoutCount > 0U ? layouts.data() : nullptr;
     pipelineLayoutInfo.pushConstantRangeCount = 1U;
     pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
@@ -693,6 +736,64 @@ void SceneRenderer::destroy_color_resources() noexcept {
     m_albedoImage = vk::ColorImage {};
     m_normalImage = vk::ColorImage {};
     m_linearDepthImage = vk::ColorImage {};
+}
+
+void SceneRenderer::create_material_descriptors() {
+    if (m_materialDescriptorLayout != VK_NULL_HANDLE) {
+        return;
+    }
+
+    VkDescriptorSetLayoutBinding materialBinding {};
+    materialBinding.binding = MaterialDescriptorBindings::materialBufferBinding;
+    materialBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    materialBinding.descriptorCount = 1U;
+    materialBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutCreateInfo layoutInfo {};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = 1U;
+    layoutInfo.pBindings = &materialBinding;
+
+    if (vkCreateDescriptorSetLayout(m_context.device(), &layoutInfo, nullptr, &m_materialDescriptorLayout) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create material descriptor set layout"};
+    }
+
+    VkDescriptorPoolSize poolSize {};
+    poolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    poolSize.descriptorCount = 1U;
+
+    VkDescriptorPoolCreateInfo poolInfo {};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.maxSets = 1U;
+    poolInfo.poolSizeCount = 1U;
+    poolInfo.pPoolSizes = &poolSize;
+
+    if (vkCreateDescriptorPool(m_context.device(), &poolInfo, nullptr, &m_materialDescriptorPool) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create material descriptor pool"};
+    }
+
+    VkDescriptorSetAllocateInfo allocateInfo {};
+    allocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocateInfo.descriptorPool = m_materialDescriptorPool;
+    allocateInfo.descriptorSetCount = 1U;
+    allocateInfo.pSetLayouts = &m_materialDescriptorLayout;
+
+    if (vkAllocateDescriptorSets(m_context.device(), &allocateInfo, &m_materialDescriptorSet) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to allocate material descriptor set"};
+    }
+}
+
+void SceneRenderer::destroy_material_descriptors() noexcept {
+    if (m_materialDescriptorPool != VK_NULL_HANDLE) {
+        vkDestroyDescriptorPool(m_context.device(), m_materialDescriptorPool, nullptr);
+        m_materialDescriptorPool = VK_NULL_HANDLE;
+    }
+    if (m_materialDescriptorLayout != VK_NULL_HANDLE) {
+        vkDestroyDescriptorSetLayout(m_context.device(), m_materialDescriptorLayout, nullptr);
+        m_materialDescriptorLayout = VK_NULL_HANDLE;
+    }
+    m_materialDescriptorSet = VK_NULL_HANDLE;
+    m_materialBuffer = nullptr;
 }
 
 void SceneRenderer::create_depth_resources() {

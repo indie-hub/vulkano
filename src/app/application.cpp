@@ -5,6 +5,7 @@
 #include <vulkano/app/frame_resources.hpp>
 #include <vulkano/app/glfw_library.hpp>
 #include <vulkano/app/imgui_renderer.hpp>
+#include <vulkano/app/material_buffer.hpp>
 #include <vulkano/app/ssao.hpp>
 #include <vulkano/app/scene_renderer.hpp>
 #include <vulkano/app/vulkan_context.hpp>
@@ -46,6 +47,7 @@ int Application::run() noexcept {
         cameraController.set_mouse_sensitivity(0.1F);
 
         scene::MaterialRegistry materialRegistry {};
+        MaterialBuffer materialBuffer {context};
 
         scene::Material planeMaterial {};
         planeMaterial.properties.baseColor = glm::vec3 {0.7F, 0.7F, 0.7F};
@@ -82,12 +84,15 @@ int Application::run() noexcept {
             }
         };
 
+        materialBuffer.update(materialRegistry);
+
         SSAOSampleGenerator ssaoGenerator {};
         SSAOGpuResources ssaoResources {context, ssaoGenerator, 64U, 4U};
         auto ssaoComposite = std::make_unique<SSAOCompositeDescriptors>(context);
 
         auto renderer = std::make_unique<SceneRenderer>(context, window, ssaoComposite->layout());
         renderer->set_scene(sceneMeshes);
+        renderer->set_material_buffer(materialBuffer);
 
         auto ssaoDescriptors = std::make_unique<SSAODescriptors>(context, ssaoResources,
             renderer->normal_image_view(), renderer->linear_depth_image_view());
@@ -141,6 +146,7 @@ int Application::run() noexcept {
 
             renderer = std::make_unique<SceneRenderer>(context, window, ssaoComposite->layout());
             renderer->set_scene(sceneMeshes);
+            renderer->set_material_buffer(materialBuffer);
             ssaoDescriptors->update_gbuffer_views(renderer->normal_image_view(), renderer->linear_depth_image_view());
             ssaoPass->resize(context, context.swapchain_extent());
             ssaoBlurPass->resize(context, context.swapchain_extent());

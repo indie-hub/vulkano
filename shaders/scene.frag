@@ -4,6 +4,7 @@ layout(location = 0) in vec3 fragColor;
 layout(location = 1) in vec3 fragNormalWorld;
 layout(location = 2) in vec3 fragViewPos;
 layout(location = 3) in vec3 fragNormalView;
+layout(location = 4) flat in uint fragMaterialIndex;
 
 layout(set = 0, binding = 0) uniform SSAOConfig {
     float occlusionStrength;
@@ -13,6 +14,15 @@ layout(set = 0, binding = 0) uniform SSAOConfig {
 } uConfig;
 layout(set = 0, binding = 1) uniform sampler2D ssaoTex;
 
+struct MaterialGpu {
+    vec4 baseColorMetallic;
+    vec4 roughnessAoFlags;
+};
+
+layout(set = 1, binding = 0) readonly buffer MaterialBuffer {
+    MaterialGpu materials[];
+} materialBuffer;
+
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out vec4 outAlbedo;
 layout(location = 2) out vec4 outNormal;
@@ -21,7 +31,12 @@ layout(location = 3) out float outLinearDepth;
 void main() {
     vec3 normalWorld = normalize(fragNormalWorld);
     vec3 normalView = normalize(fragNormalView);
-    vec3 albedo = fragColor;
+
+    MaterialGpu material = materialBuffer.materials[fragMaterialIndex];
+    vec3 albedo = material.baseColorMetallic.rgb;
+    float metallic = material.baseColorMetallic.a;
+    float roughness = material.roughnessAoFlags.x;
+    float ambientOcclusion = material.roughnessAoFlags.y;
     vec3 lightDir = normalize(vec3(0.5, 1.0, 0.3));
     float diffuse = max(dot(normalWorld, lightDir), 0.0);
 
@@ -38,7 +53,7 @@ void main() {
     }
 
     float occlusionFactor = mix(1.0, occlusion, clamp(uConfig.occlusionStrength, 0.0, 1.0));
-    float ambient = uConfig.baseAmbient * occlusionFactor;
+    float ambient = uConfig.baseAmbient * occlusionFactor * ambientOcclusion;
 
     vec3 lit = albedo * (diffuse + ambient);
 

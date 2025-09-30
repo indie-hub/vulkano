@@ -14,7 +14,7 @@ struct MaterialGpu final {
 };
 
 struct MaterialDescriptorBindings final {
-    static constexpr std::uint32_t set {2U};
+    static constexpr std::uint32_t set {1U};
     static constexpr std::uint32_t materialBufferBinding {0U};
     static constexpr std::uint32_t baseColorTextureBinding {1U};
     static constexpr std::uint32_t normalTextureBinding {2U};
