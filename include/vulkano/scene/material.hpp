@@ -22,6 +22,8 @@ struct MaterialProperties final {
     float metallic {0.0F};
     float roughness {0.5F};
     float ambientOcclusion {1.0F};
+    glm::vec3 emissive {0.0F, 0.0F, 0.0F};
+    float emissiveIntensity {0.0F};
 };
 
 struct MaterialTextures final {

@@ -30,6 +30,7 @@ struct ScenePushConstants final {
     glm::mat4 view {};
     glm::mat4 projection {};
     glm::uvec4 material {0U, 0U, 0U, 0U};
+    glm::vec4 camera {0.0F, 0.0F, 0.0F, 1.0F};
 };
 
 struct Vertex final {
@@ -315,7 +316,8 @@ VkFormat SceneRenderer::linear_depth_format() const noexcept {
 }
 
 void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::uint32_t imageIndex,
-    const glm::mat4& view, const glm::mat4& projection, const CommandRecorder& overlayRecorder,
+    const glm::mat4& view, const glm::mat4& projection, const glm::vec3& cameraPosition,
+    const CommandRecorder& overlayRecorder,
     VkDescriptorSet ssaoDescriptor) const {
     VkCommandBufferBeginInfo beginInfo {};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -386,9 +388,11 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
             .model = mesh.model,
             .view = view,
             .projection = projection,
-            .material = glm::uvec4 {mesh.material.value, 0U, 0U, 0U}
+            .material = glm::uvec4 {mesh.material.value, 0U, 0U, 0U},
+            .camera = glm::vec4 {cameraPosition, 1.0F}
         };
-        vkCmdPushConstants(commandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0U,
+        vkCmdPushConstants(commandBuffer, m_pipelineLayout,
+            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0U,
             static_cast<std::uint32_t>(sizeof(ScenePushConstants)), &pushConstants);
 
         vkCmdDrawIndexed(commandBuffer, mesh.indexCount, 1U, 0U, 0, 0U);
@@ -509,7 +513,7 @@ void SceneRenderer::create_render_pass() {
 
 void SceneRenderer::create_pipeline_layout() {
     VkPushConstantRange pushConstantRange {};
-    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     pushConstantRange.offset = 0U;
     pushConstantRange.size = static_cast<std::uint32_t>(sizeof(ScenePushConstants));
 
