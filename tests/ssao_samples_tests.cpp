@@ -51,6 +51,27 @@ TEST_CASE("View-space position reconstructs from linear depth") {
     REQUIRE_THAT(reconstructed.z, WithinAbs(originalViewPosition.z, 1e-3F));
 }
 
+TEST_CASE("SSAO falloff weighting decreases with distance") {
+    const float depthRange {0.2F};
+    const float distanceRange {0.5F};
+    const float depthDifferenceNear {0.05F};
+    const float depthDifferenceFar {0.2F};
+    const float distanceNear {0.1F};
+    const float distanceFar {0.6F};
+
+    const float depthWeightNear = std::exp(-depthDifferenceNear / depthRange);
+    const float depthWeightFar = std::exp(-depthDifferenceFar / depthRange);
+    const float distanceWeightNear = std::exp(-distanceNear / distanceRange);
+    const float distanceWeightFar = std::exp(-distanceFar / distanceRange);
+
+    REQUIRE(depthWeightNear > depthWeightFar);
+    REQUIRE(distanceWeightNear > distanceWeightFar);
+
+    const float combinedNear = depthWeightNear * distanceWeightNear;
+    const float combinedFar = depthWeightFar * distanceWeightFar;
+    REQUIRE(combinedNear > combinedFar);
+}
+
 TEST_CASE("SSAO kernel remains inside unit hemisphere") {
     const vulkano::app::SSAOSampleGenerator generator {};
     const auto samples = generator.generate_kernel(kernelSize);
