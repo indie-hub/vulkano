@@ -16,6 +16,7 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/matrix_inverse.hpp>
 
 #include <chrono>
 #include <cstdint>
@@ -68,6 +69,7 @@ int Application::run() noexcept {
             renderer->normal_image_view(), renderer->linear_depth_image_view());
         auto ssaoPass = std::make_unique<SSAOPass>(context, ssaoDescriptors->layout(), context.swapchain_extent());
         ssaoComposite->update_occlusion_view(ssaoPass->occlusion_view());
+        ssaoDescriptors->set_camera_inverse_projection(glm::inverse(camera.projection_matrix()));
 
         bool ssaoEnabled = true;
         float ssaoStrength = 1.0F;
@@ -104,6 +106,7 @@ int Application::run() noexcept {
             ssaoDescriptors->update_gbuffer_views(renderer->normal_image_view(), renderer->linear_depth_image_view());
             ssaoPass->resize(context, context.swapchain_extent());
             ssaoComposite->update_occlusion_view(ssaoPass->occlusion_view());
+            ssaoDescriptors->set_camera_inverse_projection(glm::inverse(camera.projection_matrix()));
 
             imgui = std::make_unique<ImGuiRenderer>(context, window, renderer->render_pass());
             frameResources = std::make_unique<FrameResources>(context);
@@ -138,6 +141,8 @@ int Application::run() noexcept {
             }
 
             cameraController.update(deltaSeconds);
+
+            ssaoDescriptors->set_camera_inverse_projection(glm::inverse(camera.projection_matrix()));
 
             imgui->begin_frame();
             imgui->update_metrics(deltaSeconds);

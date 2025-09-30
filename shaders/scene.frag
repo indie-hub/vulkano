@@ -1,8 +1,9 @@
 #version 450
 
 layout(location = 0) in vec3 fragColor;
-layout(location = 1) in vec3 fragNormal;
+layout(location = 1) in vec3 fragNormalWorld;
 layout(location = 2) in vec3 fragViewPos;
+layout(location = 3) in vec3 fragNormalView;
 
 layout(set = 0, binding = 0) uniform SSAOConfig {
     float occlusionStrength;
@@ -18,10 +19,11 @@ layout(location = 2) out vec4 outNormal;
 layout(location = 3) out float outLinearDepth;
 
 void main() {
-    vec3 normal = normalize(fragNormal);
+    vec3 normalWorld = normalize(fragNormalWorld);
+    vec3 normalView = normalize(fragNormalView);
     vec3 albedo = fragColor;
     vec3 lightDir = normalize(vec3(0.5, 1.0, 0.3));
-    float diffuse = max(dot(normal, lightDir), 0.0);
+    float diffuse = max(dot(normalWorld, lightDir), 0.0);
 
     vec2 occlusionUV = gl_FragCoord.xy / vec2(textureSize(ssaoTex, 0));
     float occlusion = texture(ssaoTex, occlusionUV).r;
@@ -30,7 +32,7 @@ void main() {
         vec3 debugColor = vec3(occlusion);
         outColor = vec4(debugColor, 1.0);
         outAlbedo = vec4(albedo, 1.0);
-        outNormal = vec4(normal * 0.5 + 0.5, 1.0);
+        outNormal = vec4(normalView * 0.5 + 0.5, 1.0);
         outLinearDepth = -fragViewPos.z;
         return;
     }
@@ -42,6 +44,6 @@ void main() {
 
     outColor = vec4(lit, 1.0);
     outAlbedo = vec4(albedo, 1.0);
-    outNormal = vec4(normal * 0.5 + 0.5, 1.0);
+    outNormal = vec4(normalView * 0.5 + 0.5, 1.0);
     outLinearDepth = -fragViewPos.z;
 }
