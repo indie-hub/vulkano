@@ -91,4 +91,4 @@
 
 - [x] Add ImGui material panel with per-material parameters (color, metallic, roughness)
 - [x] Update material buffer when ImGui edits occur, respecting in-flight frames
-- [ ] Validate ImGui-driven material edits via build, tests, and runtime run
+- [x] Validate ImGui-driven material edits via build, tests, and runtime run
