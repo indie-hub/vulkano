@@ -123,3 +123,6 @@
 - [x] Enhance procedural metal normal generation for richer detail
 - [x] Regenerate metal normal asset and update documentation
 - [x] Rebuild, run tests, and visually validate improved metal material
+- [x] Assign metal normal map to remaining scene materials
+- [ ] Add adjustable normal map strength to material system and shaders
+- [ ] Rebuild, run tests, and validate runtime with normal strength controls
