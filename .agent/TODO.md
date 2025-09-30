@@ -74,6 +74,6 @@
 
 - [x] Refine Phase 2 GPU material buffer plan in .agent/plan.md
 - [x] Define CPU/GPU material buffer layout and descriptor set design
-- [ ] Implement CPU-side material buffer population and frame update path
+- [x] Implement CPU-side material buffer population and frame update path
 - [ ] Update shaders and pipeline layouts to consume material buffer
 - [ ] Validate materials applied per mesh (build, tests, runtime)

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 
 #include <glm/vec4.hpp>
 
@@ -22,5 +23,5 @@ struct MaterialDescriptorBindings final {
 };
 
 [[nodiscard]] MaterialGpu make_material_gpu(const scene::Material& material) noexcept;
+[[nodiscard]] std::vector<MaterialGpu> build_material_gpu_buffer(const scene::MaterialRegistry& registry);
 }
-

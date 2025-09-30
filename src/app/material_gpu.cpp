@@ -1,5 +1,7 @@
 #include <vulkano/app/material_gpu.hpp>
 
+#include <vector>
+
 #include <glm/common.hpp>
 
 namespace vulkano::app {
@@ -22,5 +24,17 @@ MaterialGpu make_material_gpu(const scene::Material& material) noexcept {
 
     return gpu;
 }
-} // namespace vulkano::app
 
+std::vector<MaterialGpu> build_material_gpu_buffer(const scene::MaterialRegistry& registry) {
+    const std::vector<scene::Material>& materials = registry.materials();
+    std::vector<MaterialGpu> buffer;
+    buffer.reserve(materials.size());
+    for (const scene::Material& material : materials) {
+        buffer.push_back(make_material_gpu(material));
+    }
+    if (buffer.empty()) {
+        buffer.push_back(MaterialGpu {});
+    }
+    return buffer;
+}
+} // namespace vulkano::app
