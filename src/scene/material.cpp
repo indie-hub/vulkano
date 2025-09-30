@@ -10,6 +10,7 @@ namespace {
     defaultMaterial.properties.metallic = 0.0F;
     defaultMaterial.properties.roughness = 0.5F;
     defaultMaterial.properties.ambientOcclusion = 1.0F;
+    defaultMaterial.properties.normalStrength = 1.0F;
     defaultMaterial.properties.emissive = glm::vec3 {0.0F, 0.0F, 0.0F};
     defaultMaterial.properties.emissiveIntensity = 0.0F;
     defaultMaterial.useBaseColorTexture = false;
