@@ -100,4 +100,4 @@
 - [x] Define lighting component structs and registry (directional light support)
 - [x] Upload light data to GPU buffer and bind in SceneRenderer
 - [x] Integrate directional light shading in fragment shader (Lambert baseline)
-- [ ] Add ImGui controls for light parameters and validate runtime
+- [x] Add ImGui controls for light parameters and validate runtime

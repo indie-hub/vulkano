@@ -101,6 +101,7 @@ int Application::run() noexcept {
         materialBuffer.update(materialRegistry, materialTextures.handles());
         lightBuffer.update(lightRegistry);
         bool materialsDirty = false;
+        bool lightsDirty = false;
 
         SSAOSampleGenerator ssaoGenerator {};
         SSAOGpuResources ssaoResources {context, ssaoGenerator, 64U, 4U};
@@ -238,6 +239,37 @@ int Application::run() noexcept {
             }
             ImGui::End();
 
+            if (ImGui::Begin("Lighting")) {
+                for (std::size_t index {0U}; index < lightRegistry.size(); ++index) {
+                    const scene::LightId id {static_cast<std::uint32_t>(index)};
+                    scene::Light& editableLight = lightRegistry.light(id);
+                    const std::string label = "Light " + std::to_string(index);
+
+                    if (ImGui::TreeNode(label.c_str())) {
+                        glm::vec3 direction = editableLight.direction;
+                        if (ImGui::SliderFloat3("Direction", glm::value_ptr(direction), -1.0F, 1.0F)) {
+                            editableLight.direction = direction;
+                            lightsDirty = true;
+                        }
+
+                        glm::vec3 color = editableLight.color;
+                        if (ImGui::ColorEdit3("Color", glm::value_ptr(color))) {
+                            editableLight.color = color;
+                            lightsDirty = true;
+                        }
+
+                        float intensity = editableLight.intensity;
+                        if (ImGui::SliderFloat("Intensity", &intensity, 0.0F, 10.0F)) {
+                            editableLight.intensity = intensity;
+                            lightsDirty = true;
+                        }
+
+                        ImGui::TreePop();
+                    }
+                }
+            }
+            ImGui::End();
+
             if (ImGui::Begin("Materials")) {
                 for (std::size_t index {0U}; index < materialRegistry.size(); ++index) {
                     const scene::MaterialId id {static_cast<std::uint32_t>(index)};
@@ -319,6 +351,13 @@ int Application::run() noexcept {
                 materialBuffer.update(materialRegistry, materialTextures.handles());
                 renderer->set_material_resources(materialBuffer, materialTextures);
                 materialsDirty = false;
+            }
+
+            if (lightsDirty) {
+                context.wait_idle();
+                lightBuffer.update(lightRegistry);
+                renderer->set_light_buffer(lightBuffer);
+                lightsDirty = false;
             }
 
             const VkFence inFlightFence = frameResources->in_flight_fence(currentFrame);
