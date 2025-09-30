@@ -115,4 +115,4 @@
 - [x] Validate normal mapping via build, tests, and runtime run
 - [x] Enable normal map usage for default scene materials and rebuild caches
 - [x] Update ImGui material panel to control normal map toggles and previews
-- [ ] Rebuild, run tests, and validate runtime with normal mapping controls
+- [x] Rebuild, run tests, and validate runtime with normal mapping controls
