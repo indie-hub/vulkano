@@ -43,3 +43,4 @@
 - [x] Add SSAO debug visualisation toggle to ImGui overlay
 - [x] Render raw SSAO occlusion texture when debug view is enabled
 - [x] Rebuild, run tests, and validate SSAO debug visualisation
+- [x] Draft SSAO quality improvement plan with acceptance criteria

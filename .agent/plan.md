@@ -306,3 +306,39 @@ Deliver a right-handed Vulkan renderer that opens a GLFW window, renders a white
 - ImGui exposes SSAO controls; runtime remains stable through resizes and camera motion.
 - Build/tests succeed (`cmake --build`, `ctest`); validation layers report no new issues.
 
+# SSAO Quality Improvement Plan
+
+## Goal
+Lift the placeholder SSAO implementation to a production-quality ambient occlusion pipeline with physically grounded sampling, temporal stability, and useful debug tooling.
+
+## Phases
+1. **Data Preparation**
+   - Reconstruct view-space positions in the SSAO shader using the linear depth attachment and the inverse projection matrix supplied via a uniform.
+   - Ensure normals are in view space and normalized; add validation unit tests that compare transformed normals against expected values for canonical meshes.
+   - Acceptance criteria: SSAO shader receives per-fragment view-space position/normal accurate within floating-point tolerance verified by tests.
+
+2. **Kernel Integration & Biasing**
+   - Feed the existing 64-sample kernel into the shader, randomizing per-fragment rotation via the noise texture.
+   - Implement hemisphere sampling logic: project samples into clip space, check depth differences against a configurable radius, and accumulate occlusion with distance/angle falloff.
+   - Acceptance criteria: Raw SSAO buffer in debug view shows smooth occlusion gradients around contact areas without large constant regions.
+
+3. **Edge-Aware Blur Pass**
+   - Add a separable bilateral blur (horizontal + vertical) operating on the SSAO output while respecting depth discontinuities via linear depth texture sampling.
+   - Extend descriptors/pipelines accordingly and provide ImGui controls for blur radius and depth threshold.
+   - Acceptance criteria: Blurred SSAO removes block artifacts while preserving edges (validated visually and via automated test checking that high-contrast edges remain within tolerance).
+
+4. **Parameterization & Runtime Controls**
+   - Surface radius, bias, strength, base ambient, and blur parameters in ImGui with sane defaults and clamped ranges.
+   - Update SSAO config UBO to include new parameters; ensure hot updates do not stall the GPU (host-coherent buffer writes only).
+   - Acceptance criteria: UI controls adjust SSAO behavior in real time without validation warnings or noticeable hitches.
+
+5. **Testing & Validation**
+   - Add unit tests for SSAO math helpers (position reconstruction, sample falloff) and integration tests that render a small scene off-screen, sampling the occlusion texture to assert expected ordering (e.g., occlusion under cube > plane far field).
+   - Run validation layers to confirm all new passes respect layout transitions and descriptor bindings.
+   - Acceptance criteria: `ctest` passes with new coverage, runtime validation remains clean, and debug view clearly highlights occlusion around geometry intersections.
+
+## Acceptance Criteria
+- SSAO debug mode displays contact-shadow gradients with visible occlusion near mesh intersections and minimal banding.
+- Blurred SSAO integrates into the lighting pass without flicker or shading seams during camera motion.
+- Parameter tweaks (radius/strength/bias/blur) respond in real time via ImGui.
+- Automated tests cover reconstruction helpers and blur weights, and the render validation scene confirms occlusion ordering.
