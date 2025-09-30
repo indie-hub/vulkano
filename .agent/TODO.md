@@ -86,5 +86,5 @@
 - [x] Validate textured materials via build, tests, and runtime run
 
 - [x] Extend mesh data with UV coordinates and update shaders to pass them
-- [ ] Load placeholder textures from disk and assign them to scene materials
+- [x] Load placeholder textures from disk and assign them to scene materials
 - [ ] Sample base color textures via UVs in fragment shader and verify runtime

@@ -54,18 +54,21 @@ int Application::run() noexcept {
         scene::Material planeMaterial {};
         planeMaterial.properties.baseColor = glm::vec3 {0.7F, 0.7F, 0.7F};
         planeMaterial.properties.roughness = 0.9F;
+        planeMaterial.textures.baseColorPath = "assets/textures/plane.png";
         const scene::MaterialId planeMaterialId = materialRegistry.add_material(planeMaterial);
 
         scene::Material cubeMaterial {};
         cubeMaterial.properties.baseColor = glm::vec3 {0.8F, 0.2F, 0.2F};
         cubeMaterial.properties.roughness = 0.4F;
         cubeMaterial.properties.metallic = 0.05F;
+        cubeMaterial.textures.baseColorPath = "assets/textures/cube.png";
         const scene::MaterialId cubeMaterialId = materialRegistry.add_material(cubeMaterial);
 
         scene::Material sphereMaterial {};
         sphereMaterial.properties.baseColor = glm::vec3 {0.2F, 0.4F, 0.85F};
         sphereMaterial.properties.roughness = 0.2F;
         sphereMaterial.properties.metallic = 0.6F;
+        sphereMaterial.textures.baseColorPath = "assets/textures/sphere.png";
         const scene::MaterialId sphereMaterialId = materialRegistry.add_material(sphereMaterial);
 
         std::vector<SceneRenderer::SceneMesh> sceneMeshes {
