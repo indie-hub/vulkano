@@ -12,6 +12,7 @@ layout(set = 0, binding = 4) uniform SSAOParams {
     mat4 inverseProjection;
     mat4 projection;
     vec4 sampleParams; // xy: noise scale, z: radius, w: bias
+    vec4 attenuationParams; // x: angle cos threshold, y: depth falloff, z: distance falloff, w: padding
 } uParams;
 
 layout(location = 0) out float outOcclusion;
@@ -53,12 +54,27 @@ void main() {
     mat3 tbn = mat3(tangent, bitangent, normal);
 
     float occlusionAccum = 0.0;
-    float validSamples = 0.0;
+    float weightAccum = 0.0;
+
+    float angleCosThreshold = clamp(uParams.attenuationParams.x, -1.0, 1.0);
+    float depthFalloff = max(uParams.attenuationParams.y, 0.01);
+    float distanceFalloff = max(uParams.attenuationParams.z, 0.01);
 
     const int sampleCount = 64;
     for (int i = 0; i < sampleCount; ++i) {
         vec3 sampleVec = tbn * uKernel.samples[i].xyz;
         sampleVec = viewPosition + sampleVec * radius;
+
+        vec3 sampleOffset = sampleVec - viewPosition;
+        float sampleDistance = length(sampleOffset);
+        if (sampleDistance <= 1e-4) {
+            continue;
+        }
+
+        vec3 sampleDir = sampleOffset / sampleDistance;
+        if (dot(normal, sampleDir) < angleCosThreshold) {
+            continue;
+        }
 
         vec4 sampleClip = uParams.projection * vec4(sampleVec, 1.0);
         vec3 sampleNdc = sampleClip.xyz / sampleClip.w;
@@ -74,15 +90,19 @@ void main() {
         }
 
         float currentSampleDepth = -sampleVec.z;
-        float depthDifference = sampleDepth - currentSampleDepth + bias;
-        if (depthDifference < 0.0) {
-            float range = abs(linearDepth - sampleDepth) + 1e-4;
-            float rangeWeight = clamp(radius / range, 0.0, 1.0);
-            occlusionAccum += rangeWeight;
+        float depthDifference = currentSampleDepth - sampleDepth - bias;
+        if (depthDifference <= 0.0) {
+            continue;
         }
-        validSamples += 1.0;
+
+        float depthWeight = exp(-depthDifference * depthFalloff);
+        float distanceWeight = exp(-sampleDistance * distanceFalloff);
+        float weight = depthWeight * distanceWeight;
+
+        occlusionAccum += weight;
+        weightAccum += weight;
     }
 
-    float occlusion = validSamples > 0.0 ? occlusionAccum / validSamples : 0.0;
+    float occlusion = weightAccum > 0.0 ? occlusionAccum / weightAccum : 0.0;
     outOcclusion = clamp(1.0 - occlusion, 0.0, 1.0);
 }
