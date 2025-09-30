@@ -449,6 +449,14 @@ Introduce a material-driven forward renderer that supports multiple material typ
 4. Add material toggle for normal map usage and integrate it into existing texture cache/buffer.
 5. Verify normal mapping on sphere/cube via runtime checks and adjust tests accordingly.
 
+### Metal Material Normal Map Enhancement
+1. Capture requirements: target at least 512×512 RGBA PNG normal map with tangent-space data suited for tileable brushed metal; produce accompanying base-color guidance.
+2. Generate procedural metal normal map via script (e.g., Perlin noise + directional blur) and export alongside optional preview for verification.
+3. Add asset entries under `assets/textures/` with naming `metal_normal.png` (and optionally `metal_albedo.png` if needed) and document source generation steps in repo notes.
+4. Update material registry defaults (e.g., cube material) to reference the new metal normal map and ensure texture cache rebuild picks it up.
+5. Validate in runtime: check shading response, tweak intensity scaling if required, and capture notes/screenshots for future QA.
+6. Acceptance Criteria: Normal map integrates without validation warnings, delivers visible brushed-metal detail under current lighting, and generation script kept under `.agent/` for reproducibility.
+
 ## Phase 4 – ImGui Material Editor
 1. Add ImGui panel to list materials, adjust parameters (color, roughness, metallic), and trigger texture reloads.
 2. Ensure edits trigger GPU buffer updates only when necessary (avoid mid-command-buffer updates).

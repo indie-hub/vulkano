@@ -116,3 +116,7 @@
 - [x] Enable normal map usage for default scene materials and rebuild caches
 - [x] Update ImGui material panel to control normal map toggles and previews
 - [x] Rebuild, run tests, and validate runtime with normal mapping controls
+- [x] Draft plan for integrating a higher-quality metal normal map
+- [ ] Generate and add metal normal map texture asset
+- [ ] Wire metal material to use new normal map and document asset
+- [ ] Rebuild, run tests, and validate runtime with updated material
