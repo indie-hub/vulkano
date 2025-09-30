@@ -118,5 +118,5 @@
 - [x] Rebuild, run tests, and validate runtime with normal mapping controls
 - [x] Draft plan for integrating a higher-quality metal normal map
 - [x] Generate and add metal normal map texture asset
-- [ ] Wire metal material to use new normal map and document asset
+- [x] Wire metal material to use new normal map and document asset
 - [ ] Rebuild, run tests, and validate runtime with updated material
