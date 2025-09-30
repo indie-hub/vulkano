@@ -50,5 +50,5 @@
 - [x] Plan SSAO blur resources (images, descriptors, shaders)
 - [x] Add SSAO blur shaders (fullscreen quad, depth-aware kernel)
 - [x] Implement SSAO blur pass creation and record logic
-- [ ] Integrate blur pass into application pipeline and ImGui controls
+- [x] Integrate blur pass into application pipeline and ImGui controls
 - [ ] Rebuild, test, and validate blurred SSAO output
