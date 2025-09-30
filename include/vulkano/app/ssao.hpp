@@ -136,6 +136,57 @@ private:
     VkFramebuffer m_framebuffer {VK_NULL_HANDLE};
 };
 
+class SSAOBlurPass final {
+public:
+    SSAOBlurPass(const VulkanContext& context, VkExtent2D extent);
+    ~SSAOBlurPass() noexcept;
+
+    SSAOBlurPass(const SSAOBlurPass&) = delete;
+    SSAOBlurPass& operator=(const SSAOBlurPass&) = delete;
+    SSAOBlurPass(SSAOBlurPass&& other) noexcept;
+    SSAOBlurPass& operator=(SSAOBlurPass&& other) noexcept;
+
+    void resize(const VulkanContext& context, VkExtent2D extent);
+    void set_depth_view(VkImageView depthView) noexcept;
+    void set_parameters(float radius, float depthSigma) noexcept;
+    void record(VkCommandBuffer commandBuffer, VkImageView occlusionView) const;
+
+    [[nodiscard]] VkImageView blurred_view() const noexcept;
+
+private:
+    void destroy() noexcept;
+    void create_resources(const VulkanContext& context);
+    void recreate_framebuffer(const VulkanContext& context, VkExtent2D extent);
+
+    VkDevice m_device {VK_NULL_HANDLE};
+    VkPhysicalDevice m_physicalDevice {VK_NULL_HANDLE};
+    VkExtent2D m_extent {0U, 0U};
+
+    VkDescriptorPool m_descriptorPool {VK_NULL_HANDLE};
+    VkDescriptorSetLayout m_descriptorLayout {VK_NULL_HANDLE};
+    VkDescriptorSet m_descriptorSet {VK_NULL_HANDLE};
+    VkSampler m_occlusionSampler {VK_NULL_HANDLE};
+    VkSampler m_depthSampler {VK_NULL_HANDLE};
+    VkBuffer m_paramsBuffer {VK_NULL_HANDLE};
+    VkDeviceMemory m_paramsMemory {VK_NULL_HANDLE};
+
+    VkRenderPass m_renderPass {VK_NULL_HANDLE};
+    VkPipelineLayout m_pipelineLayout {VK_NULL_HANDLE};
+    VkPipeline m_pipeline {VK_NULL_HANDLE};
+    VkFramebuffer m_framebuffer {VK_NULL_HANDLE};
+    vk::ColorImage m_blurImage;
+
+    VkImageView m_depthView {VK_NULL_HANDLE};
+
+    struct BlurUniform final {
+        float radius {2.0F};
+        float depthSigma {0.1F};
+        glm::vec2 padding {0.0F};
+    };
+
+    BlurUniform m_params {};
+};
+
 class SSAOCompositeDescriptors final {
 public:
     SSAOCompositeDescriptors(const VulkanContext& context, VkImageView initialOcclusionView = VK_NULL_HANDLE);

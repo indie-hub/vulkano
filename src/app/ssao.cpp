@@ -1345,4 +1345,570 @@ void SSAOCompositeDescriptors::destroy() noexcept {
     m_device = VK_NULL_HANDLE;
     m_currentOcclusionView = VK_NULL_HANDLE;
 }
+
+SSAOBlurPass::SSAOBlurPass(const VulkanContext& context, VkExtent2D extent)
+    : m_device {context.device()}
+    , m_physicalDevice {context.physical_device()}
+    , m_extent {extent} {
+    create_resources(context);
+    recreate_framebuffer(context, extent);
+}
+
+SSAOBlurPass::~SSAOBlurPass() noexcept {
+    destroy();
+}
+
+SSAOBlurPass::SSAOBlurPass(SSAOBlurPass&& other) noexcept {
+    *this = std::move(other);
+}
+
+SSAOBlurPass& SSAOBlurPass::operator=(SSAOBlurPass&& other) noexcept {
+    if (this == &other) {
+        return *this;
+    }
+
+    destroy();
+
+    m_device = other.m_device;
+    m_physicalDevice = other.m_physicalDevice;
+    m_extent = other.m_extent;
+    m_descriptorPool = other.m_descriptorPool;
+    m_descriptorLayout = other.m_descriptorLayout;
+    m_descriptorSet = other.m_descriptorSet;
+    m_occlusionSampler = other.m_occlusionSampler;
+    m_depthSampler = other.m_depthSampler;
+    m_paramsBuffer = other.m_paramsBuffer;
+    m_paramsMemory = other.m_paramsMemory;
+    m_renderPass = other.m_renderPass;
+    m_pipelineLayout = other.m_pipelineLayout;
+    m_pipeline = other.m_pipeline;
+    m_framebuffer = other.m_framebuffer;
+    m_blurImage = std::move(other.m_blurImage);
+    m_depthView = other.m_depthView;
+    m_params = other.m_params;
+
+    other.m_device = VK_NULL_HANDLE;
+    other.m_physicalDevice = VK_NULL_HANDLE;
+    other.m_descriptorPool = VK_NULL_HANDLE;
+    other.m_descriptorLayout = VK_NULL_HANDLE;
+    other.m_descriptorSet = VK_NULL_HANDLE;
+    other.m_occlusionSampler = VK_NULL_HANDLE;
+    other.m_depthSampler = VK_NULL_HANDLE;
+    other.m_paramsBuffer = VK_NULL_HANDLE;
+    other.m_paramsMemory = VK_NULL_HANDLE;
+    other.m_renderPass = VK_NULL_HANDLE;
+    other.m_pipelineLayout = VK_NULL_HANDLE;
+    other.m_pipeline = VK_NULL_HANDLE;
+    other.m_framebuffer = VK_NULL_HANDLE;
+    other.m_depthView = VK_NULL_HANDLE;
+    other.m_params = BlurUniform {};
+
+    return *this;
+}
+
+void SSAOBlurPass::resize(const VulkanContext& context, VkExtent2D extent) {
+    if (extent.width == 0U || extent.height == 0U) {
+        return;
+    }
+    if (extent.width == m_extent.width && extent.height == m_extent.height) {
+        return;
+    }
+    m_extent = extent;
+    recreate_framebuffer(context, extent);
+}
+
+void SSAOBlurPass::set_depth_view(VkImageView depthView) noexcept {
+    m_depthView = depthView;
+}
+
+void SSAOBlurPass::set_parameters(float radius, float depthSigma) noexcept {
+    if (m_device == VK_NULL_HANDLE || m_paramsMemory == VK_NULL_HANDLE) {
+        return;
+    }
+    m_params.radius = std::max(radius, 0.5F);
+    m_params.depthSigma = std::max(depthSigma, 0.001F);
+    copy_to_memory(m_device, m_paramsMemory, &m_params, sizeof(BlurUniform));
+}
+
+void SSAOBlurPass::record(VkCommandBuffer commandBuffer, VkImageView occlusionView) const {
+    if (m_device == VK_NULL_HANDLE || occlusionView == VK_NULL_HANDLE || m_depthView == VK_NULL_HANDLE) {
+        return;
+    }
+
+    VkDescriptorImageInfo occlusionInfo {};
+    occlusionInfo.sampler = m_occlusionSampler;
+    occlusionInfo.imageView = occlusionView;
+    occlusionInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkDescriptorImageInfo depthInfo {};
+    depthInfo.sampler = m_depthSampler;
+    depthInfo.imageView = m_depthView;
+    depthInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    std::array<VkWriteDescriptorSet, 2> descriptorWrites {
+        VkWriteDescriptorSet {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .pNext = nullptr,
+            .dstSet = m_descriptorSet,
+            .dstBinding = 0U,
+            .dstArrayElement = 0U,
+            .descriptorCount = 1U,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .pImageInfo = &occlusionInfo,
+            .pBufferInfo = nullptr,
+            .pTexelBufferView = nullptr
+        },
+        VkWriteDescriptorSet {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .pNext = nullptr,
+            .dstSet = m_descriptorSet,
+            .dstBinding = 1U,
+            .dstArrayElement = 0U,
+            .descriptorCount = 1U,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .pImageInfo = &depthInfo,
+            .pBufferInfo = nullptr,
+            .pTexelBufferView = nullptr
+        }
+    };
+    vkUpdateDescriptorSets(m_device, static_cast<std::uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0U, nullptr);
+
+    VkImageMemoryBarrier toColorAttachment {};
+    toColorAttachment.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    toColorAttachment.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    toColorAttachment.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    toColorAttachment.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    toColorAttachment.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    toColorAttachment.image = m_blurImage.image();
+    toColorAttachment.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    toColorAttachment.subresourceRange.baseMipLevel = 0U;
+    toColorAttachment.subresourceRange.levelCount = 1U;
+    toColorAttachment.subresourceRange.baseArrayLayer = 0U;
+    toColorAttachment.subresourceRange.layerCount = 1U;
+
+    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        0U, 0U, nullptr, 0U, nullptr, 1U, &toColorAttachment);
+
+    VkClearValue clear {};
+    clear.color = {{1.0F, 1.0F, 1.0F, 1.0F}};
+
+    VkRenderPassBeginInfo beginInfo {};
+    beginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    beginInfo.renderPass = m_renderPass;
+    beginInfo.framebuffer = m_framebuffer;
+    beginInfo.renderArea.offset = {0, 0};
+    beginInfo.renderArea.extent = m_extent;
+    beginInfo.clearValueCount = 1U;
+    beginInfo.pClearValues = &clear;
+
+    vkCmdBeginRenderPass(commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+    VkViewport viewport {};
+    viewport.x = 0.0F;
+    viewport.y = 0.0F;
+    viewport.width = static_cast<float>(m_extent.width);
+    viewport.height = static_cast<float>(m_extent.height);
+    viewport.minDepth = 0.0F;
+    viewport.maxDepth = 1.0F;
+    vkCmdSetViewport(commandBuffer, 0U, 1U, &viewport);
+
+    VkRect2D scissor {};
+    scissor.offset = {0, 0};
+    scissor.extent = m_extent;
+    vkCmdSetScissor(commandBuffer, 0U, 1U, &scissor);
+
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0U, 1U, &m_descriptorSet, 0U, nullptr);
+    vkCmdDraw(commandBuffer, 3U, 1U, 0U, 0U);
+
+    vkCmdEndRenderPass(commandBuffer);
+
+    VkImageMemoryBarrier toShaderRead {};
+    toShaderRead.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    toShaderRead.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    toShaderRead.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    toShaderRead.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    toShaderRead.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    toShaderRead.image = m_blurImage.image();
+    toShaderRead.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    toShaderRead.subresourceRange.baseMipLevel = 0U;
+    toShaderRead.subresourceRange.levelCount = 1U;
+    toShaderRead.subresourceRange.baseArrayLayer = 0U;
+    toShaderRead.subresourceRange.layerCount = 1U;
+
+    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        0U, 0U, nullptr, 0U, nullptr, 1U, &toShaderRead);
+}
+
+VkImageView SSAOBlurPass::blurred_view() const noexcept {
+    return m_blurImage.view();
+}
+
+void SSAOBlurPass::destroy() noexcept {
+    if (m_device == VK_NULL_HANDLE) {
+        return;
+    }
+
+    if (m_descriptorPool != VK_NULL_HANDLE) {
+        vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
+        m_descriptorPool = VK_NULL_HANDLE;
+    }
+    if (m_descriptorLayout != VK_NULL_HANDLE) {
+        vkDestroyDescriptorSetLayout(m_device, m_descriptorLayout, nullptr);
+        m_descriptorLayout = VK_NULL_HANDLE;
+    }
+    if (m_occlusionSampler != VK_NULL_HANDLE) {
+        vkDestroySampler(m_device, m_occlusionSampler, nullptr);
+        m_occlusionSampler = VK_NULL_HANDLE;
+    }
+    if (m_depthSampler != VK_NULL_HANDLE) {
+        vkDestroySampler(m_device, m_depthSampler, nullptr);
+        m_depthSampler = VK_NULL_HANDLE;
+    }
+    if (m_paramsBuffer != VK_NULL_HANDLE) {
+        vkDestroyBuffer(m_device, m_paramsBuffer, nullptr);
+        m_paramsBuffer = VK_NULL_HANDLE;
+    }
+    if (m_paramsMemory != VK_NULL_HANDLE) {
+        vkFreeMemory(m_device, m_paramsMemory, nullptr);
+        m_paramsMemory = VK_NULL_HANDLE;
+    }
+    if (m_pipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(m_device, m_pipeline, nullptr);
+        m_pipeline = VK_NULL_HANDLE;
+    }
+    if (m_pipelineLayout != VK_NULL_HANDLE) {
+        vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
+        m_pipelineLayout = VK_NULL_HANDLE;
+    }
+    if (m_renderPass != VK_NULL_HANDLE) {
+        vkDestroyRenderPass(m_device, m_renderPass, nullptr);
+        m_renderPass = VK_NULL_HANDLE;
+    }
+    if (m_framebuffer != VK_NULL_HANDLE) {
+        vkDestroyFramebuffer(m_device, m_framebuffer, nullptr);
+        m_framebuffer = VK_NULL_HANDLE;
+    }
+
+    m_blurImage = vk::ColorImage {};
+    m_descriptorSet = VK_NULL_HANDLE;
+    m_device = VK_NULL_HANDLE;
+}
+
+void SSAOBlurPass::create_resources(const VulkanContext& context) {
+    static_cast<void>(context);
+    const VkDevice device = m_device;
+
+    VkDescriptorPoolSize poolSizes[2] = {
+        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2U},
+        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1U}
+    };
+
+    VkDescriptorPoolCreateInfo poolInfo {};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = 2U;
+    poolInfo.pPoolSizes = poolSizes;
+    poolInfo.maxSets = 1U;
+
+    if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create SSAO blur descriptor pool"};
+    }
+
+    VkDescriptorSetLayoutBinding bindings[3] = {};
+    bindings[0].binding = 0U;
+    bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    bindings[0].descriptorCount = 1U;
+    bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    bindings[1].binding = 1U;
+    bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    bindings[1].descriptorCount = 1U;
+    bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    bindings[2].binding = 2U;
+    bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    bindings[2].descriptorCount = 1U;
+    bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutCreateInfo descriptorLayoutInfo {};
+    descriptorLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    descriptorLayoutInfo.bindingCount = 3U;
+    descriptorLayoutInfo.pBindings = bindings;
+
+    if (vkCreateDescriptorSetLayout(device, &descriptorLayoutInfo, nullptr, &m_descriptorLayout) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create SSAO blur descriptor layout"};
+    }
+
+    VkDescriptorSetAllocateInfo allocateInfo {};
+    allocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocateInfo.descriptorPool = m_descriptorPool;
+    allocateInfo.descriptorSetCount = 1U;
+    allocateInfo.pSetLayouts = &m_descriptorLayout;
+
+    if (vkAllocateDescriptorSets(device, &allocateInfo, &m_descriptorSet) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to allocate SSAO blur descriptor set"};
+    }
+
+    const VkDeviceSize paramsSize = sizeof(BlurUniform);
+    m_paramsBuffer = create_buffer(m_physicalDevice, device, paramsSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, m_paramsMemory);
+    m_params = BlurUniform {};
+    copy_to_memory(device, m_paramsMemory, &m_params, paramsSize);
+
+    VkDescriptorBufferInfo paramsInfo {};
+    paramsInfo.buffer = m_paramsBuffer;
+    paramsInfo.offset = 0U;
+    paramsInfo.range = paramsSize;
+
+    VkWriteDescriptorSet paramsWrite {};
+    paramsWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    paramsWrite.dstSet = m_descriptorSet;
+    paramsWrite.dstBinding = 2U;
+    paramsWrite.descriptorCount = 1U;
+    paramsWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    paramsWrite.pBufferInfo = &paramsInfo;
+
+    vkUpdateDescriptorSets(device, 1U, &paramsWrite, 0U, nullptr);
+
+    VkSamplerCreateInfo samplerInfo {};
+    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    samplerInfo.magFilter = VK_FILTER_LINEAR;
+    samplerInfo.minFilter = VK_FILTER_LINEAR;
+
+    if (vkCreateSampler(device, &samplerInfo, nullptr, &m_occlusionSampler) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create SSAO blur occlusion sampler"};
+    }
+
+    samplerInfo.magFilter = VK_FILTER_NEAREST;
+    samplerInfo.minFilter = VK_FILTER_NEAREST;
+    if (vkCreateSampler(device, &samplerInfo, nullptr, &m_depthSampler) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create SSAO blur depth sampler"};
+    }
+
+    VkAttachmentDescription attachment {};
+    attachment.format = VK_FORMAT_R16_SFLOAT;
+    attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    attachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkAttachmentReference colorRef {0U, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+
+    VkSubpassDescription subpass {};
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount = 1U;
+    subpass.pColorAttachments = &colorRef;
+
+    VkSubpassDependency dependency {};
+    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass = 0U;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+    VkRenderPassCreateInfo renderPassInfo {};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    renderPassInfo.attachmentCount = 1U;
+    renderPassInfo.pAttachments = &attachment;
+    renderPassInfo.subpassCount = 1U;
+    renderPassInfo.pSubpasses = &subpass;
+    renderPassInfo.dependencyCount = 1U;
+    renderPassInfo.pDependencies = &dependency;
+
+    if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &m_renderPass) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create SSAO blur render pass"};
+    }
+
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo {};
+    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutInfo.setLayoutCount = 1U;
+    pipelineLayoutInfo.pSetLayouts = &m_descriptorLayout;
+
+    if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &m_pipelineLayout) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create SSAO blur pipeline layout"};
+    }
+
+    const auto shaderDir = shader_directory();
+    const auto vertCode = read_binary_file(shaderDir / "ssao_blur.vert.spv");
+    const auto fragCode = read_binary_file(shaderDir / "ssao_blur.frag.spv");
+
+    VkShaderModule vertModule = create_shader_module(device, vertCode);
+    VkShaderModule fragModule = create_shader_module(device, fragCode);
+
+    VkPipelineShaderStageCreateInfo stages[2] = {};
+    stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    stages[0].module = vertModule;
+    stages[0].pName = "main";
+
+    stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    stages[1].module = fragModule;
+    stages[1].pName = "main";
+
+    VkPipelineVertexInputStateCreateInfo vertexInput {};
+    vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly {};
+    inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+    VkPipelineViewportStateCreateInfo viewportState {};
+    viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewportState.viewportCount = 1U;
+    viewportState.scissorCount = 1U;
+
+    VkPipelineRasterizationStateCreateInfo raster {};
+    raster.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    raster.polygonMode = VK_POLYGON_MODE_FILL;
+    raster.cullMode = VK_CULL_MODE_NONE;
+    raster.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    raster.lineWidth = 1.0F;
+
+    VkPipelineMultisampleStateCreateInfo multisample {};
+    multisample.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    VkPipelineColorBlendAttachmentState blendAttachment {};
+    blendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT;
+    blendAttachment.blendEnable = VK_FALSE;
+
+    VkPipelineColorBlendStateCreateInfo colorBlend {};
+    colorBlend.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    colorBlend.attachmentCount = 1U;
+    colorBlend.pAttachments = &blendAttachment;
+
+    const VkDynamicState dynamicStates[] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+    VkPipelineDynamicStateCreateInfo dynamicInfo {};
+    dynamicInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamicInfo.dynamicStateCount = 2U;
+    dynamicInfo.pDynamicStates = dynamicStates;
+
+    VkGraphicsPipelineCreateInfo pipelineInfo {};
+    pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipelineInfo.stageCount = 2U;
+    pipelineInfo.pStages = stages;
+    pipelineInfo.pVertexInputState = &vertexInput;
+    pipelineInfo.pInputAssemblyState = &inputAssembly;
+    pipelineInfo.pViewportState = &viewportState;
+    pipelineInfo.pRasterizationState = &raster;
+    pipelineInfo.pMultisampleState = &multisample;
+    pipelineInfo.pDepthStencilState = nullptr;
+    pipelineInfo.pColorBlendState = &colorBlend;
+    pipelineInfo.pDynamicState = &dynamicInfo;
+    pipelineInfo.layout = m_pipelineLayout;
+    pipelineInfo.renderPass = m_renderPass;
+    pipelineInfo.subpass = 0U;
+
+    if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1U, &pipelineInfo, nullptr, &m_pipeline) != VK_SUCCESS) {
+        vkDestroyShaderModule(device, fragModule, nullptr);
+        vkDestroyShaderModule(device, vertModule, nullptr);
+        throw std::runtime_error {"Failed to create SSAO blur pipeline"};
+    }
+
+    vkDestroyShaderModule(device, fragModule, nullptr);
+    vkDestroyShaderModule(device, vertModule, nullptr);
+}
+
+void SSAOBlurPass::recreate_framebuffer(const VulkanContext& context, VkExtent2D extent) {
+    if (m_framebuffer != VK_NULL_HANDLE) {
+        vkDestroyFramebuffer(m_device, m_framebuffer, nullptr);
+        m_framebuffer = VK_NULL_HANDLE;
+    }
+
+    m_blurImage = vk::ColorImage::create(m_physicalDevice, m_device, extent, VK_FORMAT_R16_SFLOAT,
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+
+    VkImageView attachments[] = {m_blurImage.view()};
+
+    VkFramebufferCreateInfo fbInfo {};
+    fbInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+    fbInfo.renderPass = m_renderPass;
+    fbInfo.attachmentCount = 1U;
+    fbInfo.pAttachments = attachments;
+    fbInfo.width = extent.width;
+    fbInfo.height = extent.height;
+    fbInfo.layers = 1U;
+
+    if (vkCreateFramebuffer(m_device, &fbInfo, nullptr, &m_framebuffer) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create SSAO blur framebuffer"};
+    }
+
+    VkCommandPoolCreateInfo poolInfo {};
+    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    poolInfo.queueFamilyIndex = context.graphics_queue_family_index();
+    poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+
+    VkCommandPool commandPool {VK_NULL_HANDLE};
+    if (vkCreateCommandPool(m_device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create SSAO blur transition command pool"};
+    }
+
+    VkCommandBufferAllocateInfo allocInfo {};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.commandPool = commandPool;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandBufferCount = 1U;
+
+    VkCommandBuffer commandBuffer {VK_NULL_HANDLE};
+    if (vkAllocateCommandBuffers(m_device, &allocInfo, &commandBuffer) != VK_SUCCESS) {
+        vkDestroyCommandPool(m_device, commandPool, nullptr);
+        throw std::runtime_error {"Failed to allocate SSAO blur transition command buffer"};
+    }
+
+    VkCommandBufferBeginInfo beginInfo {};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
+        vkDestroyCommandPool(m_device, commandPool, nullptr);
+        throw std::runtime_error {"Failed to begin SSAO blur transition commands"};
+    }
+
+    VkImageSubresourceRange range {};
+    range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    range.baseMipLevel = 0U;
+    range.levelCount = 1U;
+    range.baseArrayLayer = 0U;
+    range.layerCount = 1U;
+
+    VkImageMemoryBarrier barrier {};
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    barrier.srcAccessMask = 0U;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    barrier.image = m_blurImage.image();
+    barrier.subresourceRange = range;
+
+    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        0U, 0U, nullptr, 0U, nullptr, 1U, &barrier);
+
+    if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
+        vkDestroyCommandPool(m_device, commandPool, nullptr);
+        throw std::runtime_error {"Failed to record SSAO blur transition commands"};
+    }
+
+    VkSubmitInfo submitInfo {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1U;
+    submitInfo.pCommandBuffers = &commandBuffer;
+
+    if (vkQueueSubmit(context.graphics_queue(), 1U, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
+        vkDestroyCommandPool(m_device, commandPool, nullptr);
+        throw std::runtime_error {"Failed to submit SSAO blur transition commands"};
+    }
+    vkQueueWaitIdle(context.graphics_queue());
+
+    vkDestroyCommandPool(m_device, commandPool, nullptr);
+}
+
 } // namespace vulkano::app
