@@ -8,7 +8,8 @@
 
 namespace vulkano::scene {
 enum class LightType : std::uint32_t {
-    Directional = 0U
+    Directional = 0U,
+    Point = 1U
 };
 
 struct LightId final {
@@ -23,8 +24,10 @@ struct LightId final {
 struct Light final {
     LightType type {LightType::Directional};
     glm::vec3 direction {0.0F, -1.0F, 0.0F};
+    glm::vec3 position {0.0F, 2.0F, 0.0F};
     glm::vec3 color {1.0F, 1.0F, 1.0F};
     float intensity {1.0F};
+    float range {10.0F};
 };
 
 class LightRegistry final {
@@ -45,4 +48,3 @@ private:
     std::vector<Light> m_lights {};
 };
 } // namespace vulkano::scene
-
