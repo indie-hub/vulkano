@@ -110,46 +110,69 @@ void main() {
         ambientOcclusion = clamp(aoSample, 0.0, 1.0);
     }
 
-    LightGpu keyLight = lightBuffer.lights[0];
-    vec3 lightDirection = normalize(-keyLight.directionIntensity.xyz);
-    vec3 lightColor = keyLight.colorType.rgb * keyLight.directionIntensity.w;
-
     vec3 V = normalize(pushConstants.cameraPosition.xyz - fragPosWorld);
     if (length(V) < 1e-6) {
         V = normalize(-fragViewPos);
     }
-    vec3 L = normalize(lightDirection);
-    float NdotL = max(dot(normalWorld, L), 0.0);
     float NdotV = max(dot(normalWorld, V), 0.0);
 
     vec3 radiance = vec3(0.0);
-    if (NdotL > 0.0 && NdotV > 0.0) {
-        vec3 H = normalize(L + V);
-        float NdotH = max(dot(normalWorld, H), 0.0);
-        float VdotH = max(dot(V, H), 0.0);
-
-        float alpha = max(roughness * roughness, 0.001);
-        float alpha2 = alpha * alpha;
-        float denom = NdotH * NdotH * (alpha2 - 1.0) + 1.0;
-        float D = alpha2 / (PI * denom * denom);
-
-        float k = (roughness + 1.0);
-        k = (k * k) * 0.125;
-        float Gv = NdotV / (NdotV * (1.0 - k) + k);
-        float Gl = NdotL / (NdotL * (1.0 - k) + k);
-        float G = Gv * Gl;
-
+    if (NdotV > 0.0) {
         vec3 F0 = mix(vec3(0.04), albedo, metallic);
-        vec3 F = F0 + (1.0 - F0) * pow(max(1.0 - VdotH, 0.0), 5.0);
+        const uint lightCount = lightBuffer.lights.length();
+        for (uint i = 0u; i < lightCount; ++i) {
+            LightGpu light = lightBuffer.lights[i];
+            float attenuation = light.directionIntensity.w;
+            vec3 L;
 
-        vec3 numerator = D * G * F;
-        float denomSpec = max(4.0 * NdotV * NdotL, 0.001);
-        vec3 specular = numerator / denomSpec;
+            if (light.colorType.w < 0.5) {
+                // Directional
+                L = normalize(-light.directionIntensity.xyz);
+            } else {
+                // Point
+                vec3 toLight = light.positionRange.xyz - fragPosWorld;
+                float distance = length(toLight);
+                if (distance <= 1e-4) {
+                    continue;
+                }
+                float range = max(light.positionRange.w, 0.01);
+                float falloff = clamp(1.0 - distance / range, 0.0, 1.0);
+                attenuation *= falloff * falloff;
+                L = toLight / distance;
+            }
 
-        vec3 kd = (1.0 - F) * (1.0 - metallic);
-        vec3 diffuse = kd * albedo / PI;
+            float NdotL = max(dot(normalWorld, L), 0.0);
+            if (NdotL <= 0.0) {
+                continue;
+            }
 
-        radiance = (diffuse + specular) * lightColor * NdotL;
+            vec3 H = normalize(L + V);
+            float NdotH = max(dot(normalWorld, H), 0.0);
+            float VdotH = max(dot(V, H), 0.0);
+
+            float alpha = max(roughness * roughness, 0.001);
+            float alpha2 = alpha * alpha;
+            float denom = NdotH * NdotH * (alpha2 - 1.0) + 1.0;
+            float D = alpha2 / (PI * denom * denom);
+
+            float k = (roughness + 1.0);
+            k = (k * k) * 0.125;
+            float Gv = NdotV / (NdotV * (1.0 - k) + k);
+            float Gl = NdotL / (NdotL * (1.0 - k) + k);
+            float G = Gv * Gl;
+
+            vec3 F = F0 + (1.0 - F0) * pow(max(1.0 - VdotH, 0.0), 5.0);
+
+            vec3 numerator = D * G * F;
+            float denomSpec = max(4.0 * NdotV * NdotL, 0.001);
+            vec3 specular = numerator / denomSpec;
+
+            vec3 kd = (1.0 - F) * (1.0 - metallic);
+            vec3 diffuse = kd * albedo / PI;
+
+            vec3 lightColor = light.colorType.rgb * attenuation;
+            radiance += (diffuse + specular) * lightColor * NdotL;
+        }
     }
 
     vec2 occlusionUV = gl_FragCoord.xy / vec2(textureSize(ssaoTex, 0));
