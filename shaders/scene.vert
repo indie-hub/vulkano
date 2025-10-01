@@ -21,6 +21,7 @@ layout(push_constant) uniform PushConstants {
     mat4 model;
     mat4 view;
     mat4 projection;
+    mat4 lightViewProjection;
     uvec4 materialData;
     vec4 cameraPosition;
 } pushConstants;

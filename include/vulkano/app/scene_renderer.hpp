@@ -15,8 +15,6 @@
 #include <vulkano/app/shadow_map.hpp>
 #include <vulkano/app/shadow_pass.hpp>
 #include <optional>
-#include <vulkano/app/shadow_map.hpp>
-#include <vulkano/app/shadow_pass.hpp>
 
 namespace vulkano::app {
 class VulkanContext;
@@ -101,6 +99,8 @@ private:
     void destroy_light_debug_mesh() noexcept;
     void create_shadow_resources();
     void destroy_shadow_resources() noexcept;
+    void create_shadow_descriptors();
+    void destroy_shadow_descriptors() noexcept;
     [[nodiscard]] std::optional<glm::mat4> compute_light_view_projection() const;
 
     void upload_mesh(const SceneMesh& mesh);
@@ -138,6 +138,9 @@ private:
     ShadowMap m_shadowMap;
     ShadowPass m_shadowPass;
     VkExtent2D m_shadowExtent {2048U, 2048U};
+    VkDescriptorSetLayout m_shadowDescriptorLayout {VK_NULL_HANDLE};
+    VkDescriptorPool m_shadowDescriptorPool {VK_NULL_HANDLE};
+    VkDescriptorSet m_shadowDescriptorSet {VK_NULL_HANDLE};
     glm::vec3 m_sceneMin {0.0F, 0.0F, 0.0F};
     glm::vec3 m_sceneMax {0.0F, 0.0F, 0.0F};
     bool m_sceneBoundsValid {false};
