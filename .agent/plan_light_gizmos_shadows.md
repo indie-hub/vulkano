@@ -182,6 +182,74 @@
    - Enumerate unit/integration tests to add (e.g., registry → renderer mapping, shader branch coverage via spirv-cross validation, screenshot diff harness).
    - Define manual validation steps (run demo, toggle lights, inspect debug shadow view per light).
    - *Acceptance:* Test plan recorded with pass/fail criteria and tooling (Catch2, RenderDoc, etc.).
+
+## Multi-Caster Shadow Map Upgrade (Babe Steps)
+
+### Goal C — Expand Shadow Resources for Multiple Casters
+1. **Inventory current shadow resource ownership**
+   - Document which methods allocate, bind, and destroy the single `ShadowMap` (image, framebuffer, descriptors).
+   - Capture existing assumptions about one-pass rendering and descriptor bindings.
+   - *Acceptance:* Notes list every function touching `m_shadowMap`, `m_shadowPass`, and shadow descriptor sets, including lifetimes.
+2. **Decide maximum supported casters and budgeting**
+   - Choose an initial upper bound (e.g., 3 directional lights) along with memory estimates per shadow map (format, resolution).
+   - Record trade-offs for higher counts vs. performance/memory hits.
+   - *Acceptance:* Decision documented with numeric limits, memory calculations, and justification.
+3. **Design `ShadowResources` pool structure**
+   - Sketch a struct holding per-caster entries: light id, image, framebuffer, descriptor set, and dirty flags.
+   - Specify allocation strategy (eager allocate up to max vs. lazy create on demand).
+   - *Acceptance:* Struct diagram recorded with fields, ownership semantics, and init/destroy routines.
+4. **Plan descriptor layout changes**
+   - Determine whether to use array descriptors or bindless approach for multiple shadow maps.
+   - Outline updates needed in pipeline layout, shader bindings, and descriptor writes.
+   - *Acceptance:* Descriptor update matrix enumerating new set/binding assignments and compatibility with existing shaders.
+
+### Goal D — Update Renderer Selection Logic
+1. **Define caster prioritisation rules**
+   - Establish stable ordering (e.g., registry index) and tie-breaking when more lights request shadows than capacity.
+   - Include strategy for retaining previous casters to avoid flicker when toggles churn.
+   - *Acceptance:* Prioritisation spec with explicit examples for over-capacity scenarios.
+2. **Map registry changes to resource pool**
+   - Pseudocode the sync routine that reconciles `LightRegistry` against the shadow pool, assigning or releasing slots.
+   - Account for additions, removals, type changes, and toggles mid-frame.
+   - *Acceptance:* Algorithm description covering all mutation cases with noted complexity.
+3. **Update matrix computation path**
+   - Plan how `compute_light_view_projection` (or successor) will iterate over active casters and produce per-slot matrices.
+   - Decide caching strategy to avoid redundant recomputations when lights idle.
+   - *Acceptance:* Flow documented showing inputs, caching, and outputs for each slot.
+
+### Goal E — Shader & Command Buffer Changes
+1. **Plan shader inputs for multiple matrices**
+   - Decide between SSBO of matrices, push constant array, or descriptor buffer update.
+   - Ensure alignment with chosen descriptor layout and SPIR-V limits.
+   - *Acceptance:* Input layout recorded with counts, types, and binding indices.
+2. **Determine sampling logic in fragment shader**
+   - Define how each light record references its shadow map (index, flag) and how the shader loops over casters.
+   - Include fallbacks when a light lacks a shadow slot.
+   - *Acceptance:* High-level pseudocode demonstrating shader control flow and branch guards.
+3. **Update command recording order**
+   - Plan the sequence for rendering each shadow map (multiple passes) before main scene render.
+   - Note synchronization requirements between passes (barriers, semaphores if any).
+   - *Acceptance:* Command buffer timeline documented with stages and required barriers.
+
+### Goal F — Debugging, UI, and QA
+1. **UI adjustments**
+   - Outline updates to ImGui panels to display active casters, allow prioritisation (if manual), and show per-shadow-map stats.
+   - *Acceptance:* UI requirements list describing new controls/labels.
+2. **Debug visualisation plan**
+   - Decide how to preview multiple shadow maps (e.g., atlas grid, selectable dropdown).
+   - *Acceptance:* Debug display approach written with expected behaviour when cycling through maps.
+3. **QA expansion**
+   - Extend the existing QA matrix with cases covering more than one active caster, capacity overflows, and toggles during runtime.
+   - *Acceptance:* Updated QA checklist appended with multi-caster scenarios.
+
+### Goal G — Testing Strategy Extension
+1. **Unit/integration coverage**
+   - Specify new tests for slot assignment, matrix caching, and descriptor binding validation.
+   - Identify areas where mocks or fixtures are needed to simulate multiple lights.
+   - *Acceptance:* Test list recorded with expected assertions and tooling.
+2. **Performance validation**
+   - Define profiling steps to measure the cost of additional shadow passes (CPU & GPU timing).
+   - *Acceptance:* Performance plan captured with thresholds or regression triggers.
    - **Automated tests:**
      - Add Catch2 unit tests for new shadow state helpers (e.g., `promote_shadow_caster` function) verifying selection logic when lights change order or toggles.
      - Extend existing `light_registry` tests to cover `castsShadow` sanitisation for point vs directional lights and ensure removal updates indices.
