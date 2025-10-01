@@ -147,6 +147,13 @@
    - If single shadow map selected, document algorithm to select the active caster and update matrix when toggles change.
    - If multiple maps selected, plan allocation strategy (pooling, max count) and descriptor layout changes.
    - *Acceptance:* Resource plan specifies Vulkan objects touched, creation/destruction triggers, and limits (e.g., max 4 directional lights).
+   - **Resource algorithm (single map):**
+     - Keep existing `ShadowMap` allocation (image + framebuffer) but gate ownership behind a small `ShadowResources` struct storing `bool needsRefresh;` and `scene::LightId owner;`.
+     - When `m_activeShadowCaster` changes, set `needsRefresh = true` and update `owner`.
+     - During frame build, if `needsRefresh` is true, call `compute_light_view_projection` with the new slot and write the matrix to `m_lastLightViewProjection`; reset flag once command buffers are recorded.
+     - Ensure descriptor set `m_shadowDescriptorSet` remains bound; only the matrix updates, so no VkDescriptor updates required when owner switches.
+     - If no active caster exists, skip shadow pass, leave image untouched, and set `owner = scene::LightId::invalid()`.
+     - For future multi-map expansion, note that the `ShadowResources` struct can evolve into a vector with a fixed budget (e.g., 2 cascaded maps) driving descriptor array bindings.
 5. **Modify command recording/push constants**
    - Describe how per-light matrices reach the shader (additional push constants, SSBO, or descriptor buffer).
    - Plan shader changes to sample the correct matrix per fragment (e.g., index from light buffer).

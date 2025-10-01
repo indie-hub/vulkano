@@ -151,4 +151,5 @@
 - [x] Design draw submission strategy for multiple directional gizmos
 - [x] Define target behaviour for per-light shadow matrices
 - [x] Adjust scene state to track per-light shadow data
-- [ ] Update shadow map resource management for active caster switching
+- [x] Update shadow map resource management for active caster switching
+- [ ] Document current shadow matrix flow
