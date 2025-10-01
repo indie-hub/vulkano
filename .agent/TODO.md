@@ -154,4 +154,4 @@
 - [x] Update shadow map resource management for active caster switching
 - [x] Document current shadow matrix flow
 - [x] Define QA matrix for multi-light shadow scenarios
-- [ ] Elaborate testing strategy for per-light shadow selection
+- [x] Elaborate testing strategy for per-light shadow selection
