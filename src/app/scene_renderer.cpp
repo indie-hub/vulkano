@@ -638,10 +638,11 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
         vkCmdDrawIndexed(commandBuffer, mesh.indexCount, 1U, 0U, 0, 0U);
     }
 
-    if (m_showLightDebug && m_lightBuffer != nullptr && m_gizmoCache.directional) {
-        const LightGizmoHandle& handle = *m_gizmoCache.directional;
-        const DebugMesh* debugMesh = handle.mesh;
-        if (debugMesh != nullptr && debugMesh->indexCount > 0U) {
+    if (m_showLightDebug && m_lightBuffer != nullptr) {
+        if (m_gizmoCache.directional) {
+            const LightGizmoHandle& handle = *m_gizmoCache.directional;
+            const DebugMesh* debugMesh = handle.mesh;
+            if (debugMesh != nullptr && debugMesh->indexCount > 0U) {
             const glm::vec3 dir = glm::length(m_lightDirection) > 0.0F ? glm::normalize(m_lightDirection)
                 : glm::vec3 {0.0F, -1.0F, 0.0F};
             const float length = glm::max(m_lightIntensity, 0.1F);
@@ -675,6 +676,33 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
                 VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0U,
                 static_cast<std::uint32_t>(sizeof(ScenePushConstants)), &debugConstants);
             vkCmdDrawIndexed(commandBuffer, debugMesh->indexCount, 1U, 0U, 0, 0U);
+            }
+        }
+
+        for (const LightGizmoHandle& pointHandle : m_gizmoCache.points) {
+            const DebugMesh* mesh = pointHandle.mesh;
+            if (mesh == nullptr || mesh->indexCount == 0U) {
+                continue;
+            }
+
+            const ScenePushConstants pointConstants {
+                .model = pointHandle.transform,
+                .view = view,
+                .projection = projection,
+                .lightViewProjection = lightMatrix,
+                .material = glm::uvec4 {0U, 0U, 0U, 0U},
+                .camera = glm::vec4 {cameraPosition, 1.0F},
+                .shadow = shadowParams
+            };
+
+            const VkBuffer pointBuffers[] = {mesh->vertexBuffer};
+            const VkDeviceSize pointOffsets[] = {0U};
+            vkCmdBindVertexBuffers(commandBuffer, 0U, 1U, pointBuffers, pointOffsets);
+            vkCmdBindIndexBuffer(commandBuffer, mesh->indexBuffer, 0U, VK_INDEX_TYPE_UINT32);
+            vkCmdPushConstants(commandBuffer, m_pipelineLayout,
+                VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0U,
+                static_cast<std::uint32_t>(sizeof(ScenePushConstants)), &pointConstants);
+            vkCmdDrawIndexed(commandBuffer, mesh->indexCount, 1U, 0U, 0, 0U);
         }
     }
 
