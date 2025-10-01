@@ -236,6 +236,13 @@
    - Establish stable ordering (e.g., registry index) and tie-breaking when more lights request shadows than capacity.
    - Include strategy for retaining previous casters to avoid flicker when toggles churn.
    - *Acceptance:* Prioritisation spec with explicit examples for over-capacity scenarios.
+   - **Prioritisation rules:**
+     - Primary ordering by `LightId` (registry index); lowest index has highest priority.
+     - Maintain a small LRU cache to favour lights that previously held a slot when all are still casting shadows, preventing flicker when toggles rapidly toggle.
+     - When more than 3 directional lights request shadows, assign slots to the first 3 indices; remaining lights fall back to no shadows.
+     - If a high-priority light toggles off, its slot is released and reassigned to the next eligible light in index order.
+     - Edge case: if a low-index light toggles on while capacity full, it preempts the highest-index active slot; the displaced light’s shadow slot is recycled.
+     - Record transitions in a debug log (future optional) to help QA verify slot assignments.
 2. **Map registry changes to resource pool**
    - Pseudocode the sync routine that reconciles `LightRegistry` against the shadow pool, assigning or releasing slots.
    - Account for additions, removals, type changes, and toggles mid-frame.
