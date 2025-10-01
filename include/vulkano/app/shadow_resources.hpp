@@ -4,6 +4,9 @@
 
 #include <vulkano/app/shadow_map.hpp>
 #include <vulkano/app/shadow_pass.hpp>
+
+#include <glm/mat4x4.hpp>
+#include <glm/vec4.hpp>
 #include <vulkano/scene/light.hpp>
 
 namespace vulkano::app {
@@ -24,6 +27,7 @@ public:
     void initialise(const VulkanContext& context, VkExtent2D extent, VkFormat format, std::size_t maxSlots);
     void release(const VulkanContext& context) noexcept;
     void update_descriptors(const VulkanContext& context);
+    void upload_matrices(const VulkanContext& context);
 
     [[nodiscard]] bool empty() const noexcept;
     [[nodiscard]] std::size_t slot_count() const noexcept;
@@ -39,5 +43,8 @@ public:
     VkExtent2D extent {2048U, 2048U};
     VkFormat format {VK_FORMAT_D32_SFLOAT};
     std::uint32_t activeCount {0U};
+    VkBuffer matrixBuffer {VK_NULL_HANDLE};
+    VkDeviceMemory matrixMemory {VK_NULL_HANDLE};
+    VkDeviceSize matrixBufferSize {0U};
 };
 } // namespace vulkano::app

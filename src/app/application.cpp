@@ -113,7 +113,6 @@ int Application::run() noexcept {
 
         materialTextures.rebuild(materialRegistry);
         materialBuffer.update(materialRegistry, materialTextures.handles());
-        lightBuffer.update(lightRegistry);
         bool materialsDirty = false;
         bool lightsDirty = false;
         bool showLightDebug = true;
@@ -486,7 +485,6 @@ int Application::run() noexcept {
 
            if (lightsDirty) {
                 context.wait_idle();
-                lightBuffer.update(lightRegistry);
                 renderer->set_light_resources(lightBuffer, lightRegistry);
                 renderer->set_show_light_debug(showLightDebug);
                 lightsDirty = false;

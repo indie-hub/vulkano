@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <unordered_map>
 
 #include <vulkan/vulkan.h>
 
@@ -19,7 +20,8 @@ public:
     LightBuffer(LightBuffer&&) noexcept = delete;
     LightBuffer& operator=(LightBuffer&&) noexcept = delete;
 
-    void update(const scene::LightRegistry& registry);
+    void update(const scene::LightRegistry& registry,
+        const std::unordered_map<std::uint32_t, std::uint32_t>& shadowIndices);
 
     [[nodiscard]] VkBuffer buffer() const noexcept;
     [[nodiscard]] VkDescriptorBufferInfo descriptor_info() const noexcept;
@@ -37,4 +39,3 @@ private:
     VkDescriptorBufferInfo m_descriptorInfo {};
 };
 }
-

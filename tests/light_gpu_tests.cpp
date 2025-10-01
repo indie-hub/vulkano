@@ -1,6 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
+#include <unordered_map>
+
 #include <vulkano/app/light_gpu.hpp>
 
 TEST_CASE("Light GPU builder normalizes and packs data") {
@@ -18,7 +20,10 @@ TEST_CASE("Light GPU builder normalizes and packs data") {
     const auto id = registry.add_light(light);
     REQUIRE(id.value == 1U);
 
-    const auto buffer = vulkano::app::build_light_gpu_buffer(registry);
+    std::unordered_map<std::uint32_t, std::uint32_t> shadowIndices;
+    shadowIndices.emplace(id.value, 0U);
+
+    const auto buffer = vulkano::app::build_light_gpu_buffer(registry, shadowIndices);
     REQUIRE(buffer.size() == 2U);
 
     const vulkano::app::LightGpu& gpu = buffer[1];
@@ -28,6 +33,7 @@ TEST_CASE("Light GPU builder normalizes and packs data") {
     REQUIRE_THAT(gpu.colorType.x, WithinAbs(0.5F, 1e-4F));
     REQUIRE_THAT(gpu.colorType.w, WithinAbs(0.0F, 1e-4F));
     REQUIRE_THAT(gpu.shadowParams.x, WithinAbs(1.0F, 1e-4F));
+    REQUIRE_THAT(gpu.shadowParams.y, WithinAbs(0.0F, 1e-4F));
     REQUIRE_THAT(gpu.positionRange.x, WithinAbs(1.0F, 1e-4F));
     REQUIRE_THAT(gpu.positionRange.y, WithinAbs(2.0F, 1e-4F));
     REQUIRE_THAT(gpu.positionRange.z, WithinAbs(3.0F, 1e-4F));

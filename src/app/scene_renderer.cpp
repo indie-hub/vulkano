@@ -19,6 +19,8 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <unordered_map>
+#include <algorithm>
 
 #include <glm/vec4.hpp>
 #include <glm/common.hpp>
@@ -181,7 +183,7 @@ void SceneRenderer::GizmoCache::release() noexcept {
     points.clear();
 }
 
-void SceneRenderer::ShadowResources::initialise(
+void ShadowResources::initialise(
     const VulkanContext& context, VkExtent2D desiredExtent, VkFormat desiredFormat, std::size_t maxSlots) {
     extent = desiredExtent;
     format = desiredFormat;
@@ -192,16 +194,22 @@ void SceneRenderer::ShadowResources::initialise(
     const VkDevice device = context.device();
 
     if (descriptorLayout == VK_NULL_HANDLE) {
-        VkDescriptorSetLayoutBinding binding {};
-        binding.binding = 0U;
-        binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        binding.descriptorCount = static_cast<std::uint32_t>(maxSlots);
-        binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        std::array<VkDescriptorSetLayoutBinding, 2> bindings {};
+
+        bindings[0].binding = 0U;
+        bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        bindings[0].descriptorCount = static_cast<std::uint32_t>(maxSlots);
+        bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        bindings[1].binding = 1U;
+        bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        bindings[1].descriptorCount = 1U;
+        bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
         VkDescriptorSetLayoutCreateInfo layoutInfo {};
         layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        layoutInfo.bindingCount = 1U;
-        layoutInfo.pBindings = &binding;
+        layoutInfo.bindingCount = static_cast<std::uint32_t>(bindings.size());
+        layoutInfo.pBindings = bindings.data();
 
         if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorLayout) != VK_SUCCESS) {
             throw std::runtime_error {"Failed to create shadow descriptor layout"};
@@ -209,15 +217,17 @@ void SceneRenderer::ShadowResources::initialise(
     }
 
     if (descriptorPool == VK_NULL_HANDLE) {
-        VkDescriptorPoolSize poolSize {};
-        poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        poolSize.descriptorCount = static_cast<std::uint32_t>(maxSlots);
+        std::array<VkDescriptorPoolSize, 2> poolSizes {};
+        poolSizes[0].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        poolSizes[0].descriptorCount = static_cast<std::uint32_t>(maxSlots);
+        poolSizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        poolSizes[1].descriptorCount = 1U;
 
         VkDescriptorPoolCreateInfo poolInfo {};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
         poolInfo.maxSets = 1U;
-        poolInfo.poolSizeCount = 1U;
-        poolInfo.pPoolSizes = &poolSize;
+        poolInfo.poolSizeCount = static_cast<std::uint32_t>(poolSizes.size());
+        poolInfo.pPoolSizes = poolSizes.data();
 
         if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
             throw std::runtime_error {"Failed to create shadow descriptor pool"};
@@ -256,11 +266,49 @@ void SceneRenderer::ShadowResources::initialise(
         }
     }
 
+    const VkDeviceSize requiredMatrixSize = static_cast<VkDeviceSize>(sizeof(glm::mat4) * maxSlots + sizeof(glm::uvec4));
+    if (matrixBufferSize < requiredMatrixSize || matrixBuffer == VK_NULL_HANDLE) {
+        if (matrixBuffer != VK_NULL_HANDLE) {
+            vkDestroyBuffer(device, matrixBuffer, nullptr);
+            matrixBuffer = VK_NULL_HANDLE;
+        }
+        if (matrixMemory != VK_NULL_HANDLE) {
+            vkFreeMemory(device, matrixMemory, nullptr);
+            matrixMemory = VK_NULL_HANDLE;
+        }
+
+        create_buffer(context.physical_device(), device, requiredMatrixSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, matrixBuffer, matrixMemory);
+        matrixBufferSize = requiredMatrixSize;
+    }
+
+    if (descriptorSet == VK_NULL_HANDLE) {
+        VkDescriptorSetAllocateInfo allocInfo {};
+        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        allocInfo.descriptorPool = descriptorPool;
+        allocInfo.descriptorSetCount = 1U;
+        allocInfo.pSetLayouts = &descriptorLayout;
+
+        if (vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet) != VK_SUCCESS) {
+            throw std::runtime_error {"Failed to allocate shadow descriptor set"};
+        }
+    }
+
     update_descriptors(context);
+    upload_matrices(context);
 }
 
-void SceneRenderer::ShadowResources::release(const VulkanContext& context) noexcept {
+void ShadowResources::release(const VulkanContext& context) noexcept {
     const VkDevice device = context.device();
+
+    if (matrixBuffer != VK_NULL_HANDLE) {
+        vkDestroyBuffer(device, matrixBuffer, nullptr);
+        matrixBuffer = VK_NULL_HANDLE;
+    }
+    if (matrixMemory != VK_NULL_HANDLE) {
+        vkFreeMemory(device, matrixMemory, nullptr);
+        matrixMemory = VK_NULL_HANDLE;
+    }
 
     if (descriptorPool != VK_NULL_HANDLE) {
         vkDestroyDescriptorPool(device, descriptorPool, nullptr);
@@ -270,6 +318,7 @@ void SceneRenderer::ShadowResources::release(const VulkanContext& context) noexc
         vkDestroyDescriptorSetLayout(device, descriptorLayout, nullptr);
         descriptorLayout = VK_NULL_HANDLE;
     }
+    descriptorSet = VK_NULL_HANDLE;
 
     activeCount = 0U;
     for (ShadowSlot& slot : slots) {
@@ -282,11 +331,10 @@ void SceneRenderer::ShadowResources::release(const VulkanContext& context) noexc
         slot.priority = 0U;
     }
     slots.clear();
-    activeCount = 0U;
-    descriptorSet = VK_NULL_HANDLE;
+    matrixBufferSize = 0U;
 }
 
-void SceneRenderer::ShadowResources::update_descriptors(const VulkanContext& context) {
+void ShadowResources::update_descriptors(const VulkanContext& context) {
     if (descriptorSet == VK_NULL_HANDLE) {
         return;
     }
@@ -296,39 +344,72 @@ void SceneRenderer::ShadowResources::update_descriptors(const VulkanContext& con
         infos.push_back(slot.map.descriptor_info());
     }
 
-    VkWriteDescriptorSet write {};
-    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write.dstSet = descriptorSet;
-    write.dstBinding = 0U;
-    write.descriptorCount = static_cast<std::uint32_t>(infos.size());
-    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    write.pImageInfo = infos.data();
+    VkDescriptorBufferInfo bufferInfo {};
+    bufferInfo.buffer = matrixBuffer;
+    bufferInfo.offset = 0U;
+    bufferInfo.range = matrixBufferSize;
 
-    vkUpdateDescriptorSets(context.device(), 1U, &write, 0U, nullptr);
+    std::array<VkWriteDescriptorSet, 2> writes {};
+
+    writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes[0].dstSet = descriptorSet;
+    writes[0].dstBinding = 0U;
+    writes[0].descriptorCount = static_cast<std::uint32_t>(infos.size());
+    writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writes[0].pImageInfo = infos.data();
+
+    writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writes[1].dstSet = descriptorSet;
+    writes[1].dstBinding = 1U;
+    writes[1].descriptorCount = 1U;
+    writes[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    writes[1].pBufferInfo = &bufferInfo;
+
+    vkUpdateDescriptorSets(context.device(), static_cast<std::uint32_t>(writes.size()), writes.data(), 0U, nullptr);
 }
 
-bool SceneRenderer::ShadowResources::empty() const noexcept {
+bool ShadowResources::empty() const noexcept {
     return slots.empty();
 }
 
-std::size_t SceneRenderer::ShadowResources::slot_count() const noexcept {
+std::size_t ShadowResources::slot_count() const noexcept {
     return slots.size();
 }
 
-SceneRenderer::ShadowSlot& SceneRenderer::ShadowResources::slot(std::size_t index) {
+ShadowSlot& ShadowResources::slot(std::size_t index) {
     return slots.at(index);
 }
 
-const SceneRenderer::ShadowSlot& SceneRenderer::ShadowResources::slot(std::size_t index) const {
+const ShadowSlot& ShadowResources::slot(std::size_t index) const {
     return slots.at(index);
 }
 
-VkDescriptorSetLayout SceneRenderer::ShadowResources::descriptor_layout() const noexcept {
+VkDescriptorSetLayout ShadowResources::descriptor_layout() const noexcept {
     return descriptorLayout;
 }
 
-VkDescriptorSet SceneRenderer::ShadowResources::descriptor_set() const noexcept {
+VkDescriptorSet ShadowResources::descriptor_set() const noexcept {
     return descriptorSet;
+}
+
+void ShadowResources::upload_matrices(const VulkanContext& context) {
+    if (matrixBuffer == VK_NULL_HANDLE) {
+        return;
+    }
+
+    void* mapped = nullptr;
+    if (vkMapMemory(context.device(), matrixMemory, 0U, matrixBufferSize, 0U, &mapped) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to map shadow matrix buffer"};
+    }
+
+    auto* matrixPtr = static_cast<glm::mat4*>(mapped);
+    for (std::size_t index {0U}; index < slots.size(); ++index) {
+        matrixPtr[index] = slots[index].viewProjection;
+    }
+    auto* metaPtr = reinterpret_cast<glm::uvec4*>(matrixPtr + slots.size());
+    *metaPtr = glm::uvec4 {activeCount, 0U, 0U, 0U};
+
+    vkUnmapMemory(context.device(), matrixMemory);
 }
 SceneRenderer::SceneRenderer(const VulkanContext& context, const Window& window, VkDescriptorSetLayout ssaoLayout)
     : m_context {context}
@@ -441,26 +522,7 @@ void SceneRenderer::set_material_resources(const MaterialBuffer& buffer, const M
     m_materialBuffer = &buffer;
 }
 
-void SceneRenderer::set_light_resources(const LightBuffer& buffer, const scene::LightRegistry& registry) {
-    if (m_lightDescriptorSet == VK_NULL_HANDLE) {
-        throw std::logic_error {"Light descriptor set not initialised"};
-    }
-
-    const VkDescriptorBufferInfo info = buffer.descriptor_info();
-    if (info.buffer == VK_NULL_HANDLE || info.range == 0U) {
-        throw std::invalid_argument {"Light buffer descriptor info is invalid"};
-    }
-
-    VkWriteDescriptorSet write {};
-    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write.dstSet = m_lightDescriptorSet;
-    write.dstBinding = 0U;
-    write.descriptorCount = 1U;
-    write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    write.pBufferInfo = &info;
-
-    vkUpdateDescriptorSets(m_context.device(), 1U, &write, 0U, nullptr);
-
+void SceneRenderer::set_light_resources(LightBuffer& buffer, const scene::LightRegistry& registry) {
     destroy_point_light_debug_meshes();
     std::vector<DebugMesh> pointMeshes;
     std::vector<LightGizmoHandle> pointHandles;
@@ -489,6 +551,8 @@ void SceneRenderer::set_light_resources(const LightBuffer& buffer, const scene::
 
     const std::size_t maxSlots = m_shadowResources.slot_count();
     const std::size_t activeSlots = std::min(maxSlots, shadowCasters.size());
+    std::unordered_map<std::uint32_t, std::uint32_t> shadowIndexMap;
+    shadowIndexMap.reserve(activeSlots);
     for (std::size_t slotIndex {0U}; slotIndex < maxSlots; ++slotIndex) {
         ShadowSlot& slot = m_shadowResources.slot(slotIndex);
         if (slotIndex < activeSlots) {
@@ -498,14 +562,40 @@ void SceneRenderer::set_light_resources(const LightBuffer& buffer, const scene::
             slot.active = true;
             slot.priority = static_cast<std::uint32_t>(info.id.value);
             slot.dirtyMatrix = static_cast<bool>(slot.dirtyMatrix) || idChanged;
+            slot.viewProjection = compute_light_view_projection(*info.light);
+            slot.dirtyMatrix = false;
+            shadowIndexMap.emplace(info.id.value, static_cast<std::uint32_t>(slotIndex));
         } else {
             slot.id = scene::LightId::invalid();
             slot.active = false;
             slot.priority = 0U;
             slot.dirtyMatrix = true;
+            slot.viewProjection = glm::mat4(1.0F);
         }
     }
     m_shadowResources.activeCount = static_cast<std::uint32_t>(activeSlots);
+    m_shadowResources.upload_matrices(m_context);
+
+    buffer.update(registry, shadowIndexMap);
+
+    if (m_lightDescriptorSet == VK_NULL_HANDLE) {
+        throw std::logic_error {"Light descriptor set not initialised"};
+    }
+
+    const VkDescriptorBufferInfo info = buffer.descriptor_info();
+    if (info.buffer == VK_NULL_HANDLE || info.range == 0U) {
+        throw std::invalid_argument {"Light buffer descriptor info is invalid"};
+    }
+
+    VkWriteDescriptorSet write {};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.dstSet = m_lightDescriptorSet;
+    write.dstBinding = 0U;
+    write.descriptorCount = 1U;
+    write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    write.pBufferInfo = &info;
+
+    vkUpdateDescriptorSets(m_context.device(), 1U, &write, 0U, nullptr);
 
     const DirectionalInfo* primaryInfo = nullptr;
     if (!shadowCasters.empty()) {
@@ -730,9 +820,35 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
         throw std::runtime_error {"Failed to begin recording command buffer"};
     }
 
-    const std::optional<glm::mat4> lightMatrixOpt = m_shadowsEnabled ? compute_light_view_projection() : std::nullopt;
-    if (lightMatrixOpt) {
-        record_shadow_pass(commandBuffer, *lightMatrixOpt);
+    const bool hasShadowPass = m_shadowsEnabled && m_shadowResources.activeCount > 0U;
+    if (hasShadowPass) {
+        for (std::uint32_t slotIndex {0U}; slotIndex < m_shadowResources.activeCount; ++slotIndex) {
+            const ShadowSlot& slot = m_shadowResources.slot(slotIndex);
+            if (!slot.active) {
+                continue;
+            }
+
+            VkImageMemoryBarrier barrier {};
+            barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+            barrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+            barrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+            barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            barrier.image = slot.map.image();
+            barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+            barrier.subresourceRange.baseMipLevel = 0U;
+            barrier.subresourceRange.levelCount = 1U;
+            barrier.subresourceRange.baseArrayLayer = 0U;
+            barrier.subresourceRange.layerCount = 1U;
+
+            vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, 0U, 0U, nullptr,
+                0U, nullptr, 1U, &barrier);
+        }
+
+        record_shadow_pass(commandBuffer);
 
         for (std::uint32_t slotIndex {0U}; slotIndex < m_shadowResources.activeCount; ++slotIndex) {
             const ShadowSlot& slot = m_shadowResources.slot(slotIndex);
@@ -744,7 +860,7 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
             barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
             barrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
             barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-            barrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+            barrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
             barrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
             barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
             barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -760,8 +876,10 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
         }
     }
 
-    const glm::mat4 lightMatrix = lightMatrixOpt.value_or(glm::mat4(1.0F));
-    const float shadowEnabled = (lightMatrixOpt && m_shadowsEnabled && m_primaryLightCastsShadow) ? 1.0F : 0.0F;
+    const glm::mat4 lightMatrix = (hasShadowPass && m_shadowResources.slot_count() > 0U)
+        ? m_shadowResources.slot(0).viewProjection
+        : glm::mat4(1.0F);
+    const float shadowEnabled = hasShadowPass ? 1.0F : 0.0F;
     const glm::vec4 shadowParams {m_shadowBias, m_shadowPcfRadius, shadowEnabled, m_shadowDebug ? 1.0F : 0.0F};
 
     VkClearValue swapClear {};
@@ -1530,7 +1648,7 @@ void SceneRenderer::upload_mesh(const SceneMesh& mesh) {
 m_meshes.push_back(gpuMesh);
 }
 
-void SceneRenderer::record_shadow_pass(VkCommandBuffer commandBuffer, const glm::mat4& lightViewProjection) const {
+void SceneRenderer::record_shadow_pass(VkCommandBuffer commandBuffer) const {
     std::vector<ShadowDrawCommand> commands;
     commands.reserve(m_meshes.size());
     for (const GpuMesh& mesh : m_meshes) {
@@ -1545,36 +1663,35 @@ void SceneRenderer::record_shadow_pass(VkCommandBuffer commandBuffer, const glm:
         commands.push_back(command);
     }
 
-    if (!commands.empty() && !m_shadowResources.empty()) {
-        const ShadowSlot& slot = m_shadowResources.slot(0);
-        if (slot.map.render_pass() != VK_NULL_HANDLE) {
-            slot.pass.record(commandBuffer, slot.map, lightViewProjection, commands);
+    if (commands.empty()) {
+        return;
+    }
+
+    for (std::uint32_t slotIndex {0U}; slotIndex < m_shadowResources.activeCount; ++slotIndex) {
+        const ShadowSlot& slot = m_shadowResources.slot(slotIndex);
+        if (!slot.active || slot.map.render_pass() == VK_NULL_HANDLE) {
+            continue;
         }
+        slot.pass.record(commandBuffer, slot.map, slot.viewProjection, commands);
     }
 }
 
-std::optional<glm::mat4> SceneRenderer::compute_light_view_projection() const {
+glm::mat4 SceneRenderer::compute_light_view_projection(const scene::Light& light) const {
     if (!m_sceneBoundsValid) {
-        return std::nullopt;
-    }
-    if (!m_primaryLightCastsShadow) {
-        return std::nullopt;
-    }
-    const float directionLength = glm::length(m_lightDirection);
-    if (directionLength <= 1e-4F) {
-        return std::nullopt;
+        return glm::mat4(1.0F);
     }
 
-    const glm::vec3 dir = glm::normalize(m_lightDirection);
+    const glm::vec3 direction = glm::length(light.direction) > 0.0F ? glm::normalize(light.direction)
+                                                                    : glm::vec3 {0.0F, -1.0F, 0.0F};
     const glm::vec3 center = (m_sceneMin + m_sceneMax) * 0.5F;
     const glm::vec3 extent = (m_sceneMax - m_sceneMin) * 0.5F;
     const float radius = glm::max(glm::length(extent), 1.0F);
 
-    glm::vec3 upReference = glm::abs(dir.y) > 0.9F ? glm::vec3 {0.0F, 0.0F, 1.0F} : glm::vec3 {0.0F, 1.0F, 0.0F};
-    glm::vec3 right = glm::normalize(glm::cross(upReference, dir));
-    glm::vec3 up = glm::normalize(glm::cross(dir, right));
+    glm::vec3 upReference = glm::abs(direction.y) > 0.9F ? glm::vec3 {0.0F, 0.0F, 1.0F} : glm::vec3 {0.0F, 1.0F, 0.0F};
+    glm::vec3 right = glm::normalize(glm::cross(upReference, direction));
+    glm::vec3 up = glm::normalize(glm::cross(direction, right));
 
-    const glm::vec3 lightPosition = center - dir * (radius * 2.0F);
+    const glm::vec3 lightPosition = center - direction * (radius * 2.0F);
     const glm::mat4 view = glm::lookAtRH(lightPosition, center, up);
 
     const float orthoExtent = radius * 1.5F;

@@ -12,9 +12,7 @@
 #include <vulkano/scene/mesh.hpp>
 #include <vulkano/vk/color_image.hpp>
 #include <vulkano/vk/depth_image.hpp>
-#include <vulkano/app/shadow_map.hpp>
-#include <vulkano/app/shadow_pass.hpp>
-#include <optional>
+#include <vulkano/app/shadow_resources.hpp>
 
 namespace vulkano::app {
 class VulkanContext;
@@ -41,9 +39,9 @@ public:
 
     void set_scene(const std::vector<SceneMesh>& meshes);
     void set_material_resources(const MaterialBuffer& buffer, const MaterialTextureCache& textures);
-    void set_light_resources(const LightBuffer& buffer, const scene::LightRegistry& registry);
+    void set_light_resources(LightBuffer& buffer, const scene::LightRegistry& registry);
     void set_show_light_debug(bool enabled) noexcept;
-    void record_shadow_pass(VkCommandBuffer commandBuffer, const glm::mat4& lightViewProjection) const;
+    void record_shadow_pass(VkCommandBuffer commandBuffer) const;
 
     [[nodiscard]] VkRenderPass render_pass() const noexcept;
     [[nodiscard]] VkPipeline pipeline() const noexcept;
@@ -90,37 +88,6 @@ private:
         glm::mat4 model {1.0F};
     };
 
-    struct ShadowSlot final {
-        scene::LightId id {scene::LightId::invalid()};
-        ShadowMap map;
-        ShadowPass pass;
-        bool active {false};
-        bool dirtyMatrix {true};
-        glm::mat4 viewProjection {1.0F};
-        std::uint32_t priority {0U};
-    };
-
-    struct ShadowResources final {
-        void initialise(const VulkanContext& context, VkExtent2D extent, VkFormat format, std::size_t maxSlots);
-        void release(const VulkanContext& context) noexcept;
-        void update_descriptors(const VulkanContext& context);
-
-        [[nodiscard]] bool empty() const noexcept;
-        [[nodiscard]] std::size_t slot_count() const noexcept;
-        [[nodiscard]] ShadowSlot& slot(std::size_t index);
-        [[nodiscard]] const ShadowSlot& slot(std::size_t index) const;
-        [[nodiscard]] VkDescriptorSetLayout descriptor_layout() const noexcept;
-        [[nodiscard]] VkDescriptorSet descriptor_set() const noexcept;
-
-        std::vector<ShadowSlot> slots;
-        VkDescriptorSetLayout descriptorLayout {VK_NULL_HANDLE};
-        VkDescriptorPool descriptorPool {VK_NULL_HANDLE};
-        VkDescriptorSet descriptorSet {VK_NULL_HANDLE};
-        VkExtent2D extent {2048U, 2048U};
-        VkFormat format {VK_FORMAT_D32_SFLOAT};
-        std::uint32_t activeCount {0U};
-    };
-
     struct LightGizmoHandle final {
         scene::LightId id {scene::LightId::invalid()};
         DebugMesh* mesh {nullptr};
@@ -155,7 +122,7 @@ private:
     void create_shadow_resources();
     void destroy_shadow_resources() noexcept;
     void destroy_point_light_debug_meshes() noexcept;
-    [[nodiscard]] std::optional<glm::mat4> compute_light_view_projection() const;
+    [[nodiscard]] glm::mat4 compute_light_view_projection(const scene::Light& light) const;
 
     void upload_mesh(const SceneMesh& mesh);
 

@@ -1,6 +1,9 @@
 #pragma once
 
 #include <vector>
+#include <unordered_map>
+
+#include <limits>
 
 #include <glm/vec4.hpp>
 
@@ -14,5 +17,6 @@ struct LightGpu final {
     glm::vec4 shadowParams {0.0F, 0.0F, 0.0F, 0.0F};
 };
 
-[[nodiscard]] std::vector<LightGpu> build_light_gpu_buffer(const scene::LightRegistry& registry);
+[[nodiscard]] std::vector<LightGpu> build_light_gpu_buffer(const scene::LightRegistry& registry,
+    const std::unordered_map<std::uint32_t, std::uint32_t>& shadowIndices);
 }

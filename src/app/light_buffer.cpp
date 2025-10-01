@@ -3,6 +3,7 @@
 #include <cstring>
 #include <stdexcept>
 #include <vector>
+#include <unordered_map>
 
 #include <vulkano/app/light_gpu.hpp>
 #include <vulkano/app/vulkan_context.hpp>
@@ -33,8 +34,9 @@ LightBuffer::~LightBuffer() noexcept {
     destroy();
 }
 
-void LightBuffer::update(const scene::LightRegistry& registry) {
-    std::vector<LightGpu> gpuLights = build_light_gpu_buffer(registry);
+void LightBuffer::update(const scene::LightRegistry& registry,
+    const std::unordered_map<std::uint32_t, std::uint32_t>& shadowIndices) {
+    std::vector<LightGpu> gpuLights = build_light_gpu_buffer(registry, shadowIndices);
     const VkDeviceSize requiredSize {static_cast<VkDeviceSize>(sizeof(LightGpu) * gpuLights.size())};
 
     if (requiredSize == 0U) {
@@ -130,4 +132,3 @@ void LightBuffer::destroy() noexcept {
     m_descriptorInfo = VkDescriptorBufferInfo {};
 }
 } // namespace vulkano::app
-
