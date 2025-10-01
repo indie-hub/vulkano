@@ -139,3 +139,5 @@
 - [x] Build shadow map pass pipeline and command recording
 - [x] Compute directional light view-projection and integrate shadow pass
 - [x] Bind shadow map descriptor and feed light matrix to scene shader
+- [x] Introduce PCF filtering and shadow controls in ImGui
+- [ ] Blit shadow map for debug view & ensure descriptor reuse on resize

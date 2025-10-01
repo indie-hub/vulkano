@@ -340,6 +340,21 @@ int Application::run() noexcept {
 
                         ImGui::TreePop();
                     }
+                    if (ImGui::TreeNode("Shadows")) {
+                        bool shadowsEnabled = renderer->shadows_enabled();
+                        if (ImGui::Checkbox("Enable Shadows", &shadowsEnabled)) {
+                            renderer->set_shadows_enabled(shadowsEnabled);
+                        }
+                        float bias = renderer->shadow_bias();
+                        if (ImGui::SliderFloat("Depth Bias", &bias, 0.0F, 0.01F)) {
+                            renderer->set_shadow_bias(bias);
+                        }
+                        float radius = renderer->shadow_pcf_radius();
+                        if (ImGui::SliderFloat("PCF Radius", &radius, 0.0F, 4.0F)) {
+                            renderer->set_shadow_pcf_radius(radius);
+                        }
+                        ImGui::TreePop();
+                    }
                     ImGui::PopID();
                     ++lightIndex;
                 }
