@@ -7,6 +7,7 @@
 
 #include <glm/mat4x4.hpp>
 #include <glm/vec4.hpp>
+#include <vulkan/vulkan.h>
 #include <vulkano/scene/light.hpp>
 
 namespace vulkano::app {
@@ -20,6 +21,7 @@ struct ShadowSlot final {
     bool dirtyMatrix {true};
     glm::mat4 viewProjection {1.0F};
     std::uint32_t priority {0U};
+    VkImageLayout layout {VK_IMAGE_LAYOUT_UNDEFINED};
 };
 
 class ShadowResources final {

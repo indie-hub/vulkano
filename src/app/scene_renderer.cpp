@@ -258,6 +258,7 @@ void ShadowResources::initialise(
         slot.dirtyMatrix = true;
         slot.viewProjection = glm::mat4(1.0F);
         slot.priority = 0U;
+        slot.layout = VK_IMAGE_LAYOUT_UNDEFINED;
         if (slot.map.render_pass() == VK_NULL_HANDLE) {
             slot.map = ShadowMap {context, extent, format};
             slot.pass = ShadowPass {context, slot.map.render_pass()};
@@ -330,6 +331,7 @@ void ShadowResources::release(const VulkanContext& context) noexcept {
         slot.dirtyMatrix = true;
         slot.viewProjection = glm::mat4(1.0F);
         slot.priority = 0U;
+        slot.layout = VK_IMAGE_LAYOUT_UNDEFINED;
     }
     slots.clear();
     matrixBufferSize = 0U;
@@ -565,6 +567,9 @@ void SceneRenderer::set_light_resources(LightBuffer& buffer, const scene::LightR
             slot.dirtyMatrix = static_cast<bool>(slot.dirtyMatrix) || idChanged;
             slot.viewProjection = compute_light_view_projection(*info.light);
             slot.dirtyMatrix = false;
+            if (idChanged) {
+                slot.layout = VK_IMAGE_LAYOUT_UNDEFINED;
+            }
             shadowIndexMap.emplace(info.id.value, static_cast<std::uint32_t>(slotIndex));
         } else {
             slot.id = scene::LightId::invalid();
@@ -572,6 +577,7 @@ void SceneRenderer::set_light_resources(LightBuffer& buffer, const scene::LightR
             slot.priority = 0U;
             slot.dirtyMatrix = true;
             slot.viewProjection = glm::mat4(1.0F);
+            slot.layout = VK_IMAGE_LAYOUT_UNDEFINED;
         }
     }
     m_shadowResources.activeCount = static_cast<std::uint32_t>(activeSlots);
@@ -821,19 +827,78 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
         throw std::runtime_error {"Failed to begin recording command buffer"};
     }
 
+    const auto source_stage_for_layout = [](VkImageLayout layout) noexcept -> VkPipelineStageFlags {
+        switch (layout) {
+        case VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL:
+            return VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
+            return VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+        case VK_IMAGE_LAYOUT_UNDEFINED:
+            return VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        default:
+            return VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        }
+    };
+
+    const auto source_access_for_layout = [](VkImageLayout layout) noexcept -> VkAccessFlags {
+        switch (layout) {
+        case VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL:
+            return VK_ACCESS_SHADER_READ_BIT;
+        case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
+            return VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        default:
+            return VkAccessFlags {0U};
+        }
+    };
+
+    for (std::uint32_t slotIndex {0U}; slotIndex < m_shadowResources.slot_count(); ++slotIndex) {
+        ShadowSlot& slot = m_shadowResources.slot(slotIndex);
+        if (slot.active || slot.map.image() == VK_NULL_HANDLE) {
+            continue;
+        }
+        if (slot.layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL) {
+            continue;
+        }
+
+        VkImageMemoryBarrier barrier {};
+        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.srcAccessMask = source_access_for_layout(slot.layout);
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        barrier.oldLayout = slot.layout;
+        barrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.image = slot.map.image();
+        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+        barrier.subresourceRange.baseMipLevel = 0U;
+        barrier.subresourceRange.levelCount = 1U;
+        barrier.subresourceRange.baseArrayLayer = 0U;
+        barrier.subresourceRange.layerCount = 1U;
+
+        vkCmdPipelineBarrier(commandBuffer, source_stage_for_layout(slot.layout),
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0U, 0U, nullptr, 0U, nullptr, 1U, &barrier);
+
+        slot.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+    }
+
     const bool hasShadowPass = m_shadowsEnabled && m_shadowResources.activeCount > 0U;
     if (hasShadowPass) {
+
         for (std::uint32_t slotIndex {0U}; slotIndex < m_shadowResources.activeCount; ++slotIndex) {
-            const ShadowSlot& slot = m_shadowResources.slot(slotIndex);
-            if (!slot.active) {
+            ShadowSlot& slot = m_shadowResources.slot(slotIndex);
+            if (!slot.active || slot.map.image() == VK_NULL_HANDLE) {
+                continue;
+            }
+
+            if (slot.layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
                 continue;
             }
 
             VkImageMemoryBarrier barrier {};
             barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-            barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            barrier.srcAccessMask = source_access_for_layout(slot.layout);
             barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-            barrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+            barrier.oldLayout = slot.layout;
             barrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
             barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
             barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -844,16 +909,18 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
             barrier.subresourceRange.baseArrayLayer = 0U;
             barrier.subresourceRange.layerCount = 1U;
 
-            vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            vkCmdPipelineBarrier(commandBuffer, source_stage_for_layout(slot.layout),
                 VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, 0U, 0U, nullptr,
                 0U, nullptr, 1U, &barrier);
+
+            slot.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
         }
 
         record_shadow_pass(commandBuffer);
 
         for (std::uint32_t slotIndex {0U}; slotIndex < m_shadowResources.activeCount; ++slotIndex) {
-            const ShadowSlot& slot = m_shadowResources.slot(slotIndex);
-            if (!slot.active) {
+            ShadowSlot& slot = m_shadowResources.slot(slotIndex);
+            if (!slot.active || slot.map.image() == VK_NULL_HANDLE) {
                 continue;
             }
 
@@ -861,7 +928,7 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
             barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
             barrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
             barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-            barrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+            barrier.oldLayout = slot.layout;
             barrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
             barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
             barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -872,8 +939,14 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
             barrier.subresourceRange.baseArrayLayer = 0U;
             barrier.subresourceRange.layerCount = 1U;
 
-            vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0U, 0U, nullptr, 0U, nullptr, 1U, &barrier);
+            const VkPipelineStageFlags sourceStage = (slot.layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+                ? VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT
+                : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+
+            vkCmdPipelineBarrier(commandBuffer, sourceStage, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0U, 0U, nullptr,
+                0U, nullptr, 1U, &barrier);
+
+            slot.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
         }
     }
 
