@@ -157,4 +157,4 @@
 - [x] Elaborate testing strategy for per-light shadow selection
 - [x] Implement gizmo cache scaffolding in SceneRenderer
 - [x] Integrate directional gizmos with cache model in SceneRenderer
-- [ ] Sync point light gizmos with cache model
+- [x] Sync point light gizmos with cache model
