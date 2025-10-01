@@ -172,3 +172,4 @@
 - [x] Map command buffer changes for multiple shadow passes
 - [x] Outline ImGui updates for multi-caster controls
 - [x] Expand QA checklist for multi-caster scenarios
+- [x] Extend testing strategy with slot assignment/unit coverage
