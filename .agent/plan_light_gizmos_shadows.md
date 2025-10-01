@@ -247,6 +247,17 @@
    - Pseudocode the sync routine that reconciles `LightRegistry` against the shadow pool, assigning or releasing slots.
    - Account for additions, removals, type changes, and toggles mid-frame.
    - *Acceptance:* Algorithm description covering all mutation cases with noted complexity.
+   - **Slot sync algorithm:**
+     1. Build a vector `directionalLights` of `(LightId, Light)` pairs filtered for directional type.
+     2. Sort `directionalLights` by `LightId` ascending.
+     3. Iterate existing `ShadowResources::slots` updating `active` flags to false.
+     4. For each light in `directionalLights`:
+        - Skip if `castsShadow == false`.
+        - Check if any slot already holds this light id; if so, mark `active = true`, update `dirtyMatrix` if direction/intensity changed, continue.
+        - Otherwise, gather available slots (inactive). If none, apply prioritisation by comparing current light against lowest-priority active slot (per rules). Replace target slot if higher priority.
+        - When (re)assigning a slot: set `id`, `active = true`, `dirtyMatrix = true`, and refresh descriptor image info for that slot.
+     5. After assignment loop, any slot left inactive is considered free; optional step to reuse descriptors for dummy texture.
+     6. Complexity: O(N log N) for sort (N directional lights), plus O(maxCasters) comparisons per assignment.
 3. **Update matrix computation path**
    - Plan how `compute_light_view_projection` (or successor) will iterate over active casters and produce per-slot matrices.
    - Decide caching strategy to avoid redundant recomputations when lights idle.
