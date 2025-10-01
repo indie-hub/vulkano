@@ -190,6 +190,13 @@
    - Document which methods allocate, bind, and destroy the single `ShadowMap` (image, framebuffer, descriptors).
    - Capture existing assumptions about one-pass rendering and descriptor bindings.
    - *Acceptance:* Notes list every function touching `m_shadowMap`, `m_shadowPass`, and shadow descriptor sets, including lifetimes.
+   - **Ownership inventory:**
+     - `SceneRenderer::SceneRenderer` calls `create_shadow_resources()` and `create_shadow_descriptors()` to allocate `m_shadowMap`, initialise `m_shadowPass`, and set up descriptor pools/sets.
+     - `create_shadow_resources()` creates the depth image (`ShadowMap`), framebuffer, and sets `m_shadowExtent`; destruction mirrored in `destroy_shadow_resources()` invoked from destructor and swapchain recreation paths.
+     - `create_shadow_descriptors()` allocates `m_shadowDescriptorPool` and `m_shadowDescriptorSet`, binding the shadow map view/sampler; `destroy_shadow_descriptors()` frees them.
+     - `record_command_buffer()` invokes `record_shadow_pass()` when shadow pass enabled; `record_shadow_pass()` uses `m_shadowPass` to render into `m_shadowMap`.
+     - `destroy_light_debug_mesh()` does not touch shadow resources; only `destroy_shadow_resources()` and `destroy_shadow_descriptors()` manage the lifetime alongside swapchain teardown.
+     - Swapchain recreation triggers `destroy_shadow_resources()`/`create_shadow_resources()` via `recreateSwapchain()` (not shown here but wired in application).
 2. **Decide maximum supported casters and budgeting**
    - Choose an initial upper bound (e.g., 3 directional lights) along with memory estimates per shadow map (format, resolution).
    - Record trade-offs for higher counts vs. performance/memory hits.
