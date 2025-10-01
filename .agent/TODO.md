@@ -134,3 +134,4 @@
 - [x] Extend ImGui lighting panel for multi-light editing
 - [x] Initialise additional light in runtime and sync buffer
 - [x] Rebuild, run tests, and validate multi-light runtime
+- [x] Draft plan for shadow mapping integration
