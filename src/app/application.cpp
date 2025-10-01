@@ -353,6 +353,10 @@ int Application::run() noexcept {
                         if (ImGui::SliderFloat("PCF Radius", &radius, 0.0F, 4.0F)) {
                             renderer->set_shadow_pcf_radius(radius);
                         }
+                        bool showShadow = renderer->shadow_debug_enabled();
+                        if (ImGui::Checkbox("Debug Shadow Map", &showShadow)) {
+                            renderer->set_shadow_debug_enabled(showShadow);
+                        }
                         ImGui::TreePop();
                     }
                     ImGui::PopID();

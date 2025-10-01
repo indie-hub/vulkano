@@ -416,6 +416,14 @@ void SceneRenderer::set_shadows_enabled(bool enabled) noexcept {
     m_shadowsEnabled = enabled;
 }
 
+bool SceneRenderer::shadow_debug_enabled() const noexcept {
+    return m_shadowDebug;
+}
+
+void SceneRenderer::set_shadow_debug_enabled(bool enabled) noexcept {
+    m_shadowDebug = enabled;
+}
+
 void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::uint32_t imageIndex,
     const glm::mat4& view, const glm::mat4& projection, const glm::vec3& cameraPosition,
     const CommandRecorder& overlayRecorder,
@@ -428,7 +436,7 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
         throw std::runtime_error {"Failed to begin recording command buffer"};
     }
 
-    const std::optional<glm::mat4> lightMatrixOpt = compute_light_view_projection();
+    const std::optional<glm::mat4> lightMatrixOpt = m_shadowsEnabled ? compute_light_view_projection() : std::nullopt;
     if (lightMatrixOpt) {
         record_shadow_pass(commandBuffer, *lightMatrixOpt);
 
@@ -453,7 +461,7 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
 
     const glm::mat4 lightMatrix = lightMatrixOpt.value_or(glm::mat4(1.0F));
     const float shadowEnabled = (lightMatrixOpt && m_shadowsEnabled) ? 1.0F : 0.0F;
-    const glm::vec4 shadowParams {m_shadowBias, m_shadowPcfRadius, shadowEnabled, 0.0F};
+    const glm::vec4 shadowParams {m_shadowBias, m_shadowPcfRadius, shadowEnabled, m_shadowDebug ? 1.0F : 0.0F};
 
     VkClearValue swapClear {};
     swapClear.color = {{0.0F, 0.0F, 0.0F, 1.0F}};
