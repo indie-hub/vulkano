@@ -87,6 +87,22 @@ private:
         VkBuffer indexBuffer {VK_NULL_HANDLE};
         VkDeviceMemory indexMemory {VK_NULL_HANDLE};
         std::uint32_t indexCount {0U};
+        glm::mat4 model {1.0F};
+    };
+
+    struct LightGizmoHandle final {
+        scene::LightId id {scene::LightId::invalid()};
+        DebugMesh mesh {};
+        glm::mat4 transform {1.0F};
+        scene::LightType type {scene::LightType::Directional};
+        bool dirty {false};
+    };
+
+    struct GizmoCache final {
+        std::optional<LightGizmoHandle> directional {};
+        std::vector<LightGizmoHandle> points;
+
+        void release(VkDevice device) noexcept;
     };
 
     void create_render_pass();
@@ -107,6 +123,7 @@ private:
     void destroy_light_debug_mesh() noexcept;
     void create_shadow_resources();
     void destroy_shadow_resources() noexcept;
+    void destroy_point_light_debug_meshes() noexcept;
     void create_shadow_descriptors();
     void destroy_shadow_descriptors() noexcept;
     [[nodiscard]] std::optional<glm::mat4> compute_light_view_projection() const;
@@ -120,6 +137,8 @@ private:
     std::vector<VkFramebuffer> m_framebuffers;
     std::vector<GpuMesh> m_meshes;
     DebugMesh m_lightDebugMesh;
+    std::vector<DebugMesh> m_pointLightDebugMeshes;
+    GizmoCache m_gizmoCache;
     VkFormat m_depthFormat {VK_FORMAT_UNDEFINED};
     VkFormat m_albedoFormat {VK_FORMAT_R8G8B8A8_UNORM};
     VkFormat m_normalFormat {VK_FORMAT_R8G8B8A8_UNORM};
@@ -156,5 +175,6 @@ private:
     float m_shadowPcfRadius {1.0F};
     bool m_shadowsEnabled {true};
     bool m_shadowDebug {false};
+    bool m_primaryLightCastsShadow {true};
 };
 } // namespace vulkano::app
