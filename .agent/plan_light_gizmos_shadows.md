@@ -351,6 +351,12 @@
 2. **Performance validation**
    - Define profiling steps to measure the cost of additional shadow passes (CPU & GPU timing).
    - *Acceptance:* Performance plan captured with thresholds or regression triggers.
+   - **Profiling plan:**
+     - Capture GPU timings per shadow pass using Vulkan timestamp queries around each shadow render section.
+     - Record CPU wall-clock for slot sync and descriptor updates via scoped timers (std::chrono) in debug builds.
+     - Establish baseline budget: each additional shadow pass should add ≤1.5 ms on target hardware (RTX 3070) at 2048².
+     - Integrate results into existing performance logging (if any) or output to console when debug profiling enabled.
+     - Include automated perf check script (future) comparing against baseline with tolerance ±0.2 ms.
    - **Automated tests:**
      - Add Catch2 unit tests for new shadow state helpers (e.g., `promote_shadow_caster` function) verifying selection logic when lights change order or toggles.
      - Extend existing `light_registry` tests to cover `castsShadow` sanitisation for point vs directional lights and ensure removal updates indices.
