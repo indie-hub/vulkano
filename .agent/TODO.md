@@ -126,3 +126,4 @@
 - [x] Assign metal normal map to remaining scene materials
 - [x] Add adjustable normal map strength to material system and shaders
 - [x] Rebuild, run tests, and validate runtime with normal strength controls
+- [x] Draft plan for multi-light support expansion
