@@ -131,6 +131,6 @@
 - [x] Expand GPU light buffer and descriptor handling
 - [x] Update shaders for multi-light accumulation
 - [x] Integrate renderer bindings and buffer updates
-- [ ] Extend ImGui lighting panel for multi-light editing
-- [ ] Initialise additional light in runtime and sync buffer
+- [x] Extend ImGui lighting panel for multi-light editing
+- [x] Initialise additional light in runtime and sync buffer
 - [ ] Rebuild, run tests, and validate multi-light runtime

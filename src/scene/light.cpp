@@ -1,6 +1,7 @@
 #include <vulkano/scene/light.hpp>
 
 #include <stdexcept>
+#include <cstddef>
 
 #include <glm/geometric.hpp>
 
@@ -46,6 +47,16 @@ void LightRegistry::update_light(LightId id, const Light& light) {
         throw std::out_of_range {"LightRegistry::update_light received invalid light id"};
     }
     m_lights[id.value] = sanitize_light(light);
+}
+
+void LightRegistry::remove_light(LightId id) {
+    if (!is_valid(id)) {
+        throw std::out_of_range {"LightRegistry::remove_light received invalid light id"};
+    }
+    if (id.value == 0U) {
+        throw std::invalid_argument {"Cannot remove primary light"};
+    }
+    m_lights.erase(m_lights.begin() + static_cast<std::ptrdiff_t>(id.value));
 }
 
 const Light& LightRegistry::light(LightId id) const {

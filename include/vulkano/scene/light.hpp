@@ -36,6 +36,7 @@ public:
 
     [[nodiscard]] LightId add_light(const Light& light);
     void update_light(LightId id, const Light& light);
+    void remove_light(LightId id);
 
     [[nodiscard]] const Light& light(LightId id) const;
     [[nodiscard]] Light& light(LightId id);
