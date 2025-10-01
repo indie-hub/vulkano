@@ -115,6 +115,14 @@
    - Trace from ImGui toggle → `LightRegistry` → `SceneRenderer::compute_light_view_projection` → push constants.
    - Identify where single `m_lightDirection`/`m_primaryLightCastsShadow` collapses multiple lights.
    - *Acceptance:* Flow description logged here, highlighting every mutation of the light direction and matrix.
+   - **Existing flow:**
+     - ImGui checkbox updates `scene::Light::castsShadow` stored in `LightRegistry` (see `Application::run` lighting panel logic).
+     - `Application` sets `lightsDirty = true`, triggering `lightBuffer.update` and `renderer->set_light_resources` on the next frame.
+     - `SceneRenderer::set_light_resources` scans the registry, captures the first directional light flagged for shadows, and stores its direction/color/intensity into `m_lightDirection`, `m_lightColor`, `m_lightIntensity`, and `m_primaryLightCastsShadow`.
+     - The method also updates the single directional debug mesh and point gizmo list before caching `m_lightBuffer = &buffer`.
+     - Later, `SceneRenderer::record_command_buffer` calls `compute_light_view_projection` which returns `std::nullopt` when `m_primaryLightCastsShadow` is false or when scene bounds are invalid; otherwise, it builds the matrix from `m_lightDirection` plus cached scene AABB.
+     - The resulting matrix and a `shadowEnabled` flag are packed into push constants (`PushConstants::lightViewProjection` and `shadowParams`) for the main scene pass.
+     - Fragment shader samples the shadow map only if `shadowEnabled > 0` and the light’s GPU flag indicates it casts shadows.
 2. **Define target behaviour**
    - Choose strategy: (a) single shadow map that tracks the highest-priority casting directional light, or (b) multiple shadow maps (one per caster) with indexed sampling.
    - Record priority rules (e.g., nearest shadow-casting light, stable ordering).

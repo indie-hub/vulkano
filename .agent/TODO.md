@@ -152,4 +152,5 @@
 - [x] Define target behaviour for per-light shadow matrices
 - [x] Adjust scene state to track per-light shadow data
 - [x] Update shadow map resource management for active caster switching
-- [ ] Document current shadow matrix flow
+- [x] Document current shadow matrix flow
+- [ ] Define QA matrix for multi-light shadow scenarios
