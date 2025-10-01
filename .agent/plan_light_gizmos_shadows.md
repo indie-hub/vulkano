@@ -98,6 +98,13 @@
    - Iterate over directional and point gizmo lists when `m_showLightDebug` is true.
    - Apply per-light transforms (position, direction) when binding vertex buffers.
    - *Acceptance:* Rendering pass plan notes which pipelines/descriptors are reused and how instance transforms are supplied.
+   - **Draw submission strategy:**
+     - Maintain a transient `std::vector<DrawItem>` assembled each frame containing `(DebugMesh*, glm::mat4 model, scene::LightType type)` pulled from the gizmo cache.
+     - Directional gizmos: reuse the existing debug pipeline; compute model matrix from light direction by rotating base arrow mesh so its -Z axis aligns with `light.direction`, then translating to scene origin or light position (configurable).
+     - Submit directional draws first to preserve legacy visual order, binding vertex/index buffers per gizmo and updating a small push constant block with the model matrix and color tint.
+     - Batch point gizmos by binding shared pipeline/state once, then iterating over cached handles, pushing model matrix per draw; point models already include translation and scale from cache.
+     - When no gizmos exist for a given type, skip the bind/draw to avoid redundant state changes.
+     - Acceptance: pseudo-flow logged here describing `if (showLightDebug) → assemble draw items → bind pipeline → for each item {bind buffers, push constants, draw}`.
 6. **Handle light removal and registry shrink**
    - Define logic for releasing GPU resources when a light is removed or changes type.
    - Add validation to keep gizmo list aligned with registry indices after deletions.
