@@ -9,6 +9,7 @@ set(VULKANO_TEST_SOURCES
     texture_loader_tests.cpp
     light_registry_tests.cpp
     light_gpu_tests.cpp
+    shadow_resources_tests.cpp
 )
 
 add_executable(vulkano_tests

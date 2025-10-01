@@ -182,4 +182,4 @@
 - [x] Fix descriptor pool configuration to allow descriptor freeing
 - [x] Validate runtime now clean of validation errors
 - [x] Implement ImGui multi-caster controls
-- [ ] Extend automated tests for shadow matrix buffer
+- [x] Extend automated tests for shadow matrix buffer
