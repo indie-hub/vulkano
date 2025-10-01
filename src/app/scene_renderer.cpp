@@ -176,49 +176,8 @@ void create_buffer(VkPhysicalDevice physicalDevice, VkDevice device, VkDeviceSiz
 }
 
 namespace vulkano::app {
-void SceneRenderer::GizmoCache::release(VkDevice device) noexcept {
-    if (directional) {
-        DebugMesh& mesh = directional->mesh;
-        if (mesh.vertexBuffer != VK_NULL_HANDLE) {
-            vkDestroyBuffer(device, mesh.vertexBuffer, nullptr);
-            mesh.vertexBuffer = VK_NULL_HANDLE;
-        }
-        if (mesh.vertexMemory != VK_NULL_HANDLE) {
-            vkFreeMemory(device, mesh.vertexMemory, nullptr);
-            mesh.vertexMemory = VK_NULL_HANDLE;
-        }
-        if (mesh.indexBuffer != VK_NULL_HANDLE) {
-            vkDestroyBuffer(device, mesh.indexBuffer, nullptr);
-            mesh.indexBuffer = VK_NULL_HANDLE;
-        }
-        if (mesh.indexMemory != VK_NULL_HANDLE) {
-            vkFreeMemory(device, mesh.indexMemory, nullptr);
-            mesh.indexMemory = VK_NULL_HANDLE;
-        }
-        mesh.indexCount = 0U;
-        directional.reset();
-    }
-
-    for (LightGizmoHandle& handle : points) {
-        DebugMesh& mesh = handle.mesh;
-        if (mesh.vertexBuffer != VK_NULL_HANDLE) {
-            vkDestroyBuffer(device, mesh.vertexBuffer, nullptr);
-            mesh.vertexBuffer = VK_NULL_HANDLE;
-        }
-        if (mesh.vertexMemory != VK_NULL_HANDLE) {
-            vkFreeMemory(device, mesh.vertexMemory, nullptr);
-            mesh.vertexMemory = VK_NULL_HANDLE;
-        }
-        if (mesh.indexBuffer != VK_NULL_HANDLE) {
-            vkDestroyBuffer(device, mesh.indexBuffer, nullptr);
-            mesh.indexBuffer = VK_NULL_HANDLE;
-        }
-        if (mesh.indexMemory != VK_NULL_HANDLE) {
-            vkFreeMemory(device, mesh.indexMemory, nullptr);
-            mesh.indexMemory = VK_NULL_HANDLE;
-        }
-        mesh.indexCount = 0U;
-    }
+void SceneRenderer::GizmoCache::release() noexcept {
+    directional.reset();
     points.clear();
 }
 
@@ -258,7 +217,7 @@ SceneRenderer::~SceneRenderer() noexcept {
     destroy_shadow_descriptors();
     destroy_light_descriptors();
     destroy_material_descriptors();
-    m_gizmoCache.release(m_context.device());
+    m_gizmoCache.release();
     destroy_light_debug_mesh();
     if (m_renderPass != VK_NULL_HANDLE) {
         vkDestroyRenderPass(m_context.device(), m_renderPass, nullptr);
@@ -357,31 +316,48 @@ void SceneRenderer::set_light_resources(const LightBuffer& buffer, const scene::
     destroy_point_light_debug_meshes();
     std::vector<DebugMesh> pointMeshes;
 
-    std::optional<scene::Light> primaryDir {};
+    std::optional<scene::LightId> primaryDirId {};
+    const scene::Light* primaryDirLight {nullptr};
     for (std::size_t index {0U}; index < registry.size(); ++index) {
-        const scene::Light& candidate = registry.light(scene::LightId {static_cast<std::uint32_t>(index)});
+        const scene::LightId id {static_cast<std::uint32_t>(index)};
+        const scene::Light& candidate = registry.light(id);
         if (candidate.type == scene::LightType::Directional) {
-            if (!primaryDir || (!primaryDir->castsShadow && candidate.castsShadow)) {
-                primaryDir = candidate;
+            if (primaryDirLight == nullptr || (!primaryDirLight->castsShadow && candidate.castsShadow)) {
+                primaryDirId = id;
+                primaryDirLight = &candidate;
             }
         }
     }
 
-    if (primaryDir) {
-        const glm::vec3 dir = primaryDir->direction;
+    if (primaryDirLight != nullptr && primaryDirId) {
+        const glm::vec3 dir = primaryDirLight->direction;
         m_lightDirection = glm::length(dir) > 0.0F ? glm::normalize(dir) : glm::vec3 {0.0F, -1.0F, 0.0F};
-        m_lightColor = primaryDir->color;
-        m_lightIntensity = primaryDir->intensity;
-        m_primaryLightCastsShadow = primaryDir->castsShadow;
+        m_lightColor = primaryDirLight->color;
+        m_lightIntensity = primaryDirLight->intensity;
+        m_primaryLightCastsShadow = primaryDirLight->castsShadow;
+
+        LightGizmoHandle handle {};
+        handle.id = *primaryDirId;
+        handle.mesh = &m_lightDebugMesh;
+        handle.type = scene::LightType::Directional;
+        handle.transform = glm::mat4(1.0F);
+        handle.dirty = true;
+        if (m_gizmoCache.directional) {
+            LightGizmoHandle& existing = *m_gizmoCache.directional;
+            existing = handle;
+        } else {
+            m_gizmoCache.directional = handle;
+        }
     } else {
         m_lightDirection = glm::vec3 {0.0F, -1.0F, 0.0F};
         m_lightColor = glm::vec3 {1.0F, 1.0F, 1.0F};
         m_lightIntensity = 1.0F;
         m_primaryLightCastsShadow = false;
+        m_gizmoCache.directional.reset();
     }
 
     if (m_lightDebugMesh.vertexMemory != VK_NULL_HANDLE) {
-        const glm::vec3 arrowColor = primaryDir ? primaryDir->color : glm::vec3 {1.0F, 1.0F, 0.0F};
+        const glm::vec3 arrowColor = primaryDirLight != nullptr ? primaryDirLight->color : glm::vec3 {1.0F, 1.0F, 0.0F};
         std::array<Vertex, 5> vertices = {
             Vertex {.position = glm::vec3 {0.0F, 0.5F, 0.0F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
                 .color = arrowColor, .uv = glm::vec2 {0.0F, 0.0F}, .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}},
@@ -647,39 +623,44 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
         vkCmdDrawIndexed(commandBuffer, mesh.indexCount, 1U, 0U, 0, 0U);
     }
 
-    if (m_showLightDebug && m_lightDebugMesh.indexCount > 0U && m_lightBuffer != nullptr) {
-        const glm::vec3 dir = glm::length(m_lightDirection) > 0.0F ? glm::normalize(m_lightDirection)
-            : glm::vec3 {0.0F, -1.0F, 0.0F};
-        const float length = glm::max(m_lightIntensity, 0.1F);
+    if (m_showLightDebug && m_lightBuffer != nullptr && m_gizmoCache.directional) {
+        const LightGizmoHandle& handle = *m_gizmoCache.directional;
+        const DebugMesh* debugMesh = handle.mesh;
+        if (debugMesh != nullptr && debugMesh->indexCount > 0U) {
+            const glm::vec3 dir = glm::length(m_lightDirection) > 0.0F ? glm::normalize(m_lightDirection)
+                : glm::vec3 {0.0F, -1.0F, 0.0F};
+            const float length = glm::max(m_lightIntensity, 0.1F);
 
-        glm::vec3 forward = -dir;
-        glm::vec3 upReference = glm::abs(forward.y) > 0.99F ? glm::vec3 {0.0F, 0.0F, 1.0F} : glm::vec3 {0.0F, 1.0F, 0.0F};
-        glm::vec3 right = glm::normalize(glm::cross(upReference, forward));
-        glm::vec3 up = glm::normalize(glm::cross(forward, right));
+            glm::vec3 forward = -dir;
+            glm::vec3 upReference = glm::abs(forward.y) > 0.99F ? glm::vec3 {0.0F, 0.0F, 1.0F}
+                                                                  : glm::vec3 {0.0F, 1.0F, 0.0F};
+            glm::vec3 right = glm::normalize(glm::cross(upReference, forward));
+            glm::vec3 up = glm::normalize(glm::cross(forward, right));
 
-        glm::mat4 debugModel {1.0F};
-        debugModel[0] = glm::vec4(right * 0.5F, 0.0F);
-        debugModel[1] = glm::vec4(up * 0.5F, 0.0F);
-        debugModel[2] = glm::vec4(forward * length, 0.0F);
-        debugModel[3] = glm::vec4(0.0F, 0.5F, 0.0F, 1.0F);
+            glm::mat4 debugModel {1.0F};
+            debugModel[0] = glm::vec4(right * 0.5F, 0.0F);
+            debugModel[1] = glm::vec4(up * 0.5F, 0.0F);
+            debugModel[2] = glm::vec4(forward * length, 0.0F);
+            debugModel[3] = glm::vec4(0.0F, 0.5F, 0.0F, 1.0F);
+            const ScenePushConstants debugConstants {
+                .model = debugModel,
+                .view = view,
+                .projection = projection,
+                .lightViewProjection = lightMatrix,
+                .material = glm::uvec4 {0U, 0U, 0U, 0U},
+                .camera = glm::vec4 {cameraPosition, 1.0F},
+                .shadow = shadowParams
+            };
 
-        const ScenePushConstants debugConstants {
-            .model = debugModel,
-            .view = view,
-            .projection = projection,
-            .lightViewProjection = lightMatrix,
-            .material = glm::uvec4 {0U, 0U, 0U, 0U},
-            .camera = glm::vec4 {cameraPosition, 1.0F},
-            .shadow = shadowParams
-        };
-
-        const VkBuffer lightBuffers[] = {m_lightDebugMesh.vertexBuffer};
-        const VkDeviceSize lightOffsets[] = {0U};
-        vkCmdBindVertexBuffers(commandBuffer, 0U, 1U, lightBuffers, lightOffsets);
-        vkCmdBindIndexBuffer(commandBuffer, m_lightDebugMesh.indexBuffer, 0U, VK_INDEX_TYPE_UINT32);
-        vkCmdPushConstants(commandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0U,
-            static_cast<std::uint32_t>(sizeof(ScenePushConstants)), &debugConstants);
-        vkCmdDrawIndexed(commandBuffer, m_lightDebugMesh.indexCount, 1U, 0U, 0, 0U);
+            const VkBuffer lightBuffers[] = {debugMesh->vertexBuffer};
+            const VkDeviceSize lightOffsets[] = {0U};
+            vkCmdBindVertexBuffers(commandBuffer, 0U, 1U, lightBuffers, lightOffsets);
+            vkCmdBindIndexBuffer(commandBuffer, debugMesh->indexBuffer, 0U, VK_INDEX_TYPE_UINT32);
+            vkCmdPushConstants(commandBuffer, m_pipelineLayout,
+                VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0U,
+                static_cast<std::uint32_t>(sizeof(ScenePushConstants)), &debugConstants);
+            vkCmdDrawIndexed(commandBuffer, debugMesh->indexCount, 1U, 0U, 0, 0U);
+        }
     }
 
     if (overlayRecorder) {
@@ -1571,6 +1552,8 @@ void SceneRenderer::destroy_light_debug_mesh() noexcept {
         m_lightDebugMesh.indexMemory = VK_NULL_HANDLE;
     }
     m_lightDebugMesh.indexCount = 0U;
+
+    m_gizmoCache.directional.reset();
 
     destroy_point_light_debug_meshes();
 }

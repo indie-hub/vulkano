@@ -92,7 +92,7 @@ private:
 
     struct LightGizmoHandle final {
         scene::LightId id {scene::LightId::invalid()};
-        DebugMesh mesh {};
+        DebugMesh* mesh {nullptr};
         glm::mat4 transform {1.0F};
         scene::LightType type {scene::LightType::Directional};
         bool dirty {false};
@@ -102,7 +102,7 @@ private:
         std::optional<LightGizmoHandle> directional {};
         std::vector<LightGizmoHandle> points;
 
-        void release(VkDevice device) noexcept;
+        void release() noexcept;
     };
 
     void create_render_pass();
