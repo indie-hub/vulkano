@@ -171,3 +171,4 @@
 - [x] Define fragment shader sampling logic for multiple casters
 - [x] Map command buffer changes for multiple shadow passes
 - [x] Outline ImGui updates for multi-caster controls
+- [x] Expand QA checklist for multi-caster scenarios
