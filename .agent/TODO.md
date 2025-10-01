@@ -133,4 +133,4 @@
 - [x] Integrate renderer bindings and buffer updates
 - [x] Extend ImGui lighting panel for multi-light editing
 - [x] Initialise additional light in runtime and sync buffer
-- [ ] Rebuild, run tests, and validate multi-light runtime
+- [x] Rebuild, run tests, and validate multi-light runtime
