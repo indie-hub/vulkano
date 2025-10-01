@@ -15,11 +15,14 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
 #include <glm/vec4.hpp>
+#include <glm/common.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 namespace {
 struct ShaderPaths final {
@@ -215,9 +218,22 @@ SceneRenderer::~SceneRenderer() noexcept {
 
 void SceneRenderer::set_scene(const std::vector<SceneMesh>& meshes) {
     destroy_meshes();
+    m_sceneBoundsValid = false;
+    glm::vec3 minBounds {std::numeric_limits<float>::max()};
+    glm::vec3 maxBounds {std::numeric_limits<float>::lowest()};
     m_meshes.reserve(meshes.size());
     for (const SceneMesh& mesh : meshes) {
         upload_mesh(mesh);
+        for (const scene::Vertex& vertex : mesh.mesh.vertices) {
+            const glm::vec4 worldPosition = mesh.model * glm::vec4(vertex.position, 1.0F);
+            minBounds = glm::min(minBounds, glm::vec3(worldPosition));
+            maxBounds = glm::max(maxBounds, glm::vec3(worldPosition));
+        }
+    }
+    if (!meshes.empty()) {
+        m_sceneMin = minBounds;
+        m_sceneMax = maxBounds;
+        m_sceneBoundsValid = true;
     }
 }
 
@@ -383,6 +399,28 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
 
     if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
         throw std::runtime_error {"Failed to begin recording command buffer"};
+    }
+
+    if (auto lightMatrix = compute_light_view_projection()) {
+        record_shadow_pass(commandBuffer, *lightMatrix);
+
+        VkImageMemoryBarrier barrier {};
+        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        barrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+        barrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.image = m_shadowMap.image();
+        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+        barrier.subresourceRange.baseMipLevel = 0U;
+        barrier.subresourceRange.levelCount = 1U;
+        barrier.subresourceRange.baseArrayLayer = 0U;
+        barrier.subresourceRange.layerCount = 1U;
+
+        vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0U, 0U, nullptr, 0U, nullptr, 1U, &barrier);
     }
 
     VkClearValue swapClear {};
@@ -806,6 +844,7 @@ void SceneRenderer::destroy_meshes() noexcept {
         }
     }
     m_meshes.clear();
+    m_sceneBoundsValid = false;
 }
 
 void SceneRenderer::create_color_resources() {
@@ -1031,6 +1070,7 @@ void SceneRenderer::create_depth_resources() {
 
 void SceneRenderer::destroy_depth_resources() noexcept {
     m_depthImage = vk::DepthImage {};
+    destroy_shadow_resources();
 }
 
 void SceneRenderer::create_shadow_resources() {
@@ -1113,6 +1153,9 @@ void SceneRenderer::record_shadow_pass(VkCommandBuffer commandBuffer, const glm:
     std::vector<ShadowDrawCommand> commands;
     commands.reserve(m_meshes.size());
     for (const GpuMesh& mesh : m_meshes) {
+        if (mesh.indexCount == 0U) {
+            continue;
+        }
         ShadowDrawCommand command {};
         command.vertexBuffer = mesh.vertexBuffer;
         command.indexBuffer = mesh.indexBuffer;
@@ -1121,7 +1164,38 @@ void SceneRenderer::record_shadow_pass(VkCommandBuffer commandBuffer, const glm:
         commands.push_back(command);
     }
 
-    m_shadowPass.record(commandBuffer, m_shadowMap, lightViewProjection, commands);
+    if (!commands.empty() && m_shadowMap.render_pass() != VK_NULL_HANDLE) {
+        m_shadowPass.record(commandBuffer, m_shadowMap, lightViewProjection, commands);
+    }
+}
+
+std::optional<glm::mat4> SceneRenderer::compute_light_view_projection() const {
+    if (!m_sceneBoundsValid) {
+        return std::nullopt;
+    }
+    const float directionLength = glm::length(m_lightDirection);
+    if (directionLength <= 1e-4F) {
+        return std::nullopt;
+    }
+
+    const glm::vec3 dir = glm::normalize(m_lightDirection);
+    const glm::vec3 center = (m_sceneMin + m_sceneMax) * 0.5F;
+    const glm::vec3 extent = (m_sceneMax - m_sceneMin) * 0.5F;
+    const float radius = glm::max(glm::length(extent), 1.0F);
+
+    glm::vec3 upReference = glm::abs(dir.y) > 0.9F ? glm::vec3 {0.0F, 0.0F, 1.0F} : glm::vec3 {0.0F, 1.0F, 0.0F};
+    glm::vec3 right = glm::normalize(glm::cross(upReference, dir));
+    glm::vec3 up = glm::normalize(glm::cross(dir, right));
+
+    const glm::vec3 lightPosition = center - dir * (radius * 2.0F);
+    const glm::mat4 view = glm::lookAtRH(lightPosition, center, up);
+
+    const float orthoExtent = radius * 1.5F;
+    const float nearPlane = 0.1F;
+    const float farPlane = radius * 4.0F;
+    const glm::mat4 projection = glm::orthoRH_ZO(-orthoExtent, orthoExtent, -orthoExtent, orthoExtent, nearPlane, farPlane);
+
+    return projection * view;
 }
 
 void SceneRenderer::create_light_debug_mesh() {

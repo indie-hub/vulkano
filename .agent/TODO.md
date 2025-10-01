@@ -137,3 +137,4 @@
 - [x] Draft plan for shadow mapping integration
 - [x] Implement shadow map resources (depth image, sampler, framebuffer)
 - [x] Build shadow map pass pipeline and command recording
+- [x] Compute directional light view-projection and integrate shadow pass
