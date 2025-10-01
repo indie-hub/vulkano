@@ -147,4 +147,5 @@
 - [x] Capture runtime validation of per-light shadow toggles for QA notes
 - [x] Catalogue light gizmo lifecycle code paths in renderer
 - [x] Model per-light gizmo storage abstractions
-- [ ] Outline gizmo creation helper interfaces for per-light allocation
+- [x] Outline gizmo creation helper interfaces for per-light allocation
+- [ ] Design draw submission strategy for multiple directional gizmos

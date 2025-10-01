@@ -81,6 +81,15 @@
    - Implement factory helpers that build directional and point gizmo vertex/index buffers on demand.
    - Ensure buffers honour existing memory allocation patterns (host visible staging or device local).
    - *Acceptance:* Pseudocode or interface definition captured, showing inputs/outputs and resource lifetime guarantees.
+   - **Helper interfaces:**
+     - `create_directional_gizmo(const VulkanContext&, const scene::Light&, VkDeviceSize)` → returns `DebugMesh` populated with arrow geometry sized to the light’s intensity (optional scale factor) and colored via `light.color`.
+     - `create_point_gizmo(const VulkanContext&, const scene::Light&)` → returns `DebugMesh` for billboard/cross marker positioned at origin; caller multiplies transform.
+     - `update_directional_gizmo_vertices(const VulkanContext&, DebugMesh&, const scene::Light&)` → remaps vertex buffer to refresh color/direction vectors without reallocating.
+     - `destroy_gizmo(DebugMesh&, const VulkanContext&)` → releases buffers and resets counts; reused by cache eviction logic.
+   - **Lifetime contract:**
+     - All helpers expect buffers allocated with `VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | HOST_COHERENT_BIT` to match current debug mesh approach.
+     - Callers own the returned `DebugMesh` and must invoke `destroy_gizmo` when removing a light.
+     - Helper functions never mutate global renderer state; they operate purely on provided handles and context references.
 4. **Wire gizmo updates into `set_light_resources`**
    - Generate or refresh gizmo data for every light after descriptor updates.
    - Remove the single `m_lightDebugMesh` dependency and replace draw state with per-light collection.
