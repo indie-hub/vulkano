@@ -119,6 +119,14 @@
    - Choose strategy: (a) single shadow map that tracks the highest-priority casting directional light, or (b) multiple shadow maps (one per caster) with indexed sampling.
    - Record priority rules (e.g., nearest shadow-casting light, stable ordering).
    - *Acceptance:* Decision written with justification (performance, memory) and acceptance criteria for when multiple casters are active.
+   - **Decision:** adopt a single-shadow-map strategy for the next increment.
+     - Maintain an ordered list of directional lights by registry index; the first entry with `castsShadow == true` becomes the active caster.
+     - When the active caster changes (toggle, removal, insertion ahead of it), flag the shadow resources dirty so the view-projection matrix and light-space transforms recompute before the next draw.
+     - Defer multi-shadow-map support until performance budgets and memory costs are revisited; document extension points for adding a shadow-map pool later.
+   - **Acceptance criteria:**
+     - Toggling shadows off on the current caster immediately promotes the next eligible directional light and updates the debug shadow map.
+     - When no directional light casts shadows, the shadow pass is skipped and the fragment shader receives an identity light matrix with `shadowEnabled = 0`.
+     - Reordering or removing lights yields deterministic caster selection (lowest registry index wins) without dangling descriptors.
 3. **Adjust scene state to track per-light shadow data**
    - Extend renderer state to hold a struct per directional light with: light id, cached view-projection matrix, shadow map handle (if owned), and dirty flags.
    - Outline how these structs sync with registry changes.
