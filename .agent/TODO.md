@@ -175,3 +175,4 @@
 - [x] Extend testing strategy with slot assignment/unit coverage
 - [x] Define profiling plan for multi-caster performance
 - [x] Review multi-caster plan for completeness
+- [x] Implement ShadowResources pool scaffolding

@@ -90,6 +90,35 @@ private:
         glm::mat4 model {1.0F};
     };
 
+    struct ShadowSlot final {
+        scene::LightId id {scene::LightId::invalid()};
+        ShadowMap map;
+        ShadowPass pass;
+        bool active {false};
+        bool dirtyMatrix {true};
+        glm::mat4 viewProjection {1.0F};
+    };
+
+    struct ShadowResources final {
+        void initialise(const VulkanContext& context, VkExtent2D extent, VkFormat format, std::size_t maxSlots);
+        void release(const VulkanContext& context) noexcept;
+        void update_descriptors(const VulkanContext& context);
+
+        [[nodiscard]] bool empty() const noexcept;
+        [[nodiscard]] std::size_t slot_count() const noexcept;
+        [[nodiscard]] ShadowSlot& slot(std::size_t index);
+        [[nodiscard]] const ShadowSlot& slot(std::size_t index) const;
+        [[nodiscard]] VkDescriptorSetLayout descriptor_layout() const noexcept;
+        [[nodiscard]] VkDescriptorSet descriptor_set() const noexcept;
+
+        std::vector<ShadowSlot> slots;
+        VkDescriptorSetLayout descriptorLayout {VK_NULL_HANDLE};
+        VkDescriptorPool descriptorPool {VK_NULL_HANDLE};
+        VkDescriptorSet descriptorSet {VK_NULL_HANDLE};
+        VkExtent2D extent {2048U, 2048U};
+        VkFormat format {VK_FORMAT_D32_SFLOAT};
+    };
+
     struct LightGizmoHandle final {
         scene::LightId id {scene::LightId::invalid()};
         DebugMesh* mesh {nullptr};
@@ -124,8 +153,6 @@ private:
     void create_shadow_resources();
     void destroy_shadow_resources() noexcept;
     void destroy_point_light_debug_meshes() noexcept;
-    void create_shadow_descriptors();
-    void destroy_shadow_descriptors() noexcept;
     [[nodiscard]] std::optional<glm::mat4> compute_light_view_projection() const;
 
     void upload_mesh(const SceneMesh& mesh);
@@ -162,12 +189,8 @@ private:
     glm::vec3 m_lightDirection {0.0F, -1.0F, 0.0F};
     glm::vec3 m_lightColor {1.0F, 1.0F, 1.0F};
     float m_lightIntensity {1.0F};
-    ShadowMap m_shadowMap;
-    ShadowPass m_shadowPass;
     VkExtent2D m_shadowExtent {2048U, 2048U};
-    VkDescriptorSetLayout m_shadowDescriptorLayout {VK_NULL_HANDLE};
-    VkDescriptorPool m_shadowDescriptorPool {VK_NULL_HANDLE};
-    VkDescriptorSet m_shadowDescriptorSet {VK_NULL_HANDLE};
+    ShadowResources m_shadowResources;
     glm::vec3 m_sceneMin {0.0F, 0.0F, 0.0F};
     glm::vec3 m_sceneMax {0.0F, 0.0F, 0.0F};
     bool m_sceneBoundsValid {false};
