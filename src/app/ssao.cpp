@@ -425,6 +425,7 @@ SSAODescriptors::SSAODescriptors(const VulkanContext& context, const SSAOGpuReso
 
         VkDescriptorPoolCreateInfo poolInfo {};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
         poolInfo.poolSizeCount = 2U;
         poolInfo.pPoolSizes = poolSizes;
         poolInfo.maxSets = 1U;
@@ -1157,6 +1158,7 @@ SSAOCompositeDescriptors::SSAOCompositeDescriptors(const VulkanContext& context,
 
         VkDescriptorPoolCreateInfo poolInfo {};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
         poolInfo.poolSizeCount = 2U;
         poolInfo.pPoolSizes = poolSizes;
         poolInfo.maxSets = 1U;
@@ -1602,6 +1604,7 @@ void SSAOBlurPass::create_resources(const VulkanContext& context) {
 
     VkDescriptorPoolCreateInfo poolInfo {};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
     poolInfo.poolSizeCount = 2U;
     poolInfo.pPoolSizes = poolSizes;
     poolInfo.maxSets = 1U;
