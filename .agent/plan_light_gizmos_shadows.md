@@ -170,6 +170,14 @@
    - Ensure UI reflects active shadow casters and allows selecting which lights own shadow maps if capacity limited.
    - Plan QA checklist covering scenarios: multiple directional lights toggled, toggles flipped mid-frame, light deletions.
    - *Acceptance:* QA matrix documented, listing cases and expected visual outcomes.
+   - **QA matrix:**
+     1. *Single directional light (default sun)* — toggle `Casts Shadow` off/on; expect shadow map to clear when off and restore identical result when on.
+     2. *Two directional lights* — disable primary, enable secondary; expect shadow map orientation to match secondary direction and debug gizmo to highlight active caster.
+     3. *Rapid toggle between lights* — alternate checkboxes every frame for ~10 seconds; expect stable shadow map transitions without validation errors.
+     4. *Directional removal* — delete active caster while secondary is disabled; expect shadow pass to skip and shader receive `shadowEnabled = 0`.
+     5. *Directional removal with fallback* — delete active caster while secondary has shadows enabled; expect immediate promotion of secondary and updated matrix.
+     6. *Point light regression* — ensure point light toggles remain absent and gizmos continue rendering without shadow influence.
+     7. *Scene bounds invalidation* — load scene with no meshes (or clear scene); expect `compute_light_view_projection` to return null and rendering to continue without crashes.
 7. **Testing strategy**
    - Enumerate unit/integration tests to add (e.g., registry → renderer mapping, shader branch coverage via spirv-cross validation, screenshot diff harness).
    - Define manual validation steps (run demo, toggle lights, inspect debug shadow view per light).
