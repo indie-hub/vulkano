@@ -176,3 +176,4 @@
 - [x] Define profiling plan for multi-caster performance
 - [x] Review multi-caster plan for completeness
 - [x] Implement ShadowResources pool scaffolding
+- [x] Integrate shadow slot sync with light registry
