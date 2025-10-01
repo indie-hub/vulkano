@@ -135,3 +135,4 @@
 - [x] Initialise additional light in runtime and sync buffer
 - [x] Rebuild, run tests, and validate multi-light runtime
 - [x] Draft plan for shadow mapping integration
+- [x] Implement shadow map resources (depth image, sampler, framebuffer)
