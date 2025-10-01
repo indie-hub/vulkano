@@ -260,10 +260,6 @@ void SceneRenderer::ShadowResources::initialise(
 void SceneRenderer::ShadowResources::release(const VulkanContext& context) noexcept {
     const VkDevice device = context.device();
 
-    if (descriptorSet != VK_NULL_HANDLE && descriptorPool != VK_NULL_HANDLE) {
-        vkFreeDescriptorSets(device, descriptorPool, 1U, &descriptorSet);
-        descriptorSet = VK_NULL_HANDLE;
-    }
     if (descriptorPool != VK_NULL_HANDLE) {
         vkDestroyDescriptorPool(device, descriptorPool, nullptr);
         descriptorPool = VK_NULL_HANDLE;
@@ -282,6 +278,7 @@ void SceneRenderer::ShadowResources::release(const VulkanContext& context) noexc
         slot.viewProjection = glm::mat4(1.0F);
     }
     slots.clear();
+    descriptorSet = VK_NULL_HANDLE;
 }
 
 void SceneRenderer::ShadowResources::update_descriptors(const VulkanContext& context) {
@@ -347,7 +344,6 @@ SceneRenderer::SceneRenderer(const VulkanContext& context, const Window& window,
 }
 
 SceneRenderer::~SceneRenderer() noexcept {
-    destroy_shadow_resources();
     destroy_meshes();
     destroy_framebuffers();
     destroy_color_resources();
@@ -365,6 +361,7 @@ SceneRenderer::~SceneRenderer() noexcept {
     destroy_material_descriptors();
     m_gizmoCache.release();
     destroy_light_debug_mesh();
+    destroy_shadow_resources();
     if (m_renderPass != VK_NULL_HANDLE) {
         vkDestroyRenderPass(m_context.device(), m_renderPass, nullptr);
         m_renderPass = VK_NULL_HANDLE;
@@ -476,12 +473,21 @@ void SceneRenderer::set_light_resources(const LightBuffer& buffer, const scene::
         }
     }
 
+    ShadowSlot& primarySlot = m_shadowResources.slot(0);
+    primarySlot.id = scene::LightId::invalid();
+    primarySlot.active = false;
+    primarySlot.dirtyMatrix = true;
+
     if (primaryDirLight != nullptr && primaryDirId) {
         const glm::vec3 dir = primaryDirLight->direction;
         m_lightDirection = glm::length(dir) > 0.0F ? glm::normalize(dir) : glm::vec3 {0.0F, -1.0F, 0.0F};
         m_lightColor = primaryDirLight->color;
         m_lightIntensity = primaryDirLight->intensity;
         m_primaryLightCastsShadow = primaryDirLight->castsShadow;
+
+        primarySlot.id = *primaryDirId;
+        primarySlot.active = primaryDirLight->castsShadow;
+        primarySlot.dirtyMatrix = true;
 
         LightGizmoHandle handle {};
         handle.id = *primaryDirId;
@@ -500,6 +506,7 @@ void SceneRenderer::set_light_resources(const LightBuffer& buffer, const scene::
         m_lightColor = glm::vec3 {1.0F, 1.0F, 1.0F};
         m_lightIntensity = 1.0F;
         m_primaryLightCastsShadow = false;
+        primarySlot.active = false;
         m_gizmoCache.directional.reset();
     }
 
