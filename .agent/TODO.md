@@ -170,3 +170,4 @@
 - [x] Plan shader inputs for multiple shadow matrices
 - [x] Define fragment shader sampling logic for multiple casters
 - [x] Map command buffer changes for multiple shadow passes
+- [ ] Outline ImGui updates for multi-caster controls
