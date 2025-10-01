@@ -33,6 +33,8 @@ public:
 
     [[nodiscard]] bool empty() const noexcept;
     [[nodiscard]] std::size_t slot_count() const noexcept;
+    [[nodiscard]] std::uint32_t active_caster_count() const noexcept;
+    [[nodiscard]] VkExtent2D shadow_extent() const noexcept;
     [[nodiscard]] ShadowSlot& slot(std::size_t index);
     [[nodiscard]] const ShadowSlot& slot(std::size_t index) const;
     [[nodiscard]] VkDescriptorSetLayout descriptor_layout() const noexcept;

@@ -1,8 +1,9 @@
 #pragma once
 
 #include <cstdint>
-#include <vector>
 #include <functional>
+#include <optional>
+#include <vector>
 #include <vulkan/vulkan.h>
 
 #include <glm/mat4x4.hpp>
@@ -57,6 +58,10 @@ public:
     [[nodiscard]] float shadow_pcf_radius() const noexcept;
     [[nodiscard]] bool shadows_enabled() const noexcept;
     [[nodiscard]] bool shadow_debug_enabled() const noexcept;
+    [[nodiscard]] std::uint32_t shadow_slot_capacity() const noexcept;
+    [[nodiscard]] std::uint32_t shadow_active_caster_count() const noexcept;
+    [[nodiscard]] VkExtent2D shadow_map_extent() const noexcept;
+    [[nodiscard]] std::optional<std::uint32_t> shadow_slot_for_light(scene::LightId id) const noexcept;
     void set_shadow_bias(float bias) noexcept;
     void set_shadow_pcf_radius(float radius) noexcept;
     void set_shadows_enabled(bool enabled) noexcept;

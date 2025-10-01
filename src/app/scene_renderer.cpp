@@ -379,6 +379,14 @@ std::size_t ShadowResources::slot_count() const noexcept {
     return slots.size();
 }
 
+std::uint32_t ShadowResources::active_caster_count() const noexcept {
+    return activeCount;
+}
+
+VkExtent2D ShadowResources::shadow_extent() const noexcept {
+    return extent;
+}
+
 ShadowSlot& ShadowResources::slot(std::size_t index) {
     return slots.at(index);
 }
@@ -809,6 +817,29 @@ void SceneRenderer::set_shadows_enabled(bool enabled) noexcept {
 
 bool SceneRenderer::shadow_debug_enabled() const noexcept {
     return m_shadowDebug;
+}
+
+std::uint32_t SceneRenderer::shadow_slot_capacity() const noexcept {
+    return static_cast<std::uint32_t>(m_shadowResources.slot_count());
+}
+
+std::uint32_t SceneRenderer::shadow_active_caster_count() const noexcept {
+    return m_shadowResources.active_caster_count();
+}
+
+VkExtent2D SceneRenderer::shadow_map_extent() const noexcept {
+    return m_shadowResources.shadow_extent();
+}
+
+std::optional<std::uint32_t> SceneRenderer::shadow_slot_for_light(scene::LightId id) const noexcept {
+    const std::size_t slotCount = m_shadowResources.slot_count();
+    for (std::size_t index {0U}; index < slotCount; ++index) {
+        const ShadowSlot& slot = m_shadowResources.slot(index);
+        if (slot.active && slot.id == id) {
+            return static_cast<std::uint32_t>(index);
+        }
+    }
+    return std::nullopt;
 }
 
 void SceneRenderer::set_shadow_debug_enabled(bool enabled) noexcept {

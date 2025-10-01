@@ -281,6 +281,104 @@ int Application::run() noexcept {
                     lightsDirty = true;
                 }
 
+                if (ImGui::CollapsingHeader("Shadow Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
+                    bool shadowsEnabled = renderer->shadows_enabled();
+                    if (ImGui::Checkbox("Enable Shadows", &shadowsEnabled)) {
+                        renderer->set_shadows_enabled(shadowsEnabled);
+                    }
+
+                    float bias = renderer->shadow_bias();
+                    if (ImGui::SliderFloat("Depth Bias", &bias, 0.0F, 0.01F)) {
+                        renderer->set_shadow_bias(bias);
+                    }
+
+                    float radius = renderer->shadow_pcf_radius();
+                    if (ImGui::SliderFloat("PCF Radius", &radius, 0.0F, 4.0F)) {
+                        renderer->set_shadow_pcf_radius(radius);
+                    }
+
+                    bool showShadow = renderer->shadow_debug_enabled();
+                    if (ImGui::Checkbox("Debug Shadow Map", &showShadow)) {
+                        renderer->set_shadow_debug_enabled(showShadow);
+                    }
+
+                    ImGui::Spacing();
+                    const std::uint32_t shadowCapacity = renderer->shadow_slot_capacity();
+                    const std::uint32_t activeCasters = renderer->shadow_active_caster_count();
+                    const VkExtent2D shadowExtent = renderer->shadow_map_extent();
+                    ImGui::Text("Shadow casters: %u / %u", activeCasters, shadowCapacity);
+                    ImGui::Text("Shadow map resolution: %u x %u", shadowExtent.width, shadowExtent.height);
+
+                    bool hasDirectionalLight = false;
+                    for (std::size_t idx {0U}; idx < lightRegistry.size(); ++idx) {
+                        const scene::Light& light = lightRegistry.light(scene::LightId {static_cast<std::uint32_t>(idx)});
+                        if (light.type == scene::LightType::Directional) {
+                            hasDirectionalLight = true;
+                            break;
+                        }
+                    }
+
+                    if (hasDirectionalLight) {
+                        const ImGuiTableFlags tableFlags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg
+                            | ImGuiTableFlags_SizingStretchProp;
+                        if (ImGui::BeginTable("ShadowCasterTable", 4, tableFlags)) {
+                            ImGui::TableSetupColumn("Light");
+                            ImGui::TableSetupColumn("Status");
+                            ImGui::TableSetupColumn("Slot");
+                            ImGui::TableSetupColumn("Caster Order");
+                            ImGui::TableHeadersRow();
+
+                            std::size_t casterOrder {0U};
+                            for (std::size_t idx {0U}; idx < lightRegistry.size(); ++idx) {
+                                const scene::LightId lightId {static_cast<std::uint32_t>(idx)};
+                                const scene::Light& light = lightRegistry.light(lightId);
+                                if (light.type != scene::LightType::Directional) {
+                                    continue;
+                                }
+
+                                ImGui::TableNextRow();
+                                ImGui::TableSetColumnIndex(0);
+                                ImGui::Text("Light %zu", idx);
+
+                                const auto slotIndex = renderer->shadow_slot_for_light(lightId);
+                                const bool castsShadow = light.castsShadow;
+                                const char* statusLabel = nullptr;
+                                if (!castsShadow) {
+                                    statusLabel = "Disabled";
+                                } else if (slotIndex.has_value()) {
+                                    statusLabel = "Active";
+                                } else if (shadowCapacity == 0U) {
+                                    statusLabel = "Unavailable";
+                                } else {
+                                    statusLabel = "Queued";
+                                }
+
+                                ImGui::TableSetColumnIndex(1);
+                                ImGui::TextUnformatted(statusLabel);
+
+                                ImGui::TableSetColumnIndex(2);
+                                if (slotIndex.has_value()) {
+                                    ImGui::Text("#%u", slotIndex.value() + 1U);
+                                } else {
+                                    ImGui::TextUnformatted("—");
+                                }
+
+                                ImGui::TableSetColumnIndex(3);
+                                if (castsShadow) {
+                                    ImGui::Text("#%zu", casterOrder + 1U);
+                                    ++casterOrder;
+                                } else {
+                                    ImGui::TextUnformatted("—");
+                                }
+                            }
+
+                            ImGui::EndTable();
+                        }
+                    } else {
+                        ImGui::TextUnformatted("No directional lights available.");
+                    }
+                }
+
                 std::size_t lightIndex {0U};
                 while (lightIndex < lightRegistry.size()) {
                     const scene::LightId id {static_cast<std::uint32_t>(lightIndex)};
@@ -345,25 +443,6 @@ int Application::run() noexcept {
                             }
                         }
 
-                        ImGui::TreePop();
-                    }
-                    if (ImGui::TreeNode("Shadows")) {
-                        bool shadowsEnabled = renderer->shadows_enabled();
-                        if (ImGui::Checkbox("Enable Shadows", &shadowsEnabled)) {
-                            renderer->set_shadows_enabled(shadowsEnabled);
-                        }
-                        float bias = renderer->shadow_bias();
-                        if (ImGui::SliderFloat("Depth Bias", &bias, 0.0F, 0.01F)) {
-                            renderer->set_shadow_bias(bias);
-                        }
-                        float radius = renderer->shadow_pcf_radius();
-                        if (ImGui::SliderFloat("PCF Radius", &radius, 0.0F, 4.0F)) {
-                            renderer->set_shadow_pcf_radius(radius);
-                        }
-                        bool showShadow = renderer->shadow_debug_enabled();
-                        if (ImGui::Checkbox("Debug Shadow Map", &showShadow)) {
-                            renderer->set_shadow_debug_enabled(showShadow);
-                        }
                         ImGui::TreePop();
                     }
                     ImGui::PopID();
