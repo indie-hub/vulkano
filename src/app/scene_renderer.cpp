@@ -5,6 +5,8 @@
 #include <vulkano/app/material_buffer.hpp>
 #include <vulkano/app/material_texture_cache.hpp>
 #include <vulkano/app/light_buffer.hpp>
+#include <vulkano/app/shadow_map.hpp>
+#include <vulkano/app/shadow_pass.hpp>
 
 #include <vulkano/vk/depth_format.hpp>
 #include <vulkano/vk/depth_image.hpp>
@@ -181,12 +183,14 @@ SceneRenderer::SceneRenderer(const VulkanContext& context, const Window& window,
     create_graphics_pipeline();
     create_color_resources();
     create_depth_resources();
+    create_shadow_resources();
     create_framebuffers();
     create_light_debug_mesh();
 
 }
 
 SceneRenderer::~SceneRenderer() noexcept {
+    destroy_shadow_resources();
     destroy_meshes();
     destroy_framebuffers();
     destroy_color_resources();
@@ -1022,10 +1026,27 @@ void SceneRenderer::destroy_light_descriptors() noexcept {
 void SceneRenderer::create_depth_resources() {
     m_depthImage = vk::DepthImage::create(
         m_context.physical_device(), m_context.device(), m_context.swapchain_extent(), m_depthFormat);
+    create_shadow_resources();
 }
 
 void SceneRenderer::destroy_depth_resources() noexcept {
     m_depthImage = vk::DepthImage {};
+}
+
+void SceneRenderer::create_shadow_resources() {
+    m_shadowFormat = VK_FORMAT_D32_SFLOAT;
+    if (m_shadowMap.render_pass() == VK_NULL_HANDLE) {
+        m_shadowMap = ShadowMap {m_context, m_shadowExtent, m_shadowFormat};
+        m_shadowPass = ShadowPass {m_context, m_shadowMap.render_pass()};
+    } else {
+        m_shadowMap.recreate(m_context, m_shadowExtent, m_shadowFormat);
+        m_shadowPass.recreate(m_context, m_shadowMap.render_pass());
+    }
+}
+
+void SceneRenderer::destroy_shadow_resources() noexcept {
+    m_shadowPass = ShadowPass {};
+    m_shadowMap = ShadowMap {};
 }
 
 void SceneRenderer::upload_mesh(const SceneMesh& mesh) {
@@ -1086,6 +1107,21 @@ void SceneRenderer::upload_mesh(const SceneMesh& mesh) {
     vkUnmapMemory(device, gpuMesh.indexMemory);
 
 m_meshes.push_back(gpuMesh);
+}
+
+void SceneRenderer::record_shadow_pass(VkCommandBuffer commandBuffer, const glm::mat4& lightViewProjection) const {
+    std::vector<ShadowDrawCommand> commands;
+    commands.reserve(m_meshes.size());
+    for (const GpuMesh& mesh : m_meshes) {
+        ShadowDrawCommand command {};
+        command.vertexBuffer = mesh.vertexBuffer;
+        command.indexBuffer = mesh.indexBuffer;
+        command.indexCount = mesh.indexCount;
+        command.model = mesh.model;
+        commands.push_back(command);
+    }
+
+    m_shadowPass.record(commandBuffer, m_shadowMap, lightViewProjection, commands);
 }
 
 void SceneRenderer::create_light_debug_mesh() {

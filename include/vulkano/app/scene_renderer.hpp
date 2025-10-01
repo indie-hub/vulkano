@@ -12,6 +12,8 @@
 #include <vulkano/scene/mesh.hpp>
 #include <vulkano/vk/color_image.hpp>
 #include <vulkano/vk/depth_image.hpp>
+#include <vulkano/app/shadow_map.hpp>
+#include <vulkano/app/shadow_pass.hpp>
 
 namespace vulkano::app {
 class VulkanContext;
@@ -40,6 +42,7 @@ public:
     void set_material_resources(const MaterialBuffer& buffer, const MaterialTextureCache& textures);
     void set_light_resources(const LightBuffer& buffer, const scene::LightRegistry& registry);
     void set_show_light_debug(bool enabled) noexcept;
+    void record_shadow_pass(VkCommandBuffer commandBuffer, const glm::mat4& lightViewProjection) const;
 
     [[nodiscard]] VkRenderPass render_pass() const noexcept;
     [[nodiscard]] VkPipeline pipeline() const noexcept;
@@ -93,6 +96,8 @@ private:
     void destroy_light_descriptors() noexcept;
     void create_light_debug_mesh();
     void destroy_light_debug_mesh() noexcept;
+    void create_shadow_resources();
+    void destroy_shadow_resources() noexcept;
 
     void upload_mesh(const SceneMesh& mesh);
 
@@ -106,6 +111,7 @@ private:
     VkFormat m_depthFormat {VK_FORMAT_UNDEFINED};
     VkFormat m_albedoFormat {VK_FORMAT_R8G8B8A8_UNORM};
     VkFormat m_normalFormat {VK_FORMAT_R8G8B8A8_UNORM};
+    VkFormat m_shadowFormat {VK_FORMAT_D32_SFLOAT};
     vk::DepthImage m_depthImage;
     vk::ColorImage m_albedoImage;
     vk::ColorImage m_normalImage;
@@ -125,5 +131,8 @@ private:
     glm::vec3 m_lightDirection {0.0F, -1.0F, 0.0F};
     glm::vec3 m_lightColor {1.0F, 1.0F, 1.0F};
     float m_lightIntensity {1.0F};
+    ShadowMap m_shadowMap;
+    ShadowPass m_shadowPass;
+    VkExtent2D m_shadowExtent {2048U, 2048U};
 };
 } // namespace vulkano::app

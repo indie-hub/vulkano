@@ -26,8 +26,10 @@ public:
     [[nodiscard]] VkDescriptorImageInfo descriptor_info() const noexcept;
 
 private:
-    void destroy(const VulkanContext& context) noexcept;
+    void destroy() noexcept;
     void create_shadow_resources(const VulkanContext& context, VkExtent2D extent, VkFormat depthFormat);
+
+    const VulkanContext* m_context {nullptr};
 
     VkRenderPass m_renderPass {VK_NULL_HANDLE};
     VkFramebuffer m_framebuffer {VK_NULL_HANDLE};
@@ -36,4 +38,3 @@ private:
     VkExtent2D m_extent {0U, 0U};
 };
 } // namespace vulkano::app
-
