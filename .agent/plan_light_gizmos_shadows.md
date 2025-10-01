@@ -368,3 +368,9 @@
    - **Tooling:**
      - Ensure headless integration test runs under `ctest` with deterministic seed.
      - Document need for GPU validation layers (VK_LAYER_KHRONOS_validation) during manual runs to catch descriptor mismatches.
+
+## Plan Readiness Review
+- Goals A through G now cover gizmo handling, shadow resource design, descriptor/shader updates, command recording, UI/QA, and testing/performance considerations needed for multi-caster support.
+- Identified risks: memory footprint increases (~48 MB) and potential frame-time impact when all three shadow passes execute. Mitigations include profiling plan and configurable caster cap.
+- Dependencies: implementation will require new data structures (`ShadowResources`, extended `LightGpu`), shader edits, descriptor layout changes, and additional tests as outlined.
+- Ready to transition into implementation by following the goal sequence, starting with ShadowResources pool integration.
