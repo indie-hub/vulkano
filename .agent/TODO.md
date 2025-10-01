@@ -168,4 +168,4 @@
 - [x] Map registry changes to shadow slot assignments
 - [x] Extend compute_light_view_projection for multiple slots
 - [x] Plan shader inputs for multiple shadow matrices
-- [ ] Define fragment shader sampling logic for multiple casters
+- [x] Define fragment shader sampling logic for multiple casters
