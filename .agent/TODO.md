@@ -146,4 +146,5 @@
 - [x] Draft plan for multi-light gizmo coverage and per-light shadow matrices with acceptance criteria
 - [x] Capture runtime validation of per-light shadow toggles for QA notes
 - [x] Catalogue light gizmo lifecycle code paths in renderer
-- [ ] Model per-light gizmo storage abstractions
+- [x] Model per-light gizmo storage abstractions
+- [ ] Outline gizmo creation helper interfaces for per-light allocation

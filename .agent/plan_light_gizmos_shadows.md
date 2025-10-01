@@ -67,6 +67,16 @@
    - Design a lightweight struct keyed by `LightId` that owns GPU buffers for each gizmo.
    - Decide update strategy (rebuild whole list vs. incremental) based on registry churn.
    - *Acceptance:* New struct sketch recorded here with fields, ownership semantics, and update triggers.
+   - **Proposed data model:**
+     - Introduce `LightGizmoHandle` (struct) containing `scene::LightId id`, `DebugMesh mesh`, `glm::mat4 transform`, and `scene::LightType type` for quick dispatch.
+     - Store directional gizmos in a dedicated `std::optional<LightGizmoHandle>` to preserve the single-arrow pipeline while enabling multiple entries later.
+     - Maintain point gizmos in `std::vector<LightGizmoHandle>` keyed by stable registry indices; entries own their GPU buffers via the embedded `DebugMesh`.
+     - Track a `bool dirty` flag on each handle to allow lazy vertex updates when color/intensity changes without reallocating buffers.
+     - Manage a renderer-level `GizmoCache` struct with two collections (directional/point) plus helper methods `sync_from_registry(const scene::LightRegistry&)` and `release(VkDevice)`.
+   - **Update policy:**
+     - On `set_light_resources`, call `GizmoCache::sync_from_registry` which diffs registry contents against cached handles.
+     - Added lights allocate new buffers through shared helper factories; removed lights trigger buffer destruction via `release` on the handle.
+     - Directional gizmo updates mutate the existing handle in place (no reallocation) when the corresponding light remains but changes attributes.
 3. **Update gizmo creation logic**
    - Implement factory helpers that build directional and point gizmo vertex/index buffers on demand.
    - Ensure buffers honour existing memory allocation patterns (host visible staging or device local).
