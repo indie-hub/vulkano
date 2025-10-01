@@ -164,3 +164,4 @@
 - [x] Decide maximum supported casters and resource budget
 - [x] Design ShadowResources pool structure
 - [x] Plan descriptor layout changes for multi-caster shadows
+- [ ] Define caster prioritisation rules for limited shadow slots
