@@ -161,4 +161,4 @@
 - [x] Render point light gizmos from cache in command buffer
 - [x] Draft plan for multi-caster shadow map support
 - [x] Catalogue shadow resource ownership for single-caster implementation
-- [ ] Decide maximum supported casters and resource budget
+- [x] Decide maximum supported casters and resource budget
