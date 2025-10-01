@@ -240,11 +240,13 @@ void SceneRenderer::ShadowResources::initialise(
         slots.resize(maxSlots);
     }
 
+    activeCount = 0U;
     for (ShadowSlot& slot : slots) {
         slot.id = scene::LightId::invalid();
         slot.active = false;
         slot.dirtyMatrix = true;
         slot.viewProjection = glm::mat4(1.0F);
+        slot.priority = 0U;
         if (slot.map.render_pass() == VK_NULL_HANDLE) {
             slot.map = ShadowMap {context, extent, format};
             slot.pass = ShadowPass {context, slot.map.render_pass()};
@@ -269,6 +271,7 @@ void SceneRenderer::ShadowResources::release(const VulkanContext& context) noexc
         descriptorLayout = VK_NULL_HANDLE;
     }
 
+    activeCount = 0U;
     for (ShadowSlot& slot : slots) {
         slot.map = ShadowMap {};
         slot.pass = ShadowPass {};
@@ -276,8 +279,10 @@ void SceneRenderer::ShadowResources::release(const VulkanContext& context) noexc
         slot.active = false;
         slot.dirtyMatrix = true;
         slot.viewProjection = glm::mat4(1.0F);
+        slot.priority = 0U;
     }
     slots.clear();
+    activeCount = 0U;
     descriptorSet = VK_NULL_HANDLE;
 }
 
@@ -460,37 +465,71 @@ void SceneRenderer::set_light_resources(const LightBuffer& buffer, const scene::
     std::vector<DebugMesh> pointMeshes;
     std::vector<LightGizmoHandle> pointHandles;
 
-    std::optional<scene::LightId> primaryDirId {};
-    const scene::Light* primaryDirLight {nullptr};
+    struct DirectionalInfo {
+        scene::LightId id;
+        const scene::Light* light;
+    };
+
+    std::vector<DirectionalInfo> directionalLights;
+    std::vector<DirectionalInfo> shadowCasters;
+    directionalLights.reserve(registry.size());
+    shadowCasters.reserve(registry.size());
+
     for (std::size_t index {0U}; index < registry.size(); ++index) {
         const scene::LightId id {static_cast<std::uint32_t>(index)};
         const scene::Light& candidate = registry.light(id);
-        if (candidate.type == scene::LightType::Directional) {
-            if (primaryDirLight == nullptr || (!primaryDirLight->castsShadow && candidate.castsShadow)) {
-                primaryDirId = id;
-                primaryDirLight = &candidate;
-            }
+        if (candidate.type != scene::LightType::Directional) {
+            continue;
+        }
+        directionalLights.push_back(DirectionalInfo {id, &candidate});
+        if (candidate.castsShadow) {
+            shadowCasters.push_back(DirectionalInfo {id, &candidate});
         }
     }
 
-    ShadowSlot& primarySlot = m_shadowResources.slot(0);
-    primarySlot.id = scene::LightId::invalid();
-    primarySlot.active = false;
-    primarySlot.dirtyMatrix = true;
+    const std::size_t maxSlots = m_shadowResources.slot_count();
+    const std::size_t activeSlots = std::min(maxSlots, shadowCasters.size());
+    for (std::size_t slotIndex {0U}; slotIndex < maxSlots; ++slotIndex) {
+        ShadowSlot& slot = m_shadowResources.slot(slotIndex);
+        if (slotIndex < activeSlots) {
+            const DirectionalInfo& info = shadowCasters[slotIndex];
+            const bool idChanged = slot.id != info.id;
+            slot.id = info.id;
+            slot.active = true;
+            slot.priority = static_cast<std::uint32_t>(info.id.value);
+            slot.dirtyMatrix = static_cast<bool>(slot.dirtyMatrix) || idChanged;
+        } else {
+            slot.id = scene::LightId::invalid();
+            slot.active = false;
+            slot.priority = 0U;
+            slot.dirtyMatrix = true;
+        }
+    }
+    m_shadowResources.activeCount = static_cast<std::uint32_t>(activeSlots);
 
-    if (primaryDirLight != nullptr && primaryDirId) {
-        const glm::vec3 dir = primaryDirLight->direction;
+    const DirectionalInfo* primaryInfo = nullptr;
+    if (!shadowCasters.empty()) {
+        primaryInfo = &shadowCasters.front();
+    } else if (!directionalLights.empty()) {
+        primaryInfo = &directionalLights.front();
+    }
+
+    if (primaryInfo != nullptr) {
+        const glm::vec3 dir = primaryInfo->light->direction;
         m_lightDirection = glm::length(dir) > 0.0F ? glm::normalize(dir) : glm::vec3 {0.0F, -1.0F, 0.0F};
-        m_lightColor = primaryDirLight->color;
-        m_lightIntensity = primaryDirLight->intensity;
-        m_primaryLightCastsShadow = primaryDirLight->castsShadow;
+        m_lightColor = primaryInfo->light->color;
+        m_lightIntensity = primaryInfo->light->intensity;
+        m_primaryLightCastsShadow = primaryInfo->light->castsShadow && activeSlots > 0U;
 
-        primarySlot.id = *primaryDirId;
-        primarySlot.active = primaryDirLight->castsShadow;
-        primarySlot.dirtyMatrix = true;
+        if (maxSlots > 0U) {
+            ShadowSlot& primarySlot = m_shadowResources.slot(0);
+            if (primarySlot.active) {
+                primarySlot.dirtyMatrix = true;
+            }
+        }
 
         LightGizmoHandle handle {};
-        handle.id = *primaryDirId;
+        handle.id = primaryInfo->id;
         handle.mesh = &m_lightDebugMesh;
         handle.type = scene::LightType::Directional;
         handle.transform = glm::mat4(1.0F);
@@ -506,12 +545,17 @@ void SceneRenderer::set_light_resources(const LightBuffer& buffer, const scene::
         m_lightColor = glm::vec3 {1.0F, 1.0F, 1.0F};
         m_lightIntensity = 1.0F;
         m_primaryLightCastsShadow = false;
-        primarySlot.active = false;
+        if (maxSlots > 0U) {
+            ShadowSlot& primarySlot = m_shadowResources.slot(0);
+            primarySlot.id = scene::LightId::invalid();
+            primarySlot.active = false;
+            primarySlot.dirtyMatrix = true;
+        }
         m_gizmoCache.directional.reset();
     }
 
     if (m_lightDebugMesh.vertexMemory != VK_NULL_HANDLE) {
-        const glm::vec3 arrowColor = primaryDirLight != nullptr ? primaryDirLight->color : glm::vec3 {1.0F, 1.0F, 0.0F};
+        const glm::vec3 arrowColor = primaryInfo != nullptr ? primaryInfo->light->color : glm::vec3 {1.0F, 1.0F, 0.0F};
         std::array<Vertex, 5> vertices = {
             Vertex {.position = glm::vec3 {0.0F, 0.5F, 0.0F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
                 .color = arrowColor, .uv = glm::vec2 {0.0F, 0.0F}, .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}},
@@ -690,26 +734,27 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
     if (lightMatrixOpt) {
         record_shadow_pass(commandBuffer, *lightMatrixOpt);
 
-        VkImageMemoryBarrier barrier {};
-        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        barrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        barrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
-        barrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
-        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        if (!m_shadowResources.empty()) {
-            barrier.image = m_shadowResources.slot(0).map.image();
-        } else {
-            barrier.image = VK_NULL_HANDLE;
-        }
-        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-        barrier.subresourceRange.baseMipLevel = 0U;
-        barrier.subresourceRange.levelCount = 1U;
-        barrier.subresourceRange.baseArrayLayer = 0U;
-        barrier.subresourceRange.layerCount = 1U;
+        for (std::uint32_t slotIndex {0U}; slotIndex < m_shadowResources.activeCount; ++slotIndex) {
+            const ShadowSlot& slot = m_shadowResources.slot(slotIndex);
+            if (!slot.active) {
+                continue;
+            }
 
-        if (barrier.image != VK_NULL_HANDLE) {
+            VkImageMemoryBarrier barrier {};
+            barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            barrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            barrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+            barrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+            barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            barrier.image = slot.map.image();
+            barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+            barrier.subresourceRange.baseMipLevel = 0U;
+            barrier.subresourceRange.levelCount = 1U;
+            barrier.subresourceRange.baseArrayLayer = 0U;
+            barrier.subresourceRange.layerCount = 1U;
+
             vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
                 VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0U, 0U, nullptr, 0U, nullptr, 1U, &barrier);
         }
@@ -1417,7 +1462,8 @@ void SceneRenderer::destroy_depth_resources() noexcept {
 }
 
 void SceneRenderer::create_shadow_resources() {
-    m_shadowResources.initialise(m_context, m_shadowExtent, m_shadowFormat, 1U);
+    constexpr std::size_t maxShadowCasters {3U};
+    m_shadowResources.initialise(m_context, m_shadowExtent, m_shadowFormat, maxShadowCasters);
 }
 
 void SceneRenderer::destroy_shadow_resources() noexcept {
