@@ -166,4 +166,4 @@
 - [x] Plan descriptor layout changes for multi-caster shadows
 - [x] Define caster prioritisation rules for limited shadow slots
 - [x] Map registry changes to shadow slot assignments
-- [ ] Extend compute_light_view_projection for multiple slots
+- [x] Extend compute_light_view_projection for multiple slots
