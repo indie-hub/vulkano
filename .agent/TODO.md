@@ -163,4 +163,4 @@
 - [x] Catalogue shadow resource ownership for single-caster implementation
 - [x] Decide maximum supported casters and resource budget
 - [x] Design ShadowResources pool structure
-- [ ] Plan descriptor layout changes for multi-caster shadows
+- [x] Plan descriptor layout changes for multi-caster shadows
