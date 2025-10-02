@@ -192,4 +192,6 @@
 - [x] Draft Assimp integration plan (see .agent/plan_assimp.md) — updated with detailed baby steps
 - [x] Integrate Assimp build dependencies
 - [x] Implement Assimp asset import pipeline (mesh/material conversion done)
-- [ ] Validate runtime loading with tests and docs (in progress)
+- [x] Validate runtime loading with tests and docs (tests complete; docs pending)
+
+- [ ] Document Assimp usage in README/CHANGELOG
