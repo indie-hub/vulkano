@@ -91,6 +91,10 @@ int Application::run() noexcept {
         sphereMaterial.useBaseColorTexture = true;
         sphereMaterial.useNormalTexture = true;
         sphereMaterial.textures.normalPath = "assets/textures/metal_normal.png";
+        sphereMaterial.textures.surfacePropertiesPath = "assets/materials/demo_surface.tga";
+        sphereMaterial.useSurfacePropertiesTexture = true;
+        sphereMaterial.useMetallicRoughnessTexture = false;
+        sphereMaterial.useAmbientOcclusionTexture = false;
         const scene::MaterialId sphereMaterialId = materialRegistry.add_material(sphereMaterial);
 
         std::vector<SceneRenderer::SceneMesh> sceneMeshes {
