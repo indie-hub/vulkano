@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <string_view>
 #include <vector>
 
 #include <glm/vec4.hpp>
@@ -37,7 +38,7 @@ struct TextureData final {
     TextureColorSpace colorSpace, bool flipVertical = true);
 
 [[nodiscard]] TextureData load_texture_from_memory(const std::uint8_t* data, std::size_t size,
-    TextureColorSpace colorSpace, bool flipVertical = true);
+    TextureColorSpace colorSpace, bool flipVertical = true, std::string_view formatHint = {});
 
 [[nodiscard]] TextureData make_solid_texture(const glm::vec4& color, TextureColorSpace colorSpace);
 

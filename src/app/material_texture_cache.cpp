@@ -48,6 +48,13 @@ void MaterialTextureCache::rebuild(const scene::MaterialRegistry& registry,
     const std::size_t materialCount = registry.size();
     m_handles.reserve(materialCount);
 
+    const std::uint32_t baseFallbackIndex = ensure_color_texture(glm::vec4 {1.0F, 1.0F, 1.0F, 1.0F},
+        TextureColorSpace::sRGB, "filler-base");
+    const std::uint32_t normalFallback = ensure_color_texture(glm::vec4 {0.5F, 0.5F, 1.0F, 1.0F},
+        TextureColorSpace::Linear, "filler-normal");
+    const std::uint32_t surfaceFallback = ensure_color_texture(glm::vec4 {0.0F, 1.0F, 1.0F, 1.0F},
+        TextureColorSpace::Linear, "filler-surface");
+
     for (std::size_t index {0U}; index < materialCount; ++index) {
         const scene::Material& material = registry.material(scene::MaterialId {static_cast<std::uint32_t>(index)});
         scene::MaterialTextureHandles handles {};
@@ -72,37 +79,27 @@ void MaterialTextureCache::rebuild(const scene::MaterialRegistry& registry,
             return fallback;
         };
 
-        const glm::vec4 baseColorValue {material.properties.baseColor, 1.0F};
-        const std::uint32_t baseFallback = ensure_color_texture(baseColorValue, TextureColorSpace::sRGB, "base");
         handles.baseColor = material.useBaseColorTexture
-            ? load_texture_handle(material.textures.baseColorPath, TextureColorSpace::sRGB, baseFallback)
-            : baseFallback;
+            ? load_texture_handle(material.textures.baseColorPath, TextureColorSpace::sRGB, baseFallbackIndex)
+            : baseFallbackIndex;
 
-        const glm::vec4 normalColor {0.5F, 0.5F, 1.0F, 1.0F};
-        const std::uint32_t normalFallback = ensure_color_texture(normalColor, TextureColorSpace::Linear, "normal");
         handles.normal = material.useNormalTexture
             ? load_texture_handle(material.textures.normalPath, TextureColorSpace::Linear, normalFallback)
             : normalFallback;
 
-        const glm::vec4 metalRoughValue {material.properties.metallic, material.properties.roughness, 0.0F, 1.0F};
-        const std::uint32_t metalRoughFallback = ensure_color_texture(metalRoughValue, TextureColorSpace::Linear, "metalrough");
-        const float ao = material.properties.ambientOcclusion;
-        const glm::vec4 aoValue {ao, ao, ao, 1.0F};
-        const std::uint32_t aoFallback = ensure_color_texture(aoValue, TextureColorSpace::Linear, "ao");
-
         if (material.useSurfacePropertiesTexture && !material.textures.surfacePropertiesPath.empty()) {
-            const std::uint32_t handle = load_texture_handle(material.textures.surfacePropertiesPath, TextureColorSpace::Linear,
-                metalRoughFallback);
+            const std::uint32_t handle = load_texture_handle(material.textures.surfacePropertiesPath,
+                TextureColorSpace::Linear, surfaceFallback);
             handles.metallicRoughness = handle;
             handles.ambientOcclusion = handle;
         } else {
             handles.metallicRoughness = material.useMetallicRoughnessTexture
-                ? load_texture_handle(material.textures.metallicRoughnessPath, TextureColorSpace::Linear, metalRoughFallback)
-                : metalRoughFallback;
+                ? load_texture_handle(material.textures.metallicRoughnessPath, TextureColorSpace::Linear, surfaceFallback)
+                : surfaceFallback;
 
             handles.ambientOcclusion = material.useAmbientOcclusionTexture
-                ? load_texture_handle(material.textures.ambientOcclusionPath, TextureColorSpace::Linear, aoFallback)
-                : aoFallback;
+                ? load_texture_handle(material.textures.ambientOcclusionPath, TextureColorSpace::Linear, surfaceFallback)
+                : surfaceFallback;
         }
 
         m_handles.push_back(handles);
