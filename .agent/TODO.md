@@ -188,3 +188,8 @@
 - [x] Implement metallic and occlusion texture data pipeline
 - [x] Extend shaders and material buffer for metallic/occlusion sampling
 - [x] Update ImGui/material workflows and tests for metallic/occlusion maps
+
+- [x] Draft Assimp integration plan (see .agent/plan_assimp.md)
+- [ ] Integrate Assimp build dependencies
+- [ ] Implement Assimp asset import pipeline
+- [ ] Validate runtime loading with tests and docs
