@@ -65,7 +65,6 @@ TextureData load_texture_from_file(const std::filesystem::path& path, TextureCol
     if (!std::filesystem::exists(path)) {
         throw std::runtime_error {"Texture file not found: " + path.string()};
     }
-
     stbi_set_flip_vertically_on_load(flipVertical ? 1 : 0);
     int width {0};
     int height {0};
@@ -86,6 +85,34 @@ TextureData load_texture_from_file(const std::filesystem::path& path, TextureCol
     stbi_image_free(pixels);
 
     return data;
+}
+
+TextureData load_texture_from_memory(const std::uint8_t* data, std::size_t size, TextureColorSpace colorSpace,
+    bool flipVertical) {
+    if (data == nullptr || size == 0U) {
+        throw std::invalid_argument {"Embedded texture data is empty"};
+    }
+    stbi_set_flip_vertically_on_load(flipVertical ? 1 : 0);
+    int width {0};
+    int height {0};
+    int components {0};
+    constexpr int desiredComponents {4};
+    stbi_uc* pixels = stbi_load_from_memory(reinterpret_cast<const stbi_uc*>(data), static_cast<int>(size), &width, &height,
+        &components, desiredComponents);
+    if (pixels == nullptr) {
+        throw std::runtime_error {"Failed to load embedded texture: " + std::string {stbi_failure_reason()}};
+    }
+
+    TextureData texture {};
+    texture.width = static_cast<std::uint32_t>(width);
+    texture.height = static_cast<std::uint32_t>(height);
+    texture.channels = TextureChannels::RGBA;
+    texture.colorSpace = colorSpace;
+    const std::size_t pixelCount = static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * desiredComponents;
+    texture.pixels.assign(pixels, pixels + pixelCount);
+    stbi_image_free(pixels);
+
+    return texture;
 }
 
 TextureData make_solid_texture(const glm::vec4& color, TextureColorSpace colorSpace) {

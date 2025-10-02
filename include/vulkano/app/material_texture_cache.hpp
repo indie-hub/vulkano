@@ -25,7 +25,8 @@ public:
     MaterialTextureCache(MaterialTextureCache&&) noexcept = delete;
     MaterialTextureCache& operator=(MaterialTextureCache&&) noexcept = delete;
 
-    void rebuild(const scene::MaterialRegistry& registry);
+    void rebuild(const scene::MaterialRegistry& registry,
+        const std::unordered_map<std::string, TextureData>* embeddedTextures = nullptr);
 
     [[nodiscard]] const std::vector<scene::MaterialTextureHandles>& handles() const noexcept;
     [[nodiscard]] const std::vector<VkDescriptorImageInfo>& descriptor_infos() const noexcept;
@@ -45,6 +46,7 @@ private:
 
     std::vector<TextureSlot> m_textures;
     std::unordered_map<std::string, std::uint32_t> m_lookup;
+    std::unordered_map<std::string, TextureData> m_embedded;
     std::vector<scene::MaterialTextureHandles> m_handles;
     mutable std::vector<VkDescriptorImageInfo> m_descriptorInfos;
 };

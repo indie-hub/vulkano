@@ -8,6 +8,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#include <iostream>
+
 namespace vulkano::app {
 namespace {
 [[nodiscard]] glm::mat4 to_glm(const aiMatrix4x4& m) noexcept {
@@ -30,6 +32,45 @@ namespace {
 [[nodiscard]] glm::vec3 to_vec3(const aiVector3D& vec) noexcept {
     return glm::vec3 {vec.x, vec.y, vec.z};
 }
+
+[[nodiscard]] std::string embedded_key(const aiTexture& texture, unsigned int index) {
+    if (texture.mFilename.length > 0) {
+        return texture.mFilename.C_Str();
+    }
+    return "*" + std::to_string(index);
+}
+
+[[nodiscard]] TextureData load_embedded_texture(const aiTexture& texture) {
+    if (texture.mHeight == 0U) {
+        const std::size_t byteCount = static_cast<std::size_t>(texture.mWidth);
+        if (byteCount == 0U) {
+            throw std::runtime_error {"Embedded texture is empty"};
+        }
+
+        const auto* rawBytes = reinterpret_cast<const std::uint8_t*>(texture.pcData);
+        return load_texture_from_memory(rawBytes, byteCount, TextureColorSpace::sRGB, false);
+    }
+
+    if (texture.mWidth == 0U) {
+        throw std::runtime_error {"Embedded texture has zero dimensions"};
+    }
+
+    TextureData data {};
+    data.width = texture.mWidth;
+    data.height = texture.mHeight;
+    data.channels = TextureChannels::RGBA;
+    data.colorSpace = TextureColorSpace::sRGB;
+    const std::size_t pixelCount = static_cast<std::size_t>(data.width) * static_cast<std::size_t>(data.height);
+    data.pixels.resize(pixelCount * 4U);
+    for (std::size_t idx {0U}; idx < pixelCount; ++idx) {
+        const aiTexel& texel = texture.pcData[idx];
+        data.pixels[idx * 4U + 0U] = texel.r;
+        data.pixels[idx * 4U + 1U] = texel.g;
+        data.pixels[idx * 4U + 2U] = texel.b;
+        data.pixels[idx * 4U + 3U] = texel.a;
+    }
+    return data;
+}
 } // namespace
 
 ImportedScene AssetImporter::load_scene(std::string_view path) const {
@@ -43,6 +84,23 @@ ImportedScene AssetImporter::load_scene(std::string_view path) const {
     }
 
     ImportedScene result {};
+
+    result.embeddedTextures.clear();
+    result.embeddedTextures.reserve(scene->mNumTextures);
+    for (unsigned int textureIndex {0U}; textureIndex < scene->mNumTextures; ++textureIndex) {
+        const aiTexture* texture = scene->mTextures[textureIndex];
+        if (texture == nullptr) {
+            continue;
+        }
+        const std::string key = embedded_key(*texture, textureIndex);
+        try {
+            result.embeddedTextures.emplace(key, load_embedded_texture(*texture));
+        } catch (const std::exception& ex) {
+            std::clog << "Failed to decode embedded texture '" << key << "': " << ex.what() << "\n";
+            result.embeddedTextures.emplace(key, make_solid_texture(glm::vec4 {1.0F, 1.0F, 1.0F, 1.0F}, TextureColorSpace::sRGB));
+        }
+    }
+
     result.materials.reserve(scene->mNumMaterials);
     for (unsigned int index {0U}; index < scene->mNumMaterials; ++index) {
         result.materials.push_back(import_material(*scene->mMaterials[index]));
@@ -95,7 +153,12 @@ ImportedMaterial AssetImporter::import_material(const aiMaterial& material) {
     auto extract_path = [&material](aiTextureType type, std::string& destination, bool& usageFlag) {
         aiString texturePath;
         if (material.GetTextureCount(type) > 0 && material.GetTexture(type, 0, &texturePath) == aiReturn_SUCCESS) {
-            destination = texturePath.C_Str();
+            const std::string raw = texturePath.C_Str();
+            if (!raw.empty() && raw.front() == '*') {
+                destination = raw;
+            } else {
+                destination = raw;
+            }
             usageFlag = true;
         }
     };

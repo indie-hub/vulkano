@@ -8,6 +8,7 @@
 #include <vulkano/app/asset_importer.hpp>
 #include <vulkano/app/material_buffer.hpp>
 #include <vulkano/app/material_texture_cache.hpp>
+#include <vulkano/app/texture_loader.hpp>
 #include <vulkano/app/light_buffer.hpp>
 #include <vulkano/app/ssao.hpp>
 #include <vulkano/app/scene_renderer.hpp>
@@ -31,6 +32,7 @@
 #include <cstring>
 #include <exception>
 #include <iostream>
+#include <unordered_map>
 #include <limits>
 #include <memory>
 #include <stdexcept>
@@ -55,6 +57,7 @@ int Application::run() noexcept {
         scene::MaterialRegistry materialRegistry {};
         MaterialBuffer materialBuffer {context};
         MaterialTextureCache materialTextures {context};
+        std::unordered_map<std::string, TextureData> embeddedTextures {};
         scene::LightRegistry lightRegistry {};
         LightBuffer lightBuffer {context};
 
@@ -128,6 +131,10 @@ int Application::run() noexcept {
                     importedMaterialIds.push_back(materialRegistry.add_material(importedMaterial.material));
                 }
 
+                embeddedTextures.insert(imported.embeddedTextures.begin(), imported.embeddedTextures.end());
+                materialTextures.rebuild(materialRegistry, &embeddedTextures);
+                materialBuffer.update(materialRegistry, materialTextures.handles());
+
                 for (ImportedMesh& importedMesh : imported.meshes) {
                     SceneRenderer::SceneMesh meshEntry {};
                     meshEntry.mesh = std::move(importedMesh.mesh);
@@ -146,7 +153,7 @@ int Application::run() noexcept {
             }
         }
 
-        materialTextures.rebuild(materialRegistry);
+        materialTextures.rebuild(materialRegistry, &embeddedTextures);
         materialBuffer.update(materialRegistry, materialTextures.handles());
         bool materialsDirty = false;
         bool lightsDirty = false;
@@ -214,6 +221,8 @@ int Application::run() noexcept {
 
             renderer = std::make_unique<SceneRenderer>(context, window, ssaoComposite->layout());
             renderer->set_scene(sceneMeshes);
+            materialTextures.rebuild(materialRegistry, &embeddedTextures);
+            materialBuffer.update(materialRegistry, materialTextures.handles());
             renderer->set_material_resources(materialBuffer, materialTextures);
             renderer->set_light_resources(lightBuffer, lightRegistry);
             renderer->set_show_light_debug(showLightDebug);
@@ -617,7 +626,7 @@ int Application::run() noexcept {
 
             if (materialsDirty) {
                 context.wait_idle();
-                materialTextures.rebuild(materialRegistry);
+                materialTextures.rebuild(materialRegistry, &embeddedTextures);
                 materialBuffer.update(materialRegistry, materialTextures.handles());
                 renderer->set_material_resources(materialBuffer, materialTextures);
                 materialsDirty = false;
