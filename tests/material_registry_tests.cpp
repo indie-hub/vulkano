@@ -21,6 +21,8 @@ TEST_CASE("Material registry exposes default material") {
 
     const vulkano::scene::Material& material = registry.material(defaultId);
     REQUIRE(material.textures.baseColorPath.empty());
+    REQUIRE(material.textures.surfacePropertiesPath.empty());
+    REQUIRE_FALSE(material.useSurfacePropertiesTexture);
     using Catch::Matchers::WithinAbs;
     REQUIRE_THAT(material.properties.metallic, WithinAbs(0.0F, epsilon));
     REQUIRE_THAT(material.properties.roughness, WithinAbs(0.5F, epsilon));
@@ -41,6 +43,8 @@ TEST_CASE("Material registry allocates stable ids") {
     polishedMetal.properties.baseColor = glm::vec3 {0.8F, 0.85F, 0.9F};
     polishedMetal.properties.metallic = 1.0F;
     polishedMetal.properties.roughness = 0.1F;
+    polishedMetal.useSurfacePropertiesTexture = true;
+    polishedMetal.textures.surfacePropertiesPath = "metal_surface.ktx";
 
     const vulkano::scene::MaterialId matteId = registry.add_material(matteRed);
     const vulkano::scene::MaterialId metalId = registry.add_material(polishedMetal);
@@ -55,6 +59,7 @@ TEST_CASE("Material registry allocates stable ids") {
     using Catch::Matchers::WithinAbs;
     REQUIRE_THAT(storedMatte.properties.baseColor.r, WithinAbs(0.9F, epsilon));
     REQUIRE_THAT(storedMetal.properties.metallic, WithinAbs(1.0F, epsilon));
+    REQUIRE(storedMetal.useSurfacePropertiesTexture);
 
     vulkano::scene::Material tunedMatte = matteRed;
     tunedMatte.properties.roughness = 0.6F;

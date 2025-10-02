@@ -187,4 +187,4 @@
 - [x] Draft metallic and occlusion map enhancement plan (see .agent/plan_metallic_occlusion.md)
 - [x] Implement metallic and occlusion texture data pipeline
 - [x] Extend shaders and material buffer for metallic/occlusion sampling
-- [ ] Update ImGui/material workflows and tests for metallic/occlusion maps
+- [x] Update ImGui/material workflows and tests for metallic/occlusion maps

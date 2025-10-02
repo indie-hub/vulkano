@@ -496,6 +496,26 @@ int Application::run() noexcept {
                         ImGui::TextWrapped("%s", editable.textures.baseColorPath.empty() ? "<none>"
                             : editable.textures.baseColorPath.c_str());
 
+                        ImGui::Separator();
+
+                        bool useSurface = editable.useSurfacePropertiesTexture;
+                        if (ImGui::Checkbox("Use Surface Map (Metallic/Roughness/AO)", &useSurface)) {
+                            editable.useSurfacePropertiesTexture = useSurface;
+                            if (useSurface) {
+                                editable.useMetallicRoughnessTexture = false;
+                                editable.useAmbientOcclusionTexture = false;
+                            }
+                            materialsDirty = true;
+                        }
+                        ImGui::TextWrapped("Surface texture: %s",
+                            editable.textures.surfacePropertiesPath.empty() ? "<none>"
+                                                                           : editable.textures.surfacePropertiesPath.c_str());
+                        ImGui::ColorButton("##SurfacePreview",
+                            ImVec4(editable.properties.metallic, editable.properties.roughness,
+                                editable.properties.ambientOcclusion, 1.0F), 0, ImVec2(24.0F, 24.0F));
+                        ImGui::SameLine();
+                        ImGui::TextUnformatted("Surface Map Preview (R=Metallic, G=Roughness, B=AO)");
+
                         bool useNormal = editable.useNormalTexture;
                         if (ImGui::Checkbox("Use Normal Map", &useNormal)) {
                             editable.useNormalTexture = useNormal;
@@ -513,12 +533,16 @@ int Application::run() noexcept {
                             materialsDirty = true;
                         }
 
+                        const bool surfaceActive = editable.useSurfacePropertiesTexture;
+
                         if (!editable.textures.metallicRoughnessPath.empty()) {
+                            ImGui::BeginDisabled(surfaceActive);
                             bool useMr = editable.useMetallicRoughnessTexture;
                             if (ImGui::Checkbox("Use Metallic/Roughness Map", &useMr)) {
                                 editable.useMetallicRoughnessTexture = useMr;
                                 materialsDirty = true;
                             }
+                            ImGui::EndDisabled();
                             ImGui::TextWrapped("MR texture: %s", editable.textures.metallicRoughnessPath.c_str());
                             ImGui::ColorButton("##MRPreview",
                                 ImVec4(editable.properties.metallic, editable.properties.roughness, 0.0F, 1.0F), 0,
@@ -528,11 +552,13 @@ int Application::run() noexcept {
                         }
 
                         if (!editable.textures.ambientOcclusionPath.empty()) {
+                            ImGui::BeginDisabled(surfaceActive);
                             bool useAo = editable.useAmbientOcclusionTexture;
                             if (ImGui::Checkbox("Use Ambient Occlusion Map", &useAo)) {
                                 editable.useAmbientOcclusionTexture = useAo;
                                 materialsDirty = true;
                             }
+                            ImGui::EndDisabled();
                             ImGui::TextWrapped("AO texture: %s", editable.textures.ambientOcclusionPath.c_str());
                             ImGui::ColorButton("##AOPreview",
                                 ImVec4(editable.properties.ambientOcclusion, editable.properties.ambientOcclusion,
