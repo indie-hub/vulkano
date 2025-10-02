@@ -201,5 +201,5 @@
 - [ ] Validate embedded texture rendering and document workflow
 
 - [x] Draft plan for object transform parameter support (position, rotation, scale)
-- [ ] Implement object transform parameter support across CPU/GPU paths
-- [ ] Extend tests and documentation for transform parameter workflow
+- [x] Implement object transform parameter support across CPU/GPU paths
+- [x] Extend tests and documentation for transform parameter workflow

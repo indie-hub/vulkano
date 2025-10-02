@@ -22,6 +22,21 @@ data are ignored for now; only static meshes and materials are converted.
 
 If loading fails, the application logs an error with the Assimp message.
 
+### Editing Object Transforms
+Imported and built-in meshes now expose editable transforms in the **Objects**
+panel. Each entry provides:
+
+- Position controls (world-space metres) via `DragFloat3` sliders.
+- Rotation expressed in degrees (X/Y/Z, applied as intrinsic XYZ order).
+- Non-uniform scale sliders clamped to small positive values to avoid zero-sized
+  geometry.
+- A "Reset Transform" button that restores identity translation/rotation/scale.
+
+Any change marks the scene as dirty; the renderer rebuilds mesh buffers so that
+updated matrices drive both the lighting and shadow passes. Imported Assimp
+nodes preserve their original transforms and can be further adjusted through the
+UI.
+
 ## Descriptor Limits
 The renderer currently reserves 12 material texture slots per frame, leaving
 room for SSAO and shadow samplers on macOS (16 total sampler descriptors per

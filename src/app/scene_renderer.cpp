@@ -482,8 +482,9 @@ void SceneRenderer::set_scene(const std::vector<SceneMesh>& meshes) {
     m_meshes.reserve(meshes.size());
     for (const SceneMesh& mesh : meshes) {
         upload_mesh(mesh);
+        const glm::mat4 modelMatrix = mesh.transform.matrix();
         for (const scene::Vertex& vertex : mesh.mesh.vertices) {
-            const glm::vec4 worldPosition = mesh.model * glm::vec4(vertex.position, 1.0F);
+            const glm::vec4 worldPosition = modelMatrix * glm::vec4(vertex.position, 1.0F);
             minBounds = glm::min(minBounds, glm::vec3(worldPosition));
             maxBounds = glm::max(maxBounds, glm::vec3(worldPosition));
         }
@@ -1734,7 +1735,7 @@ void SceneRenderer::upload_mesh(const SceneMesh& mesh) {
     }
 
     GpuMesh gpuMesh {};
-    gpuMesh.model = mesh.model;
+    gpuMesh.model = mesh.transform.matrix();
     gpuMesh.indexCount = static_cast<std::uint32_t>(indices.size());
     gpuMesh.material = mesh.material;
 
