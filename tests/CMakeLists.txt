@@ -29,6 +29,7 @@ target_compile_definitions(vulkano_tests
         GLM_FORCE_RADIANS
         GLM_FORCE_DEPTH_ZERO_TO_ONE
         GLM_FORCE_RIGHT_HANDED
+        TEST_ASSET_DIR="${CMAKE_SOURCE_DIR}/tests/assets"
 )
 
 add_test(NAME vulkano_tests COMMAND vulkano_tests)
