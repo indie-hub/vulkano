@@ -48,6 +48,7 @@ TEST_CASE("Material GPU conversion clamps values") {
     REQUIRE_THAT(gpu.textureUsage.y, WithinAbs(0.0F, epsilon));
     REQUIRE_THAT(gpu.textureUsage.z, WithinAbs(1.0F, epsilon));
     REQUIRE_THAT(gpu.textureUsage.w, WithinAbs(1.0F, epsilon));
+    REQUIRE_THAT(gpu.surfaceMask.x, WithinAbs(0.0F, epsilon));
     REQUIRE_THAT(gpu.emissive.x, WithinAbs(0.2F, epsilon));
     REQUIRE_THAT(gpu.emissive.y, WithinAbs(0.3F, epsilon));
     REQUIRE_THAT(gpu.emissive.z, WithinAbs(0.4F, epsilon));
@@ -73,6 +74,7 @@ TEST_CASE("Material GPU surface texture toggles metallic and occlusion usage") {
     REQUIRE_THAT(gpu.textureUsage.w, WithinAbs(1.0F, epsilon));
     REQUIRE(gpu.textureIndices.z == 3U);
     REQUIRE(gpu.textureIndices.w == 3U);
+    REQUIRE_THAT(gpu.surfaceMask.x, WithinAbs(1.0F, epsilon));
     REQUIRE_THAT(gpu.roughnessAoStrength.x, WithinAbs(0.4F, epsilon));
     REQUIRE_THAT(gpu.roughnessAoStrength.y, WithinAbs(0.8F, epsilon));
 }

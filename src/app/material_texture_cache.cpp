@@ -1,6 +1,7 @@
 #include <vulkano/app/material_texture_cache.hpp>
 
 #include <vulkano/app/material_gpu.hpp>
+#include <vulkano/app/material_surface.hpp>
 #include <vulkano/app/texture_loader.hpp>
 #include <vulkano/app/texture_image.hpp>
 #include <vulkano/app/vulkan_context.hpp>
@@ -88,11 +89,8 @@ void MaterialTextureCache::rebuild(const scene::MaterialRegistry& registry) {
                 const TextureData data = load_texture_from_file(key, TextureColorSpace::Linear);
                 surfaceHandle = ensure_texture(key, data);
             } catch (const std::exception&) {
-                const float metallic = material.properties.metallic;
-                const float roughness = material.properties.roughness;
-                const float ambient = material.properties.ambientOcclusion;
-                surfaceHandle = ensure_color_texture(glm::vec4 {metallic, roughness, ambient, 1.0F},
-                    TextureColorSpace::Linear, "fallback-surface");
+                const glm::vec4 fallback = SurfaceDefaults::fallbackSurface;
+                surfaceHandle = ensure_color_texture(fallback, TextureColorSpace::Linear, "fallback-surface");
             }
             handles.metallicRoughness = surfaceHandle;
             handles.ambientOcclusion = surfaceHandle;
