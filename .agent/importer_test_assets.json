@@ -1,0 +1,12 @@
+{
+  "assets": [
+    {
+      "name": "hello_triangle",
+      "path": "tests/assets/hello_triangle.obj",
+      "materials": 1,
+      "meshes": 1,
+      "vertices": 3,
+      "indices": 3
+    }
+  ]
+}
