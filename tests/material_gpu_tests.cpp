@@ -54,6 +54,29 @@ TEST_CASE("Material GPU conversion clamps values") {
     REQUIRE_THAT(gpu.emissive.w, WithinAbs(1.5F, epsilon));
 }
 
+TEST_CASE("Material GPU surface texture toggles metallic and occlusion usage") {
+    vulkano::scene::Material material {};
+    material.useSurfacePropertiesTexture = true;
+    material.properties.metallic = 0.6F;
+    material.properties.roughness = 0.4F;
+    material.properties.ambientOcclusion = 0.8F;
+
+    vulkano::scene::MaterialTextureHandles handles {};
+    handles.baseColor = 1U;
+    handles.normal = 2U;
+    handles.metallicRoughness = 3U;
+    handles.ambientOcclusion = 3U;
+
+    const vulkano::app::MaterialGpu gpu = vulkano::app::make_material_gpu(material, handles);
+    using Catch::Matchers::WithinAbs;
+    REQUIRE_THAT(gpu.textureUsage.z, WithinAbs(1.0F, epsilon));
+    REQUIRE_THAT(gpu.textureUsage.w, WithinAbs(1.0F, epsilon));
+    REQUIRE(gpu.textureIndices.z == 3U);
+    REQUIRE(gpu.textureIndices.w == 3U);
+    REQUIRE_THAT(gpu.roughnessAoStrength.x, WithinAbs(0.4F, epsilon));
+    REQUIRE_THAT(gpu.roughnessAoStrength.y, WithinAbs(0.8F, epsilon));
+}
+
 TEST_CASE("Material descriptor bindings expose layout constants") {
     REQUIRE(vulkano::app::MaterialDescriptorBindings::materialBufferBinding == 0U);
     REQUIRE(vulkano::app::MaterialDescriptorBindings::textureArrayBinding == 1U);
