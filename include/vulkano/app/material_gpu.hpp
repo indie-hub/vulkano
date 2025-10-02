@@ -22,7 +22,7 @@ struct MaterialDescriptorBindings final {
     static constexpr std::uint32_t set {1U};
     static constexpr std::uint32_t materialBufferBinding {0U};
     static constexpr std::uint32_t textureArrayBinding {1U};
-    static constexpr std::uint32_t maxTextureSamplers {12U};
+    static constexpr std::uint32_t maxTextureSamplers {64U};
 };
 
 [[nodiscard]] MaterialGpu make_material_gpu(
