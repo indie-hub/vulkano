@@ -62,3 +62,25 @@ TEST_CASE("Transform euler angle helpers round-trip") {
     REQUIRE(actualDegrees.y == Catch::Approx(expectedDegrees.y).margin(1e-3F));
     REQUIRE(actualDegrees.z == Catch::Approx(expectedDegrees.z).margin(1e-3F));
 }
+
+TEST_CASE("Transform composition matches parent-child multiplication") {
+    vulkano::scene::Transform parent {};
+    parent.position = glm::vec3 {5.0F, 0.0F, 0.0F};
+    parent.set_euler_degrees(glm::vec3 {0.0F, 0.0F, 90.0F});
+
+    vulkano::scene::Transform child {};
+    child.position = glm::vec3 {0.0F, 2.0F, 0.0F};
+    child.scale = glm::vec3 {1.0F, 2.0F, 1.0F};
+
+    const glm::mat4 worldMatrix = parent.matrix() * child.matrix();
+    const glm::vec4 localPoint {0.0F, 1.0F, 0.0F, 1.0F};
+    const glm::vec4 worldPoint = worldMatrix * localPoint;
+
+    // Manual expectation: child translates by (0,2,0) and scales Y by 2 -> (0,4,0),
+    // parent rotates 90 degrees around Z and translates by (5,0,0) -> (1,0,0).
+    const glm::vec4 expectedPoint {1.0F, 0.0F, 0.0F, 1.0F};
+
+    REQUIRE(worldPoint.x == Catch::Approx(expectedPoint.x).margin(1e-4F));
+    REQUIRE(worldPoint.y == Catch::Approx(expectedPoint.y).margin(1e-4F));
+    REQUIRE(worldPoint.z == Catch::Approx(expectedPoint.z).margin(1e-4F));
+}
