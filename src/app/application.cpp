@@ -155,41 +155,37 @@ int Application::run() noexcept {
                 materialTextures.rebuild(materialRegistry, &embeddedTextures);
                 materialBuffer.update(materialRegistry, materialTextures.handles());
 
-                SceneRenderer::SceneNode importGroup {};
-                importGroup.name = imported.name.empty()
-                    ? std::filesystem::path(modelPath).filename().string()
-                    : imported.name;
-                importGroup.transform = imported.rootTransform;
+                std::function<SceneRenderer::SceneNode(const ImportedScene::Node&, std::uint32_t&)> buildSceneNode;
+                buildSceneNode = [&](const ImportedScene::Node& source, std::uint32_t& meshCounter) -> SceneRenderer::SceneNode {
+                    SceneRenderer::SceneNode node {};
+                    node.name = source.name;
+                    node.transform = source.transform;
+                    node.children.reserve(source.children.size() + source.meshes.size());
 
-                const glm::mat4 rootMatrix = importGroup.transform.matrix();
-                glm::mat4 rootInverse {1.0F};
-                const float det = glm::determinant(rootMatrix);
-                const bool invertible = std::abs(det) > std::numeric_limits<float>::epsilon();
-                if (invertible) {
-                    rootInverse = glm::inverse(rootMatrix);
-                }
-
-                std::size_t meshIndex {0U};
-                for (ImportedMesh& importedMesh : imported.meshes) {
-                    SceneRenderer::SceneNode meshNode {};
-                    meshNode.name = importedMesh.name.empty()
-                        ? "Mesh " + std::to_string(meshIndex)
-                        : importedMesh.name;
-                    const glm::mat4 worldMatrix = importedMesh.transform.matrix();
-                    const glm::mat4 localMatrix = invertible ? rootInverse * worldMatrix : worldMatrix;
-                    meshNode.transform = scene::Transform::from_matrix(localMatrix);
-                    meshNode.mesh = std::move(importedMesh.mesh);
-                    const std::uint32_t importedMaterialIndex = importedMesh.materialIndex;
-                    if (importedMaterialIndex < importedMaterialIds.size()) {
-                        meshNode.material = importedMaterialIds[importedMaterialIndex];
-                    } else {
-                        meshNode.material = materialRegistry.default_material_id();
+                    for (const ImportedMesh& importedMesh : source.meshes) {
+                        SceneRenderer::SceneNode meshNode {};
+                        meshNode.name = !importedMesh.name.empty()
+                            ? importedMesh.name
+                            : ("Mesh " + std::to_string(meshCounter++));
+                        meshNode.transform = scene::Transform::identity();
+                        meshNode.mesh = importedMesh.mesh;
+                        const std::uint32_t materialIndex = importedMesh.materialIndex;
+                        meshNode.material = materialIndex < importedMaterialIds.size()
+                            ? importedMaterialIds[materialIndex]
+                            : materialRegistry.default_material_id();
+                        node.children.push_back(std::move(meshNode));
                     }
-                    importGroup.children.push_back(std::move(meshNode));
-                    ++meshIndex;
-                }
 
-                sceneRoot.children.push_back(std::move(importGroup));
+                    for (const ImportedScene::Node& child : source.children) {
+                        node.children.push_back(buildSceneNode(child, meshCounter));
+                    }
+
+                    return node;
+                };
+
+                std::uint32_t meshCounter {0U};
+                SceneRenderer::SceneNode importedRoot = buildSceneNode(imported.root, meshCounter);
+                sceneRoot.children.push_back(std::move(importedRoot));
                 std::cout << "Imported model from '" << modelPath << "'\n";
                 sceneDirty = true;
             } catch (const std::exception& ex) {

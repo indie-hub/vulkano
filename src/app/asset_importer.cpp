@@ -86,8 +86,8 @@ ImportedScene AssetImporter::load_scene(std::string_view path) const {
     }
 
     ImportedScene result {};
-    result.name = scene->mRootNode->mName.length > 0 ? scene->mRootNode->mName.C_Str() : "Imported Scene";
-    result.rootTransform = scene::Transform::from_matrix(to_glm(scene->mRootNode->mTransformation));
+    result.root.name = scene->mRootNode->mName.length > 0 ? scene->mRootNode->mName.C_Str() : "Imported Scene";
+    result.root.transform = scene::Transform::from_matrix(to_glm(scene->mRootNode->mTransformation));
 
     result.embeddedTextures.clear();
     result.embeddedTextures.reserve(scene->mNumTextures);
@@ -109,10 +109,11 @@ ImportedScene AssetImporter::load_scene(std::string_view path) const {
         result.materials.push_back(import_material(*scene->mMaterials[index]));
     }
 
-    result.meshes.reserve(scene->mNumMeshes);
-    traverse_node(*scene, *scene->mRootNode, glm::mat4(1.0F), result.meshes);
+    build_node(*scene, *scene->mRootNode, glm::mat4(1.0F), result.root);
 
-    if (result.meshes.empty()) {
+    const bool hasMeshes = !result.root.meshes.empty();
+    const bool hasChildren = !result.root.children.empty();
+    if (!hasMeshes && !hasChildren) {
         throw std::runtime_error {"Imported scene contains no meshes"};
     }
 
@@ -177,7 +178,7 @@ ImportedMaterial AssetImporter::import_material(const aiMaterial& material) {
     return result;
 }
 
-ImportedMesh AssetImporter::import_mesh(const aiMesh& mesh, std::uint32_t materialIndex, const glm::mat4& localTransform) {
+ImportedMesh AssetImporter::import_mesh(const aiMesh& mesh, std::uint32_t materialIndex) {
     if (!mesh.HasPositions()) {
         throw std::runtime_error {"Mesh is missing vertex positions"};
     }
@@ -187,7 +188,6 @@ ImportedMesh AssetImporter::import_mesh(const aiMesh& mesh, std::uint32_t materi
 
     ImportedMesh result {};
     result.materialIndex = materialIndex;
-    result.transform = scene::Transform::from_matrix(localTransform);
     if (mesh.mName.length > 0U) {
         result.name = mesh.mName.C_Str();
     }
@@ -221,20 +221,28 @@ ImportedMesh AssetImporter::import_mesh(const aiMesh& mesh, std::uint32_t materi
     return result;
 }
 
-void AssetImporter::traverse_node(const aiScene& scene, const aiNode& node, const glm::mat4& parentWorld,
-    std::vector<ImportedMesh>& meshes) {
+void AssetImporter::build_node(const aiScene& scene, const aiNode& node, const glm::mat4& parentWorld,
+    ImportedScene::Node& output) {
+    output.name = node.mName.length > 0 ? node.mName.C_Str() : "Node";
     const glm::mat4 local = to_glm(node.mTransformation);
-    const glm::mat4 world = parentWorld * local;
+    output.transform = scene::Transform::from_matrix(local);
 
+    output.meshes.clear();
+    output.meshes.reserve(node.mNumMeshes);
     for (unsigned int i {0U}; i < node.mNumMeshes; ++i) {
         const unsigned int meshIndex = node.mMeshes[i];
         const aiMesh* mesh = scene.mMeshes[meshIndex];
         const std::uint32_t materialIndex = mesh->mMaterialIndex < scene.mNumMaterials ? mesh->mMaterialIndex : 0U;
-        meshes.push_back(import_mesh(*mesh, materialIndex, local));
+        output.meshes.push_back(import_mesh(*mesh, materialIndex));
     }
 
+    output.children.clear();
+    output.children.reserve(node.mNumChildren);
+    const glm::mat4 world = parentWorld * local;
     for (unsigned int i {0U}; i < node.mNumChildren; ++i) {
-        traverse_node(scene, *node.mChildren[i], world, meshes);
+        ImportedScene::Node child {};
+        build_node(scene, *node.mChildren[i], world, child);
+        output.children.push_back(std::move(child));
     }
 }
 } // namespace vulkano::app
