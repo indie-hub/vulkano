@@ -177,7 +177,7 @@ ImportedMaterial AssetImporter::import_material(const aiMaterial& material) {
     return result;
 }
 
-ImportedMesh AssetImporter::import_mesh(const aiMesh& mesh, std::uint32_t materialIndex, const glm::mat4& transform) {
+ImportedMesh AssetImporter::import_mesh(const aiMesh& mesh, std::uint32_t materialIndex, const glm::mat4& localTransform) {
     if (!mesh.HasPositions()) {
         throw std::runtime_error {"Mesh is missing vertex positions"};
     }
@@ -187,7 +187,7 @@ ImportedMesh AssetImporter::import_mesh(const aiMesh& mesh, std::uint32_t materi
 
     ImportedMesh result {};
     result.materialIndex = materialIndex;
-    result.transform = scene::Transform::from_matrix(transform);
+    result.transform = scene::Transform::from_matrix(localTransform);
     if (mesh.mName.length > 0U) {
         result.name = mesh.mName.C_Str();
     }
@@ -221,19 +221,20 @@ ImportedMesh AssetImporter::import_mesh(const aiMesh& mesh, std::uint32_t materi
     return result;
 }
 
-void AssetImporter::traverse_node(const aiScene& scene, const aiNode& node, const glm::mat4& parentTransform,
+void AssetImporter::traverse_node(const aiScene& scene, const aiNode& node, const glm::mat4& parentWorld,
     std::vector<ImportedMesh>& meshes) {
-    const glm::mat4 nodeTransform = parentTransform * to_glm(node.mTransformation);
+    const glm::mat4 local = to_glm(node.mTransformation);
+    const glm::mat4 world = parentWorld * local;
 
     for (unsigned int i {0U}; i < node.mNumMeshes; ++i) {
         const unsigned int meshIndex = node.mMeshes[i];
         const aiMesh* mesh = scene.mMeshes[meshIndex];
         const std::uint32_t materialIndex = mesh->mMaterialIndex < scene.mNumMaterials ? mesh->mMaterialIndex : 0U;
-        meshes.push_back(import_mesh(*mesh, materialIndex, nodeTransform));
+        meshes.push_back(import_mesh(*mesh, materialIndex, local));
     }
 
     for (unsigned int i {0U}; i < node.mNumChildren; ++i) {
-        traverse_node(scene, *node.mChildren[i], nodeTransform, meshes);
+        traverse_node(scene, *node.mChildren[i], world, meshes);
     }
 }
 } // namespace vulkano::app
