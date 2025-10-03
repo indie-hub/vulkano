@@ -43,13 +43,6 @@ public:
             return material != scene::MaterialId::invalid();
         }
 
-        [[nodiscard]] bool is_group() const noexcept {
-            return !has_geometry();
-        }
-
-        [[nodiscard]] const char* label_icon() const noexcept {
-            return has_geometry() ? "📄 " : "📁 ";
-        }
     };
 
     SceneRenderer(const VulkanContext& context, const Window& window, VkDescriptorSetLayout ssaoLayout = VK_NULL_HANDLE);

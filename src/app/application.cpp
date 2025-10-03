@@ -660,10 +660,10 @@ int Application::run() noexcept {
             }
             ImGui::End();
 
-            auto editTransform = [](scene::Transform& transform, bool showLabel) -> bool {
+            auto editTransform = [](scene::Transform& transform, const char* label) -> bool {
                 bool changed = false;
-                if (showLabel) {
-                    ImGui::TextUnformatted("Transform");
+                if (label != nullptr) {
+                    ImGui::TextUnformatted(label);
                 }
                 glm::vec3 position = transform.position;
                 if (ImGui::DragFloat3("Position", glm::value_ptr(position), 0.05F, -100.0F, 100.0F)) {
@@ -699,30 +699,30 @@ int Application::run() noexcept {
                     ImGui::PushID(&node);
                     const bool hasChildren = !node.children.empty();
                     const bool hasGeometry = node.has_geometry();
-                    const std::string label = std::string {node.label_icon()} + node.name;
-                    ImGuiTreeNodeFlags flags = hasChildren ? ImGuiTreeNodeFlags_DefaultOpen
-                        : ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
+                    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth;
+                    if (!hasChildren) {
+                        flags |= ImGuiTreeNodeFlags_Bullet;
+                    }
+                    const char* prefix = hasGeometry ? "[Mesh] " : "[Group] ";
+                    const std::string label = std::string {prefix} + node.name;
                     const bool open = ImGui::TreeNodeEx(label.c_str(), flags);
 
-                    if (!isRoot && open) {
-                        ImGui::PushID("Transform");
-                        if (editTransform(node.transform, hasChildren && hasGeometry)) {
-                            sceneDirty = true;
+                    if (open) {
+                        ImGui::Indent();
+                        if (!isRoot) {
+                            if (editTransform(node.transform, "Local Transform")) {
+                                sceneDirty = true;
+                            }
                         }
-                        ImGui::PopID();
-                    }
 
-                    if (hasGeometry && open) {
-                        ImGui::Text("Material ID: %u", node.material.value);
-                        if (editTransform(node.transform, !hasChildren)) {
-                            sceneDirty = true;
+                        if (hasGeometry) {
+                            ImGui::Text("Material ID: %u", node.material.value);
                         }
-                    }
 
-                    if (open && hasChildren) {
                         for (SceneRenderer::SceneNode& child : node.children) {
                             self(self, child, false);
                         }
+                        ImGui::Unindent();
                         ImGui::TreePop();
                     }
 
