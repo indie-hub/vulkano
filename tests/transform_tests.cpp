@@ -84,3 +84,27 @@ TEST_CASE("Transform composition matches parent-child multiplication") {
     REQUIRE(worldPoint.y == Catch::Approx(expectedPoint.y).margin(1e-4F));
     REQUIRE(worldPoint.z == Catch::Approx(expectedPoint.z).margin(1e-4F));
 }
+
+TEST_CASE("Transform composition supports multi-level hierarchy") {
+    vulkano::scene::Transform grandParent {};
+    grandParent.position = glm::vec3 {2.0F, 0.0F, 0.0F};
+    grandParent.set_euler_degrees(glm::vec3 {0.0F, 45.0F, 0.0F});
+
+    vulkano::scene::Transform parent {};
+    parent.position = glm::vec3 {1.0F, 0.0F, 0.0F};
+    parent.set_euler_degrees(glm::vec3 {0.0F, 0.0F, 45.0F});
+
+    vulkano::scene::Transform child {};
+    child.position = glm::vec3 {0.0F, 0.0F, 1.0F};
+
+    const glm::mat4 parentWorld = grandParent.matrix() * parent.matrix();
+    const glm::mat4 childWorld = parentWorld * child.matrix();
+    const glm::vec4 worldPoint = childWorld * glm::vec4 {0.0F, 0.0F, 0.0F, 1.0F};
+
+    const glm::mat4 expected = grandParent.matrix() * parent.matrix() * child.matrix();
+    const glm::vec4 expectedPoint = expected * glm::vec4 {0.0F, 0.0F, 0.0F, 1.0F};
+
+    REQUIRE(worldPoint.x == Catch::Approx(expectedPoint.x).margin(1e-4F));
+    REQUIRE(worldPoint.y == Catch::Approx(expectedPoint.y).margin(1e-4F));
+    REQUIRE(worldPoint.z == Catch::Approx(expectedPoint.z).margin(1e-4F));
+}
