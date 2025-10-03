@@ -22,6 +22,19 @@ data are ignored for now; only static meshes and materials are converted.
 
 If loading fails, the application logs an error with the Assimp message.
 
+### Embedded Textures
+- Assets that embed textures (paths such as `*0`) are decoded directly via
+  `stb_image`, with a PNG fallback decoder for formats that provide a `png`
+  hint.
+- Every embedded sampler receives a stable cache key in the form
+  `embedded://<filename>:<hash>#*<slot>` so that multiple imports with the same
+  asset reuse GPU uploads while avoiding collisions across different files.
+- Imported materials automatically swap their texture paths to those cache keys
+  and feed them into the shared `MaterialTextureCache` just like file-backed
+  textures.
+- When decoding fails, the importer substitutes a white 1×1 texture so the
+  renderer continues to run while surfacing the error in the log.
+
 ### Editing Object Transforms
 Imported and built-in meshes now appear inside the **Scene Graph** panel. Every
 group node (such as the root scene or an imported asset) exposes position,

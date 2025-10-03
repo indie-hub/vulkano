@@ -63,6 +63,11 @@ int Application::run() noexcept {
         MaterialBuffer materialBuffer {context};
         MaterialTextureCache materialTextures {context};
         std::unordered_map<std::string, TextureData> embeddedTextures {};
+        const auto mergeEmbeddedTextures = [&](const std::unordered_map<std::string, TextureData>& source) {
+            for (const auto& [key, data] : source) {
+                embeddedTextures.insert_or_assign(key, data);
+            }
+        };
         scene::LightRegistry lightRegistry {};
         LightBuffer lightBuffer {context};
 
@@ -151,7 +156,7 @@ int Application::run() noexcept {
                     importedMaterialIds.push_back(materialRegistry.add_material(importedMaterial.material));
                 }
 
-                embeddedTextures.insert(imported.embeddedTextures.begin(), imported.embeddedTextures.end());
+                mergeEmbeddedTextures(imported.embeddedTextures);
                 materialTextures.rebuild(materialRegistry, &embeddedTextures);
                 materialBuffer.update(materialRegistry, materialTextures.handles());
 
