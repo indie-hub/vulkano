@@ -39,10 +39,10 @@ void flatten_nodes(const SceneRenderer::SceneNode& node, const glm::mat4& parent
     std::vector<SceneRenderer::SceneMesh>& out) {
     const glm::mat4 worldMatrix = parentMatrix * node.transform.matrix();
 
-    if (node.has_geometry()) {
+    if (node.is_mesh() && node.geometry.has_value()) {
         SceneRenderer::SceneMesh mesh {};
-        mesh.mesh = node.mesh;
-        mesh.material = node.material;
+        mesh.mesh = node.geometry->mesh;
+        mesh.material = node.geometry->material;
         mesh.transform = Transform::from_matrix(worldMatrix);
         out.push_back(std::move(mesh));
     }

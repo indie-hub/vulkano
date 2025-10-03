@@ -123,22 +123,25 @@ int Application::run() noexcept {
         SceneRenderer::SceneNode planeNode {};
         planeNode.name = "Plane";
         planeNode.transform = scene::Transform::identity();
-        planeNode.mesh = vulkano::scene::MeshFactory::create_plane(10.0F, glm::vec3 {0.7F, 0.7F, 0.7F});
-        planeNode.material = planeMaterialId;
+        planeNode.geometry.emplace();
+        planeNode.geometry->mesh = vulkano::scene::MeshFactory::create_plane(10.0F, glm::vec3 {0.7F, 0.7F, 0.7F});
+        planeNode.geometry->material = planeMaterialId;
         baseGroup.children.push_back(std::move(planeNode));
 
         SceneRenderer::SceneNode cubeNode {};
         cubeNode.name = "Cube";
         cubeNode.transform.position = glm::vec3 {-1.5F, 0.5F, 0.0F};
-        cubeNode.mesh = vulkano::scene::MeshFactory::create_cube(1.0F, glm::vec3 {0.8F, 0.2F, 0.2F});
-        cubeNode.material = cubeMaterialId;
+        cubeNode.geometry.emplace();
+        cubeNode.geometry->mesh = vulkano::scene::MeshFactory::create_cube(1.0F, glm::vec3 {0.8F, 0.2F, 0.2F});
+        cubeNode.geometry->material = cubeMaterialId;
         baseGroup.children.push_back(std::move(cubeNode));
 
         SceneRenderer::SceneNode sphereNode {};
         sphereNode.name = "Sphere";
         sphereNode.transform.position = glm::vec3 {1.5F, 0.5F, 0.0F};
-        sphereNode.mesh = vulkano::scene::MeshFactory::create_uv_sphere(0.5F, 32U, 16U, glm::vec3 {0.2F, 0.4F, 0.85F});
-        sphereNode.material = sphereMaterialId;
+        sphereNode.geometry.emplace();
+        sphereNode.geometry->mesh = vulkano::scene::MeshFactory::create_uv_sphere(0.5F, 32U, 16U, glm::vec3 {0.2F, 0.4F, 0.85F});
+        sphereNode.geometry->material = sphereMaterialId;
         baseGroup.children.push_back(std::move(sphereNode));
 
         sceneRoot.children.push_back(std::move(baseGroup));
@@ -173,9 +176,10 @@ int Application::run() noexcept {
                             ? importedMesh.name
                             : ("Mesh " + std::to_string(meshCounter++));
                         meshNode.transform = scene::Transform::identity();
-                        meshNode.mesh = importedMesh.mesh;
+                        meshNode.geometry.emplace();
+                        meshNode.geometry->mesh = importedMesh.mesh;
                         const std::uint32_t materialIndex = importedMesh.materialIndex;
-                        meshNode.material = materialIndex < importedMaterialIds.size()
+                        meshNode.geometry->material = materialIndex < importedMaterialIds.size()
                             ? importedMaterialIds[materialIndex]
                             : materialRegistry.default_material_id();
                         node.children.push_back(std::move(meshNode));
@@ -699,25 +703,25 @@ int Application::run() noexcept {
                 auto drawNode = [&](auto&& self, SceneRenderer::SceneNode& node, bool isRoot) -> void {
                     ImGui::PushID(&node);
                     const bool hasChildren = !node.children.empty();
-                    const bool hasGeometry = node.has_geometry();
+                    const bool isMesh = node.is_mesh();
                     ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth;
                     if (!hasChildren) {
                         flags |= ImGuiTreeNodeFlags_Bullet;
                     }
-                    const char* prefix = hasGeometry ? "[Mesh] " : "[Group] ";
+                    const char* prefix = isMesh ? "[Mesh] " : "[Group] ";
                     const std::string label = std::string {prefix} + node.name;
                     const bool open = ImGui::TreeNodeEx(label.c_str(), flags);
 
                     if (open) {
                         ImGui::Indent();
-                        if (!isRoot && !hasGeometry) {
+                        if (!isRoot && !isMesh) {
                             if (editTransform(node.transform, "Local Transform")) {
                                 sceneDirty = true;
                             }
                         }
 
-                        if (hasGeometry) {
-                            ImGui::Text("Material ID: %u", node.material.value);
+                        if (isMesh && node.geometry.has_value()) {
+                            ImGui::Text("Material ID: %u", node.geometry->material.value);
                             if (editTransform(node.transform, nullptr)) {
                                 sceneDirty = true;
                             }
@@ -735,9 +739,7 @@ int Application::run() noexcept {
 
                 ImGui::TextUnformatted("Hierarchy");
                 ImGui::Separator();
-                for (SceneRenderer::SceneNode& child : sceneRoot.children) {
-                    drawNode(drawNode, child, false);
-                }
+                drawNode(drawNode, sceneRoot, true);
             }
             ImGui::End();
 

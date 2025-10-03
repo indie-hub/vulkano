@@ -209,7 +209,7 @@
 - [x] Extend tests and documentation for grouped transform workflow
 
 - [x] Draft plan for hierarchical scene graph with nested parent/group nodes
-- [ ] Implement enhanced hierarchy, UI, and renderer updates per plan
+- [x] Implement enhanced hierarchy, UI, and renderer updates per plan
 
 - [x] Audit transform composition for rotations/pivot and devise correction plan
 - [x] Implement rotation fix and confirm child nodes inherit parent transforms correctly
