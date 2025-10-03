@@ -159,15 +159,7 @@ int Application::run() noexcept {
                 importGroup.name = imported.name.empty()
                     ? std::filesystem::path(modelPath).filename().string()
                     : imported.name;
-                importGroup.transform = imported.rootTransform;
-
-                const glm::mat4 rootMatrix = imported.rootTransform.matrix();
-                glm::mat4 rootInverse {1.0F};
-                const float det = glm::determinant(rootMatrix);
-                const bool invertible = std::abs(det) > std::numeric_limits<float>::epsilon();
-                if (invertible) {
-                    rootInverse = glm::inverse(rootMatrix);
-                }
+                importGroup.transform = scene::Transform::identity();
 
                 std::size_t meshIndex {0U};
                 for (ImportedMesh& importedMesh : imported.meshes) {
@@ -175,9 +167,7 @@ int Application::run() noexcept {
                     meshNode.name = importedMesh.name.empty()
                         ? "Mesh " + std::to_string(meshIndex)
                         : importedMesh.name;
-                    glm::mat4 worldMatrix = importedMesh.transform.matrix();
-                    const glm::mat4 localMatrix = invertible ? rootInverse * worldMatrix : worldMatrix;
-                    meshNode.transform = scene::Transform::from_matrix(localMatrix);
+                    meshNode.transform = importedMesh.transform;
                     meshNode.mesh = std::move(importedMesh.mesh);
                     const std::uint32_t importedMaterialIndex = importedMesh.materialIndex;
                     if (importedMaterialIndex < importedMaterialIds.size()) {
@@ -679,7 +669,7 @@ int Application::run() noexcept {
 
                 glm::vec3 scale = transform.scale;
                 if (ImGui::DragFloat3("Scale", glm::value_ptr(scale), 0.02F, -100.0F, 100.0F)) {
-                    constexpr float minScale {0.001F};
+                    constexpr float minScale {0.00001F};
                     scale.x = std::max(scale.x, minScale);
                     scale.y = std::max(scale.y, minScale);
                     scale.z = std::max(scale.z, minScale);
