@@ -55,6 +55,10 @@ propagate to children when composing the final world transform. Imported Assimp
 nodes preserve their original local transforms and can be further adjusted
 through the UI.
 
+Parent rotations now adjust descendant orientation without modifying their
+local offsets, eliminating the previous behaviour where children orbited the
+world origin when a group node was rotated.
+
 Group entries are prefixed with `[Group]` and can contain additional groups or
 leaf `[Mesh]` nodes. Collapsing/expanding these entries makes it easy to inspect
 deep hierarchies (for example, an imported glTF asset where sub-meshes inherit a
