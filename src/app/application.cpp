@@ -668,7 +668,7 @@ int Application::run() noexcept {
                 }
 
                 glm::vec3 scale = transform.scale;
-                if (ImGui::DragFloat3("Scale", glm::value_ptr(scale), 0.02F, -100.0F, 100.0F)) {
+                if (ImGui::DragFloat3("Scale", glm::value_ptr(scale), 0.02F, -100.0F, 100.0F, "%.5f")) {
                     constexpr float minScale {0.00001F};
                     scale.x = std::max(scale.x, minScale);
                     scale.y = std::max(scale.y, minScale);
