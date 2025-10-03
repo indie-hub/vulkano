@@ -29,6 +29,8 @@
 
 #include <algorithm>
 #include <chrono>
+#include <filesystem>
+#include <functional>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -104,26 +106,38 @@ int Application::run() noexcept {
         sphereMaterial.useAmbientOcclusionTexture = false;
         const scene::MaterialId sphereMaterialId = materialRegistry.add_material(sphereMaterial);
 
-        std::vector<SceneRenderer::SceneMesh> sceneMeshes;
-        sceneMeshes.reserve(3U);
+        SceneRenderer::SceneNode sceneRoot {};
+        sceneRoot.name = "Root";
+        sceneRoot.transform = scene::Transform::identity();
 
-        SceneRenderer::SceneMesh planeMesh {};
-        planeMesh.mesh = vulkano::scene::MeshFactory::create_plane(10.0F, glm::vec3 {0.7F, 0.7F, 0.7F});
-        planeMesh.transform = scene::Transform::identity();
-        planeMesh.material = planeMaterialId;
-        sceneMeshes.push_back(std::move(planeMesh));
+        SceneRenderer::SceneNode baseGroup {};
+        baseGroup.name = "Scene";
+        baseGroup.transform = scene::Transform::identity();
 
-        SceneRenderer::SceneMesh cubeMesh {};
-        cubeMesh.mesh = vulkano::scene::MeshFactory::create_cube(1.0F, glm::vec3 {0.8F, 0.2F, 0.2F});
-        cubeMesh.transform.position = glm::vec3 {-1.5F, 0.5F, 0.0F};
-        cubeMesh.material = cubeMaterialId;
-        sceneMeshes.push_back(std::move(cubeMesh));
+        SceneRenderer::SceneNode planeNode {};
+        planeNode.name = "Plane";
+        planeNode.transform = scene::Transform::identity();
+        planeNode.mesh = vulkano::scene::MeshFactory::create_plane(10.0F, glm::vec3 {0.7F, 0.7F, 0.7F});
+        planeNode.material = planeMaterialId;
+        baseGroup.children.push_back(std::move(planeNode));
 
-        SceneRenderer::SceneMesh sphereMesh {};
-        sphereMesh.mesh = vulkano::scene::MeshFactory::create_uv_sphere(0.5F, 32U, 16U, glm::vec3 {0.2F, 0.4F, 0.85F});
-        sphereMesh.transform.position = glm::vec3 {1.5F, 0.5F, 0.0F};
-        sphereMesh.material = sphereMaterialId;
-        sceneMeshes.push_back(std::move(sphereMesh));
+        SceneRenderer::SceneNode cubeNode {};
+        cubeNode.name = "Cube";
+        cubeNode.transform.position = glm::vec3 {-1.5F, 0.5F, 0.0F};
+        cubeNode.mesh = vulkano::scene::MeshFactory::create_cube(1.0F, glm::vec3 {0.8F, 0.2F, 0.2F});
+        cubeNode.material = cubeMaterialId;
+        baseGroup.children.push_back(std::move(cubeNode));
+
+        SceneRenderer::SceneNode sphereNode {};
+        sphereNode.name = "Sphere";
+        sphereNode.transform.position = glm::vec3 {1.5F, 0.5F, 0.0F};
+        sphereNode.mesh = vulkano::scene::MeshFactory::create_uv_sphere(0.5F, 32U, 16U, glm::vec3 {0.2F, 0.4F, 0.85F});
+        sphereNode.material = sphereMaterialId;
+        baseGroup.children.push_back(std::move(sphereNode));
+
+        sceneRoot.children.push_back(std::move(baseGroup));
+
+        bool sceneDirty = false;
 
         const char* modelPath = std::getenv("VULKANO_MODEL");
         if (modelPath != nullptr && std::strlen(modelPath) > 0) {
@@ -140,19 +154,31 @@ int Application::run() noexcept {
                 materialTextures.rebuild(materialRegistry, &embeddedTextures);
                 materialBuffer.update(materialRegistry, materialTextures.handles());
 
+                SceneRenderer::SceneNode importGroup {};
+                importGroup.name = std::filesystem::path(modelPath).filename().string();
+                importGroup.transform = scene::Transform::identity();
+
+                std::size_t meshIndex {0U};
                 for (ImportedMesh& importedMesh : imported.meshes) {
-                    SceneRenderer::SceneMesh meshEntry {};
-                    meshEntry.mesh = std::move(importedMesh.mesh);
-                    meshEntry.transform = importedMesh.transform;
+                    SceneRenderer::SceneNode meshNode {};
+                    meshNode.name = importedMesh.name.empty()
+                        ? "Mesh " + std::to_string(meshIndex)
+                        : importedMesh.name;
+                    meshNode.transform = importedMesh.transform;
+                    meshNode.mesh = std::move(importedMesh.mesh);
                     const std::uint32_t importedMaterialIndex = importedMesh.materialIndex;
                     if (importedMaterialIndex < importedMaterialIds.size()) {
-                        meshEntry.material = importedMaterialIds[importedMaterialIndex];
+                        meshNode.material = importedMaterialIds[importedMaterialIndex];
                     } else {
-                        meshEntry.material = materialRegistry.default_material_id();
+                        meshNode.material = materialRegistry.default_material_id();
                     }
-                    sceneMeshes.push_back(std::move(meshEntry));
+                    importGroup.children.push_back(std::move(meshNode));
+                    ++meshIndex;
                 }
+
+                sceneRoot.children.push_back(std::move(importGroup));
                 std::cout << "Imported model from '" << modelPath << "'\n";
+                sceneDirty = true;
             } catch (const std::exception& ex) {
                 std::cerr << "Failed to import model '" << modelPath << "': " << ex.what() << "\n";
             }
@@ -163,14 +189,13 @@ int Application::run() noexcept {
         bool materialsDirty = false;
         bool lightsDirty = false;
         bool showLightDebug = true;
-        bool sceneDirty = false;
 
         SSAOSampleGenerator ssaoGenerator {};
         SSAOGpuResources ssaoResources {context, ssaoGenerator, 64U, 4U};
         auto ssaoComposite = std::make_unique<SSAOCompositeDescriptors>(context);
 
         auto renderer = std::make_unique<SceneRenderer>(context, window, ssaoComposite->layout());
-        renderer->set_scene(sceneMeshes);
+        renderer->set_scene_graph(sceneRoot);
         renderer->set_material_resources(materialBuffer, materialTextures);
         renderer->set_light_resources(lightBuffer, lightRegistry);
         renderer->set_show_light_debug(showLightDebug);
@@ -226,7 +251,7 @@ int Application::run() noexcept {
             }
 
             renderer = std::make_unique<SceneRenderer>(context, window, ssaoComposite->layout());
-            renderer->set_scene(sceneMeshes);
+            renderer->set_scene_graph(sceneRoot);
             materialTextures.rebuild(materialRegistry, &embeddedTextures);
             materialBuffer.update(materialRegistry, materialTextures.handles());
             renderer->set_material_resources(materialBuffer, materialTextures);
@@ -622,41 +647,70 @@ int Application::run() noexcept {
             }
             ImGui::End();
 
-            if (ImGui::Begin("Objects")) {
-                for (std::size_t index {0U}; index < sceneMeshes.size(); ++index) {
-                    SceneRenderer::SceneMesh& mesh = sceneMeshes[index];
-                    ImGui::PushID(static_cast<int>(index));
-                    const std::string label = "Mesh " + std::to_string(index);
-                    if (ImGui::TreeNode(label.c_str())) {
-                        glm::vec3 position = mesh.transform.position;
-                        if (ImGui::DragFloat3("Position", glm::value_ptr(position), 0.05F, -100.0F, 100.0F)) {
-                            mesh.transform.position = position;
+            auto editTransform = [](scene::Transform& transform) -> bool {
+                bool changed = false;
+                glm::vec3 position = transform.position;
+                if (ImGui::DragFloat3("Position", glm::value_ptr(position), 0.05F, -100.0F, 100.0F)) {
+                    transform.position = position;
+                    changed = true;
+                }
+
+                glm::vec3 rotationDegrees = transform.euler_degrees();
+                if (ImGui::DragFloat3("Rotation (deg)", glm::value_ptr(rotationDegrees), 0.5F, -720.0F, 720.0F)) {
+                    transform.set_euler_degrees(rotationDegrees);
+                    changed = true;
+                }
+
+                glm::vec3 scale = transform.scale;
+                if (ImGui::DragFloat3("Scale", glm::value_ptr(scale), 0.02F, -100.0F, 100.0F)) {
+                    constexpr float minScale {0.001F};
+                    scale.x = std::max(scale.x, minScale);
+                    scale.y = std::max(scale.y, minScale);
+                    scale.z = std::max(scale.z, minScale);
+                    transform.scale = scale;
+                    changed = true;
+                }
+
+                if (ImGui::Button("Reset Transform")) {
+                    transform = scene::Transform::identity();
+                    changed = true;
+                }
+                return changed;
+            };
+
+            if (ImGui::Begin("Scene Graph")) {
+                auto drawNode = [&](auto&& self, SceneRenderer::SceneNode& node, bool isRoot) -> void {
+                    ImGui::PushID(&node);
+                    const bool hasChildren = !node.children.empty();
+                    const bool hasGeometry = node.has_geometry();
+                    ImGuiTreeNodeFlags flags = hasChildren ? ImGuiTreeNodeFlags_DefaultOpen
+                        : ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
+                    const bool open = ImGui::TreeNodeEx(node.name.c_str(), flags);
+
+                    if (!isRoot && open) {
+                        ImGui::PushID("Transform");
+                        if (editTransform(node.transform)) {
                             sceneDirty = true;
                         }
+                        ImGui::PopID();
+                    }
 
-                        glm::vec3 rotationDegrees = mesh.transform.euler_degrees();
-                        if (ImGui::DragFloat3("Rotation (deg)", glm::value_ptr(rotationDegrees), 0.5F, -720.0F, 720.0F)) {
-                            mesh.transform.set_euler_degrees(rotationDegrees);
-                            sceneDirty = true;
-                        }
+                    if (hasGeometry && open) {
+                        ImGui::Text("Material ID: %u", node.material.value);
+                    }
 
-                        glm::vec3 scale = mesh.transform.scale;
-                        if (ImGui::DragFloat3("Scale", glm::value_ptr(scale), 0.02F, -100.0F, 100.0F)) {
-                            constexpr float minScale {0.001F};
-                            scale.x = std::max(scale.x, minScale);
-                            scale.y = std::max(scale.y, minScale);
-                            scale.z = std::max(scale.z, minScale);
-                            mesh.transform.scale = scale;
-                            sceneDirty = true;
-                        }
-
-                        if (ImGui::Button("Reset Transform")) {
-                            mesh.transform = scene::Transform::identity();
-                            sceneDirty = true;
+                    if (open && hasChildren) {
+                        for (SceneRenderer::SceneNode& child : node.children) {
+                            self(self, child, false);
                         }
                         ImGui::TreePop();
                     }
+
                     ImGui::PopID();
+                };
+
+                for (SceneRenderer::SceneNode& child : sceneRoot.children) {
+                    drawNode(drawNode, child, false);
                 }
             }
             ImGui::End();
@@ -672,7 +726,7 @@ int Application::run() noexcept {
 
             if (sceneDirty) {
                 context.wait_idle();
-                renderer->set_scene(sceneMeshes);
+                renderer->set_scene_graph(sceneRoot);
                 sceneDirty = false;
             }
 

@@ -205,5 +205,5 @@
 - [x] Extend tests and documentation for transform parameter workflow
 
 - [x] Draft plan for grouping imported meshes under a parent transform node
-- [ ] Implement mesh grouping transform hierarchy and runtime controls
-- [ ] Extend tests and documentation for grouped transform workflow
+- [x] Implement mesh grouping transform hierarchy and runtime controls
+- [x] Extend tests and documentation for grouped transform workflow

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string>
 #include <string_view>
 #include <unordered_map>
 #include <vector>
@@ -22,6 +23,7 @@ struct ImportedMesh final {
     scene::MeshData mesh {};
     std::uint32_t materialIndex {0U};
     scene::Transform transform {};
+    std::string name {};
 };
 
 struct ImportedScene final {

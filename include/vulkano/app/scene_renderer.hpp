@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <functional>
 #include <optional>
+#include <string>
 #include <vector>
 #include <vulkan/vulkan.h>
 
@@ -31,6 +32,18 @@ public:
         scene::MaterialId material {scene::MaterialId::invalid()};
     };
 
+    struct SceneNode final {
+        std::string name {};
+        scene::Transform transform {};
+        scene::MeshData mesh {};
+        scene::MaterialId material {scene::MaterialId::invalid()};
+        std::vector<SceneNode> children;
+
+        [[nodiscard]] bool has_geometry() const noexcept {
+            return material != scene::MaterialId::invalid();
+        }
+    };
+
     SceneRenderer(const VulkanContext& context, const Window& window, VkDescriptorSetLayout ssaoLayout = VK_NULL_HANDLE);
     ~SceneRenderer() noexcept;
 
@@ -40,6 +53,7 @@ public:
     SceneRenderer& operator=(SceneRenderer&&) noexcept = delete;
 
     void set_scene(const std::vector<SceneMesh>& meshes);
+    void set_scene_graph(const SceneNode& root);
     void set_material_resources(const MaterialBuffer& buffer, const MaterialTextureCache& textures);
     void set_light_resources(LightBuffer& buffer, const scene::LightRegistry& registry);
     void set_show_light_debug(bool enabled) noexcept;

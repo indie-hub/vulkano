@@ -27,10 +27,30 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 namespace {
+using vulkano::app::SceneRenderer;
+using vulkano::scene::Transform;
+
 struct ShaderPaths final {
     std::filesystem::path vertexPath;
     std::filesystem::path fragmentPath;
 };
+
+void flatten_nodes(const SceneRenderer::SceneNode& node, const glm::mat4& parentMatrix,
+    std::vector<SceneRenderer::SceneMesh>& out) {
+    const glm::mat4 worldMatrix = parentMatrix * node.transform.matrix();
+
+    if (node.has_geometry()) {
+        SceneRenderer::SceneMesh mesh {};
+        mesh.mesh = node.mesh;
+        mesh.material = node.material;
+        mesh.transform = Transform::from_matrix(worldMatrix);
+        out.push_back(std::move(mesh));
+    }
+
+    for (const SceneRenderer::SceneNode& child : node.children) {
+        flatten_nodes(child, worldMatrix, out);
+    }
+}
 
 struct ScenePushConstants final {
     glm::mat4 model {};
@@ -494,6 +514,13 @@ void SceneRenderer::set_scene(const std::vector<SceneMesh>& meshes) {
         m_sceneMax = maxBounds;
         m_sceneBoundsValid = true;
     }
+}
+
+void SceneRenderer::set_scene_graph(const SceneNode& root) {
+    std::vector<SceneMesh> flattened;
+    flattened.reserve(64U);
+    flatten_nodes(root, glm::mat4(1.0F), flattened);
+    set_scene(flattened);
 }
 
 void SceneRenderer::set_material_resources(const MaterialBuffer& buffer, const MaterialTextureCache& textures) {
