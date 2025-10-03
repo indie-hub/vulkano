@@ -159,7 +159,15 @@ int Application::run() noexcept {
                 importGroup.name = imported.name.empty()
                     ? std::filesystem::path(modelPath).filename().string()
                     : imported.name;
-                importGroup.transform = scene::Transform::identity();
+                importGroup.transform = imported.rootTransform;
+
+                const glm::mat4 rootMatrix = importGroup.transform.matrix();
+                glm::mat4 rootInverse {1.0F};
+                const float det = glm::determinant(rootMatrix);
+                const bool invertible = std::abs(det) > std::numeric_limits<float>::epsilon();
+                if (invertible) {
+                    rootInverse = glm::inverse(rootMatrix);
+                }
 
                 std::size_t meshIndex {0U};
                 for (ImportedMesh& importedMesh : imported.meshes) {
@@ -167,7 +175,9 @@ int Application::run() noexcept {
                     meshNode.name = importedMesh.name.empty()
                         ? "Mesh " + std::to_string(meshIndex)
                         : importedMesh.name;
-                    meshNode.transform = importedMesh.transform;
+                    const glm::mat4 worldMatrix = importedMesh.transform.matrix();
+                    const glm::mat4 localMatrix = invertible ? rootInverse * worldMatrix : worldMatrix;
+                    meshNode.transform = scene::Transform::from_matrix(localMatrix);
                     meshNode.mesh = std::move(importedMesh.mesh);
                     const std::uint32_t importedMaterialIndex = importedMesh.materialIndex;
                     if (importedMaterialIndex < importedMaterialIds.size()) {
@@ -699,7 +709,7 @@ int Application::run() noexcept {
 
                     if (open) {
                         ImGui::Indent();
-                        if (!isRoot) {
+                        if (!isRoot && !hasGeometry) {
                             if (editTransform(node.transform, "Local Transform")) {
                                 sceneDirty = true;
                             }
@@ -707,6 +717,9 @@ int Application::run() noexcept {
 
                         if (hasGeometry) {
                             ImGui::Text("Material ID: %u", node.material.value);
+                            if (editTransform(node.transform, nullptr)) {
+                                sceneDirty = true;
+                            }
                         }
 
                         for (SceneRenderer::SceneNode& child : node.children) {
