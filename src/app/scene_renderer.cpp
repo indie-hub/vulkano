@@ -29,26 +29,34 @@
 namespace {
 using vulkano::app::SceneRenderer;
 using vulkano::scene::Transform;
+namespace scene = vulkano::scene;
 
 struct ShaderPaths final {
     std::filesystem::path vertexPath;
     std::filesystem::path fragmentPath;
 };
 
-void flatten_nodes(const SceneRenderer::SceneNode& node, const glm::mat4& parentMatrix,
-    std::vector<SceneRenderer::SceneMesh>& out) {
-    const glm::mat4 worldMatrix = parentMatrix * node.transform.matrix();
+scene::Transform compose_local(const scene::Transform& parent, const scene::Transform& local) {
+    scene::Transform composed {};
+    composed.position = parent.position + local.position;
+    composed.rotation = glm::normalize(parent.rotation * local.rotation);
+    composed.scale = parent.scale * local.scale;
+    return composed;
+}
 
+void flatten_nodes(const SceneRenderer::SceneNode& node, const scene::Transform& parentTransform,
+    std::vector<SceneRenderer::SceneMesh>& out) {
+    const scene::Transform worldTransform = compose_local(parentTransform, node.transform);
     if (node.is_mesh() && node.geometry.has_value()) {
         SceneRenderer::SceneMesh mesh {};
         mesh.mesh = node.geometry->mesh;
         mesh.material = node.geometry->material;
-        mesh.transform = Transform::from_matrix(worldMatrix);
+        mesh.transform = worldTransform;
         out.push_back(std::move(mesh));
     }
 
     for (const SceneRenderer::SceneNode& child : node.children) {
-        flatten_nodes(child, worldMatrix, out);
+        flatten_nodes(child, worldTransform, out);
     }
 }
 
@@ -519,7 +527,7 @@ void SceneRenderer::set_scene(const std::vector<SceneMesh>& meshes) {
 void SceneRenderer::set_scene_graph(const SceneNode& root) {
     std::vector<SceneMesh> flattened;
     flattened.reserve(64U);
-    flatten_nodes(root, glm::mat4(1.0F), flattened);
+    flatten_nodes(root, scene::Transform::identity(), flattened);
     set_scene(flattened);
 }
 
