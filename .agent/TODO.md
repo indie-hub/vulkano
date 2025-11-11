@@ -283,4 +283,6 @@
 - [ ] Document padding mitigation and update changelog
 - [x] Draft plan for rewriting git authorship to a new user identity
 - [x] Execute git history rewrite to update author and committer metadata
-- [ ] Validate rewritten history, update documentation, and run verification tests
+- [x] Validate rewritten history, update documentation, and run verification tests
+- [ ] Force-push rewritten branches/tags and notify collaborators to resync
+- [ ] Remove the ../vulkano_codex_backup.git mirror once the team confirms the rewrite
