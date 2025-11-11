@@ -69,9 +69,11 @@ scene::Transform compose_local(const scene::Transform& parent, const scene::Tran
 }
 
 void flatten_nodes(const SceneRenderer::SceneNode& node, const scene::Transform& parentTransform,
-    std::vector<SceneRenderer::SceneMesh>& out) {
+    bool parentVisible, std::vector<SceneRenderer::SceneMesh>& out) {
     const scene::Transform worldTransform = compose_local(parentTransform, node.transform);
-    if (node.is_mesh() && node.geometry.has_value()) {
+    const bool nodeVisible = parentVisible && node.visible;
+
+    if (nodeVisible && node.is_mesh() && node.geometry.has_value()) {
         SceneRenderer::SceneMesh mesh {};
         mesh.mesh = node.geometry->mesh;
         mesh.material = node.geometry->material;
@@ -80,7 +82,7 @@ void flatten_nodes(const SceneRenderer::SceneNode& node, const scene::Transform&
     }
 
     for (const SceneRenderer::SceneNode& child : node.children) {
-        flatten_nodes(child, worldTransform, out);
+        flatten_nodes(child, worldTransform, nodeVisible, out);
     }
 }
 
@@ -567,7 +569,7 @@ void SceneRenderer::set_scene(const std::vector<SceneMesh>& meshes) {
 void SceneRenderer::set_scene_graph(const SceneNode& root) {
     std::vector<SceneMesh> flattened;
     flattened.reserve(64U);
-    flatten_nodes(root, scene::Transform::identity(), flattened);
+    flatten_nodes(root, scene::Transform::identity(), root.visible, flattened);
     set_scene(flattened);
 }
 

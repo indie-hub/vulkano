@@ -46,6 +46,7 @@ public:
         scene::Transform transform {};
         std::optional<Geometry> geometry {};
         std::vector<SceneNode> children;
+        bool visible {true};
 
         [[nodiscard]] bool is_mesh() const noexcept {
             return geometry.has_value();

@@ -615,7 +615,8 @@ int Application::run() noexcept {
             bool selectionAlive = false;
 
             if (ImGui::Begin("Scene Graph")) {
-                const auto drawNode = [&](auto&& self, SceneRenderer::SceneNode& node, bool isRoot) -> void {
+                const auto drawNode = [&](auto&& self, SceneRenderer::SceneNode& node, bool isRoot,
+                                           bool parentVisible) -> void {
                     IM_UNUSED(isRoot);
                     const bool hasChildren = !node.children.empty();
                     ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth;
@@ -627,7 +628,27 @@ int Application::run() noexcept {
                     }
 
                     const std::string label = node.name.empty() ? "Unnamed" : node.name;
+                    ImGui::PushID(&node);
+                    bool nodeVisible = node.visible;
+                    if (ImGui::Checkbox("##visible", &nodeVisible)) {
+                        node.visible = nodeVisible;
+                        sceneDirty = true;
+                    }
+                    ImGui::PopID();
+                    ImGui::SameLine();
+
+                    const bool effectiveVisible = parentVisible && node.visible;
+                    bool pushedStyle = false;
+                    if (!effectiveVisible) {
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+                        pushedStyle = true;
+                    }
+
                     const bool open = ImGui::TreeNodeEx(&node, flags, "%s", label.c_str());
+
+                    if (pushedStyle) {
+                        ImGui::PopStyleColor();
+                    }
 
                     if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) {
                         nextSelection = &node;
@@ -640,13 +661,13 @@ int Application::run() noexcept {
 
                     if (open) {
                         for (SceneRenderer::SceneNode& child : node.children) {
-                            self(self, child, false);
+                            self(self, child, false, parentVisible && node.visible);
                         }
                         ImGui::TreePop();
                     }
                 };
 
-                drawNode(drawNode, sceneRoot, true);
+                drawNode(drawNode, sceneRoot, true, true);
             }
             ImGui::End();
 
@@ -658,6 +679,12 @@ int Application::run() noexcept {
             if (ImGui::Begin("Inspector")) {
                 if (selectedSceneNode != nullptr) {
                     ImGui::TextUnformatted(selectedSceneNode->name.c_str());
+                    ImGui::Separator();
+                    bool inspectorVisible = selectedSceneNode->visible;
+                    if (ImGui::Checkbox("Visible", &inspectorVisible)) {
+                        selectedSceneNode->visible = inspectorVisible;
+                        sceneDirty = true;
+                    }
                     ImGui::Separator();
                     if (editTransform(selectedSceneNode->transform)) {
                         sceneDirty = true;
@@ -1023,8 +1050,9 @@ int Application::run() noexcept {
 
             float effectiveStrength = ssaoEnabled ? ssaoStrength : 0.0F;
             ssaoComposite->set_config(effectiveStrength, ssaoBaseAmbient, ssaoDebugView);
+            const VkExtent2D currentViewportExtent = renderer->viewport_extent();
             ssaoDescriptors->set_camera_parameters(camera.projection_matrix(), glm::inverse(camera.projection_matrix()),
-                context.swapchain_extent(), ssaoRadius, ssaoBias, ssaoResources.noise_dimension(), ssaoAngleCos,
+                currentViewportExtent, ssaoRadius, ssaoBias, ssaoResources.noise_dimension(), ssaoAngleCos,
                 ssaoDepthRange, ssaoDistanceRange, ssaoNormalEpsilon);
             ssaoBlurPass->set_parameters(ssaoBlurRadius, ssaoBlurDepthSigma);
             // Descriptor already points at blurred occlusion; no per-frame update needed
