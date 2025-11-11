@@ -36,9 +36,11 @@ retain per-mesh overrides beneath their parent. Each entry provides:
   for the selected node.
 
 Any change marks the scene as dirty; the renderer rebuilds mesh buffers so that
-updated matrices drive both the lighting and shadow passes. Imported Assimp
-nodes preserve their original transforms and can be further adjusted through the
-UI.
+updated matrices drive both the lighting and shadow passes. The values shown in
+the Scene Graph are **local** to the selected node—parent rotations/positions
+propagate to children when composing the final world transform. Imported Assimp
+nodes preserve their original local transforms and can be further adjusted
+through the UI.
 
 ## Descriptor Limits
 The renderer currently reserves 12 material texture slots per frame, leaving
