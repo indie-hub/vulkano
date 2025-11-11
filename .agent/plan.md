@@ -133,3 +133,40 @@ Deliver a right-handed Vulkan renderer that opens a GLFW window, renders a white
 - Mesh abstraction and scene renderer follow SOLID (single responsibility, composable components).
 - Existing ImGui overlay and validation remain clean.
 - New procedural geometry has unit test coverage verifying vertex counts/orientation.
+
+# Resize Handling Plan
+
+## Objectives
+- Detect window resizes and rebuild swapchain-dependent resources (framebuffers, scene renderer, per-frame buffers) without scaling artifacts.
+- Ensure ImGui and scene maintain proper aspect ratio and projection updates after recreation.
+- Preserve validation cleanliness and SOLID structure.
+
+## Required Changes
+1. **Window Events & Sync**
+   - Use GLFW framebuffer resize callback to flag swapchain recreation.
+   - Handle `VK_ERROR_OUT_OF_DATE_KHR` and `VK_SUBOPTIMAL_KHR` during acquire/present to trigger recreation.
+
+2. **Swapchain Recreate Pipeline**
+   - Add `VulkanContext::recreate_swapchain` (or dedicated swapchain manager method) rebuilding swapchain, image views, depth buffers (if added), and updating renderer-dependent resources.
+   - Destroy and rebuild scene renderer framebuffers and recompute projection matrix based on new extent.
+   - Update ImGui renderer to refresh render pass attachments if necessary.
+
+3. **Resource Ownership**
+   - Encapsulate recreation logic in high-level `Renderer` facade or `Application` helper for clarity.
+   - Ensure FrameResources command buffers & semaphores remain valid or are recreated if counts change.
+
+4. **Testing & Validation**
+   - Manual resize tests to confirm dynamic adjustment.
+   - Extend unit tests (if feasible) to validate aspect ratio computation/extraction.
+   - Run full build, `ctest`, and validation run to confirm no regression.
+
+## Steps
+1. Introduce resize callback storing `framebufferResized` flag in window wrapper.
+2. Implement swapchain recreation routine that waits for idle, rebuilds swapchain + framebuffers, updates projection in scene renderer, and notifies ImGui (if needed).
+3. Update main loop to check flag and handle recreation after present/acquire out-of-date errors.
+4. Retest manual resizing, run automated tests, ensure validation stays clean.
+
+## Acceptance Criteria
+- Resizing the window rebuilds swapchain and scene without stretching.
+- Scene projection and aspect ratio update correctly; cube/sphere maintain positions.
+- Validation layers remain silent during resize sequences.
