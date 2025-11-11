@@ -76,4 +76,4 @@
 - [x] Define CPU/GPU material buffer layout and descriptor set design
 - [x] Implement CPU-side material buffer population and frame update path
 - [x] Integrate material buffer into shaders, pipeline layout, and descriptor binding
-- [ ] Validate materials applied per mesh (build, tests, runtime)
+- [x] Validate materials applied per mesh (build, tests, runtime)
