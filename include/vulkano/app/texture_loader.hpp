@@ -36,9 +36,11 @@ struct TextureData final {
 [[nodiscard]] TextureData load_texture_from_file(const std::filesystem::path& path,
     TextureColorSpace colorSpace, bool flipVertical = true);
 
+[[nodiscard]] TextureData load_texture_from_memory(const std::uint8_t* data, std::size_t size,
+    TextureColorSpace colorSpace, bool flipVertical = true);
+
 [[nodiscard]] TextureData make_solid_texture(const glm::vec4& color, TextureColorSpace colorSpace);
 
 [[nodiscard]] TextureData make_checkerboard_texture(const glm::vec4& colorA, const glm::vec4& colorB,
     std::uint32_t resolution, TextureColorSpace colorSpace);
 }
-

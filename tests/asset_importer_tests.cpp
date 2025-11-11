@@ -23,3 +23,24 @@ TEST_CASE("AssetImporter loads simple OBJ") {
     REQUIRE(mesh.mesh.vertices.size() == 3U);
     REQUIRE(mesh.mesh.indices.size() == 3U);
 }
+
+
+TEST_CASE("AssetImporter loads embedded texture") {
+    const vulkano::app::AssetImporter importer {};
+    const auto scene = importer.load_scene(TEST_ASSET_DIR "/embedded_triangle.gltf");
+    REQUIRE(scene.materials.size() >= 1U);
+    REQUIRE_FALSE(scene.embeddedTextures.empty());
+    const auto& material = scene.materials.front().material;
+    REQUIRE(material.useBaseColorTexture);
+    REQUIRE_FALSE(material.textures.baseColorPath.empty());
+    REQUIRE(scene.embeddedTextures.count(material.textures.baseColorPath) == 1U);
+    const auto& texture = scene.embeddedTextures.at(material.textures.baseColorPath);
+    REQUIRE(texture.width == 1U);
+    REQUIRE(texture.height == 1U);
+    REQUIRE(texture.channels == vulkano::app::TextureChannels::RGBA);
+    REQUIRE(texture.pixels.size() == 4U);
+    CHECK(static_cast<int>(texture.pixels[0]) == 255);
+    CHECK(static_cast<int>(texture.pixels[1]) == 255);
+    CHECK(static_cast<int>(texture.pixels[2]) == 255);
+    CHECK(static_cast<int>(texture.pixels[3]) == 255);
+}

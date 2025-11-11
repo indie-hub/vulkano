@@ -197,6 +197,5 @@
 - [x] Document Assimp usage in README (docs/importing_models.md)
 
 - [x] Draft embedded texture handling plan (see .agent/plan_assimp_embedded_textures.md)
-- [ ] Implement embedded texture extraction in AssetImporter
+- [x] Implement embedded texture extraction in AssetImporter
 - [ ] Validate embedded texture rendering and document workflow
-

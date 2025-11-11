@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 #include <assimp/scene.h>
@@ -9,6 +10,7 @@
 
 #include <vulkano/scene/material.hpp>
 #include <vulkano/scene/mesh.hpp>
+#include <vulkano/app/texture_loader.hpp>
 
 namespace vulkano::app {
 struct ImportedMaterial final {
@@ -24,6 +26,7 @@ struct ImportedMesh final {
 struct ImportedScene final {
     std::vector<ImportedMaterial> materials;
     std::vector<ImportedMesh> meshes;
+    std::unordered_map<std::string, TextureData> embeddedTextures;
 };
 
 class AssetImporter final {
