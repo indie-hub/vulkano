@@ -275,6 +275,12 @@
    - Decide between SSBO of matrices, push constant array, or descriptor buffer update.
    - Ensure alignment with chosen descriptor layout and SPIR-V limits.
    - *Acceptance:* Input layout recorded with counts, types, and binding indices.
+   - **Shader input plan:**
+     - Use a storage buffer (SSBO) bound at set 2 (light buffer set) with a new struct `ShadowMatrices { mat4 matrices[MaxCasters]; uint activeCount; };`.
+     - Align to std140 / std430 rules (depending on binding); prefer std140 to match existing SSBO usage.
+     - Update `LightGpu` to carry a `uint shadowIndex;` so each light references its shadow matrix/shadow map array slot.
+     - Push constants remain unchanged; shadow matrices consumed via SSBO in vertex/fragment shader.
+     - Active count informs shader loop bounds to avoid processing unused entries.
 2. **Determine sampling logic in fragment shader**
    - Define how each light record references its shadow map (index, flag) and how the shader loops over casters.
    - Include fallbacks when a light lacks a shadow slot.
