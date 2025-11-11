@@ -242,4 +242,4 @@
 - [x] Document and validate viewport docking workflow
 - [x] Draft SSAO alignment correction plan
 - [x] Implement SSAO alignment corrections
-- [ ] Validate SSAO alignment fix (tests, validation, docs)
+- [x] Validate SSAO alignment fix (tests, validation, docs)
