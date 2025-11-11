@@ -131,6 +131,18 @@
    - Extend renderer state to hold a struct per directional light with: light id, cached view-projection matrix, shadow map handle (if owned), and dirty flags.
    - Outline how these structs sync with registry changes.
    - *Acceptance:* Data model documented with field list and lifecycle notes.
+   - **Proposed state:**
+     - Define `DirectionalShadowSlot` containing:
+         - `scene::LightId id;`
+         - `glm::mat4 viewProjection;`
+         - `glm::vec3 direction;`
+         - `bool castsShadow;`
+         - `bool dirtyMatrix;`
+     - Add `std::vector<DirectionalShadowSlot> m_directionalShadows;` to `SceneRenderer` to mirror the light registry order.
+     - Maintain `std::optional<scene::LightId> m_activeShadowCaster;` identifying the currently selected slot.
+     - On each `set_light_resources` call, rebuild the vector by iterating registry directional lights, updating existing slots in place when ids align, and marking `dirtyMatrix` when direction/intensity/scene bounds change.
+     - When `m_activeShadowCaster` differs from the first slot with `castsShadow == true`, update the optional, flag the shadow pass dirty, and reset the cached matrix to force recomputation before the next frame.
+     - Store `glm::mat4 m_lastLightViewProjection;` for the matrix actually uploaded to shaders, avoiding recomputing when nothing changes.
 4. **Update shadow map resource management**
    - If single shadow map selected, document algorithm to select the active caster and update matrix when toggles change.
    - If multiple maps selected, plan allocation strategy (pooling, max count) and descriptor layout changes.
