@@ -215,3 +215,8 @@
 - [x] Implement rotation fix and confirm child nodes inherit parent transforms correctly
 
 - [x] Implement rotation pivot fix per .agent/plan_rotation_stride.md
+
+- [x] Draft ImGui docking integration plan (see .agent/plan_imgui_docking.md)
+- [ ] Upgrade Dear ImGui to the docking branch (source sync, CMake updates)
+- [ ] Enable docking UI layout (dockspace, panel windows, viewport routing)
+- [ ] Validate docking workflow with tests and documentation
