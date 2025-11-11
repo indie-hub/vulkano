@@ -35,6 +35,8 @@ public:
     [[nodiscard]] std::size_t slot_count() const noexcept;
     [[nodiscard]] std::uint32_t active_caster_count() const noexcept;
     [[nodiscard]] VkExtent2D shadow_extent() const noexcept;
+    [[nodiscard]] VkDeviceSize matrix_payload_size() const noexcept;
+    void write_matrix_payload(void* destination) const noexcept;
     [[nodiscard]] ShadowSlot& slot(std::size_t index);
     [[nodiscard]] const ShadowSlot& slot(std::size_t index) const;
     [[nodiscard]] VkDescriptorSetLayout descriptor_layout() const noexcept;

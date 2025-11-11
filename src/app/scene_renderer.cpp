@@ -268,7 +268,7 @@ void ShadowResources::initialise(
         }
     }
 
-    const VkDeviceSize requiredMatrixSize = static_cast<VkDeviceSize>(sizeof(glm::mat4) * maxSlots + sizeof(glm::uvec4));
+    const VkDeviceSize requiredMatrixSize = matrix_payload_size();
     if (matrixBufferSize < requiredMatrixSize || matrixBuffer == VK_NULL_HANDLE) {
         if (matrixBuffer != VK_NULL_HANDLE) {
             vkDestroyBuffer(device, matrixBuffer, nullptr);
@@ -387,6 +387,20 @@ VkExtent2D ShadowResources::shadow_extent() const noexcept {
     return extent;
 }
 
+VkDeviceSize ShadowResources::matrix_payload_size() const noexcept {
+    const VkDeviceSize matrixBytes = static_cast<VkDeviceSize>(sizeof(glm::mat4)) * static_cast<VkDeviceSize>(slots.size());
+    return matrixBytes + static_cast<VkDeviceSize>(sizeof(glm::uvec4));
+}
+
+void ShadowResources::write_matrix_payload(void* destination) const noexcept {
+    auto* matrixPtr = static_cast<glm::mat4*>(destination);
+    for (std::size_t index {0U}; index < slots.size(); ++index) {
+        matrixPtr[index] = slots[index].viewProjection;
+    }
+    auto* metaPtr = reinterpret_cast<glm::uvec4*>(matrixPtr + slots.size());
+    *metaPtr = glm::uvec4 {activeCount, 0U, 0U, 0U};
+}
+
 ShadowSlot& ShadowResources::slot(std::size_t index) {
     return slots.at(index);
 }
@@ -413,12 +427,7 @@ void ShadowResources::upload_matrices(const VulkanContext& context) {
         throw std::runtime_error {"Failed to map shadow matrix buffer"};
     }
 
-    auto* matrixPtr = static_cast<glm::mat4*>(mapped);
-    for (std::size_t index {0U}; index < slots.size(); ++index) {
-        matrixPtr[index] = slots[index].viewProjection;
-    }
-    auto* metaPtr = reinterpret_cast<glm::uvec4*>(matrixPtr + slots.size());
-    *metaPtr = glm::uvec4 {activeCount, 0U, 0U, 0U};
+    write_matrix_payload(mapped);
 
     vkUnmapMemory(context.device(), matrixMemory);
 }
