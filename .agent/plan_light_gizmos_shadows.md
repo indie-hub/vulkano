@@ -262,6 +262,13 @@
    - Plan how `compute_light_view_projection` (or successor) will iterate over active casters and produce per-slot matrices.
    - Decide caching strategy to avoid redundant recomputations when lights idle.
    - *Acceptance:* Flow documented showing inputs, caching, and outputs for each slot.
+   - **Matrix computation plan:**
+     - Introduce `compute_shadow_matrices(const ShadowResources&, const scene::LightRegistry&)` returning a vector of matrices aligned with slot ordering.
+     - For each active slot, fetch the corresponding light from registry, recompute matrix if `dirtyMatrix` or scene bounds changed; cache result in slot.
+     - Use existing orthographic frustum calculation per light direction but allow per-slot overrides (future cascades).
+     - Function returns span/vector of matrices to be uploaded to shader buffer or push constants.
+     - Inactive slots produce identity matrices; shader will ignore them based on active count.
+     - Complexity: O(activeCasters) per frame when dirty; otherwise reuse cached matrices.
 
 ### Goal E — Shader & Command Buffer Changes
 1. **Plan shader inputs for multiple matrices**
