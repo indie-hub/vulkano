@@ -169,17 +169,24 @@ int Application::run() noexcept {
             imgui->draw_overlay();
             if (ImGui::Begin("SSAO")) {
                 ImGui::Checkbox("Enable", &ssaoEnabled);
-                ImGui::SliderFloat("Strength", &ssaoStrength, 0.0F, 2.0F);
-                ImGui::SliderFloat("Base Ambient", &ssaoBaseAmbient, 0.0F, 1.0F);
-                ImGui::SliderFloat("SSAORadius", &ssaoRadius, 0.1F, 4.0F);
-                ImGui::SliderFloat("SSAOBias", &ssaoBias, 0.0F, 0.1F);
-                ImGui::SliderFloat("SSAOCos", &ssaoAngleCos, 0.0F, 1.0F);
-                ImGui::SliderFloat("SSAODepthRange", &ssaoDepthRange, 0.01F, 1.0F);
-                ImGui::SliderFloat("SSAODistanceRange", &ssaoDistanceRange, 0.05F, 3.0F);
-                ImGui::SliderFloat("SSAONormalEps", &ssaoNormalEpsilon, 0.0F, 0.5F);
-                ImGui::SliderFloat("Blur Radius", &ssaoBlurRadius, 0.5F, 6.0F);
-                ImGui::SliderFloat("Blur Depth Sigma", &ssaoBlurDepthSigma, 0.01F, 1.0F);
-                ImGui::Checkbox("Debug Occlusion", &ssaoDebugView);
+                ImGui::SliderFloat("Occlusion Strength", &ssaoStrength, 0.0F, 2.0F);
+                ImGui::SliderFloat("Base Ambient Light", &ssaoBaseAmbient, 0.0F, 1.0F);
+
+                if (ImGui::CollapsingHeader("Sampling", ImGuiTreeNodeFlags_DefaultOpen)) {
+                    ImGui::SliderFloat("Sampling Radius (m)##SSAORadius", &ssaoRadius, 0.1F, 4.0F);
+                    ImGui::SliderFloat("Sampling Bias (m)##SSAOBias", &ssaoBias, 0.0F, 0.1F);
+                    ImGui::SliderFloat("Angle Threshold (cos)##SSAOCos", &ssaoAngleCos, 0.0F, 1.0F);
+                    ImGui::SliderFloat("Depth Influence Range (m)##SSAODepthRange", &ssaoDepthRange, 0.01F, 1.0F);
+                    ImGui::SliderFloat("Distance Influence Range (m)##SSAODistanceRange", &ssaoDistanceRange, 0.05F, 3.0F);
+                    ImGui::SliderFloat("Normal Cutoff##SSAONormalEps", &ssaoNormalEpsilon, 0.0F, 0.5F);
+                }
+
+                if (ImGui::CollapsingHeader("Blur", ImGuiTreeNodeFlags_DefaultOpen)) {
+                    ImGui::SliderFloat("Blur Radius (px)##SSAOBlurRadius", &ssaoBlurRadius, 0.5F, 6.0F);
+                    ImGui::SliderFloat("Blur Depth Sensitivity##SSAOBlurDepthSigma", &ssaoBlurDepthSigma, 0.01F, 1.0F);
+                }
+
+                ImGui::Checkbox("Show Raw Occlusion", &ssaoDebugView);
             }
             ImGui::End();
             float effectiveStrength = ssaoEnabled ? ssaoStrength : 0.0F;
