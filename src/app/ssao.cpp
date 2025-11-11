@@ -673,6 +673,12 @@ void SSAODescriptors::set_camera_parameters(const glm::mat4& projection, const g
     m_params.projection = projection;
     m_params.sampleParams = glm::vec4 {width / noiseDim, height / noiseDim, radius, bias};
 
+    const float safeRadius = std::max(radius, 0.01F);
+    const float angleCosThreshold = 0.3F; // around 72 degrees
+    const float depthFalloff = 2.0F / safeRadius;
+    const float distanceFalloff = 1.0F / safeRadius;
+    m_params.attenuationParams = glm::vec4 {angleCosThreshold, depthFalloff, distanceFalloff, 0.0F};
+
     copy_to_memory(m_device, m_paramsMemory, &m_params, sizeof(ShaderParams));
 }
 
