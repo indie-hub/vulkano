@@ -9,6 +9,8 @@
 
 #include <glm/mat4x4.hpp>
 
+#include <imgui.h>
+
 #include <vulkano/scene/material.hpp>
 #include <vulkano/scene/light.hpp>
 #include <vulkano/scene/mesh.hpp>
@@ -17,14 +19,14 @@
 #include <vulkano/vk/depth_image.hpp>
 #include <vulkano/app/shadow_resources.hpp>
 
+struct ImTextureData;
+
 namespace vulkano::app {
 class VulkanContext;
 class Window;
 class MaterialBuffer;
 class MaterialTextureCache;
 class LightBuffer;
-
-using ImTextureID = void*;
 
 class SceneRenderer final {
 public:
@@ -94,7 +96,7 @@ public:
     void set_shadow_pcf_radius(float radius) noexcept;
     void set_shadows_enabled(bool enabled) noexcept;
     void set_shadow_debug_enabled(bool enabled) noexcept;
-    void set_viewport_extent(VkExtent2D extent);
+    bool set_viewport_extent(VkExtent2D extent);
     [[nodiscard]] VkExtent2D viewport_extent() const noexcept;
     [[nodiscard]] VkImageView scene_color_image_view() const noexcept;
     [[nodiscard]] VkFormat scene_color_format() const noexcept;
@@ -199,6 +201,12 @@ private:
     VkExtent2D m_viewportExtent {0U, 0U};
     VkSampler m_viewportSampler {VK_NULL_HANDLE};
     VkDescriptorSet m_viewportDescriptor {VK_NULL_HANDLE};
+    VkImageView m_viewportImageView {VK_NULL_HANDLE};
+    ImTextureData* m_viewportTexture {nullptr};
+    mutable VkImageLayout m_sceneColorLayout {VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+    mutable VkImageLayout m_albedoLayout {VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+    mutable VkImageLayout m_normalLayout {VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
+    mutable VkImageLayout m_linearDepthLayout {VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
     VkDescriptorSetLayout m_descriptorLayout {VK_NULL_HANDLE};
     VkDescriptorSetLayout m_materialDescriptorLayout {VK_NULL_HANDLE};
     VkDescriptorPool m_materialDescriptorPool {VK_NULL_HANDLE};

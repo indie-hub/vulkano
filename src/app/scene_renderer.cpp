@@ -10,12 +10,14 @@
 
 #include <imgui.h>
 #include <imgui_impl_vulkan.h>
+#include <imgui_internal.h>
 
 #include <vulkano/vk/depth_format.hpp>
 #include <vulkano/vk/depth_image.hpp>
-
 #include <array>
+#include <cstdint>
 #include <cstring>
+#include <type_traits>
 #include <filesystem>
 #include <fstream>
 #include <limits>
@@ -38,6 +40,25 @@ struct ShaderPaths final {
     std::filesystem::path vertexPath;
     std::filesystem::path fragmentPath;
 };
+
+static_assert(std::is_pointer_v<ImTextureID> || std::is_integral_v<ImTextureID>,
+    "ImTextureID must be representable as a pointer or integer type");
+
+template <typename Handle>
+ImTextureID to_texture_id(Handle handle) noexcept {
+    using HandleType = std::decay_t<Handle>;
+    if constexpr (std::is_same_v<HandleType, ImTextureID>) {
+        return handle;
+    } else if constexpr (std::is_pointer_v<HandleType>) {
+        return static_cast<ImTextureID>(reinterpret_cast<uintptr_t>(handle));
+    } else if constexpr (std::is_integral_v<HandleType>) {
+        return static_cast<ImTextureID>(handle);
+    } else {
+        static_assert(std::is_pointer_v<HandleType> || std::is_integral_v<HandleType>,
+            "Unsupported handle type for ImTextureID conversion");
+        return ImTextureID_Invalid;
+    }
+}
 
 scene::Transform compose_local(const scene::Transform& parent, const scene::Transform& local) {
     scene::Transform composed {};
@@ -512,6 +533,13 @@ SceneRenderer::~SceneRenderer() noexcept {
         m_presentRenderPass = VK_NULL_HANDLE;
     }
     destroy_viewport_descriptor();
+    if (m_viewportTexture != nullptr) {
+        if (ImGui::GetCurrentContext() != nullptr) {
+            ImGui::UnregisterUserTexture(m_viewportTexture);
+        }
+        IM_DELETE(m_viewportTexture);
+        m_viewportTexture = nullptr;
+    }
 }
 
 void SceneRenderer::set_scene(const std::vector<SceneMesh>& meshes) {
@@ -895,16 +923,17 @@ void SceneRenderer::set_shadow_debug_enabled(bool enabled) noexcept {
     m_shadowDebug = enabled;
 }
 
-void SceneRenderer::set_viewport_extent(VkExtent2D extent) {
+bool SceneRenderer::set_viewport_extent(VkExtent2D extent) {
     if (extent.width == 0U || extent.height == 0U) {
-        return;
+        return false;
     }
     if (extent.width == m_viewportExtent.width && extent.height == m_viewportExtent.height) {
-        return;
+        return false;
     }
 
     m_viewportExtent = extent;
     recreate_viewport_resources();
+    return true;
 }
 
 VkExtent2D SceneRenderer::viewport_extent() const noexcept {
@@ -936,14 +965,19 @@ const std::vector<VkFramebuffer>& SceneRenderer::present_framebuffers() const no
 }
 
 VkDescriptorSet SceneRenderer::viewport_descriptor() noexcept {
-    if (m_viewportDescriptor == VK_NULL_HANDLE) {
-        ensure_viewport_descriptor();
-    }
+    ensure_viewport_descriptor();
     return m_viewportDescriptor;
 }
 
 ImTextureID SceneRenderer::viewport_texture_id() noexcept {
-    return reinterpret_cast<ImTextureID>(viewport_descriptor());
+    ensure_viewport_descriptor();
+    if (m_viewportTexture != nullptr) {
+        return m_viewportTexture->GetTexID();
+    }
+    if (m_viewportDescriptor == VK_NULL_HANDLE) {
+        return ImTextureID_Invalid;
+    }
+    return to_texture_id(m_viewportDescriptor);
 }
 
 void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::uint32_t imageIndex,
@@ -957,6 +991,11 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
     if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
         throw std::runtime_error {"Failed to begin recording command buffer"};
     }
+
+    m_sceneColorLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    m_albedoLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    m_normalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    m_linearDepthLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
     const auto source_stage_for_layout = [](VkImageLayout layout) noexcept -> VkPipelineStageFlags {
         switch (layout) {
@@ -1238,15 +1277,18 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
 
     std::array<VkImageMemoryBarrier, 4> colorReadBarriers {};
     std::uint32_t colorBarrierCount {0U};
-    const auto appendColorBarrier = [&](VkImage image) noexcept {
+    const auto appendColorBarrier = [&](VkImage image, VkImageLayout& layout) noexcept {
         if (image == VK_NULL_HANDLE) {
+            return;
+        }
+        if (layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
             return;
         }
         VkImageMemoryBarrier barrier {};
         barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
         barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        barrier.oldLayout = layout;
         barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -1257,12 +1299,13 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
         barrier.subresourceRange.baseArrayLayer = 0U;
         barrier.subresourceRange.layerCount = 1U;
         colorReadBarriers[colorBarrierCount++] = barrier;
+        layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     };
 
-    appendColorBarrier(m_sceneColorImage.image());
-    appendColorBarrier(m_albedoImage.image());
-    appendColorBarrier(m_normalImage.image());
-    appendColorBarrier(m_linearDepthImage.image());
+    appendColorBarrier(m_sceneColorImage.image(), m_sceneColorLayout);
+    appendColorBarrier(m_albedoImage.image(), m_albedoLayout);
+    appendColorBarrier(m_normalImage.image(), m_normalLayout);
+    appendColorBarrier(m_linearDepthImage.image(), m_linearDepthLayout);
 
     if (colorBarrierCount > 0U) {
         vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -1691,6 +1734,11 @@ void SceneRenderer::create_color_resources() {
     m_linearDepthImage = vk::ColorImage::create(physicalDevice, device, extent, m_linearDepthFormat,
         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
 
+    m_sceneColorLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    m_albedoLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    m_normalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    m_linearDepthLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
 }
 
 void SceneRenderer::destroy_color_resources() noexcept {
@@ -1698,6 +1746,11 @@ void SceneRenderer::destroy_color_resources() noexcept {
     m_albedoImage = vk::ColorImage {};
     m_normalImage = vk::ColorImage {};
     m_linearDepthImage = vk::ColorImage {};
+    m_sceneColorLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    m_albedoLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    m_normalLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    m_linearDepthLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    m_viewportImageView = VK_NULL_HANDLE;
 }
 
 void SceneRenderer::create_material_descriptors() {
@@ -1910,7 +1963,6 @@ void SceneRenderer::recreate_viewport_resources() {
     destroy_scene_framebuffer();
     destroy_color_resources();
     destroy_depth_resources();
-    destroy_viewport_descriptor();
     create_color_resources();
     create_depth_resources();
     create_scene_framebuffer();
@@ -1918,24 +1970,39 @@ void SceneRenderer::recreate_viewport_resources() {
 }
 
 void SceneRenderer::destroy_viewport_descriptor() noexcept {
+    const bool backendReady = (ImGui::GetCurrentContext() != nullptr)
+        && (ImGui::GetIO().BackendRendererUserData != nullptr);
+
     if (m_viewportDescriptor != VK_NULL_HANDLE) {
-        ImGui_ImplVulkan_RemoveTexture(m_viewportDescriptor);
+        if (backendReady) {
+            ImGui_ImplVulkan_RemoveTexture(m_viewportDescriptor);
+        }
         m_viewportDescriptor = VK_NULL_HANDLE;
+    }
+    if (m_viewportTexture != nullptr) {
+        m_viewportTexture->SetTexID(ImTextureID_Invalid);
+        m_viewportTexture->SetStatus(ImTextureStatus_Destroyed);
     }
     if (m_viewportSampler != VK_NULL_HANDLE) {
         vkDestroySampler(m_context.device(), m_viewportSampler, nullptr);
         m_viewportSampler = VK_NULL_HANDLE;
     }
+    m_viewportImageView = VK_NULL_HANDLE;
 }
 
 void SceneRenderer::ensure_viewport_descriptor() {
     if (ImGui::GetCurrentContext() == nullptr) {
         return;
     }
-    if (ImGui::GetIO().BackendRendererUserData == nullptr) {
+    ImGuiIO& io = ImGui::GetIO();
+    if (io.BackendRendererUserData == nullptr) {
         return;
     }
     if (m_sceneColorImage.image() == VK_NULL_HANDLE) {
+        if (m_viewportTexture != nullptr) {
+            m_viewportTexture->SetTexID(ImTextureID_Invalid);
+            m_viewportTexture->SetStatus(ImTextureStatus_Destroyed);
+        }
         return;
     }
     if (m_viewportSampler == VK_NULL_HANDLE) {
@@ -1955,13 +2022,49 @@ void SceneRenderer::ensure_viewport_descriptor() {
         }
     }
 
-    if (m_viewportDescriptor != VK_NULL_HANDLE) {
-        ImGui_ImplVulkan_RemoveTexture(m_viewportDescriptor);
-        m_viewportDescriptor = VK_NULL_HANDLE;
+    if (m_viewportTexture == nullptr) {
+        m_viewportTexture = IM_NEW(ImTextureData)();
+        m_viewportTexture->Format = ImTextureFormat_RGBA32;
+        m_viewportTexture->BytesPerPixel = 4;
+        m_viewportTexture->UseColors = true;
+        ImGui::RegisterUserTexture(m_viewportTexture);
+    }
+    m_viewportTexture->Width = static_cast<int>(m_viewportExtent.width);
+    m_viewportTexture->Height = static_cast<int>(m_viewportExtent.height);
+
+    const VkImageView targetView = m_sceneColorImage.view();
+    if (targetView == VK_NULL_HANDLE) {
+        m_viewportTexture->SetTexID(ImTextureID_Invalid);
+        m_viewportTexture->SetStatus(ImTextureStatus_Destroyed);
+        return;
     }
 
-    m_viewportDescriptor = ImGui_ImplVulkan_AddTexture(m_viewportSampler, m_sceneColorImage.view(),
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    if (m_viewportDescriptor == VK_NULL_HANDLE) {
+        m_viewportDescriptor = ImGui_ImplVulkan_AddTexture(m_viewportSampler, targetView,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        m_viewportImageView = targetView;
+    } else if (m_viewportImageView != targetView) {
+        VkDescriptorImageInfo imageInfo {};
+        imageInfo.sampler = m_viewportSampler;
+        imageInfo.imageView = targetView;
+        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+        VkWriteDescriptorSet write {};
+        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write.dstSet = m_viewportDescriptor;
+        write.dstBinding = 0U;
+        write.descriptorCount = 1U;
+        write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        write.pImageInfo = &imageInfo;
+
+        vkUpdateDescriptorSets(m_context.device(), 1U, &write, 0U, nullptr);
+        m_viewportImageView = targetView;
+    }
+
+    if (m_viewportDescriptor != VK_NULL_HANDLE) {
+        m_viewportTexture->SetTexID(to_texture_id(m_viewportDescriptor));
+        m_viewportTexture->SetStatus(ImTextureStatus_OK);
+    }
 }
 
 void SceneRenderer::record_shadow_pass(VkCommandBuffer commandBuffer) const {

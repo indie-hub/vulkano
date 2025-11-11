@@ -463,8 +463,8 @@ int Application::run() noexcept {
                 result.viewportSize = available;
                 const VkDescriptorSet viewportSet = activeRenderer.viewport_descriptor();
                 if (viewportSet != VK_NULL_HANDLE && available.x > 0.0F && available.y > 0.0F) {
-                    ImGui::Image(activeRenderer.viewport_texture_id(), available, ImVec2 {0.0F, 0.0F},
-                        ImVec2 {1.0F, 1.0F});
+                    const ImTextureRef viewportRef {activeRenderer.viewport_texture_id()};
+                    ImGui::Image(viewportRef, available, ImVec2 {0.0F, 0.0F}, ImVec2 {1.0F, 1.0F});
                 } else {
                     ImGui::Dummy(available);
                 }
@@ -561,7 +561,12 @@ int Application::run() noexcept {
                 camera.set_aspect_ratio(viewportWidth / viewportHeight);
                 VkExtent2D viewportExtent {static_cast<std::uint32_t>(std::max(1.0F, viewportWidth)),
                     static_cast<std::uint32_t>(std::max(1.0F, viewportHeight))};
-                renderer->set_viewport_extent(viewportExtent);
+                const bool viewportChanged = renderer->set_viewport_extent(viewportExtent);
+                if (viewportChanged && renderer->normal_image_view() != VK_NULL_HANDLE
+                    && renderer->linear_depth_image_view() != VK_NULL_HANDLE) {
+                    ssaoDescriptors->update_gbuffer_views(renderer->normal_image_view(), renderer->linear_depth_image_view());
+                    ssaoBlurPass->set_depth_view(renderer->linear_depth_image_view());
+                }
             }
             const bool viewportActive = dockResult.viewportHovered || dockResult.viewportFocused;
             cameraController.set_input_enabled(viewportActive);

@@ -234,6 +234,6 @@
 - [x] Analyse ImGui viewport texture descriptor lifecycle
     - [x] Confirm viewport image view and descriptor state during resize
     - [x] Inspect SSAO descriptor updates after viewport recreation
-- [ ] Implement persistent viewport texture integration and descriptor updates
-- [ ] Rebuild, run validation layers, and confirm viewport runtime stability
+- [x] Implement persistent viewport texture integration and descriptor updates
+- [x] Rebuild, run validation layers, and confirm viewport runtime stability
 - [ ] Document and validate viewport docking workflow

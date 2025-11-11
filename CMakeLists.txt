@@ -252,10 +252,10 @@ target_link_libraries(vulkano_app
     PUBLIC
         glm::glm
         assimp
+        imgui
     PRIVATE
         glfw
         Vulkan::Vulkan
-        imgui
         vulkano_math
 )
 
