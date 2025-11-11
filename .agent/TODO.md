@@ -165,3 +165,4 @@
 - [x] Design ShadowResources pool structure
 - [x] Plan descriptor layout changes for multi-caster shadows
 - [x] Define caster prioritisation rules for limited shadow slots
+- [ ] Map registry changes to shadow slot assignments
