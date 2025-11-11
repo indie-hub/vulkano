@@ -11,6 +11,7 @@ set(VULKANO_TEST_SOURCES
     light_gpu_tests.cpp
     shadow_resources_tests.cpp
     asset_importer_tests.cpp
+    mesh_packing_tests.cpp
     transform_tests.cpp
     scene_graph_tests.cpp
     renderer_constants_tests.cpp

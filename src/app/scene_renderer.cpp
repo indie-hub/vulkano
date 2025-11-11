@@ -5,6 +5,8 @@
 #include <vulkano/app/material_buffer.hpp>
 #include <vulkano/app/material_texture_cache.hpp>
 #include <vulkano/app/light_buffer.hpp>
+#include <vulkano/app/gpu_vertex.hpp>
+#include <vulkano/app/mesh_packing.hpp>
 #include <vulkano/app/shadow_map.hpp>
 #include <vulkano/app/shadow_pass.hpp>
 
@@ -36,6 +38,7 @@ using vulkano::app::SceneRenderer;
 using vulkano::scene::Transform;
 namespace scene = vulkano::scene;
 
+using vulkano::app::GpuVertex;
 struct ShaderPaths final {
     std::filesystem::path vertexPath;
     std::filesystem::path fragmentPath;
@@ -96,19 +99,10 @@ struct ScenePushConstants final {
     glm::vec4 shadow {0.002F, 0.0F, 0.0F, 0.0F};
 };
 
-struct Vertex final {
-    glm::vec3 position {};
-    glm::vec3 normal {};
-    glm::vec3 color {};
-    glm::vec2 uv {};
-    glm::vec3 tangent {};
-    float bitangentSign {1.0F};
-};
-
 [[nodiscard]] VkVertexInputBindingDescription vertex_binding_description() noexcept {
     VkVertexInputBindingDescription binding {};
     binding.binding = 0U;
-    binding.stride = static_cast<std::uint32_t>(sizeof(Vertex));
+    binding.stride = static_cast<std::uint32_t>(sizeof(GpuVertex));
     binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
     return binding;
 }
@@ -118,29 +112,29 @@ struct Vertex final {
     attributes[0].location = 0U;
     attributes[0].binding = 0U;
     attributes[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-    attributes[0].offset = static_cast<std::uint32_t>(offsetof(Vertex, position));
+    attributes[0].offset = static_cast<std::uint32_t>(offsetof(GpuVertex, position));
 
     attributes[1].location = 1U;
     attributes[1].binding = 0U;
     attributes[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-    attributes[1].offset = static_cast<std::uint32_t>(offsetof(Vertex, normal));
+    attributes[1].offset = static_cast<std::uint32_t>(offsetof(GpuVertex, normal));
 
     attributes[2].location = 2U;
     attributes[2].binding = 0U;
     attributes[2].format = VK_FORMAT_R32G32B32_SFLOAT;
-    attributes[2].offset = static_cast<std::uint32_t>(offsetof(Vertex, color));
+    attributes[2].offset = static_cast<std::uint32_t>(offsetof(GpuVertex, color));
     attributes[3].location = 3U;
     attributes[3].binding = 0U;
     attributes[3].format = VK_FORMAT_R32G32_SFLOAT;
-    attributes[3].offset = static_cast<std::uint32_t>(offsetof(Vertex, uv));
+    attributes[3].offset = static_cast<std::uint32_t>(offsetof(GpuVertex, uv));
     attributes[4].location = 4U;
     attributes[4].binding = 0U;
     attributes[4].format = VK_FORMAT_R32G32B32_SFLOAT;
-    attributes[4].offset = static_cast<std::uint32_t>(offsetof(Vertex, tangent));
+    attributes[4].offset = static_cast<std::uint32_t>(offsetof(GpuVertex, tangent));
     attributes[5].location = 5U;
     attributes[5].binding = 0U;
     attributes[5].format = VK_FORMAT_R32_SFLOAT;
-    attributes[5].offset = static_cast<std::uint32_t>(offsetof(Vertex, bitangentSign));
+    attributes[5].offset = static_cast<std::uint32_t>(offsetof(GpuVertex, bitangentSign));
     return attributes;
 }
 
@@ -748,19 +742,19 @@ void SceneRenderer::set_light_resources(LightBuffer& buffer, const scene::LightR
 
     if (m_lightDebugMesh.vertexMemory != VK_NULL_HANDLE) {
         const glm::vec3 arrowColor = primaryInfo != nullptr ? primaryInfo->light->color : glm::vec3 {1.0F, 1.0F, 0.0F};
-        std::array<Vertex, 5> vertices = {
-            Vertex {.position = glm::vec3 {0.0F, 0.5F, 0.0F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
-                .color = arrowColor, .uv = glm::vec2 {0.0F, 0.0F}, .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}},
-            Vertex {.position = glm::vec3 {0.15F, 0.35F, -0.6F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
-                .color = arrowColor, .uv = glm::vec2 {0.0F, 0.0F}, .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}},
-            Vertex {.position = glm::vec3 {-0.15F, 0.35F, -0.6F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
-                .color = arrowColor, .uv = glm::vec2 {0.0F, 0.0F}, .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}},
-            Vertex {.position = glm::vec3 {-0.15F, 0.15F, -0.6F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
-                .color = arrowColor, .uv = glm::vec2 {0.0F, 0.0F}, .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}},
-            Vertex {.position = glm::vec3 {0.15F, 0.15F, -0.6F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
-                .color = arrowColor, .uv = glm::vec2 {0.0F, 0.0F}, .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}}
-        };
-        VkDeviceSize size = static_cast<VkDeviceSize>(sizeof(Vertex) * vertices.size());
+    std::array<GpuVertex, 5> vertices = {
+        GpuVertex {.position = glm::vec3 {0.0F, 0.5F, 0.0F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+            .color = arrowColor, .uv = glm::vec2 {0.0F, 0.0F}, .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}},
+        GpuVertex {.position = glm::vec3 {0.15F, 0.35F, -0.6F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+            .color = arrowColor, .uv = glm::vec2 {0.0F, 0.0F}, .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}},
+        GpuVertex {.position = glm::vec3 {-0.15F, 0.35F, -0.6F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+            .color = arrowColor, .uv = glm::vec2 {0.0F, 0.0F}, .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}},
+        GpuVertex {.position = glm::vec3 {-0.15F, 0.15F, -0.6F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+            .color = arrowColor, .uv = glm::vec2 {0.0F, 0.0F}, .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}},
+        GpuVertex {.position = glm::vec3 {0.15F, 0.15F, -0.6F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+            .color = arrowColor, .uv = glm::vec2 {0.0F, 0.0F}, .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}}
+    };
+    VkDeviceSize size = static_cast<VkDeviceSize>(sizeof(GpuVertex) * vertices.size());
         void* mapped = nullptr;
         if (vkMapMemory(m_context.device(), m_lightDebugMesh.vertexMemory, 0U, size, 0U, &mapped) == VK_SUCCESS) {
             std::memcpy(mapped, vertices.data(), static_cast<std::size_t>(size));
@@ -775,23 +769,23 @@ void SceneRenderer::set_light_resources(LightBuffer& buffer, const scene::LightR
         }
 
         DebugMesh mesh {};
-        const std::array<Vertex, 6> vertices {
-            Vertex {.position = glm::vec3 {0.0F, 0.0F, 0.0F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+        const std::array<GpuVertex, 6> vertices {
+            GpuVertex {.position = glm::vec3 {0.0F, 0.0F, 0.0F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
                 .color = light.color, .uv = glm::vec2 {0.0F, 0.0F}, .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}},
-            Vertex {.position = glm::vec3 {0.0F, 0.2F, 0.0F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+            GpuVertex {.position = glm::vec3 {0.0F, 0.2F, 0.0F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
                 .color = light.color, .uv = glm::vec2 {0.0F, 0.0F}, .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}},
-            Vertex {.position = glm::vec3 {0.2F, 0.0F, 0.0F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+            GpuVertex {.position = glm::vec3 {0.2F, 0.0F, 0.0F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
                 .color = light.color, .uv = glm::vec2 {0.0F, 0.0F}, .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}},
-            Vertex {.position = glm::vec3 {0.0F, -0.2F, 0.0F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+            GpuVertex {.position = glm::vec3 {0.0F, -0.2F, 0.0F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
                 .color = light.color, .uv = glm::vec2 {0.0F, 0.0F}, .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}},
-            Vertex {.position = glm::vec3 {-0.2F, 0.0F, 0.0F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+            GpuVertex {.position = glm::vec3 {-0.2F, 0.0F, 0.0F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
                 .color = light.color, .uv = glm::vec2 {0.0F, 0.0F}, .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}},
-            Vertex {.position = glm::vec3 {0.0F, 0.0F, 0.2F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+            GpuVertex {.position = glm::vec3 {0.0F, 0.0F, 0.2F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
                 .color = light.color, .uv = glm::vec2 {0.0F, 0.0F}, .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}}
         };
         const std::array<std::uint32_t, 12> indices {0U, 1U, 2U, 0U, 2U, 3U, 0U, 3U, 4U, 0U, 4U, 1U};
 
-        const VkDeviceSize vertexSize = static_cast<VkDeviceSize>(sizeof(Vertex) * vertices.size());
+        const VkDeviceSize vertexSize = static_cast<VkDeviceSize>(sizeof(GpuVertex) * vertices.size());
         create_buffer(m_context.physical_device(), m_context.device(), vertexSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mesh.vertexBuffer,
             mesh.vertexMemory);
@@ -1939,21 +1933,7 @@ void SceneRenderer::upload_mesh(const SceneMesh& mesh) {
         throw std::invalid_argument {"Scene mesh requires a valid material identifier"};
     }
 
-    const std::vector<Vertex> vertices = [&mesh]() {
-        std::vector<Vertex> converted;
-        converted.reserve(mesh.mesh.vertices.size());
-        for (const scene::Vertex& vertex : mesh.mesh.vertices) {
-            converted.push_back(Vertex {
-                .position = vertex.position,
-                .normal = vertex.normal,
-                .color = vertex.color,
-                .uv = vertex.uv,
-                .tangent = vertex.tangent,
-                .bitangentSign = vertex.bitangentSign
-            });
-        }
-        return converted;
-    }();
+    const std::vector<GpuVertex> vertices = pack_mesh_vertices(mesh.mesh);
 
     std::vector<std::uint32_t> indices = mesh.mesh.indices;
     if (indices.empty()) {
@@ -1965,7 +1945,7 @@ void SceneRenderer::upload_mesh(const SceneMesh& mesh) {
     gpuMesh.indexCount = static_cast<std::uint32_t>(indices.size());
     gpuMesh.material = mesh.material;
 
-    const VkDeviceSize vertexBufferSize {static_cast<VkDeviceSize>(sizeof(Vertex) * vertices.size())};
+    const VkDeviceSize vertexBufferSize {static_cast<VkDeviceSize>(sizeof(GpuVertex) * vertices.size())};
     const VkDeviceSize indexBufferSize {static_cast<VkDeviceSize>(sizeof(std::uint32_t) * indices.size())};
 
     create_buffer(physicalDevice, device, vertexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
@@ -2158,20 +2138,20 @@ void SceneRenderer::create_light_debug_mesh() {
     const VkDevice device = m_context.device();
     const VkPhysicalDevice physicalDevice = m_context.physical_device();
 
-    const std::array<Vertex, 5> vertices {
-        Vertex {.position = glm::vec3 {0.0F, 0.5F, 0.0F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+    const std::array<GpuVertex, 5> vertices {
+        GpuVertex {.position = glm::vec3 {0.0F, 0.5F, 0.0F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
             .color = glm::vec3 {1.0F, 1.0F, 0.0F}, .uv = glm::vec2 {0.0F, 0.0F},
             .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}, .bitangentSign = 1.0F},
-        Vertex {.position = glm::vec3 {0.15F, 0.35F, -0.6F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+        GpuVertex {.position = glm::vec3 {0.15F, 0.35F, -0.6F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
             .color = glm::vec3 {1.0F, 1.0F, 0.0F}, .uv = glm::vec2 {0.0F, 0.0F},
             .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}, .bitangentSign = 1.0F},
-        Vertex {.position = glm::vec3 {-0.15F, 0.35F, -0.6F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+        GpuVertex {.position = glm::vec3 {-0.15F, 0.35F, -0.6F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
             .color = glm::vec3 {1.0F, 1.0F, 0.0F}, .uv = glm::vec2 {0.0F, 0.0F},
             .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}, .bitangentSign = 1.0F},
-        Vertex {.position = glm::vec3 {-0.15F, 0.15F, -0.6F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+        GpuVertex {.position = glm::vec3 {-0.15F, 0.15F, -0.6F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
             .color = glm::vec3 {1.0F, 1.0F, 0.0F}, .uv = glm::vec2 {0.0F, 0.0F},
             .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}, .bitangentSign = 1.0F},
-        Vertex {.position = glm::vec3 {0.15F, 0.15F, -0.6F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+        GpuVertex {.position = glm::vec3 {0.15F, 0.15F, -0.6F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
             .color = glm::vec3 {1.0F, 1.0F, 0.0F}, .uv = glm::vec2 {0.0F, 0.0F},
             .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}, .bitangentSign = 1.0F}
     };
@@ -2182,7 +2162,7 @@ void SceneRenderer::create_light_debug_mesh() {
         0U, 4U, 1U
     };
 
-    VkDeviceSize vertexBufferSize {static_cast<VkDeviceSize>(sizeof(Vertex) * vertices.size())};
+    VkDeviceSize vertexBufferSize {static_cast<VkDeviceSize>(sizeof(GpuVertex) * vertices.size())};
     VkBufferCreateInfo vertexInfo {};
     vertexInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     vertexInfo.size = vertexBufferSize;

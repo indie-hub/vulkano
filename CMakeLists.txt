@@ -172,6 +172,7 @@ add_library(vulkano_app STATIC
     src/app/frame_resources.cpp
     src/app/glfw_library.cpp
     src/app/scene_renderer.cpp
+    src/app/mesh_packing.cpp
     src/app/imgui_renderer.cpp
     src/app/ssao.cpp
     src/app/material_gpu.cpp
@@ -213,6 +214,8 @@ target_sources(vulkano_app
             include/vulkano/app/frame_resources.hpp
             include/vulkano/app/glfw_library.hpp
             include/vulkano/app/scene_renderer.hpp
+            include/vulkano/app/gpu_vertex.hpp
+            include/vulkano/app/mesh_packing.hpp
             include/vulkano/app/imgui_renderer.hpp
             include/vulkano/app/ssao.hpp
             include/vulkano/app/material_gpu.hpp

@@ -251,7 +251,7 @@
 - [x] Validate texture path resolution (tests, docs)
 
 - [x] Draft UV and tangent diagnostic plan (.agent/plan_uv_tangent.md)
-- [ ] Validate UV attribute propagation from importer to GPU buffers
+- [x] Validate UV attribute propagation from importer to GPU buffers
 - [ ] Investigate tangent-space reconstruction and shader usage
 - [ ] Implement fixes for UV/tangent discrepancies
 - [ ] Extend automated coverage for UV/tangent paths
