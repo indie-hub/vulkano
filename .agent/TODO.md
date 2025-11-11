@@ -80,5 +80,7 @@
 
 - [x] Plan texture asset pipeline and GPU sampler strategy for Phase 3
 - [x] Implement texture loading utilities and placeholder textures
-- [ ] Extend material registry to reference GPU texture handles and update descriptors
+- [ ] Implement GPU texture image upload helper and sampler creation
+- [ ] Create material texture cache linking registry entries to GPU resources
+- [ ] Update scene renderer descriptors and shaders to sample material textures
 - [ ] Validate textured materials via build, tests, and runtime run
