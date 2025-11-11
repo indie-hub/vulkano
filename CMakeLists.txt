@@ -159,6 +159,7 @@ add_library(vulkano_app STATIC
     src/vk/physical_device.cpp
     src/vk/logical_device.cpp
     src/vk/depth_format.cpp
+    src/vk/depth_image.cpp
     src/vk/swapchain.cpp
 )
 
@@ -183,6 +184,7 @@ target_sources(vulkano_app
             include/vulkano/scene/mesh.hpp
             include/vulkano/vk/logical_device.hpp
             include/vulkano/vk/depth_format.hpp
+            include/vulkano/vk/depth_image.hpp
             include/vulkano/vk/swapchain.hpp
 )
 
