@@ -210,3 +210,47 @@ Deliver a right-handed Vulkan renderer that opens a GLFW window, renders a white
 - Cursor hidden/captured during camera control and can be released (Escape).
 - Unit tests for camera math pass and overall test suite remains green.
 - Application remains validation-clean after movement and resizing.
+
+# Depth Testing Plan
+
+## Findings
+- Current render pass exposes only a colour attachment; no depth attachment is defined (see SceneRenderer::create_render_pass).
+- Graphics pipeline leaves `pDepthStencilState` unset, so depth testing and writes are fully disabled.
+- Framebuffers are built with swapchain image views only, and command buffers clear colour without touching depth.
+
+## Goals
+- Introduce a depth buffer that matches the swapchain extent and makes front-to-back occlusion deterministic.
+- Keep responsibilities split across focused components (context, renderer, frame resources) and respect RAII for all Vulkan objects.
+- Preserve clean validation output and swapchain recreation resilience on macOS MoltenVK.
+
+## Implementation Steps
+1. **Depth format selection helper**
+   - Add a vk-level utility (e.g., `vk::DepthFormatResolver`) that queries supported depth formats on the physical device and returns the optimal `VkFormat` (prefer `VK_FORMAT_D32_SFLOAT`, fall back through `VK_FORMAT_D32_SFLOAT_S8_UINT`, `VK_FORMAT_D24_UNORM_S8_UINT`).
+   - Cover helper logic with unit tests using stubbed `vkGetPhysicalDeviceFormatProperties` responses.
+2. **Depth image abstraction**
+   - Introduce a small RAII type (e.g., `vk::DepthImage`) that owns the depth `VkImage`, `VkDeviceMemory`, and `VkImageView`, constructed from the selected format and swapchain extent.
+   - Ensure it exposes the image view and handles destruction in its destructor; support move semantics for swapchain recreation.
+3. **Render pass update**
+   - Extend `SceneRenderer::create_render_pass` to declare a depth attachment with load-op clear, store-op `DONT_CARE`, final layout `VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL`, and reference it in the subpass.
+   - Update subpass dependency to include depth stages (`VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT` and `VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT`).
+4. **Pipeline depth-stencil state**
+   - Build a `VkPipelineDepthStencilStateCreateInfo` with depth test/write enabled, compare op `VK_COMPARE_OP_LESS_OR_EQUAL`, and set `pipelineInfo.pDepthStencilState` to it.
+   - Keep stencil disabled but initialise the struct explicitly to satisfy validation layers.
+5. **Framebuffer and render pass begin info**
+   - When creating framebuffers, bind both colour and depth image views; adjust attachment count accordingly.
+   - During command buffer recording, supply two `VkClearValue` entries (colour + depth) and ensure depth clears to 1.0F.
+6. **Submission and synchronization tweaks**
+   - Update `Application::run` submit wait stages to include `VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT` alongside colour output for depth readiness.
+7. **Swapchain recreation path**
+   - Tie depth image lifecycle to swapchain extent changes: destroy depth resources before tearing down framebuffers and recreate them immediately after new swapchain images are available.
+   - Validate resize handling by triggering repeated window resizes; ensure no stale depth views remain.
+8. **Validation & verification**
+   - Rebuild and run the renderer, confirm depth-based occlusion (sphere/cube behind plane disappear when expected).
+   - Run existing unit tests plus new depth helper tests; capture validation layer output to confirm it stays clean.
+
+## Acceptance Criteria
+- Renderer uses a depth attachment with a format supported by the active GPU; validation confirms layout transitions and memory bindings.
+- Objects render with correct occlusion when moving the FPS camera (plane hides lower portions of cube/sphere when appropriate).
+- Swapchain recreation (window resize) rebuilds depth resources without crashes or validation warnings.
+- Unit tests pass, including coverage for the new depth-format helper, and the application runs to completion on macOS.
+

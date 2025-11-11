@@ -18,3 +18,7 @@
 - [x] Fix swapchain recreation crash
 - [x] Plan FPS camera integration
 - [x] Implement FPS camera per plan
+
+- [x] Verify depth testing configuration and runtime behaviour
+- [x] Draft depth testing implementation plan with acceptance criteria
+
