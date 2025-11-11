@@ -5,6 +5,7 @@
 #include <vulkano/app/frame_resources.hpp>
 #include <vulkano/app/glfw_library.hpp>
 #include <vulkano/app/imgui_renderer.hpp>
+#include <vulkano/app/ssao.hpp>
 #include <vulkano/app/scene_renderer.hpp>
 #include <vulkano/app/vulkan_context.hpp>
 #include <vulkano/app/window.hpp>
@@ -33,6 +34,10 @@ int Application::run() noexcept {
 
         Window window {"Vulkano Renderer", 1280U, 720U};
         VulkanContext context {window};
+
+        SSAOSampleGenerator ssaoGenerator {};
+        SSAOGpuResources ssaoResources {context, ssaoGenerator, 64U, 4U};
+        static_cast<void>(ssaoResources);
 
         const VkExtent2D swapExtent = context.swapchain_extent();
         const float swapAspect = swapExtent.height == 0U ? 1.0F : static_cast<float>(swapExtent.width) / static_cast<float>(swapExtent.height);
