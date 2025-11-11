@@ -12,6 +12,7 @@
 #include <vulkano/scene/mesh.hpp>
 
 #include <GLFW/glfw3.h>
+#include <imgui.h>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -35,11 +36,6 @@ int Application::run() noexcept {
         Window window {"Vulkano Renderer", 1280U, 720U};
         VulkanContext context {window};
 
-        SSAOSampleGenerator ssaoGenerator {};
-        SSAOGpuResources ssaoResources {context, ssaoGenerator, 64U, 4U};
-        SSAODescriptors ssaoDescriptors {context, ssaoResources};
-        static_cast<void>(ssaoDescriptors);
-
         const VkExtent2D swapExtent = context.swapchain_extent();
         const float swapAspect = swapExtent.height == 0U ? 1.0F : static_cast<float>(swapExtent.width) / static_cast<float>(swapExtent.height);
         Camera camera {glm::vec3 {0.0F, 1.5F, 5.0F}, -90.0F, -15.0F, swapAspect};
@@ -61,8 +57,22 @@ int Application::run() noexcept {
             }
         };
 
-        auto renderer = std::make_unique<SceneRenderer>(context, window);
+        SSAOSampleGenerator ssaoGenerator {};
+        SSAOGpuResources ssaoResources {context, ssaoGenerator, 64U, 4U};
+        auto ssaoComposite = std::make_unique<SSAOCompositeDescriptors>(context);
+
+        auto renderer = std::make_unique<SceneRenderer>(context, window, ssaoComposite->layout());
         renderer->set_scene(sceneMeshes);
+
+        auto ssaoDescriptors = std::make_unique<SSAODescriptors>(context, ssaoResources,
+            renderer->normal_image_view(), renderer->linear_depth_image_view());
+        auto ssaoPass = std::make_unique<SSAOPass>(context, ssaoDescriptors->layout(), context.swapchain_extent());
+        ssaoComposite->update_occlusion_view(ssaoPass->occlusion_view());
+
+        bool ssaoEnabled = true;
+        float ssaoStrength = 1.0F;
+        float ssaoBaseAmbient = 0.2F;
+        ssaoComposite->set_config(ssaoStrength, ssaoBaseAmbient);
 
         auto imgui = std::make_unique<ImGuiRenderer>(context, window, renderer->render_pass());
         auto frameResources = std::make_unique<FrameResources>(context);
@@ -88,8 +98,11 @@ int Application::run() noexcept {
                 camera.set_aspect_ratio(static_cast<float>(newExtent.width) / static_cast<float>(newExtent.height));
             }
 
-            renderer = std::make_unique<SceneRenderer>(context, window);
+            renderer = std::make_unique<SceneRenderer>(context, window, ssaoComposite->layout());
             renderer->set_scene(sceneMeshes);
+            ssaoDescriptors->update_gbuffer_views(renderer->normal_image_view(), renderer->linear_depth_image_view());
+            ssaoPass->resize(context, context.swapchain_extent());
+            ssaoComposite->update_occlusion_view(ssaoPass->occlusion_view());
 
             imgui = std::make_unique<ImGuiRenderer>(context, window, renderer->render_pass());
             frameResources = std::make_unique<FrameResources>(context);
@@ -128,6 +141,14 @@ int Application::run() noexcept {
             imgui->begin_frame();
             imgui->update_metrics(deltaSeconds);
             imgui->draw_overlay();
+            if (ImGui::Begin("SSAO")) {
+                ImGui::Checkbox("Enable", &ssaoEnabled);
+                ImGui::SliderFloat("Strength", &ssaoStrength, 0.0F, 2.0F);
+                ImGui::SliderFloat("Base Ambient", &ssaoBaseAmbient, 0.0F, 1.0F);
+            }
+            ImGui::End();
+            float effectiveStrength = ssaoEnabled ? ssaoStrength : 0.0F;
+            ssaoComposite->set_config(effectiveStrength, ssaoBaseAmbient);
             imgui->end_frame();
 
             const VkFence inFlightFence = frameResources->in_flight_fence(currentFrame);
@@ -165,7 +186,12 @@ int Application::run() noexcept {
             const SceneRenderer::CommandRecorder overlayRecorder {[&imgui](VkCommandBuffer buffer) {
                 imgui->render(buffer);
             }};
-            renderer->record_command_buffer(commandBuffer, imageIndex, camera.view_matrix(), camera.projection_matrix(), overlayRecorder);
+            renderer->record_command_buffer(commandBuffer, imageIndex, camera.view_matrix(), camera.projection_matrix(), overlayRecorder, ssaoComposite->descriptor_set());
+            ssaoPass->record(commandBuffer, *ssaoDescriptors);
+
+            if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
+                throw std::runtime_error {"Failed to record command buffer"};
+            }
 
             const VkSemaphore waitSemaphores[] = {frameResources->image_available_semaphore(currentFrame)};
             const VkPipelineStageFlags waitStages[] = {
