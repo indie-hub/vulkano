@@ -5,7 +5,13 @@
 #include <vulkano/app/glfw_library.hpp>
 #include <vulkano/app/scene_renderer.hpp>
 #include <vulkano/scene/mesh.hpp>
+#include <GLFW/glfw3.h>
+
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
+#include <memory>
+#include <vector>
 #include <glm/gtc/matrix_transform.hpp>
 #include <vulkano/app/vulkan_context.hpp>
 #include <vulkano/app/window.hpp>
@@ -19,12 +25,6 @@
 #include <chrono>
 
 namespace vulkano::app {
-namespace {
-[[nodiscard]] bool should_skip_frame(VkResult result) noexcept {
-    return result == VK_ERROR_OUT_OF_DATE_KHR;
-}
-}
-
 int Application::run() noexcept {
     try {
         GlfwLibrary glfw {};
@@ -32,22 +32,50 @@ int Application::run() noexcept {
 
         Window window {"Vulkano Renderer", 1280U, 720U};
         VulkanContext context {window};
-        SceneRenderer renderer {context, window};
-        const SceneRenderer::SceneMesh planeMesh {
-            .mesh = vulkano::scene::MeshFactory::create_plane(10.0F, glm::vec3 {0.7F, 0.7F, 0.7F}),
-            .model = glm::mat4(1.0F)
+        std::vector<SceneRenderer::SceneMesh> sceneMeshes {
+            SceneRenderer::SceneMesh {
+                .mesh = vulkano::scene::MeshFactory::create_plane(10.0F, glm::vec3 {0.7F, 0.7F, 0.7F}),
+                .model = glm::mat4(1.0F)
+            },
+            SceneRenderer::SceneMesh {
+                .mesh = vulkano::scene::MeshFactory::create_cube(1.0F, glm::vec3 {0.8F, 0.2F, 0.2F}),
+                .model = glm::translate(glm::mat4(1.0F), glm::vec3 {-1.5F, 0.5F, 0.0F})
+            },
+            SceneRenderer::SceneMesh {
+                .mesh = vulkano::scene::MeshFactory::create_uv_sphere(0.5F, 32U, 16U, glm::vec3 {0.2F, 0.4F, 0.85F}),
+                .model = glm::translate(glm::mat4(1.0F), glm::vec3 {1.5F, 0.5F, 0.0F})
+            }
         };
-        const SceneRenderer::SceneMesh cubeMesh {
-            .mesh = vulkano::scene::MeshFactory::create_cube(1.0F, glm::vec3 {0.8F, 0.2F, 0.2F}),
-            .model = glm::translate(glm::mat4(1.0F), glm::vec3 {-1.5F, 0.5F, 0.0F})
+
+        auto renderer = std::make_unique<SceneRenderer>(context, window);
+        renderer->set_scene(sceneMeshes);
+
+        auto imgui = std::make_unique<ImGuiRenderer>(context, window, renderer->render_pass());
+        auto frameResources = std::make_unique<FrameResources>(context);
+
+        auto recreateSwapchain = [&]() {
+            context.wait_idle();
+
+            VkExtent2D extent = window.framebuffer_extent();
+            while (extent.width == 0U || extent.height == 0U) {
+                glfwWaitEvents();
+                extent = window.framebuffer_extent();
+            }
+
+            frameResources.reset();
+            imgui.reset();
+            renderer.reset();
+
+            context.recreate_swapchain(window);
+
+            renderer = std::make_unique<SceneRenderer>(context, window);
+            renderer->set_scene(sceneMeshes);
+
+            imgui = std::make_unique<ImGuiRenderer>(context, window, renderer->render_pass());
+            frameResources = std::make_unique<FrameResources>(context);
+
+            window.clear_framebuffer_resized();
         };
-        const SceneRenderer::SceneMesh sphereMesh {
-            .mesh = vulkano::scene::MeshFactory::create_uv_sphere(0.5F, 32U, 16U, glm::vec3 {0.2F, 0.4F, 0.85F}),
-            .model = glm::translate(glm::mat4(1.0F), glm::vec3 {1.5F, 0.5F, 0.0F})
-        };
-        renderer.set_scene({planeMesh, cubeMesh, sphereMesh});
-        ImGuiRenderer imgui {context, window, renderer.render_pass()};
-        FrameResources frameResources {context};
 
         auto previousFrameTime = std::chrono::steady_clock::now();
 
@@ -70,49 +98,56 @@ int Application::run() noexcept {
 
             window.poll_events();
 
-            imgui.begin_frame();
-            imgui.update_metrics(deltaSeconds);
-            imgui.draw_overlay();
-            imgui.end_frame();
+            if (window.framebuffer_resized()) {
+                recreateSwapchain();
+                continue;
+            }
 
-            const VkFence inFlightFence = frameResources.in_flight_fence(currentFrame);
+            imgui->begin_frame();
+            imgui->update_metrics(deltaSeconds);
+            imgui->draw_overlay();
+            imgui->end_frame();
+
+            const VkFence inFlightFence = frameResources->in_flight_fence(currentFrame);
             if (vkWaitForFences(context.device(), 1U, &inFlightFence, VK_TRUE, UINT64_MAX) != VK_SUCCESS) {
                 throw std::runtime_error {"Failed to wait for in-flight fence"};
             }
 
             std::uint32_t imageIndex {0U};
             const VkResult acquireResult = vkAcquireNextImageKHR(context.device(), context.swapchain(), UINT64_MAX,
-                frameResources.image_available_semaphore(currentFrame), VK_NULL_HANDLE, &imageIndex);
+                frameResources->image_available_semaphore(currentFrame), VK_NULL_HANDLE, &imageIndex);
 
-            if (should_skip_frame(acquireResult)) {
+            if (acquireResult == VK_ERROR_OUT_OF_DATE_KHR) {
+                recreateSwapchain();
                 continue;
             }
             if (acquireResult != VK_SUCCESS && acquireResult != VK_SUBOPTIMAL_KHR) {
                 throw std::runtime_error {"Failed to acquire swap chain image"};
             }
+            const bool swapchainSuboptimal = acquireResult == VK_SUBOPTIMAL_KHR;
 
-            const VkFence imageFence = frameResources.image_in_flight(imageIndex);
+            const VkFence imageFence = frameResources->image_in_flight(imageIndex);
             if (imageFence != VK_NULL_HANDLE) {
                 if (vkWaitForFences(context.device(), 1U, &imageFence, VK_TRUE, UINT64_MAX) != VK_SUCCESS) {
                     throw std::runtime_error {"Failed to wait for image fence"};
                 }
             }
 
-            frameResources.set_image_in_flight(imageIndex, frameResources.in_flight_fence(currentFrame));
-            frameResources.reset_fence(currentFrame);
+            frameResources->set_image_in_flight(imageIndex, frameResources->in_flight_fence(currentFrame));
+            frameResources->reset_fence(currentFrame);
 
-            VkCommandBuffer commandBuffer = frameResources.command_buffers()[imageIndex];
+            VkCommandBuffer commandBuffer = frameResources->command_buffers()[imageIndex];
             if (vkResetCommandBuffer(commandBuffer, 0U) != VK_SUCCESS) {
                 throw std::runtime_error {"Failed to reset command buffer"};
             }
             const SceneRenderer::CommandRecorder overlayRecorder {[&imgui](VkCommandBuffer buffer) {
-                imgui.render(buffer);
+                imgui->render(buffer);
             }};
-            renderer.record_command_buffer(commandBuffer, imageIndex, overlayRecorder);
+            renderer->record_command_buffer(commandBuffer, imageIndex, overlayRecorder);
 
-            const VkSemaphore waitSemaphores[] = {frameResources.image_available_semaphore(currentFrame)};
+            const VkSemaphore waitSemaphores[] = {frameResources->image_available_semaphore(currentFrame)};
             const VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-            const VkSemaphore signalSemaphores[] = {frameResources.render_finished_semaphore(imageIndex)};
+            const VkSemaphore signalSemaphores[] = {frameResources->render_finished_semaphore(imageIndex)};
 
             VkSubmitInfo submitInfo {};
             submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -124,7 +159,7 @@ int Application::run() noexcept {
             submitInfo.signalSemaphoreCount = 1U;
             submitInfo.pSignalSemaphores = signalSemaphores;
 
-            if (vkQueueSubmit(context.graphics_queue(), 1U, &submitInfo, frameResources.in_flight_fence(currentFrame))
+            if (vkQueueSubmit(context.graphics_queue(), 1U, &submitInfo, frameResources->in_flight_fence(currentFrame))
                 != VK_SUCCESS) {
                 throw std::runtime_error {"Failed to submit draw command buffer"};
             }
@@ -139,10 +174,12 @@ int Application::run() noexcept {
             presentInfo.pImageIndices = &imageIndex;
 
             const VkResult presentResult = vkQueuePresentKHR(context.present_queue(), &presentInfo);
-            if (should_skip_frame(presentResult)) {
+            if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR || swapchainSuboptimal
+                || window.framebuffer_resized()) {
+                recreateSwapchain();
                 continue;
             }
-            if (presentResult != VK_SUCCESS && presentResult != VK_SUBOPTIMAL_KHR) {
+            if (presentResult != VK_SUCCESS) {
                 throw std::runtime_error {"Failed to present swap chain image"};
             }
 
@@ -151,9 +188,8 @@ int Application::run() noexcept {
                 break;
             }
 
-            currentFrame = (currentFrame + 1U) % frameResources.frames_in_flight();
+            currentFrame = (currentFrame + 1U) % frameResources->frames_in_flight();
         }
-
         context.wait_idle();
         return EXIT_SUCCESS;
     } catch (const std::exception& exception) {

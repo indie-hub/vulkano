@@ -20,8 +20,12 @@ public:
     [[nodiscard]] bool should_close() const noexcept;
     void poll_events() const noexcept;
     [[nodiscard]] VkExtent2D framebuffer_extent() const noexcept;
+    [[nodiscard]] bool framebuffer_resized() const noexcept;
+    void clear_framebuffer_resized() noexcept;
+    void mark_framebuffer_resized() noexcept;
 
 private:
     GLFWwindow* m_window {nullptr};
+    bool m_framebufferResized {false};
 };
 } // namespace vulkano::app

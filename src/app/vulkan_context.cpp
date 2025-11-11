@@ -70,6 +70,12 @@ void VulkanContext::wait_idle() const noexcept {
     log_vulkan_error("vkDeviceWaitIdle", result);
 }
 
+void VulkanContext::recreate_swapchain(const Window& window) {
+    vk::QueueFamilySelection queues {m_graphicsQueueFamilyIndex, m_presentQueueFamilyIndex};
+    const VkSwapchainKHR oldSwapchain = m_swapchain.handle();
+    m_swapchain = vk::SwapchainManager::create(m_physicalDevice, m_device.handle(), m_surface, queues, window, oldSwapchain);
+}
+
 VkInstance VulkanContext::instance() const noexcept {
     return m_instance.handle();
 }

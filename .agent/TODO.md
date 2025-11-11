@@ -11,5 +11,8 @@
 - [x] Execute VulkanContext refactor based on plan
 - [x] Plan multi-primitive renderer upgrade (plane, cube, sphere)
 - [x] Implement geometry rendering upgrade per plan
-- [ ] Plan swapchain-resize aware rendering
-- [ ] Implement resize handling based on plan
+- [x] Plan swapchain-resize aware rendering
+- [x] Implement resize handling based on plan
+
+- [x] Investigate swapchain recreation crash
+- [x] Fix swapchain recreation crash

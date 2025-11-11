@@ -73,7 +73,7 @@ std::vector<VkImageView> create_image_views(VkDevice device, VkFormat format, co
 
 namespace vulkano::vk {
 SwapchainManager SwapchainManager::create(VkPhysicalDevice physicalDevice, VkDevice device, VkSurfaceKHR surface,
-    const QueueFamilySelection& queues, const app::Window& window) {
+    const QueueFamilySelection& queues, const app::Window& window, VkSwapchainKHR oldSwapchain) {
     const SwapchainSupport support = query_swapchain_support(physicalDevice, surface);
     if (support.formats.empty() || support.presentModes.empty()) {
         throw std::runtime_error {"Swap chain support incomplete"};
@@ -113,7 +113,7 @@ SwapchainManager SwapchainManager::create(VkPhysicalDevice physicalDevice, VkDev
     createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     createInfo.presentMode = presentMode;
     createInfo.clipped = VK_TRUE;
-    createInfo.oldSwapchain = VK_NULL_HANDLE;
+    createInfo.oldSwapchain = oldSwapchain;
 
     VkSwapchainKHR swapchain {VK_NULL_HANDLE};
     if (vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapchain) != VK_SUCCESS) {

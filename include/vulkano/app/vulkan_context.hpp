@@ -22,6 +22,7 @@ public:
     VulkanContext& operator=(VulkanContext&&) noexcept = delete;
 
     void wait_idle() const noexcept;
+    void recreate_swapchain(const Window& window);
 
     [[nodiscard]] VkInstance instance() const noexcept;
     [[nodiscard]] VkPhysicalDevice physical_device() const noexcept;
