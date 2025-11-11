@@ -71,18 +71,18 @@ int Application::run() noexcept {
         auto ssaoBlurPass = std::make_unique<SSAOBlurPass>(context, context.swapchain_extent());
         ssaoBlurPass->set_depth_view(renderer->linear_depth_image_view());
         ssaoBlurPass->set_occlusion_view(ssaoPass->occlusion_view());
-        ssaoBlurPass->set_parameters(2.0F, 0.1F);
+        float ssaoBlurRadius = 2.0F;
+        float ssaoBlurDepthSigma = 0.1F;
+        ssaoBlurPass->set_parameters(ssaoBlurRadius, ssaoBlurDepthSigma);
         ssaoComposite->update_occlusion_view(ssaoBlurPass->blurred_view());
-        const float ssaoRadius = 0.75F;
-        const float ssaoBias = 0.025F;
+        float ssaoRadius = 0.75F;
+        float ssaoBias = 0.025F;
         ssaoDescriptors->set_camera_parameters(camera.projection_matrix(), glm::inverse(camera.projection_matrix()),
             context.swapchain_extent(), ssaoRadius, ssaoBias, ssaoResources.noise_dimension());
 
         bool ssaoEnabled = true;
         float ssaoStrength = 1.0F;
         float ssaoBaseAmbient = 0.2F;
-        float ssaoBlurRadius = 2.0F;
-        float ssaoBlurDepthSigma = 0.1F;
         bool ssaoDebugView = false;
         ssaoComposite->set_config(ssaoStrength, ssaoBaseAmbient, ssaoDebugView);
 
@@ -156,8 +156,7 @@ int Application::run() noexcept {
 
             cameraController.update(deltaSeconds);
 
-            ssaoDescriptors->set_camera_parameters(camera.projection_matrix(), glm::inverse(camera.projection_matrix()),
-                context.swapchain_extent(), ssaoRadius, ssaoBias, ssaoResources.noise_dimension());
+            // camera parameters will be updated after UI to capture new SSAO radius/bias values
 
             imgui->begin_frame();
             imgui->update_metrics(deltaSeconds);
@@ -166,6 +165,8 @@ int Application::run() noexcept {
                 ImGui::Checkbox("Enable", &ssaoEnabled);
                 ImGui::SliderFloat("Strength", &ssaoStrength, 0.0F, 2.0F);
                 ImGui::SliderFloat("Base Ambient", &ssaoBaseAmbient, 0.0F, 1.0F);
+                ImGui::SliderFloat("SSAORadius", &ssaoRadius, 0.1F, 4.0F);
+                ImGui::SliderFloat("SSAOBias", &ssaoBias, 0.0F, 0.1F);
                 ImGui::SliderFloat("Blur Radius", &ssaoBlurRadius, 0.5F, 6.0F);
                 ImGui::SliderFloat("Blur Depth Sigma", &ssaoBlurDepthSigma, 0.01F, 1.0F);
                 ImGui::Checkbox("Debug Occlusion", &ssaoDebugView);
@@ -173,6 +174,9 @@ int Application::run() noexcept {
             ImGui::End();
             float effectiveStrength = ssaoEnabled ? ssaoStrength : 0.0F;
             ssaoComposite->set_config(effectiveStrength, ssaoBaseAmbient, ssaoDebugView);
+            ssaoDescriptors->set_camera_parameters(camera.projection_matrix(), glm::inverse(camera.projection_matrix()),
+                context.swapchain_extent(), ssaoRadius, ssaoBias, ssaoResources.noise_dimension());
+            ssaoBlurPass->set_parameters(ssaoBlurRadius, ssaoBlurDepthSigma);
             // Descriptor already points at blurred occlusion; no per-frame update needed
             imgui->end_frame();
 

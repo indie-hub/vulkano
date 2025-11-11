@@ -54,3 +54,5 @@
 - [x] Fix SSAO blur image layout transitions and barriers
 - [x] Ensure blur descriptors are updated outside in-flight command buffers
 - [x] Rebuild, run tests, and validate blurred SSAO output
+- [x] Expose SSAO radius and bias controls in ImGui and descriptor updates
+- [x] Rebuild, run tests, and validate SSAO parameter adjustments
