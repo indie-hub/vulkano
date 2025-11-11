@@ -4,14 +4,48 @@
 #include <assimp/postprocess.h>
 
 #include <cstring>
+#include <filesystem>
+#include <functional>
+#include <iomanip>
+#include <sstream>
 #include <stdexcept>
 #include <string_view>
+#include <unordered_map>
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
 namespace vulkano::app {
 namespace {
+[[nodiscard]] std::string make_embedded_prefix(std::string_view scenePath) {
+    std::string canonical {"scene"};
+    std::string label {"scene"};
+    if (!scenePath.empty()) {
+        const std::filesystem::path sourcePath {std::string {scenePath}};
+        if (!sourcePath.empty()) {
+            label = sourcePath.filename().empty() ? sourcePath.generic_string() : sourcePath.filename().generic_string();
+            try {
+                const std::filesystem::path absolute = std::filesystem::absolute(sourcePath).lexically_normal();
+                canonical = absolute.generic_string();
+            } catch (...) {
+                canonical = sourcePath.generic_string();
+            }
+        }
+    }
+
+    const std::size_t hash = std::hash<std::string> {}(canonical);
+    std::stringstream stream {};
+    stream << "embedded://" << label << ':' << std::hex << hash;
+    return stream.str();
+}
+
+[[nodiscard]] std::string remap_embedded_path(const std::string& prefix, std::string_view rawKey) {
+    std::string remapped = prefix;
+    remapped.push_back('#');
+    remapped.append(rawKey);
+    return remapped;
+}
+
 [[nodiscard]] glm::mat4 to_glm(const aiMatrix4x4& m) noexcept {
     return glm::mat4 {
         m.a1, m.b1, m.c1, m.d1,
@@ -89,6 +123,10 @@ ImportedScene AssetImporter::load_scene(std::string_view path) const {
     result.root.name = scene->mRootNode->mName.length > 0 ? scene->mRootNode->mName.C_Str() : "Imported Scene";
     result.root.transform = scene::Transform::from_matrix(to_glm(scene->mRootNode->mTransformation));
 
+    const std::string embeddedPrefix = make_embedded_prefix(path);
+    std::unordered_map<std::string, std::string> embeddedKeyRemap {};
+    embeddedKeyRemap.reserve(scene->mNumTextures);
+
     result.embeddedTextures.clear();
     result.embeddedTextures.reserve(scene->mNumTextures);
     for (unsigned int textureIndex {0U}; textureIndex < scene->mNumTextures; ++textureIndex) {
@@ -96,17 +134,45 @@ ImportedScene AssetImporter::load_scene(std::string_view path) const {
         if (texture == nullptr) {
             continue;
         }
-        const std::string key = embedded_key(*texture, textureIndex);
+        const std::string rawKey = embedded_key(*texture, textureIndex);
+        const std::string remappedKey = remap_embedded_path(embeddedPrefix, rawKey);
+        embeddedKeyRemap.emplace(rawKey, remappedKey);
         try {
-            result.embeddedTextures.emplace(key, load_embedded_texture(*texture));
-        } catch (const std::exception& ex) {
-            result.embeddedTextures.emplace(key, make_solid_texture(glm::vec4 {1.0F, 1.0F, 1.0F, 1.0F}, TextureColorSpace::sRGB));
+            result.embeddedTextures.emplace(remappedKey, load_embedded_texture(*texture));
+        } catch (const std::exception&) {
+            result.embeddedTextures.emplace(remappedKey,
+                make_solid_texture(glm::vec4 {1.0F, 1.0F, 1.0F, 1.0F}, TextureColorSpace::sRGB));
         }
     }
 
     result.materials.reserve(scene->mNumMaterials);
     for (unsigned int index {0U}; index < scene->mNumMaterials; ++index) {
         result.materials.push_back(import_material(*scene->mMaterials[index]));
+    }
+
+    const auto remap_material_paths = [&embeddedKeyRemap](scene::Material& material) {
+        if (embeddedKeyRemap.empty()) {
+            return;
+        }
+        const auto update = [&embeddedKeyRemap](std::string& value) {
+            if (value.empty()) {
+                return;
+            }
+            const auto it = embeddedKeyRemap.find(value);
+            if (it != embeddedKeyRemap.end()) {
+                value = it->second;
+            }
+        };
+
+        update(material.textures.baseColorPath);
+        update(material.textures.normalPath);
+        update(material.textures.metallicRoughnessPath);
+        update(material.textures.ambientOcclusionPath);
+        update(material.textures.surfacePropertiesPath);
+    };
+
+    for (ImportedMaterial& imported : result.materials) {
+        remap_material_paths(imported.material);
     }
 
     build_node(*scene, *scene->mRootNode, glm::mat4(1.0F), result.root);

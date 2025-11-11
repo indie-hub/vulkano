@@ -198,7 +198,7 @@
 
 - [x] Draft embedded texture handling plan (see .agent/plan_assimp_embedded_textures.md)
 - [x] Implement embedded texture extraction in AssetImporter
-- [ ] Validate embedded texture rendering and document workflow
+- [x] Validate embedded texture rendering and document workflow
 
 - [x] Draft plan for object transform parameter support (position, rotation, scale)
 - [x] Implement object transform parameter support across CPU/GPU paths
@@ -208,8 +208,10 @@
 - [x] Implement mesh grouping transform hierarchy and runtime controls
 - [x] Extend tests and documentation for grouped transform workflow
 
-- [ ] Draft plan for hierarchical scene graph with nested parent/group nodes
+- [x] Draft plan for hierarchical scene graph with nested parent/group nodes
 - [ ] Implement enhanced hierarchy, UI, and renderer updates per plan
 
 - [x] Audit transform composition for rotations/pivot and devise correction plan
 - [x] Implement rotation fix and confirm child nodes inherit parent transforms correctly
+
+- [ ] Implement rotation pivot fix per .agent/plan_rotation_stride.md

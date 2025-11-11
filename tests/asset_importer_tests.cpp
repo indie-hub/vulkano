@@ -42,8 +42,12 @@ TEST_CASE("AssetImporter loads embedded texture") {
     const auto& material = scene.materials.front().material;
     REQUIRE(material.useBaseColorTexture);
     REQUIRE_FALSE(material.textures.baseColorPath.empty());
-    REQUIRE(scene.embeddedTextures.count(material.textures.baseColorPath) == 1U);
-    const auto& texture = scene.embeddedTextures.at(material.textures.baseColorPath);
+    const std::string& baseColorKey = material.textures.baseColorPath;
+    REQUIRE(scene.embeddedTextures.count(baseColorKey) == 1U);
+    CHECK(baseColorKey != "*0");
+    CHECK(baseColorKey.find("*0") != std::string::npos);
+    CHECK(baseColorKey.rfind("embedded://", 0) == 0U);
+    const auto& texture = scene.embeddedTextures.at(baseColorKey);
     REQUIRE(texture.width == 1U);
     REQUIRE(texture.height == 1U);
     REQUIRE(texture.channels == vulkano::app::TextureChannels::RGBA);
