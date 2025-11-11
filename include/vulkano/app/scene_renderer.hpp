@@ -8,6 +8,7 @@
 #include <glm/mat4x4.hpp>
 
 #include <vulkano/scene/mesh.hpp>
+#include <vulkano/vk/color_image.hpp>
 #include <vulkano/vk/depth_image.hpp>
 
 namespace vulkano::app {
@@ -35,6 +36,10 @@ public:
     [[nodiscard]] VkPipeline pipeline() const noexcept;
     [[nodiscard]] VkPipelineLayout pipeline_layout() const noexcept;
     [[nodiscard]] const std::vector<VkFramebuffer>& framebuffers() const noexcept;
+    [[nodiscard]] VkImageView albedo_image_view() const noexcept;
+    [[nodiscard]] VkImageView normal_image_view() const noexcept;
+    [[nodiscard]] VkFormat albedo_format() const noexcept;
+    [[nodiscard]] VkFormat normal_format() const noexcept;
 
     using CommandRecorder = std::function<void(VkCommandBuffer)>;
     void record_command_buffer(VkCommandBuffer commandBuffer, std::uint32_t imageIndex,
@@ -58,6 +63,8 @@ private:
     void destroy_meshes() noexcept;
     void create_depth_resources();
     void destroy_depth_resources() noexcept;
+    void create_color_resources();
+    void destroy_color_resources() noexcept;
 
     void upload_mesh(const SceneMesh& mesh);
 
@@ -68,6 +75,10 @@ private:
     std::vector<VkFramebuffer> m_framebuffers;
     std::vector<GpuMesh> m_meshes;
     VkFormat m_depthFormat {VK_FORMAT_UNDEFINED};
+    VkFormat m_albedoFormat {VK_FORMAT_R8G8B8A8_UNORM};
+    VkFormat m_normalFormat {VK_FORMAT_R8G8B8A8_UNORM};
     vk::DepthImage m_depthImage;
+    vk::ColorImage m_albedoImage;
+    vk::ColorImage m_normalImage;
 };
 } // namespace vulkano::app

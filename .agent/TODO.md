@@ -34,3 +34,5 @@
 - [x] Evaluate renderer baseline for SSAO integration points
 - [x] Draft SSAO implementation plan with acceptance criteria
 - [x] Persist SSAO implementation plan to .agent/plan.md
+- [x] Implement G-buffer attachments (albedo and normals) for geometry pass
+

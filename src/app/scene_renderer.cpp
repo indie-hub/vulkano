@@ -202,6 +202,22 @@ const std::vector<VkFramebuffer>& SceneRenderer::framebuffers() const noexcept {
     return m_framebuffers;
 }
 
+VkImageView SceneRenderer::albedo_image_view() const noexcept {
+    return m_albedoImage.view();
+}
+
+VkImageView SceneRenderer::normal_image_view() const noexcept {
+    return m_normalImage.view();
+}
+
+VkFormat SceneRenderer::albedo_format() const noexcept {
+    return m_albedoFormat;
+}
+
+VkFormat SceneRenderer::normal_format() const noexcept {
+    return m_normalFormat;
+}
+
 void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::uint32_t imageIndex,
     const glm::mat4& view, const glm::mat4& projection, const CommandRecorder& overlayRecorder) const {
     VkCommandBufferBeginInfo beginInfo {};
@@ -212,11 +228,15 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
         throw std::runtime_error {"Failed to begin recording command buffer"};
     }
 
-    VkClearValue colorClear {};
-    colorClear.color = {{0.0F, 0.0F, 0.0F, 1.0F}};
+    VkClearValue swapClear {};
+    swapClear.color = {{0.0F, 0.0F, 0.0F, 1.0F}};
+    VkClearValue albedoClear {};
+    albedoClear.color = {{0.0F, 0.0F, 0.0F, 1.0F}};
+    VkClearValue normalClear {};
+    normalClear.color = {{0.5F, 0.5F, 1.0F, 1.0F}};
     VkClearValue depthClear {};
     depthClear.depthStencil = {1.0F, 0U};
-    const std::array<VkClearValue, 2> clearValues {colorClear, depthClear};
+    const std::array<VkClearValue, 4> clearValues {swapClear, albedoClear, normalClear, depthClear};
 
     VkRenderPassBeginInfo renderPassInfo {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -269,19 +289,35 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
 }
 
 void SceneRenderer::create_render_pass() {
-    VkAttachmentDescription colorAttachment {};
-    colorAttachment.format = m_context.swapchain_image_format();
-    colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    VkAttachmentDescription swapAttachment {};
+    swapAttachment.format = m_context.swapchain_image_format();
+    swapAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    swapAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    swapAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    swapAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    swapAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    swapAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    swapAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-    VkAttachmentReference colorAttachmentRef {};
-    colorAttachmentRef.attachment = 0U;
-    colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    VkAttachmentDescription albedoAttachment {};
+    albedoAttachment.format = m_albedoFormat;
+    albedoAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    albedoAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    albedoAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    albedoAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    albedoAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    albedoAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    albedoAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkAttachmentDescription normalAttachment {};
+    normalAttachment.format = m_normalFormat;
+    normalAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    normalAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    normalAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    normalAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    normalAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    normalAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    normalAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     VkAttachmentDescription depthAttachment {};
     depthAttachment.format = m_depthFormat;
@@ -293,14 +329,20 @@ void SceneRenderer::create_render_pass() {
     depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
+    const std::array<VkAttachmentReference, 3> colorAttachmentRefs {
+        VkAttachmentReference {0U, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL},
+        VkAttachmentReference {1U, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL},
+        VkAttachmentReference {2U, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL}
+    };
+
     VkAttachmentReference depthAttachmentRef {};
-    depthAttachmentRef.attachment = 1U;
+    depthAttachmentRef.attachment = 3U;
     depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
     VkSubpassDescription subpass {};
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    subpass.colorAttachmentCount = 1U;
-    subpass.pColorAttachments = &colorAttachmentRef;
+    subpass.colorAttachmentCount = static_cast<std::uint32_t>(colorAttachmentRefs.size());
+    subpass.pColorAttachments = colorAttachmentRefs.data();
     subpass.pDepthStencilAttachment = &depthAttachmentRef;
 
     VkSubpassDependency dependency {};
@@ -313,7 +355,7 @@ void SceneRenderer::create_render_pass() {
 
     VkRenderPassCreateInfo renderPassInfo {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    const std::array<VkAttachmentDescription, 2> attachments {colorAttachment, depthAttachment};
+    const std::array<VkAttachmentDescription, 4> attachments {swapAttachment, albedoAttachment, normalAttachment, depthAttachment};
     renderPassInfo.attachmentCount = static_cast<std::uint32_t>(attachments.size());
     renderPassInfo.pAttachments = attachments.data();
     renderPassInfo.subpassCount = 1U;
@@ -415,16 +457,18 @@ void SceneRenderer::create_graphics_pipeline() {
     depthStencil.minDepthBounds = 0.0F;
     depthStencil.maxDepthBounds = 1.0F;
 
-    VkPipelineColorBlendAttachmentState colorBlendAttachment {};
-    colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT
-        | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-    colorBlendAttachment.blendEnable = VK_FALSE;
+    VkPipelineColorBlendAttachmentState blendState {};
+    blendState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT
+        | VK_COLOR_COMPONENT_A_BIT;
+    blendState.blendEnable = VK_FALSE;
+
+    const std::array<VkPipelineColorBlendAttachmentState, 3> colorBlendAttachments {blendState, blendState, blendState};
 
     VkPipelineColorBlendStateCreateInfo colorBlending {};
     colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
     colorBlending.logicOpEnable = VK_FALSE;
-    colorBlending.attachmentCount = 1U;
-    colorBlending.pAttachments = &colorBlendAttachment;
+    colorBlending.attachmentCount = static_cast<std::uint32_t>(colorBlendAttachments.size());
+    colorBlending.pAttachments = colorBlendAttachments.data();
 
     const std::array<VkDynamicState, 2> dynamicStates {
         VK_DYNAMIC_STATE_VIEWPORT,
@@ -468,12 +512,12 @@ void SceneRenderer::create_framebuffers() {
     m_framebuffers.resize(imageViews.size());
 
     for (std::size_t i {0U}; i < imageViews.size(); ++i) {
-        const VkImageView attachments[] = {imageViews[i], m_depthImage.view()};
+        const VkImageView attachments[] = {imageViews[i], m_albedoImage.view(), m_normalImage.view(), m_depthImage.view()};
 
         VkFramebufferCreateInfo framebufferInfo {};
         framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         framebufferInfo.renderPass = m_renderPass;
-        framebufferInfo.attachmentCount = 2U;
+        framebufferInfo.attachmentCount = 4U;
         framebufferInfo.pAttachments = attachments;
         framebufferInfo.width = m_context.swapchain_extent().width;
         framebufferInfo.height = m_context.swapchain_extent().height;
@@ -514,6 +558,22 @@ void SceneRenderer::destroy_meshes() noexcept {
         }
     }
     m_meshes.clear();
+}
+
+void SceneRenderer::create_color_resources() {
+    const VkPhysicalDevice physicalDevice = m_context.physical_device();
+    const VkDevice device = m_context.device();
+    const VkExtent2D extent = m_context.swapchain_extent();
+
+    m_albedoImage = vk::ColorImage::create(physicalDevice, device, extent, m_albedoFormat,
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+    m_normalImage = vk::ColorImage::create(physicalDevice, device, extent, m_normalFormat,
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+}
+
+void SceneRenderer::destroy_color_resources() noexcept {
+    m_albedoImage = vk::ColorImage {};
+    m_normalImage = vk::ColorImage {};
 }
 
 void SceneRenderer::create_depth_resources() {
