@@ -140,4 +140,7 @@
 - [x] Compute directional light view-projection and integrate shadow pass
 - [x] Bind shadow map descriptor and feed light matrix to scene shader
 - [x] Introduce PCF filtering and shadow controls in ImGui
-- [ ] Draft plan for multi-light gizmo updates and per-light shadow toggles
+- [x] Draft plan for multi-light gizmo updates and per-light shadow toggles
+- [x] Add per-light shadow flag to scene/light pipeline
+- [ ] Document per-light shadow controls and workflow in project docs
+- [ ] Capture runtime validation of per-light shadow toggles for QA notes

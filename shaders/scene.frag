@@ -37,6 +37,7 @@ struct LightGpu {
     vec4 directionIntensity;
     vec4 colorType;
     vec4 positionRange;
+    vec4 shadowParams;
 };
 
 layout(set = 2, binding = 0) readonly buffer LightBuffer {
@@ -138,7 +139,10 @@ void main() {
             float attenuation = light.directionIntensity.w;
             vec3 L;
 
-            bool isDirectional = light.colorType.w < 0.5;
+            float typeValue = light.colorType.w;
+            bool castsShadowLight = light.shadowParams.x > 0.5;
+            int typeIndex = int(typeValue) & 1;
+            bool isDirectional = typeIndex == 0;
             if (isDirectional) {
                 L = normalize(-light.directionIntensity.xyz);
             } else {
@@ -186,7 +190,7 @@ void main() {
             vec3 lightColor = light.colorType.rgb * attenuation;
 
             float shadowFactor = 1.0;
-            if (shadowEnabled && isDirectional && shadowCoordValid) {
+            if (shadowEnabled && isDirectional && castsShadowLight && shadowCoordValid) {
                 ivec2 texSize = textureSize(shadowMap, 0);
                 if (texSize.x > 0 && texSize.y > 0) {
                     vec2 texelSize = 1.0 / vec2(texSize);

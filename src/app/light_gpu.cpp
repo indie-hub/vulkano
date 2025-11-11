@@ -23,7 +23,10 @@ std::vector<LightGpu> build_light_gpu_buffer(const scene::LightRegistry& registr
             direction = normalize_or_default(light.direction);
         }
         gpu.directionIntensity = glm::vec4 {direction, light.intensity};
-        gpu.colorType = glm::vec4 {light.color, static_cast<float>(light.type)};
+        const float typeValue = light.type == scene::LightType::Directional ? 0.0F : 1.0F;
+        const float castsShadowValue = light.castsShadow ? 1.0F : 0.0F;
+        gpu.colorType = glm::vec4 {light.color, typeValue};
+        gpu.shadowParams = glm::vec4 {castsShadowValue, 0.0F, 0.0F, 0.0F};
         gpu.positionRange = glm::vec4 {light.position, light.range};
         buffer.push_back(gpu);
     }
