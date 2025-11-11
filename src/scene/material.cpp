@@ -17,6 +17,7 @@ namespace {
     defaultMaterial.useNormalTexture = false;
     defaultMaterial.useMetallicRoughnessTexture = false;
     defaultMaterial.useAmbientOcclusionTexture = false;
+    defaultMaterial.useSurfacePropertiesTexture = false;
     return defaultMaterial;
 }
 } // namespace

@@ -79,40 +79,59 @@ void MaterialTextureCache::rebuild(const scene::MaterialRegistry& registry) {
                 "normal");
         }
 
-        const bool useMetallicTexture = material.useMetallicRoughnessTexture
-            && !material.textures.metallicRoughnessPath.empty();
-        if (useMetallicTexture) {
-            const std::string key = canonical_path_key(material.textures.metallicRoughnessPath);
+        const bool useSurfaceTexture = material.useSurfacePropertiesTexture
+            && !material.textures.surfacePropertiesPath.empty();
+        if (useSurfaceTexture) {
+            const std::string key = canonical_path_key(material.textures.surfacePropertiesPath);
+            std::uint32_t surfaceHandle = 0U;
             try {
                 const TextureData data = load_texture_from_file(key, TextureColorSpace::Linear);
-                handles.metallicRoughness = ensure_texture(key, data);
+                surfaceHandle = ensure_texture(key, data);
             } catch (const std::exception&) {
                 const float metallic = material.properties.metallic;
                 const float roughness = material.properties.roughness;
+                const float ambient = material.properties.ambientOcclusion;
+                surfaceHandle = ensure_color_texture(glm::vec4 {metallic, roughness, ambient, 1.0F},
+                    TextureColorSpace::Linear, "fallback-surface");
+            }
+            handles.metallicRoughness = surfaceHandle;
+            handles.ambientOcclusion = surfaceHandle;
+        } else {
+            const bool useMetallicTexture = material.useMetallicRoughnessTexture
+                && !material.textures.metallicRoughnessPath.empty();
+            if (useMetallicTexture) {
+                const std::string key = canonical_path_key(material.textures.metallicRoughnessPath);
+                try {
+                    const TextureData data = load_texture_from_file(key, TextureColorSpace::Linear);
+                    handles.metallicRoughness = ensure_texture(key, data);
+                } catch (const std::exception&) {
+                    const float metallic = material.properties.metallic;
+                    const float roughness = material.properties.roughness;
+                    handles.metallicRoughness = ensure_color_texture(glm::vec4 {metallic, roughness, 0.0F, 1.0F},
+                        TextureColorSpace::Linear, "fallback-metalrough");
+                }
+            } else {
+                const float metallic = material.properties.metallic;
+                const float roughness = material.properties.roughness;
                 handles.metallicRoughness = ensure_color_texture(glm::vec4 {metallic, roughness, 0.0F, 1.0F},
-                    TextureColorSpace::Linear, "fallback-metalrough");
+                    TextureColorSpace::Linear, "metalrough");
             }
-        } else {
-            const float metallic = material.properties.metallic;
-            const float roughness = material.properties.roughness;
-            handles.metallicRoughness = ensure_color_texture(glm::vec4 {metallic, roughness, 0.0F, 1.0F},
-                TextureColorSpace::Linear, "metalrough");
-        }
 
-        const bool useAoTexture = material.useAmbientOcclusionTexture
-            && !material.textures.ambientOcclusionPath.empty();
-        if (useAoTexture) {
-            const std::string key = canonical_path_key(material.textures.ambientOcclusionPath);
-            try {
-                const TextureData data = load_texture_from_file(key, TextureColorSpace::Linear);
-                handles.ambientOcclusion = ensure_texture(key, data);
-            } catch (const std::exception&) {
-                handles.ambientOcclusion = ensure_color_texture(glm::vec4 {1.0F, 1.0F, 1.0F, 1.0F}, TextureColorSpace::Linear,
-                    "fallback-ao");
+            const bool useAoTexture = material.useAmbientOcclusionTexture
+                && !material.textures.ambientOcclusionPath.empty();
+            if (useAoTexture) {
+                const std::string key = canonical_path_key(material.textures.ambientOcclusionPath);
+                try {
+                    const TextureData data = load_texture_from_file(key, TextureColorSpace::Linear);
+                    handles.ambientOcclusion = ensure_texture(key, data);
+                } catch (const std::exception&) {
+                    handles.ambientOcclusion = ensure_color_texture(glm::vec4 {1.0F, 1.0F, 1.0F, 1.0F},
+                        TextureColorSpace::Linear, "fallback-ao");
+                }
+            } else {
+                handles.ambientOcclusion = ensure_color_texture(glm::vec4 {1.0F, 1.0F, 1.0F, 1.0F},
+                    TextureColorSpace::Linear, "ao");
             }
-        } else {
-            handles.ambientOcclusion = ensure_color_texture(glm::vec4 {1.0F, 1.0F, 1.0F, 1.0F}, TextureColorSpace::Linear,
-                "ao");
         }
 
         m_handles.push_back(handles);

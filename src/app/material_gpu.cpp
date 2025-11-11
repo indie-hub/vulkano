@@ -18,6 +18,7 @@ MaterialGpu make_material_gpu(const scene::Material& material, const scene::Mate
     const float metallic = clamp01(props.metallic);
     const float roughness = clamp01(props.roughness);
     const float ambient = clamp01(props.ambientOcclusion);
+    const bool useSurfaceTexture = material.useSurfacePropertiesTexture;
 
     gpu.baseColorMetallic = glm::vec4 {props.baseColor, metallic};
     const float normalStrength = clamp01(props.normalStrength);
@@ -29,11 +30,13 @@ MaterialGpu make_material_gpu(const scene::Material& material, const scene::Mate
         handles.metallicRoughness,
         handles.ambientOcclusion
     };
+    const bool useMetallicTexture = material.useMetallicRoughnessTexture || useSurfaceTexture;
+    const bool useAmbientTexture = material.useAmbientOcclusionTexture || useSurfaceTexture;
     gpu.textureUsage = glm::vec4 {
         material.useBaseColorTexture ? 1.0F : 0.0F,
         material.useNormalTexture ? 1.0F : 0.0F,
-        material.useMetallicRoughnessTexture ? 1.0F : 0.0F,
-        material.useAmbientOcclusionTexture ? 1.0F : 0.0F
+        useMetallicTexture ? 1.0F : 0.0F,
+        useAmbientTexture ? 1.0F : 0.0F
     };
     gpu.emissive = glm::vec4 {material.properties.emissive, material.properties.emissiveIntensity};
 

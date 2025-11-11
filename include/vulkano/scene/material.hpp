@@ -32,6 +32,7 @@ struct MaterialTextures final {
     std::string normalPath {};
     std::string metallicRoughnessPath {};
     std::string ambientOcclusionPath {};
+    std::string surfacePropertiesPath {};
 };
 
 struct Material final {
@@ -41,6 +42,7 @@ struct Material final {
     bool useNormalTexture {false};
     bool useMetallicRoughnessTexture {false};
     bool useAmbientOcclusionTexture {false};
+    bool useSurfacePropertiesTexture {false};
 };
 
 struct MaterialTextureHandles final {
