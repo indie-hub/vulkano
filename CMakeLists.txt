@@ -290,6 +290,22 @@ if(APPLE)
     target_compile_definitions(vulkano_renderer PRIVATE VK_USE_PLATFORM_MACOS_MVK)
 endif()
 
+add_executable(dump_mesh_uvs
+    tools/dump_mesh_uvs.cpp
+)
+
+target_link_libraries(dump_mesh_uvs
+    PRIVATE
+        vulkano_app
+)
+
+target_compile_definitions(dump_mesh_uvs
+    PRIVATE
+        GLM_FORCE_RADIANS
+        GLM_FORCE_DEPTH_ZERO_TO_ONE
+        GLM_FORCE_RIGHT_HANDED
+)
+
 set(VULKANO_PACKAGE_DIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/package)
 
 add_custom_target(vulkano_package

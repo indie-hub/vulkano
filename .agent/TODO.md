@@ -259,7 +259,7 @@
 - [x] Build, run tests, and verify runtime visuals for UV/tangent fix
 
 - [x] Draft leather UV seam investigation plan (.agent/plan_uv_seam.md)
-- [ ] Capture baseline UV data for affected leather panels
+- [x] Capture baseline UV data for affected leather panels
 - [ ] Trace material assignments for chair mesh subsets
 - [ ] Inspect UV indexing and flip configuration
 - [ ] Isolate mesh subsets exhibiting incorrect sampling
