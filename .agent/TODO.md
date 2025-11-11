@@ -266,3 +266,11 @@
 - [ ] Implement UV correction for leather panels
 - [ ] Extend tests/documentation and update changelog for UV seam fix
 - [ ] Build, test, and capture runtime verification for UV seam fix
+
+- [x] Draft UV padding mitigation plan (.agent/plan_uv_padding.md)
+
+- [ ] Quantify UV bleed risk for leather atlas (.agent/plan_uv_padding.md)
+- [ ] Prototype texture padding helper for tight UV islands
+- [ ] Integrate padding into texture loading pipeline with toggles
+- [ ] Validate padded textures with diagnostics and runtime screenshots
+- [ ] Document padding mitigation and update changelog
