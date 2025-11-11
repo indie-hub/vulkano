@@ -153,4 +153,5 @@
 - [x] Adjust scene state to track per-light shadow data
 - [x] Update shadow map resource management for active caster switching
 - [x] Document current shadow matrix flow
-- [ ] Define QA matrix for multi-light shadow scenarios
+- [x] Define QA matrix for multi-light shadow scenarios
+- [ ] Elaborate testing strategy for per-light shadow selection
