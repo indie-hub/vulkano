@@ -210,3 +210,5 @@
 
 - [ ] Draft plan for hierarchical scene graph with nested parent/group nodes
 - [ ] Implement enhanced hierarchy, UI, and renderer updates per plan
+
+- [ ] Audit transform composition for rotations/pivot and devise correction plan
