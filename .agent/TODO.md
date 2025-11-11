@@ -5,3 +5,5 @@
 - [x] Add triangle rendering pipeline and validation logic
 - [x] Integrate ImGui overlay with renderer lifecycle
 - [x] Add automated tests and package runnable binaries
+- [x] Diagnose Vulkan validation errors during runtime
+- [x] Implement fixes and verify clean validation run

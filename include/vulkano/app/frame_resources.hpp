@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 #include <vulkan/vulkan.h>
 
@@ -21,7 +22,7 @@ public:
     [[nodiscard]] const std::vector<VkCommandBuffer>& command_buffers() const noexcept;
     [[nodiscard]] std::size_t frames_in_flight() const noexcept;
     [[nodiscard]] VkSemaphore image_available_semaphore(std::size_t index) const noexcept;
-    [[nodiscard]] VkSemaphore render_finished_semaphore(std::size_t index) const noexcept;
+    [[nodiscard]] VkSemaphore render_finished_semaphore(std::uint32_t imageIndex) const noexcept;
     [[nodiscard]] VkFence in_flight_fence(std::size_t index) const noexcept;
     [[nodiscard]] VkFence image_in_flight(std::uint32_t imageIndex) const noexcept;
     void set_image_in_flight(std::uint32_t imageIndex, VkFence fence) noexcept;
@@ -35,7 +36,7 @@ private:
     VkCommandPool m_commandPool {VK_NULL_HANDLE};
     std::vector<VkCommandBuffer> m_commandBuffers;
     std::vector<VkSemaphore> m_imageAvailableSemaphores;
-    std::vector<VkSemaphore> m_renderFinishedSemaphores;
+    std::vector<VkSemaphore> m_imageRenderFinishedSemaphores;
     std::vector<VkFence> m_inFlightFences;
     std::vector<VkFence> m_imagesInFlight;
 
