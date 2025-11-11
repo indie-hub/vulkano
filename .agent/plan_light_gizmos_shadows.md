@@ -55,6 +55,14 @@
    - Review `SceneRenderer::set_light_resources`, `create_light_debug_mesh`, and points where point-light meshes are spawned.
    - Capture current assumptions (single directional mesh, vector for points) in this document.
    - *Acceptance:* Notes list every function touching `m_lightDebugMesh` and `m_pointLightDebugMeshes`, including creation, update, and destruction hooks.
+   - **Findings:**
+     - `SceneRenderer::SceneRenderer` invokes `create_light_debug_mesh()` to allocate the single directional gizmo at construction.
+     - `SceneRenderer::create_light_debug_mesh()` builds vertex/index buffers for the arrow mesh and seeds `m_lightDebugMesh`.
+     - `SceneRenderer::destroy_light_debug_mesh()` frees buffers, resets counts, and cascades into `destroy_point_light_debug_meshes()`.
+     - `SceneRenderer::destroy_point_light_debug_meshes()` iterates `m_pointLightDebugMeshes`, freeing per-point buffers and clearing the vector.
+     - `SceneRenderer::set_light_resources()` rewrites the directional gizmo vertex data in place, rebuilds every point-light mesh, and stores them back into `m_pointLightDebugMeshes` after destroying the prior list.
+     - `SceneRenderer::record_command_buffer()` binds and draws `m_lightDebugMesh` (single arrow) and then iterates `m_pointLightDebugMeshes` for point markers when `m_showLightDebug` is true.
+     - `SceneRenderer::~SceneRenderer()` calls `destroy_light_debug_mesh()` as part of teardown which in turn clears point gizmos.
 2. **Model per-light gizmo storage**
    - Design a lightweight struct keyed by `LightId` that owns GPU buffers for each gizmo.
    - Decide update strategy (rebuild whole list vs. incremental) based on registry churn.
