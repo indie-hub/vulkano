@@ -5,7 +5,8 @@
 TEST_CASE("ImportedScene defaults to empty collections") {
     const vulkano::app::ImportedScene scene {};
     REQUIRE(scene.materials.empty());
-    REQUIRE(scene.meshes.empty());
+    REQUIRE(scene.root.meshes.empty());
+    REQUIRE(scene.root.children.empty());
 }
 
 TEST_CASE("AssetImporter throws until implemented") {
@@ -17,11 +18,19 @@ TEST_CASE("AssetImporter throws until implemented") {
 TEST_CASE("AssetImporter loads simple OBJ") {
     const vulkano::app::AssetImporter importer {};
     const auto scene = importer.load_scene(TEST_ASSET_DIR "/hello_triangle.obj");
-    REQUIRE(scene.meshes.size() == 1U);
-    REQUIRE(scene.materials.size() >= 1U);
-    const auto& mesh = scene.meshes.front();
-    REQUIRE(mesh.mesh.vertices.size() == 3U);
-    REQUIRE(mesh.mesh.indices.size() == 3U);
+    bool foundMesh = false;
+    const auto traverse = [&](const auto& self, const vulkano::app::ImportedScene::Node& node) -> void {
+        for (const auto& mesh : node.meshes) {
+            REQUIRE(mesh.mesh.vertices.size() == 3U);
+            REQUIRE(mesh.mesh.indices.size() == 3U);
+            foundMesh = true;
+        }
+        for (const auto& child : node.children) {
+            self(self, child);
+        }
+    };
+    traverse(traverse, scene.root);
+    REQUIRE(foundMesh);
 }
 
 

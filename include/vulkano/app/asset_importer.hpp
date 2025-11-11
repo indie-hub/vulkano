@@ -22,16 +22,20 @@ struct ImportedMaterial final {
 struct ImportedMesh final {
     scene::MeshData mesh {};
     std::uint32_t materialIndex {0U};
-    scene::Transform transform {};
     std::string name {};
 };
 
 struct ImportedScene final {
+    struct Node final {
+        std::string name {};
+        scene::Transform transform {scene::Transform::identity()};
+        std::vector<ImportedMesh> meshes;
+        std::vector<Node> children;
+    };
+
     std::vector<ImportedMaterial> materials;
-    std::vector<ImportedMesh> meshes;
+    Node root {};
     std::unordered_map<std::string, TextureData> embeddedTextures;
-    scene::Transform rootTransform {scene::Transform::identity()};
-    std::string name {};
 };
 
 class AssetImporter final {
@@ -40,9 +44,8 @@ public:
 
 private:
     [[nodiscard]] static ImportedMaterial import_material(const aiMaterial& material);
-    [[nodiscard]] static ImportedMesh import_mesh(const aiMesh& mesh, std::uint32_t materialIndex,
-        const glm::mat4& transform);
-    static void traverse_node(const aiScene& scene, const aiNode& node, const glm::mat4& parentTransform,
-        std::vector<ImportedMesh>& meshes);
+    [[nodiscard]] static ImportedMesh import_mesh(const aiMesh& mesh, std::uint32_t materialIndex);
+    static void build_node(const aiScene& scene, const aiNode& node, const glm::mat4& parentTransform,
+        ImportedScene::Node& output);
 };
 } // namespace vulkano::app
