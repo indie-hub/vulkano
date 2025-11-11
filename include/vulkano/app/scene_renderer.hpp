@@ -55,6 +55,12 @@ public:
     [[nodiscard]] VkFormat normal_format() const noexcept;
     [[nodiscard]] VkImageView linear_depth_image_view() const noexcept;
     [[nodiscard]] VkFormat linear_depth_format() const noexcept;
+    [[nodiscard]] float shadow_bias() const noexcept;
+    [[nodiscard]] float shadow_pcf_radius() const noexcept;
+    [[nodiscard]] bool shadows_enabled() const noexcept;
+    void set_shadow_bias(float bias) noexcept;
+    void set_shadow_pcf_radius(float radius) noexcept;
+    void set_shadows_enabled(bool enabled) noexcept;
 
     using CommandRecorder = std::function<void(VkCommandBuffer)>;
     void record_command_buffer(VkCommandBuffer commandBuffer, std::uint32_t imageIndex,
@@ -144,5 +150,8 @@ private:
     glm::vec3 m_sceneMin {0.0F, 0.0F, 0.0F};
     glm::vec3 m_sceneMax {0.0F, 0.0F, 0.0F};
     bool m_sceneBoundsValid {false};
+    float m_shadowBias {0.002F};
+    float m_shadowPcfRadius {1.0F};
+    bool m_shadowsEnabled {true};
 };
 } // namespace vulkano::app

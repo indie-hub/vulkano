@@ -119,8 +119,9 @@ void main() {
     }
     float NdotV = max(dot(normalWorld, V), 0.0);
 
-    bool shadowEnabled = pushConstants.shadowParams.w > 0.5;
+    bool shadowEnabled = pushConstants.shadowParams.z > 0.5;
     float shadowBias = pushConstants.shadowParams.x;
+    float shadowRadius = pushConstants.shadowParams.y;
     vec3 radiance = vec3(0.0);
     if (NdotV > 0.0) {
         vec3 F0 = mix(vec3(0.04), albedo, metallic);
@@ -184,9 +185,19 @@ void main() {
                 shadowCoord = shadowCoord * 0.5 + 0.5;
                 if (shadowCoord.z <= 1.0 && shadowCoord.x >= 0.0 && shadowCoord.x <= 1.0
                     && shadowCoord.y >= 0.0 && shadowCoord.y <= 1.0) {
-                    float closestDepth = texture(shadowMap, shadowCoord.xy).r;
-                    float currentDepth = shadowCoord.z - shadowBias;
-                    shadowFactor = currentDepth <= closestDepth ? 1.0 : 0.0;
+                    int samples = int(shadowRadius);
+                    float count = 0.0;
+                    float occluded = 0.0;
+                    for (int x = -samples; x <= samples; ++x) {
+                        for (int y = -samples; y <= samples; ++y) {
+                            vec2 offset = vec2(x, y);
+                            float closestDepth = texture(shadowMap, shadowCoord.xy + offset / textureSize(shadowMap, 0)).r;
+                            float currentDepth = shadowCoord.z - shadowBias;
+                            occluded += currentDepth > closestDepth ? 1.0 : 0.0;
+                            count += 1.0;
+                        }
+                    }
+                    shadowFactor = 1.0 - (occluded / max(count, 1.0));
                 }
             }
 

@@ -392,6 +392,30 @@ VkFormat SceneRenderer::linear_depth_format() const noexcept {
     return m_linearDepthFormat;
 }
 
+float SceneRenderer::shadow_bias() const noexcept {
+    return m_shadowBias;
+}
+
+float SceneRenderer::shadow_pcf_radius() const noexcept {
+    return m_shadowPcfRadius;
+}
+
+bool SceneRenderer::shadows_enabled() const noexcept {
+    return m_shadowsEnabled;
+}
+
+void SceneRenderer::set_shadow_bias(float bias) noexcept {
+    m_shadowBias = glm::clamp(bias, 0.0F, 0.05F);
+}
+
+void SceneRenderer::set_shadow_pcf_radius(float radius) noexcept {
+    m_shadowPcfRadius = glm::clamp(radius, 0.0F, 4.0F);
+}
+
+void SceneRenderer::set_shadows_enabled(bool enabled) noexcept {
+    m_shadowsEnabled = enabled;
+}
+
 void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::uint32_t imageIndex,
     const glm::mat4& view, const glm::mat4& projection, const glm::vec3& cameraPosition,
     const CommandRecorder& overlayRecorder,
@@ -428,8 +452,8 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
     }
 
     const glm::mat4 lightMatrix = lightMatrixOpt.value_or(glm::mat4(1.0F));
-    const float shadowEnabled = lightMatrixOpt ? 1.0F : 0.0F;
-    const glm::vec4 shadowParams {0.002F, 0.0F, 0.0F, shadowEnabled};
+    const float shadowEnabled = (lightMatrixOpt && m_shadowsEnabled) ? 1.0F : 0.0F;
+    const glm::vec4 shadowParams {m_shadowBias, m_shadowPcfRadius, shadowEnabled, 0.0F};
 
     VkClearValue swapClear {};
     swapClear.color = {{0.0F, 0.0F, 0.0F, 1.0F}};
