@@ -7,11 +7,13 @@
 #include <vulkano/app/imgui_renderer.hpp>
 #include <vulkano/app/material_buffer.hpp>
 #include <vulkano/app/material_texture_cache.hpp>
+#include <vulkano/app/light_buffer.hpp>
 #include <vulkano/app/ssao.hpp>
 #include <vulkano/app/scene_renderer.hpp>
 #include <vulkano/app/vulkan_context.hpp>
 #include <vulkano/app/window.hpp>
 #include <vulkano/scene/material.hpp>
+#include <vulkano/scene/light.hpp>
 #include <vulkano/scene/mesh.hpp>
 
 #include <GLFW/glfw3.h>
@@ -51,6 +53,8 @@ int Application::run() noexcept {
         scene::MaterialRegistry materialRegistry {};
         MaterialBuffer materialBuffer {context};
         MaterialTextureCache materialTextures {context};
+        scene::LightRegistry lightRegistry {};
+        LightBuffer lightBuffer {context};
 
         scene::Material planeMaterial {};
         planeMaterial.properties.baseColor = glm::vec3 {0.7F, 0.7F, 0.7F};
@@ -95,6 +99,7 @@ int Application::run() noexcept {
 
         materialTextures.rebuild(materialRegistry);
         materialBuffer.update(materialRegistry, materialTextures.handles());
+        lightBuffer.update(lightRegistry);
         bool materialsDirty = false;
 
         SSAOSampleGenerator ssaoGenerator {};
@@ -104,6 +109,7 @@ int Application::run() noexcept {
         auto renderer = std::make_unique<SceneRenderer>(context, window, ssaoComposite->layout());
         renderer->set_scene(sceneMeshes);
         renderer->set_material_resources(materialBuffer, materialTextures);
+        renderer->set_light_buffer(lightBuffer);
 
         auto ssaoDescriptors = std::make_unique<SSAODescriptors>(context, ssaoResources,
             renderer->normal_image_view(), renderer->linear_depth_image_view());
@@ -158,6 +164,7 @@ int Application::run() noexcept {
             renderer = std::make_unique<SceneRenderer>(context, window, ssaoComposite->layout());
             renderer->set_scene(sceneMeshes);
             renderer->set_material_resources(materialBuffer, materialTextures);
+            renderer->set_light_buffer(lightBuffer);
             ssaoDescriptors->update_gbuffer_views(renderer->normal_image_view(), renderer->linear_depth_image_view());
             ssaoPass->resize(context, context.swapchain_extent());
             ssaoBlurPass->resize(context, context.swapchain_extent());

@@ -17,6 +17,7 @@ class VulkanContext;
 class Window;
 class MaterialBuffer;
 class MaterialTextureCache;
+class LightBuffer;
 
 class SceneRenderer final {
 public:
@@ -36,6 +37,7 @@ public:
 
     void set_scene(const std::vector<SceneMesh>& meshes);
     void set_material_resources(const MaterialBuffer& buffer, const MaterialTextureCache& textures);
+    void set_light_buffer(const LightBuffer& buffer);
 
     [[nodiscard]] VkRenderPass render_pass() const noexcept;
     [[nodiscard]] VkPipeline pipeline() const noexcept;
@@ -76,6 +78,8 @@ private:
     void destroy_color_resources() noexcept;
     void create_material_descriptors();
     void destroy_material_descriptors() noexcept;
+    void create_light_descriptors();
+    void destroy_light_descriptors() noexcept;
 
     void upload_mesh(const SceneMesh& mesh);
 
@@ -99,5 +103,9 @@ private:
     VkDescriptorSet m_materialDescriptorSet {VK_NULL_HANDLE};
     const MaterialBuffer* m_materialBuffer {nullptr};
     std::vector<VkDescriptorImageInfo> m_materialTextureInfos;
+    VkDescriptorSetLayout m_lightDescriptorLayout {VK_NULL_HANDLE};
+    VkDescriptorPool m_lightDescriptorPool {VK_NULL_HANDLE};
+    VkDescriptorSet m_lightDescriptorSet {VK_NULL_HANDLE};
+    const LightBuffer* m_lightBuffer {nullptr};
 };
 } // namespace vulkano::app

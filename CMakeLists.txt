@@ -162,6 +162,8 @@ add_library(vulkano_app STATIC
     src/app/texture_image.cpp
     src/app/material_texture_cache.cpp
     src/app/material_buffer.cpp
+    src/app/light_gpu.cpp
+    src/app/light_buffer.cpp
     src/app/vulkan_context.cpp
     src/app/window.cpp
     src/scene/mesh.cpp
@@ -196,6 +198,8 @@ target_sources(vulkano_app
             include/vulkano/app/texture_image.hpp
             include/vulkano/app/material_texture_cache.hpp
             include/vulkano/app/material_buffer.hpp
+            include/vulkano/app/light_gpu.hpp
+            include/vulkano/app/light_buffer.hpp
             include/vulkano/app/vulkan_context.hpp
             include/vulkano/app/window.hpp
             include/vulkano/vk/instance.hpp
