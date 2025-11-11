@@ -1,28 +1,29 @@
 #include <vulkano/app/application.hpp>
 
+#include <vulkano/app/camera.hpp>
+#include <vulkano/app/camera_controller.hpp>
 #include <vulkano/app/frame_resources.hpp>
-#include <vulkano/app/imgui_renderer.hpp>
 #include <vulkano/app/glfw_library.hpp>
+#include <vulkano/app/imgui_renderer.hpp>
 #include <vulkano/app/scene_renderer.hpp>
+#include <vulkano/app/vulkan_context.hpp>
+#include <vulkano/app/window.hpp>
 #include <vulkano/scene/mesh.hpp>
+
 #include <GLFW/glfw3.h>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-#include <memory>
-#include <vector>
-#include <glm/gtc/matrix_transform.hpp>
-#include <vulkano/app/vulkan_context.hpp>
-#include <vulkano/app/window.hpp>
-
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <exception>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <stdexcept>
-#include <chrono>
+#include <vector>
 
 namespace vulkano::app {
 int Application::run() noexcept {
@@ -32,6 +33,13 @@ int Application::run() noexcept {
 
         Window window {"Vulkano Renderer", 1280U, 720U};
         VulkanContext context {window};
+
+        const VkExtent2D swapExtent = context.swapchain_extent();
+        const float swapAspect = swapExtent.height == 0U ? 1.0F : static_cast<float>(swapExtent.width) / static_cast<float>(swapExtent.height);
+        Camera camera {glm::vec3 {0.0F, 1.5F, 5.0F}, -90.0F, -15.0F, swapAspect};
+        CameraController cameraController {camera, window};
+        cameraController.set_move_speed(6.0F);
+        cameraController.set_mouse_sensitivity(0.1F);
         std::vector<SceneRenderer::SceneMesh> sceneMeshes {
             SceneRenderer::SceneMesh {
                 .mesh = vulkano::scene::MeshFactory::create_plane(10.0F, glm::vec3 {0.7F, 0.7F, 0.7F}),
@@ -65,8 +73,14 @@ int Application::run() noexcept {
             frameResources.reset();
             imgui.reset();
             renderer.reset();
+            cameraController.reset();
 
             context.recreate_swapchain(window);
+
+            const VkExtent2D newExtent = context.swapchain_extent();
+            if (newExtent.height != 0U) {
+                camera.set_aspect_ratio(static_cast<float>(newExtent.width) / static_cast<float>(newExtent.height));
+            }
 
             renderer = std::make_unique<SceneRenderer>(context, window);
             renderer->set_scene(sceneMeshes);
@@ -102,6 +116,8 @@ int Application::run() noexcept {
                 recreateSwapchain();
                 continue;
             }
+
+            cameraController.update(deltaSeconds);
 
             imgui->begin_frame();
             imgui->update_metrics(deltaSeconds);
@@ -143,7 +159,7 @@ int Application::run() noexcept {
             const SceneRenderer::CommandRecorder overlayRecorder {[&imgui](VkCommandBuffer buffer) {
                 imgui->render(buffer);
             }};
-            renderer->record_command_buffer(commandBuffer, imageIndex, overlayRecorder);
+            renderer->record_command_buffer(commandBuffer, imageIndex, camera.view_matrix(), camera.projection_matrix(), overlayRecorder);
 
             const VkSemaphore waitSemaphores[] = {frameResources->image_available_semaphore(currentFrame)};
             const VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};

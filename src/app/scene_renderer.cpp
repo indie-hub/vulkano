@@ -1,6 +1,5 @@
 #include <vulkano/app/scene_renderer.hpp>
 
-#include <vulkano/app/math.hpp>
 #include <vulkano/app/vulkan_context.hpp>
 #include <vulkano/app/window.hpp>
 
@@ -153,10 +152,6 @@ SceneRenderer::SceneRenderer(const VulkanContext& context, const Window& window)
     create_graphics_pipeline();
     create_framebuffers();
 
-    const TriangleTransforms transforms = make_triangle_transforms(static_cast<float>(context.swapchain_extent().width)
-        / static_cast<float>(context.swapchain_extent().height));
-    m_view = transforms.view;
-    m_projection = transforms.projection;
 }
 
 SceneRenderer::~SceneRenderer() noexcept {
@@ -202,7 +197,7 @@ const std::vector<VkFramebuffer>& SceneRenderer::framebuffers() const noexcept {
 }
 
 void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::uint32_t imageIndex,
-    const CommandRecorder& overlayRecorder) const {
+    const glm::mat4& view, const glm::mat4& projection, const CommandRecorder& overlayRecorder) const {
     VkCommandBufferBeginInfo beginInfo {};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
@@ -247,7 +242,7 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
         vkCmdBindVertexBuffers(commandBuffer, 0U, 1U, vertexBuffers, offsets);
         vkCmdBindIndexBuffer(commandBuffer, mesh.indexBuffer, 0U, VK_INDEX_TYPE_UINT32);
 
-        const ScenePushConstants pushConstants {.model = mesh.model, .view = m_view, .projection = m_projection};
+        const ScenePushConstants pushConstants {.model = mesh.model, .view = view, .projection = projection};
         vkCmdPushConstants(commandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0U,
             static_cast<std::uint32_t>(sizeof(ScenePushConstants)), &pushConstants);
 
