@@ -164,6 +164,14 @@ VkDescriptorImageInfo ShadowMap::descriptor_info() const noexcept {
     return info;
 }
 
+VkImage ShadowMap::image() const noexcept {
+    return m_depthImage.image();
+}
+
+VkImageView ShadowMap::view() const noexcept {
+    return m_depthImage.view();
+}
+
 void ShadowMap::destroy() noexcept {
     if (m_context == nullptr) {
         return;

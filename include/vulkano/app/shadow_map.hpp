@@ -24,6 +24,8 @@ public:
     [[nodiscard]] VkRenderPass render_pass() const noexcept;
     [[nodiscard]] VkExtent2D extent() const noexcept;
     [[nodiscard]] VkDescriptorImageInfo descriptor_info() const noexcept;
+    [[nodiscard]] VkImage image() const noexcept;
+    [[nodiscard]] VkImageView view() const noexcept;
 
 private:
     void destroy() noexcept;
