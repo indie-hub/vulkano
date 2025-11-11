@@ -83,6 +83,7 @@ TEST_CASE("Light registry removes non-primary lights") {
 
     vulkano::scene::Light extra {};
     extra.type = vulkano::scene::LightType::Point;
+    extra.castsShadow = true;
     const auto id = registry.add_light(extra);
     REQUIRE(registry.size() == 2U);
 

@@ -28,6 +28,7 @@ struct Light final {
     glm::vec3 color {1.0F, 1.0F, 1.0F};
     float intensity {1.0F};
     float range {10.0F};
+    bool castsShadow {true};
 };
 
 class LightRegistry final {

@@ -298,6 +298,14 @@ int Application::run() noexcept {
                         }
 
                         if (editableLight.type == scene::LightType::Directional) {
+                            bool castsShadow = editableLight.castsShadow;
+                            if (ImGui::Checkbox("Casts Shadow", &castsShadow)) {
+                                editableLight.castsShadow = castsShadow;
+                                lightsDirty = true;
+                            }
+                        }
+
+                        if (editableLight.type == scene::LightType::Directional) {
                             glm::vec3 direction = editableLight.direction;
                             if (ImGui::SliderFloat3("Direction", glm::value_ptr(direction), -1.0F, 1.0F)) {
                                 editableLight.direction = direction;

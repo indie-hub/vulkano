@@ -25,6 +25,9 @@ namespace {
         sanitized.direction = normalize_or_default(light.direction);
     }
     sanitized.range = sanitize_range(light.range);
+    if (sanitized.type == LightType::Point && sanitized.castsShadow) {
+        sanitized.castsShadow = false;
+    }
     return sanitized;
 }
 } // namespace
