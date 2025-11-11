@@ -160,6 +160,7 @@ add_library(vulkano_app STATIC
     src/app/vulkan_context.cpp
     src/app/window.cpp
     src/scene/mesh.cpp
+    src/scene/material.cpp
     src/vk/instance.cpp
     src/vk/physical_device.cpp
     src/vk/logical_device.cpp
@@ -189,6 +190,7 @@ target_sources(vulkano_app
             include/vulkano/vk/instance.hpp
             include/vulkano/vk/physical_device.hpp
             include/vulkano/scene/mesh.hpp
+            include/vulkano/scene/material.hpp
             include/vulkano/vk/logical_device.hpp
             include/vulkano/vk/depth_format.hpp
             include/vulkano/vk/depth_image.hpp
