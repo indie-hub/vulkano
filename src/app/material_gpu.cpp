@@ -20,7 +20,9 @@ MaterialGpu make_material_gpu(const scene::Material& material, const scene::Mate
     const float ambient = clamp01(props.ambientOcclusion);
 
     gpu.baseColorMetallic = glm::vec4 {props.baseColor, metallic};
-    gpu.roughnessAoFlags = glm::vec4 {roughness, ambient, 0.0F, 0.0F};
+    const float normalStrength = clamp01(props.normalStrength);
+
+    gpu.roughnessAoStrength = glm::vec4 {roughness, ambient, normalStrength, 0.0F};
     gpu.textureIndices = glm::uvec4 {
         handles.baseColor,
         handles.normal,

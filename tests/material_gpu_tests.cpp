@@ -21,6 +21,7 @@ TEST_CASE("Material GPU conversion clamps values") {
     material.useAmbientOcclusionTexture = true;
     material.properties.emissive = glm::vec3 {0.2F, 0.3F, 0.4F};
     material.properties.emissiveIntensity = 1.5F;
+    material.properties.normalStrength = 2.0F;
 
     vulkano::scene::MaterialTextureHandles handles {};
     handles.baseColor = 5U;
@@ -35,8 +36,9 @@ TEST_CASE("Material GPU conversion clamps values") {
     REQUIRE_THAT(gpu.baseColorMetallic.y, WithinAbs(-0.2F, epsilon));
     REQUIRE_THAT(gpu.baseColorMetallic.z, WithinAbs(0.25F, epsilon));
     REQUIRE_THAT(gpu.baseColorMetallic.w, WithinAbs(1.0F, epsilon));
-    REQUIRE_THAT(gpu.roughnessAoFlags.x, WithinAbs(0.0F, epsilon));
-    REQUIRE_THAT(gpu.roughnessAoFlags.y, WithinAbs(1.0F, epsilon));
+    REQUIRE_THAT(gpu.roughnessAoStrength.x, WithinAbs(0.0F, epsilon));
+    REQUIRE_THAT(gpu.roughnessAoStrength.y, WithinAbs(1.0F, epsilon));
+    REQUIRE_THAT(gpu.roughnessAoStrength.z, WithinAbs(1.0F, epsilon));
     REQUIRE(gpu.textureIndices.x == 5U);
     REQUIRE(gpu.textureIndices.y == 6U);
     REQUIRE(gpu.textureIndices.z == 7U);

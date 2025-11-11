@@ -338,6 +338,11 @@ int Application::run() noexcept {
                         ImGui::ColorButton("##NormalPreview", ImVec4(0.5F, 0.5F, 1.0F, 1.0F), 0, ImVec2(24.0F, 24.0F));
                         ImGui::SameLine();
                         ImGui::TextUnformatted("Normal Map Preview");
+                        float normalStrength = editable.properties.normalStrength;
+                        if (ImGui::SliderFloat("Normal Strength", &normalStrength, 0.0F, 1.0F)) {
+                            editable.properties.normalStrength = normalStrength;
+                            materialsDirty = true;
+                        }
 
                         if (!editable.textures.metallicRoughnessPath.empty()) {
                             bool useMr = editable.useMetallicRoughnessTexture;

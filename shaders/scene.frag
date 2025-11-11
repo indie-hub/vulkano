@@ -22,7 +22,7 @@ const uint MATERIAL_TEXTURE_COUNT = 12u;
 
 struct MaterialGpu {
     vec4 baseColorMetallic;
-    vec4 roughnessAoFlags;
+    vec4 roughnessAoStrength;
     uvec4 textureIndices;
     vec4 textureUsage;
     vec4 emissive;
@@ -74,13 +74,17 @@ void main() {
     MaterialGpu material = materialBuffer.materials[fragMaterialIndex];
     vec3 albedo = material.baseColorMetallic.rgb;
     float metallic = material.baseColorMetallic.a;
-    float roughness = material.roughnessAoFlags.x;
-    float ambientOcclusion = material.roughnessAoFlags.y;
+    float roughness = material.roughnessAoStrength.x;
+    float ambientOcclusion = material.roughnessAoStrength.y;
 
     uint normalIndex = material.textureIndices.y;
+    float normalStrength = material.roughnessAoStrength.z;
+    normalStrength = clamp(normalStrength, 0.0, 1.0);
+
     if (material.textureUsage.y > 0.5 && normalIndex < MATERIAL_TEXTURE_COUNT) {
         vec3 normalSample = texture(materialTextures[normalIndex], fragUV).rgb;
         vec3 normalTangent = normalize(normalSample * 2.0 - 1.0);
+        normalTangent = normalize(mix(vec3(0.0, 0.0, 1.0), normalTangent, normalStrength));
         mat3 tbn = mat3(tangentWorld, bitangentWorld, normalWorld);
         normalWorld = normalize(tbn * normalTangent);
     }
