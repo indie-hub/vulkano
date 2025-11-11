@@ -33,3 +33,18 @@ TEST_CASE("Material descriptor bindings expose layout constants") {
     REQUIRE(vulkano::app::MaterialDescriptorBindings::ambientOcclusionTextureBinding == 4U);
 }
 
+TEST_CASE("Material GPU buffer builder always returns at least one entry") {
+    vulkano::scene::MaterialRegistry registry {};
+    auto buffer = vulkano::app::build_material_gpu_buffer(registry);
+    REQUIRE(buffer.size() == 1U);
+
+    vulkano::scene::Material extra {};
+    extra.properties.baseColor = glm::vec3 {0.25F, 0.5F, 0.75F};
+    const auto newId = registry.add_material(extra);
+
+    buffer = vulkano::app::build_material_gpu_buffer(registry);
+    REQUIRE(buffer.size() == 2U);
+    using Catch::Matchers::WithinAbs;
+    REQUIRE_THAT(buffer[1].baseColorMetallic.x, WithinAbs(0.25F, epsilon));
+    REQUIRE(newId.value == 1U);
+}
