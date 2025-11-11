@@ -394,3 +394,33 @@ Reduce artificial self-occlusion on convex surfaces (e.g., sphere) while preserv
 5. **Integration Hooks**
    - Blur descriptor owns adjustable parameters (radius, depth falloff) controlled through ImGui.
    - Final composition samples blurred texture instead of raw occlusion when blur enabled.
+
+# Material Renderer Plan
+
+## Goal
+Introduce a material-driven forward renderer that supports multiple material types (lambertian, specular, and PBR-ready placeholders), each with texture bindings, while integrating with existing SSAO and blur passes.
+
+## Phase 1 – Material Abstractions
+1. Define CPU-side material structs (albedo color, roughness, metallic, texture handles) and a material registry that assigns stable IDs.
+2. Extend scene mesh definitions to reference a material ID.
+3. Acceptance: Scene setup can assign different materials to objects; renderer compiles with placeholder uniform uploads.
+
+## Phase 2 – GPU Data & Shaders
+1. Create a GPU material buffer (structured UBO/SSBO) and descriptor set for material parameters plus combined texture array.
+2. Update scene shader(s) to index into the material buffer using per-draw material index and to sample bound textures.
+3. Acceptance: Materials influence shading (e.g., distinct albedo colors/textures per mesh) without validation errors.
+
+## Phase 3 – Texture/Resource Management
+1. Implement texture loading utilities (stb_image or existing assets), create Vulkan images/samplers, and integrate with material registry.
+2. Handle lifetime/cleanup and swapchain recreation edge cases.
+3. Acceptance: Multiple textures load from disk, bind correctly, and survive resize events.
+
+## Phase 4 – ImGui Material Editor
+1. Add ImGui panel to list materials, adjust parameters (color, roughness, metallic), and trigger texture reloads.
+2. Ensure edits trigger GPU buffer updates only when necessary (avoid mid-command-buffer updates).
+3. Acceptance: UI tweaks reflect immediately in render output; descriptor updates occur safely before recording draws.
+
+## Phase 5 – Testing & Validation
+1. Add unit tests for material registry (ID allocation, duplicate prevention) and texture loader error handling.
+2. Capture screenshot-based regression (manual) ensuring materials render as expected with SSAO enabled.
+3. Run `ctest`, rebuild, and execute runtime with validation layers clean.

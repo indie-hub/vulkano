@@ -61,6 +61,6 @@
 - [x] Apply angular/normal filtering and exponential falloff in shader
 - [x] Add ImGui controls for SSAO sampling heuristics
 - [x] Interpret SSAO falloff sliders as range values and retune shader
-- [ ] Group SSAO controls in foldable UI with human-friendly labels
 - [x] Group SSAO controls in foldable UI with human-friendly labels
 - [ ] Extend SSAO tests and revalidate runtime
+- [x] Plan material-based renderer implementation
