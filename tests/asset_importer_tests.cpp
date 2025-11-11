@@ -1,8 +1,28 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 
+#include <cmath>
 #include <filesystem>
 
 #include <vulkano/app/asset_importer.hpp>
+
+#include <glm/geometric.hpp>
+
+namespace {
+[[nodiscard]] const vulkano::scene::MeshData& first_mesh(const vulkano::app::ImportedScene::Node& node) {
+    if (!node.meshes.empty()) {
+        return node.meshes.front().mesh;
+    }
+    for (const auto& child : node.children) {
+        const vulkano::scene::MeshData& candidate = first_mesh(child);
+        if (!candidate.vertices.empty()) {
+            return candidate;
+        }
+    }
+    static const vulkano::scene::MeshData empty {};
+    return empty;
+}
+} // namespace
 
 TEST_CASE("ImportedScene defaults to empty collections") {
     const vulkano::app::ImportedScene scene {};
@@ -82,4 +102,20 @@ TEST_CASE("AssetImporter preserves embedded and absolute texture identifiers") {
         / "../../assets/textures/cube.png");
     REQUIRE(std::filesystem::path {vulkano::app::AssetImporter::resolve_texture_path(absolute.string(), base)}
         == absolute);
+}
+
+TEST_CASE("AssetImporter regenerates tangent frames when missing from source mesh") {
+    const vulkano::app::AssetImporter importer {};
+    const auto scene = importer.load_scene(TEST_ASSET_DIR "/uv_triangle.obj");
+    const vulkano::scene::MeshData& mesh = first_mesh(scene.root);
+    REQUIRE(mesh.vertices.size() == 3U);
+
+    using Catch::Matchers::WithinAbs;
+    constexpr float epsilon {1e-4F};
+
+    for (const vulkano::scene::Vertex& vertex : mesh.vertices) {
+        const float tangentLength = glm::length(vertex.tangent);
+        REQUIRE_THAT(tangentLength, WithinAbs(1.0F, epsilon));
+        REQUIRE_THAT(std::abs(vertex.bitangentSign), WithinAbs(1.0F, epsilon));
+    }
 }

@@ -28,4 +28,6 @@ public:
     static MeshData create_uv_sphere(float radius, std::uint32_t longitudeSegments,
         std::uint32_t latitudeSegments, const glm::vec3& color);
 };
+
+void generate_tangent_frames(MeshData& mesh) noexcept;
 } // namespace vulkano::scene

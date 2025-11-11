@@ -21,6 +21,9 @@ data are ignored for now; only static meshes and materials are converted.
 3. The importer registers new materials, uploads meshes, and appends them to the
    existing scene.
 4. Material buffers and textures are rebuilt automatically.
+5. Tangent frames are regenerated for every imported mesh when the source asset
+   omits them so that normal maps render correctly without requiring precomputed
+   tangents.
 
 If loading fails, the application logs an error with the Assimp message.
 

@@ -261,4 +261,8 @@ MeshData MeshFactory::create_uv_sphere(float radius, std::uint32_t longitudeSegm
     compute_tangent_frames(data.vertices, data.indices);
     return data;
 }
+
+void generate_tangent_frames(MeshData& mesh) noexcept {
+    compute_tangent_frames(mesh.vertices, mesh.indices);
+}
 } // namespace vulkano::scene

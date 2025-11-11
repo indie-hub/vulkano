@@ -253,7 +253,7 @@
 - [x] Draft UV and tangent diagnostic plan (.agent/plan_uv_tangent.md)
 - [x] Validate UV attribute propagation from importer to GPU buffers
 - [x] Investigate tangent-space reconstruction and shader usage
-- [ ] Implement fixes for UV/tangent discrepancies
-- [ ] Extend automated coverage for UV/tangent paths
-- [ ] Document UV/tangent workflow updates and update CHANGELOG
-- [ ] Build, run tests, and verify runtime visuals for UV/tangent fix
+- [x] Implement fixes for UV/tangent discrepancies
+- [x] Extend automated coverage for UV/tangent paths
+- [x] Document UV/tangent workflow updates and update CHANGELOG
+- [x] Build, run tests, and verify runtime visuals for UV/tangent fix

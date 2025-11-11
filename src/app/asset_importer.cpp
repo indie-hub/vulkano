@@ -327,6 +327,8 @@ ImportedMesh AssetImporter::import_mesh(const aiMesh& mesh, std::uint32_t materi
         }
     }
 
+    scene::generate_tangent_frames(meshData);
+
     result.mesh = std::move(meshData);
     return result;
 }
