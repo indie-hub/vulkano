@@ -223,6 +223,13 @@
    - Determine whether to use array descriptors or bindless approach for multiple shadow maps.
    - Outline updates needed in pipeline layout, shader bindings, and descriptor writes.
    - *Acceptance:* Descriptor update matrix enumerating new set/binding assignments and compatibility with existing shaders.
+   - **Descriptor plan:**
+     - Extend existing shadow descriptor set to bind an array of combined image samplers sized to the max caster count (3).
+     - `ShadowResources` allocates a descriptor pool with `descriptorCount = maxCasters` for combined image samplers and a single descriptor set reused each frame.
+     - `SceneRenderer` writes all active shadow map `VkDescriptorImageInfo` entries to the array; inactive slots receive a dummy depth texture (or reuse last active) to keep array dense.
+     - Pipeline layout update: shadow descriptor set (set = 3) now exposes binding 0 as `descriptorCount = maxCasters`; shaders read via index provided in light GPU data.
+     - Compatibility: existing single-caster shader path will be refactored to loop over active casters, using the descriptor index encoded in `LightGpu` entries.
+     - Note potential future extension to bindless/BDA if descriptor array limits become a concern.
 
 ### Goal D — Update Renderer Selection Logic
 1. **Define caster prioritisation rules**
