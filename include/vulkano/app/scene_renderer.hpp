@@ -8,6 +8,7 @@
 #include <glm/mat4x4.hpp>
 
 #include <vulkano/scene/mesh.hpp>
+#include <vulkano/vk/depth_image.hpp>
 
 namespace vulkano::app {
 class VulkanContext;
@@ -55,6 +56,8 @@ private:
     void create_framebuffers();
     void destroy_framebuffers() noexcept;
     void destroy_meshes() noexcept;
+    void create_depth_resources();
+    void destroy_depth_resources() noexcept;
 
     void upload_mesh(const SceneMesh& mesh);
 
@@ -64,5 +67,7 @@ private:
     VkPipeline m_pipeline {VK_NULL_HANDLE};
     std::vector<VkFramebuffer> m_framebuffers;
     std::vector<GpuMesh> m_meshes;
+    VkFormat m_depthFormat {VK_FORMAT_UNDEFINED};
+    vk::DepthImage m_depthImage;
 };
 } // namespace vulkano::app

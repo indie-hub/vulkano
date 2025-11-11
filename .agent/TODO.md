@@ -23,6 +23,6 @@
 - [x] Draft depth testing implementation plan with acceptance criteria
 - [x] Implement depth format resolver utility with tests
 - [x] Introduce depth image RAII wrapper
-- [ ] Integrate depth attachment into renderer pipeline and clear commands
+- [x] Integrate depth attachment into renderer pipeline and clear commands
 - [ ] Update synchronization and swapchain recreation for depth resources
 - [ ] Build, run tests, and verify depth occlusion at runtime
