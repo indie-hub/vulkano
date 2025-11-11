@@ -167,3 +167,4 @@
 - [x] Define caster prioritisation rules for limited shadow slots
 - [x] Map registry changes to shadow slot assignments
 - [x] Extend compute_light_view_projection for multiple slots
+- [ ] Plan shader inputs for multiple shadow matrices
