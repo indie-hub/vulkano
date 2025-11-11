@@ -37,7 +37,8 @@ int Application::run() noexcept {
 
         SSAOSampleGenerator ssaoGenerator {};
         SSAOGpuResources ssaoResources {context, ssaoGenerator, 64U, 4U};
-        static_cast<void>(ssaoResources);
+        SSAODescriptors ssaoDescriptors {context, ssaoResources};
+        static_cast<void>(ssaoDescriptors);
 
         const VkExtent2D swapExtent = context.swapchain_extent();
         const float swapAspect = swapExtent.height == 0U ? 1.0F : static_cast<float>(swapExtent.width) / static_cast<float>(swapExtent.height);

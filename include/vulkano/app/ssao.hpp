@@ -62,4 +62,26 @@ private:
     std::uint32_t m_noiseDimension {0U};
     VkFormat m_noiseFormat {VK_FORMAT_UNDEFINED};
 };
+
+class SSAODescriptors final {
+public:
+    SSAODescriptors(const VulkanContext& context, const SSAOGpuResources& resources);
+    ~SSAODescriptors() noexcept;
+
+    SSAODescriptors(const SSAODescriptors&) = delete;
+    SSAODescriptors& operator=(const SSAODescriptors&) = delete;
+    SSAODescriptors(SSAODescriptors&& other) noexcept;
+    SSAODescriptors& operator=(SSAODescriptors&& other) noexcept;
+
+    [[nodiscard]] VkDescriptorSetLayout layout() const noexcept;
+    [[nodiscard]] VkDescriptorSet descriptor_set() const noexcept;
+
+private:
+    void destroy() noexcept;
+
+    VkDevice m_device {VK_NULL_HANDLE};
+    VkDescriptorPool m_descriptorPool {VK_NULL_HANDLE};
+    VkDescriptorSetLayout m_layout {VK_NULL_HANDLE};
+    VkDescriptorSet m_descriptorSet {VK_NULL_HANDLE};
+};
 }
