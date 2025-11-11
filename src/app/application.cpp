@@ -5,6 +5,7 @@
 #include <vulkano/app/frame_resources.hpp>
 #include <vulkano/app/glfw_library.hpp>
 #include <vulkano/app/imgui_renderer.hpp>
+#include <vulkano/app/asset_importer.hpp>
 #include <vulkano/app/material_buffer.hpp>
 #include <vulkano/app/material_texture_cache.hpp>
 #include <vulkano/app/light_buffer.hpp>
@@ -27,6 +28,7 @@
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <exception>
 #include <iostream>
 #include <limits>
@@ -114,6 +116,35 @@ int Application::run() noexcept {
                 .material = sphereMaterialId
             }
         };
+
+        const char* modelPath = std::getenv("VULKANO_MODEL");
+        if (modelPath != nullptr && std::strlen(modelPath) > 0) {
+            try {
+                AssetImporter importer {};
+                ImportedScene imported = importer.load_scene(modelPath);
+                std::vector<scene::MaterialId> importedMaterialIds;
+                importedMaterialIds.reserve(imported.materials.size());
+                for (ImportedMaterial& importedMaterial : imported.materials) {
+                    importedMaterialIds.push_back(materialRegistry.add_material(importedMaterial.material));
+                }
+
+                for (ImportedMesh& importedMesh : imported.meshes) {
+                    SceneRenderer::SceneMesh meshEntry {};
+                    meshEntry.mesh = std::move(importedMesh.mesh);
+                    meshEntry.model = importedMesh.transform;
+                    const std::uint32_t importedMaterialIndex = importedMesh.materialIndex;
+                    if (importedMaterialIndex < importedMaterialIds.size()) {
+                        meshEntry.material = importedMaterialIds[importedMaterialIndex];
+                    } else {
+                        meshEntry.material = materialRegistry.default_material_id();
+                    }
+                    sceneMeshes.push_back(std::move(meshEntry));
+                }
+                std::cout << "Imported model from '" << modelPath << "'\n";
+            } catch (const std::exception& ex) {
+                std::cerr << "Failed to import model '" << modelPath << "': " << ex.what() << "\n";
+            }
+        }
 
         materialTextures.rebuild(materialRegistry);
         materialBuffer.update(materialRegistry, materialTextures.handles());
