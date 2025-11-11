@@ -179,7 +179,7 @@
 - [x] Integrate shadow slot sync with light registry
 - [x] Implement slot prioritisation and capacity handling
 - [x] Reproduce and document resize validation errors
-- [ ] Fix descriptor pool configuration to allow descriptor freeing
+- [x] Fix descriptor pool configuration to allow descriptor freeing
 - [ ] Validate runtime now clean of validation errors
 - [ ] Implement ImGui multi-caster controls
 - [ ] Extend automated tests for shadow matrix buffer
