@@ -62,6 +62,11 @@
 - [x] Add ImGui controls for SSAO sampling heuristics
 - [x] Interpret SSAO falloff sliders as range values and retune shader
 - [x] Group SSAO controls in foldable UI with human-friendly labels
-- [ ] Extend SSAO tests and revalidate runtime
+- [x] Extend SSAO tests and revalidate runtime
 - [x] Plan material-based renderer implementation
 - [x] Plan physically-based lighting model upgrade
+
+- [ ] Catalogue existing scene/material data flows for Phase 1
+- [ ] Implement CPU-side material structs and registry backbone
+- [ ] Attach material identifiers to scene meshes with placeholder assignments
+- [ ] Rebuild, run tests, and validate runtime after Phase 1 changes
