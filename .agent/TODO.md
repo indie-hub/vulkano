@@ -162,3 +162,4 @@
 - [x] Draft plan for multi-caster shadow map support
 - [x] Catalogue shadow resource ownership for single-caster implementation
 - [x] Decide maximum supported casters and resource budget
+- [ ] Design ShadowResources pool structure
