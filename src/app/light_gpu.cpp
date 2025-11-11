@@ -13,10 +13,12 @@ namespace {
 }
 } // namespace
 
-std::vector<LightGpu> build_light_gpu_buffer(const scene::LightRegistry& registry) {
+std::vector<LightGpu> build_light_gpu_buffer(const scene::LightRegistry& registry,
+    const std::unordered_map<std::uint32_t, std::uint32_t>& shadowIndices) {
     std::vector<LightGpu> buffer;
     buffer.reserve(registry.size());
-    for (const scene::Light& light : registry.lights()) {
+    for (std::size_t idx {0U}; idx < registry.size(); ++idx) {
+        const scene::Light& light = registry.light(scene::LightId {static_cast<std::uint32_t>(idx)});
         LightGpu gpu {};
         glm::vec3 direction = light.direction;
         if (light.type == scene::LightType::Directional) {
@@ -26,7 +28,12 @@ std::vector<LightGpu> build_light_gpu_buffer(const scene::LightRegistry& registr
         const float typeValue = light.type == scene::LightType::Directional ? 0.0F : 1.0F;
         const float castsShadowValue = light.castsShadow ? 1.0F : 0.0F;
         gpu.colorType = glm::vec4 {light.color, typeValue};
-        gpu.shadowParams = glm::vec4 {castsShadowValue, 0.0F, 0.0F, 0.0F};
+        float shadowIndex = -1.0F;
+        const auto shadowIt = shadowIndices.find(static_cast<std::uint32_t>(idx));
+        if (shadowIt != shadowIndices.end()) {
+            shadowIndex = static_cast<float>(shadowIt->second);
+        }
+        gpu.shadowParams = glm::vec4 {castsShadowValue, shadowIndex, 0.0F, 0.0F};
         gpu.positionRange = glm::vec4 {light.position, light.range};
         buffer.push_back(gpu);
     }
