@@ -4,4 +4,4 @@
 - [x] Implement Vulkan and GLFW initialization for rendering window
 - [x] Add triangle rendering pipeline and validation logic
 - [x] Integrate ImGui overlay with renderer lifecycle
-- [ ] Add automated tests and package runnable binaries
+- [x] Add automated tests and package runnable binaries
