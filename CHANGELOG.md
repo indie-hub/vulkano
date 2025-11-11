@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Rewrote Git history so every commit now credits bruno o <bond.bales_0i@icloud.com> as both author and committer per `.agent/plan_git_identity_rewrite.md`.
 - Verified the rewritten history via `git fsck --strict` and a full Release build/test run, and documented the remaining force-push + cleanup follow-ups in `.agent/TODO.md`.
 - Removed the temporary `../vulkano_codex_backup.git` mirror after confirming the rewritten history was published.
+- Advanced `develop` to the latest `personal/codex-second-try/13-ui-overhalt` commits after resolving the rewritten-history divergence.
 
 ### Fixed
 - Regenerate tangent frames for imported meshes so normal maps remain stable when source assets omit tangents.

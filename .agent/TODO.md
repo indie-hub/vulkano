@@ -292,5 +292,5 @@
 - [x] Resolve network connectivity (DNS) issue blocking pushes to github.com
 - [x] Remove the ../vulkano_codex_backup.git mirror once the team confirms the rewrite
 - [x] Remove the ../vulkano_codex_backup.git mirror once the team confirms the rewrite
-- [ ] Merge personal/codex-second-try/13-ui-overhalt into develop and resolve any conflicts
-- [ ] Push updated develop to origin (force if required) and document the merge
+- [x] Merge personal/codex-second-try/13-ui-overhalt into develop and resolve any conflicts
+- [x] Push updated develop to origin (force if required) and document the merge
