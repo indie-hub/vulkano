@@ -183,6 +183,7 @@ add_library(vulkano_app STATIC
     src/app/light_buffer.cpp
     src/app/shadow_map.cpp
     src/app/shadow_pass.cpp
+    src/app/asset_importer.cpp
     src/app/vulkan_context.cpp
     src/app/window.cpp
     src/scene/mesh.cpp
@@ -221,6 +222,7 @@ target_sources(vulkano_app
             include/vulkano/app/light_buffer.hpp
             include/vulkano/app/shadow_map.hpp
             include/vulkano/app/shadow_pass.hpp
+            include/vulkano/app/asset_importer.hpp
             include/vulkano/app/vulkan_context.hpp
             include/vulkano/app/window.hpp
             include/vulkano/vk/instance.hpp
