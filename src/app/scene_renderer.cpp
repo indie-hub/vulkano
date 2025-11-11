@@ -176,6 +176,52 @@ void create_buffer(VkPhysicalDevice physicalDevice, VkDevice device, VkDeviceSiz
 }
 
 namespace vulkano::app {
+void SceneRenderer::GizmoCache::release(VkDevice device) noexcept {
+    if (directional) {
+        DebugMesh& mesh = directional->mesh;
+        if (mesh.vertexBuffer != VK_NULL_HANDLE) {
+            vkDestroyBuffer(device, mesh.vertexBuffer, nullptr);
+            mesh.vertexBuffer = VK_NULL_HANDLE;
+        }
+        if (mesh.vertexMemory != VK_NULL_HANDLE) {
+            vkFreeMemory(device, mesh.vertexMemory, nullptr);
+            mesh.vertexMemory = VK_NULL_HANDLE;
+        }
+        if (mesh.indexBuffer != VK_NULL_HANDLE) {
+            vkDestroyBuffer(device, mesh.indexBuffer, nullptr);
+            mesh.indexBuffer = VK_NULL_HANDLE;
+        }
+        if (mesh.indexMemory != VK_NULL_HANDLE) {
+            vkFreeMemory(device, mesh.indexMemory, nullptr);
+            mesh.indexMemory = VK_NULL_HANDLE;
+        }
+        mesh.indexCount = 0U;
+        directional.reset();
+    }
+
+    for (LightGizmoHandle& handle : points) {
+        DebugMesh& mesh = handle.mesh;
+        if (mesh.vertexBuffer != VK_NULL_HANDLE) {
+            vkDestroyBuffer(device, mesh.vertexBuffer, nullptr);
+            mesh.vertexBuffer = VK_NULL_HANDLE;
+        }
+        if (mesh.vertexMemory != VK_NULL_HANDLE) {
+            vkFreeMemory(device, mesh.vertexMemory, nullptr);
+            mesh.vertexMemory = VK_NULL_HANDLE;
+        }
+        if (mesh.indexBuffer != VK_NULL_HANDLE) {
+            vkDestroyBuffer(device, mesh.indexBuffer, nullptr);
+            mesh.indexBuffer = VK_NULL_HANDLE;
+        }
+        if (mesh.indexMemory != VK_NULL_HANDLE) {
+            vkFreeMemory(device, mesh.indexMemory, nullptr);
+            mesh.indexMemory = VK_NULL_HANDLE;
+        }
+        mesh.indexCount = 0U;
+    }
+    points.clear();
+}
+
 SceneRenderer::SceneRenderer(const VulkanContext& context, const Window& window, VkDescriptorSetLayout ssaoLayout)
     : m_context {context}
     , m_descriptorLayout {ssaoLayout} {
@@ -212,6 +258,7 @@ SceneRenderer::~SceneRenderer() noexcept {
     destroy_shadow_descriptors();
     destroy_light_descriptors();
     destroy_material_descriptors();
+    m_gizmoCache.release(m_context.device());
     destroy_light_debug_mesh();
     if (m_renderPass != VK_NULL_HANDLE) {
         vkDestroyRenderPass(m_context.device(), m_renderPass, nullptr);
@@ -307,43 +354,102 @@ void SceneRenderer::set_light_resources(const LightBuffer& buffer, const scene::
 
     vkUpdateDescriptorSets(m_context.device(), 1U, &write, 0U, nullptr);
 
-    if (registry.size() > 0U) {
-        scene::Light primary = registry.light(scene::LightId {0U});
-        for (std::size_t index {0U}; index < registry.size(); ++index) {
-            const scene::Light& candidate = registry.light(scene::LightId {static_cast<std::uint32_t>(index)});
-            if (candidate.type == scene::LightType::Directional) {
-                primary = candidate;
-                break;
-            }
-        }
+    destroy_point_light_debug_meshes();
+    std::vector<DebugMesh> pointMeshes;
 
-        const glm::vec3 dir = primary.direction;
-        m_lightDirection = glm::length(dir) > 0.0F ? glm::normalize(dir) : glm::vec3 {0.0F, -1.0F, 0.0F};
-        m_lightColor = primary.color;
-        m_lightIntensity = primary.intensity;
-
-        if (m_lightDebugMesh.vertexMemory != VK_NULL_HANDLE) {
-            std::array<Vertex, 5> vertices = {
-                Vertex {.position = glm::vec3 {0.0F, 0.0F, 0.0F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
-                    .color = m_lightColor, .uv = glm::vec2 {0.0F, 0.0F}},
-                Vertex {.position = glm::vec3 {0.05F, 0.05F, -0.2F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
-                    .color = m_lightColor, .uv = glm::vec2 {0.0F, 0.0F}},
-                Vertex {.position = glm::vec3 {-0.05F, 0.05F, -0.2F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
-                    .color = m_lightColor, .uv = glm::vec2 {0.0F, 0.0F}},
-                Vertex {.position = glm::vec3 {-0.05F, -0.05F, -0.2F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
-                    .color = m_lightColor, .uv = glm::vec2 {0.0F, 0.0F}},
-                Vertex {.position = glm::vec3 {0.05F, -0.05F, -0.2F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
-                    .color = m_lightColor, .uv = glm::vec2 {0.0F, 0.0F}}
-            };
-
-            VkDeviceSize size = static_cast<VkDeviceSize>(sizeof(Vertex) * vertices.size());
-            void* mapped = nullptr;
-            if (vkMapMemory(m_context.device(), m_lightDebugMesh.vertexMemory, 0U, size, 0U, &mapped) == VK_SUCCESS) {
-                std::memcpy(mapped, vertices.data(), static_cast<std::size_t>(size));
-                vkUnmapMemory(m_context.device(), m_lightDebugMesh.vertexMemory);
+    std::optional<scene::Light> primaryDir {};
+    for (std::size_t index {0U}; index < registry.size(); ++index) {
+        const scene::Light& candidate = registry.light(scene::LightId {static_cast<std::uint32_t>(index)});
+        if (candidate.type == scene::LightType::Directional) {
+            if (!primaryDir || (!primaryDir->castsShadow && candidate.castsShadow)) {
+                primaryDir = candidate;
             }
         }
     }
+
+    if (primaryDir) {
+        const glm::vec3 dir = primaryDir->direction;
+        m_lightDirection = glm::length(dir) > 0.0F ? glm::normalize(dir) : glm::vec3 {0.0F, -1.0F, 0.0F};
+        m_lightColor = primaryDir->color;
+        m_lightIntensity = primaryDir->intensity;
+        m_primaryLightCastsShadow = primaryDir->castsShadow;
+    } else {
+        m_lightDirection = glm::vec3 {0.0F, -1.0F, 0.0F};
+        m_lightColor = glm::vec3 {1.0F, 1.0F, 1.0F};
+        m_lightIntensity = 1.0F;
+        m_primaryLightCastsShadow = false;
+    }
+
+    if (m_lightDebugMesh.vertexMemory != VK_NULL_HANDLE) {
+        const glm::vec3 arrowColor = primaryDir ? primaryDir->color : glm::vec3 {1.0F, 1.0F, 0.0F};
+        std::array<Vertex, 5> vertices = {
+            Vertex {.position = glm::vec3 {0.0F, 0.5F, 0.0F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+                .color = arrowColor, .uv = glm::vec2 {0.0F, 0.0F}, .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}},
+            Vertex {.position = glm::vec3 {0.15F, 0.35F, -0.6F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+                .color = arrowColor, .uv = glm::vec2 {0.0F, 0.0F}, .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}},
+            Vertex {.position = glm::vec3 {-0.15F, 0.35F, -0.6F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+                .color = arrowColor, .uv = glm::vec2 {0.0F, 0.0F}, .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}},
+            Vertex {.position = glm::vec3 {-0.15F, 0.15F, -0.6F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+                .color = arrowColor, .uv = glm::vec2 {0.0F, 0.0F}, .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}},
+            Vertex {.position = glm::vec3 {0.15F, 0.15F, -0.6F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+                .color = arrowColor, .uv = glm::vec2 {0.0F, 0.0F}, .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}}
+        };
+        VkDeviceSize size = static_cast<VkDeviceSize>(sizeof(Vertex) * vertices.size());
+        void* mapped = nullptr;
+        if (vkMapMemory(m_context.device(), m_lightDebugMesh.vertexMemory, 0U, size, 0U, &mapped) == VK_SUCCESS) {
+            std::memcpy(mapped, vertices.data(), static_cast<std::size_t>(size));
+            vkUnmapMemory(m_context.device(), m_lightDebugMesh.vertexMemory);
+        }
+    }
+
+    for (std::size_t index {0U}; index < registry.size(); ++index) {
+        const scene::Light& light = registry.light(scene::LightId {static_cast<std::uint32_t>(index)});
+        if (light.type != scene::LightType::Point) {
+            continue;
+        }
+
+        DebugMesh mesh {};
+        const std::array<Vertex, 6> vertices {
+            Vertex {.position = glm::vec3 {0.0F, 0.0F, 0.0F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+                .color = light.color, .uv = glm::vec2 {0.0F, 0.0F}, .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}},
+            Vertex {.position = glm::vec3 {0.0F, 0.2F, 0.0F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+                .color = light.color, .uv = glm::vec2 {0.0F, 0.0F}, .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}},
+            Vertex {.position = glm::vec3 {0.2F, 0.0F, 0.0F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+                .color = light.color, .uv = glm::vec2 {0.0F, 0.0F}, .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}},
+            Vertex {.position = glm::vec3 {0.0F, -0.2F, 0.0F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+                .color = light.color, .uv = glm::vec2 {0.0F, 0.0F}, .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}},
+            Vertex {.position = glm::vec3 {-0.2F, 0.0F, 0.0F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+                .color = light.color, .uv = glm::vec2 {0.0F, 0.0F}, .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}},
+            Vertex {.position = glm::vec3 {0.0F, 0.0F, 0.2F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+                .color = light.color, .uv = glm::vec2 {0.0F, 0.0F}, .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}}
+        };
+        const std::array<std::uint32_t, 12> indices {0U, 1U, 2U, 0U, 2U, 3U, 0U, 3U, 4U, 0U, 4U, 1U};
+
+        const VkDeviceSize vertexSize = static_cast<VkDeviceSize>(sizeof(Vertex) * vertices.size());
+        create_buffer(m_context.physical_device(), m_context.device(), vertexSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mesh.vertexBuffer,
+            mesh.vertexMemory);
+        void* mapped = nullptr;
+        if (vkMapMemory(m_context.device(), mesh.vertexMemory, 0U, vertexSize, 0U, &mapped) == VK_SUCCESS) {
+            std::memcpy(mapped, vertices.data(), static_cast<std::size_t>(vertexSize));
+            vkUnmapMemory(m_context.device(), mesh.vertexMemory);
+        }
+
+        const VkDeviceSize indexSize = static_cast<VkDeviceSize>(sizeof(std::uint32_t) * indices.size());
+        create_buffer(m_context.physical_device(), m_context.device(), indexSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, mesh.indexBuffer,
+            mesh.indexMemory);
+        if (vkMapMemory(m_context.device(), mesh.indexMemory, 0U, indexSize, 0U, &mapped) == VK_SUCCESS) {
+            std::memcpy(mapped, indices.data(), static_cast<std::size_t>(indexSize));
+            vkUnmapMemory(m_context.device(), mesh.indexMemory);
+        }
+
+        mesh.indexCount = static_cast<std::uint32_t>(indices.size());
+        mesh.model = glm::translate(glm::mat4(1.0F), light.position) * glm::scale(glm::mat4(1.0F), glm::vec3(0.25F));
+        pointMeshes.push_back(std::move(mesh));
+    }
+
+    m_pointLightDebugMeshes = std::move(pointMeshes);
 
     m_lightBuffer = &buffer;
 }
@@ -460,7 +566,7 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
     }
 
     const glm::mat4 lightMatrix = lightMatrixOpt.value_or(glm::mat4(1.0F));
-    const float shadowEnabled = (lightMatrixOpt && m_shadowsEnabled) ? 1.0F : 0.0F;
+    const float shadowEnabled = (lightMatrixOpt && m_shadowsEnabled && m_primaryLightCastsShadow) ? 1.0F : 0.0F;
     const glm::vec4 shadowParams {m_shadowBias, m_shadowPcfRadius, shadowEnabled, m_shadowDebug ? 1.0F : 0.0F};
 
     VkClearValue swapClear {};
@@ -1317,6 +1423,9 @@ std::optional<glm::mat4> SceneRenderer::compute_light_view_projection() const {
     if (!m_sceneBoundsValid) {
         return std::nullopt;
     }
+    if (!m_primaryLightCastsShadow) {
+        return std::nullopt;
+    }
     const float directionLength = glm::length(m_lightDirection);
     if (directionLength <= 1e-4F) {
         return std::nullopt;
@@ -1462,5 +1571,31 @@ void SceneRenderer::destroy_light_debug_mesh() noexcept {
         m_lightDebugMesh.indexMemory = VK_NULL_HANDLE;
     }
     m_lightDebugMesh.indexCount = 0U;
+
+    destroy_point_light_debug_meshes();
+}
+
+void SceneRenderer::destroy_point_light_debug_meshes() noexcept {
+    const VkDevice device = m_context.device();
+    for (DebugMesh& mesh : m_pointLightDebugMeshes) {
+        if (mesh.vertexBuffer != VK_NULL_HANDLE) {
+            vkDestroyBuffer(device, mesh.vertexBuffer, nullptr);
+            mesh.vertexBuffer = VK_NULL_HANDLE;
+        }
+        if (mesh.vertexMemory != VK_NULL_HANDLE) {
+            vkFreeMemory(device, mesh.vertexMemory, nullptr);
+            mesh.vertexMemory = VK_NULL_HANDLE;
+        }
+        if (mesh.indexBuffer != VK_NULL_HANDLE) {
+            vkDestroyBuffer(device, mesh.indexBuffer, nullptr);
+            mesh.indexBuffer = VK_NULL_HANDLE;
+        }
+        if (mesh.indexMemory != VK_NULL_HANDLE) {
+            vkFreeMemory(device, mesh.indexMemory, nullptr);
+            mesh.indexMemory = VK_NULL_HANDLE;
+        }
+        mesh.indexCount = 0U;
+    }
+    m_pointLightDebugMeshes.clear();
 }
 } // namespace vulkano::app

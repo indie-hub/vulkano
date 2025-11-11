@@ -155,3 +155,5 @@
 - [x] Document current shadow matrix flow
 - [x] Define QA matrix for multi-light shadow scenarios
 - [x] Elaborate testing strategy for per-light shadow selection
+- [x] Implement gizmo cache scaffolding in SceneRenderer
+- [ ] Integrate directional gizmos with cache model in SceneRenderer
