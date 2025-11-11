@@ -1,7 +1,6 @@
 #include <vulkano/app/material_texture_cache.hpp>
 
 #include <vulkano/app/material_gpu.hpp>
-#include <vulkano/app/material_surface.hpp>
 #include <vulkano/app/texture_loader.hpp>
 #include <vulkano/app/texture_image.hpp>
 #include <vulkano/app/vulkan_context.hpp>
@@ -15,10 +14,6 @@
 
 namespace vulkano::app {
 namespace {
-[[nodiscard]] glm::vec4 to_vec4(const glm::vec3& v, float a = 1.0F) noexcept {
-    return glm::vec4 {v, a};
-}
-
 [[nodiscard]] std::string canonical_path_key(const std::string& path) {
     try {
         if (path.empty()) {
@@ -47,6 +42,15 @@ void MaterialTextureCache::rebuild(const scene::MaterialRegistry& registry) {
     const std::size_t materialCount = registry.size();
     m_handles.reserve(materialCount);
 
+    const std::uint32_t baseFallback = ensure_color_texture(glm::vec4 {1.0F, 1.0F, 1.0F, 1.0F}, TextureColorSpace::sRGB,
+        "fallback-base");
+    const std::uint32_t normalFallback = ensure_color_texture(glm::vec4 {0.5F, 0.5F, 1.0F, 1.0F}, TextureColorSpace::Linear,
+        "fallback-normal");
+    const std::uint32_t metalRoughFallback = ensure_color_texture(glm::vec4 {1.0F, 1.0F, 1.0F, 1.0F}, TextureColorSpace::Linear,
+        "fallback-metalrough");
+    const std::uint32_t aoFallback = ensure_color_texture(glm::vec4 {1.0F, 1.0F, 1.0F, 1.0F}, TextureColorSpace::Linear,
+        "fallback-ao");
+
     for (std::size_t index {0U}; index < materialCount; ++index) {
         const scene::Material& material = registry.material(scene::MaterialId {static_cast<std::uint32_t>(index)});
         scene::MaterialTextureHandles handles {};
@@ -58,12 +62,10 @@ void MaterialTextureCache::rebuild(const scene::MaterialRegistry& registry) {
                 const TextureData data = load_texture_from_file(key, TextureColorSpace::sRGB);
                 handles.baseColor = ensure_texture(key, data);
             } catch (const std::exception&) {
-                handles.baseColor = ensure_color_texture(to_vec4(material.properties.baseColor), TextureColorSpace::sRGB,
-                    "fallback-base");
+                handles.baseColor = baseFallback;
             }
         } else {
-            handles.baseColor = ensure_color_texture(to_vec4(material.properties.baseColor), TextureColorSpace::sRGB,
-                "base");
+            handles.baseColor = baseFallback;
         }
 
         if (material.useNormalTexture && !material.textures.normalPath.empty()) {
@@ -72,12 +74,10 @@ void MaterialTextureCache::rebuild(const scene::MaterialRegistry& registry) {
                 const TextureData data = load_texture_from_file(key, TextureColorSpace::Linear);
                 handles.normal = ensure_texture(key, data);
             } catch (const std::exception&) {
-                handles.normal = ensure_color_texture(glm::vec4 {0.5F, 0.5F, 1.0F, 1.0F}, TextureColorSpace::Linear,
-                    "fallback-normal");
+                handles.normal = normalFallback;
             }
         } else {
-            handles.normal = ensure_color_texture(glm::vec4 {0.5F, 0.5F, 1.0F, 1.0F}, TextureColorSpace::Linear,
-                "normal");
+            handles.normal = normalFallback;
         }
 
         const bool useSurfaceTexture = material.useSurfacePropertiesTexture
@@ -89,8 +89,7 @@ void MaterialTextureCache::rebuild(const scene::MaterialRegistry& registry) {
                 const TextureData data = load_texture_from_file(key, TextureColorSpace::Linear);
                 surfaceHandle = ensure_texture(key, data);
             } catch (const std::exception&) {
-                const glm::vec4 fallback = SurfaceDefaults::fallbackSurface;
-                surfaceHandle = ensure_color_texture(fallback, TextureColorSpace::Linear, "fallback-surface");
+                surfaceHandle = metalRoughFallback;
             }
             handles.metallicRoughness = surfaceHandle;
             handles.ambientOcclusion = surfaceHandle;
@@ -103,16 +102,10 @@ void MaterialTextureCache::rebuild(const scene::MaterialRegistry& registry) {
                     const TextureData data = load_texture_from_file(key, TextureColorSpace::Linear);
                     handles.metallicRoughness = ensure_texture(key, data);
                 } catch (const std::exception&) {
-                    const float metallic = material.properties.metallic;
-                    const float roughness = material.properties.roughness;
-                    handles.metallicRoughness = ensure_color_texture(glm::vec4 {metallic, roughness, 0.0F, 1.0F},
-                        TextureColorSpace::Linear, "fallback-metalrough");
+                    handles.metallicRoughness = metalRoughFallback;
                 }
             } else {
-                const float metallic = material.properties.metallic;
-                const float roughness = material.properties.roughness;
-                handles.metallicRoughness = ensure_color_texture(glm::vec4 {metallic, roughness, 0.0F, 1.0F},
-                    TextureColorSpace::Linear, "metalrough");
+                handles.metallicRoughness = metalRoughFallback;
             }
 
             const bool useAoTexture = material.useAmbientOcclusionTexture
@@ -123,12 +116,10 @@ void MaterialTextureCache::rebuild(const scene::MaterialRegistry& registry) {
                     const TextureData data = load_texture_from_file(key, TextureColorSpace::Linear);
                     handles.ambientOcclusion = ensure_texture(key, data);
                 } catch (const std::exception&) {
-                    handles.ambientOcclusion = ensure_color_texture(glm::vec4 {1.0F, 1.0F, 1.0F, 1.0F},
-                        TextureColorSpace::Linear, "fallback-ao");
+                    handles.ambientOcclusion = aoFallback;
                 }
             } else {
-                handles.ambientOcclusion = ensure_color_texture(glm::vec4 {1.0F, 1.0F, 1.0F, 1.0F},
-                    TextureColorSpace::Linear, "ao");
+                handles.ambientOcclusion = aoFallback;
             }
         }
 
