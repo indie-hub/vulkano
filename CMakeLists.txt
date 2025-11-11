@@ -186,6 +186,7 @@ add_library(vulkano_app STATIC
     src/app/asset_importer.cpp
     src/app/vulkan_context.cpp
     src/app/window.cpp
+    third_party/lodepng/lodepng.cpp
     src/scene/mesh.cpp
     src/scene/light.cpp
     src/scene/material.cpp
@@ -242,6 +243,7 @@ target_include_directories(vulkano_app
         include
     PRIVATE
         ${CMAKE_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/third_party
 )
 
 target_link_libraries(vulkano_app

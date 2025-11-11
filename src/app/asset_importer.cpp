@@ -3,12 +3,12 @@
 #include <assimp/Importer.hpp>
 #include <assimp/postprocess.h>
 
+#include <cstring>
 #include <stdexcept>
+#include <string_view>
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
-
-#include <iostream>
 
 namespace vulkano::app {
 namespace {
@@ -47,8 +47,10 @@ namespace {
             throw std::runtime_error {"Embedded texture is empty"};
         }
 
-        const auto* rawBytes = reinterpret_cast<const std::uint8_t*>(texture.pcData);
-        return load_texture_from_memory(rawBytes, byteCount, TextureColorSpace::sRGB, false);
+        std::vector<std::uint8_t> buffer(byteCount);
+        std::memcpy(buffer.data(), texture.pcData, byteCount);
+        return load_texture_from_memory(buffer.data(), buffer.size(), TextureColorSpace::sRGB, false,
+            std::string_view {texture.achFormatHint, std::strlen(texture.achFormatHint)});
     }
 
     if (texture.mWidth == 0U) {
@@ -96,7 +98,6 @@ ImportedScene AssetImporter::load_scene(std::string_view path) const {
         try {
             result.embeddedTextures.emplace(key, load_embedded_texture(*texture));
         } catch (const std::exception& ex) {
-            std::clog << "Failed to decode embedded texture '" << key << "': " << ex.what() << "\n";
             result.embeddedTextures.emplace(key, make_solid_texture(glm::vec4 {1.0F, 1.0F, 1.0F, 1.0F}, TextureColorSpace::sRGB));
         }
     }
