@@ -231,5 +231,9 @@
 - [x] Fix pipeline attachments and layout transitions for viewport rendering
 - [x] Rebuild, run tests, and validate viewport docking runtime
 - [x] Capture validation messages and crash details for viewport runtime
-- [ ] Resolve viewport runtime validation errors and crash
+- [x] Analyse ImGui viewport texture descriptor lifecycle
+    - [x] Confirm viewport image view and descriptor state during resize
+    - [x] Inspect SSAO descriptor updates after viewport recreation
+- [ ] Implement persistent viewport texture integration and descriptor updates
+- [ ] Rebuild, run validation layers, and confirm viewport runtime stability
 - [ ] Document and validate viewport docking workflow
