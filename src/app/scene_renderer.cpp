@@ -38,6 +38,8 @@ struct Vertex final {
     glm::vec3 normal {};
     glm::vec3 color {};
     glm::vec2 uv {};
+    glm::vec3 tangent {};
+    float bitangentSign {1.0F};
 };
 
 [[nodiscard]] VkVertexInputBindingDescription vertex_binding_description() noexcept {
@@ -48,8 +50,8 @@ struct Vertex final {
     return binding;
 }
 
-[[nodiscard]] std::array<VkVertexInputAttributeDescription, 4> vertex_attribute_descriptions() noexcept {
-    std::array<VkVertexInputAttributeDescription, 4> attributes {};
+[[nodiscard]] std::array<VkVertexInputAttributeDescription, 6> vertex_attribute_descriptions() noexcept {
+    std::array<VkVertexInputAttributeDescription, 6> attributes {};
     attributes[0].location = 0U;
     attributes[0].binding = 0U;
     attributes[0].format = VK_FORMAT_R32G32B32_SFLOAT;
@@ -68,6 +70,14 @@ struct Vertex final {
     attributes[3].binding = 0U;
     attributes[3].format = VK_FORMAT_R32G32_SFLOAT;
     attributes[3].offset = static_cast<std::uint32_t>(offsetof(Vertex, uv));
+    attributes[4].location = 4U;
+    attributes[4].binding = 0U;
+    attributes[4].format = VK_FORMAT_R32G32B32_SFLOAT;
+    attributes[4].offset = static_cast<std::uint32_t>(offsetof(Vertex, tangent));
+    attributes[5].location = 5U;
+    attributes[5].binding = 0U;
+    attributes[5].format = VK_FORMAT_R32_SFLOAT;
+    attributes[5].offset = static_cast<std::uint32_t>(offsetof(Vertex, bitangentSign));
     return attributes;
 }
 
@@ -448,7 +458,7 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
         debugModel[0] = glm::vec4(right * 0.5F, 0.0F);
         debugModel[1] = glm::vec4(up * 0.5F, 0.0F);
         debugModel[2] = glm::vec4(forward * length, 0.0F);
-        debugModel[3] = glm::vec4(0.0F, 0.0F, 0.0F, 1.0F);
+        debugModel[3] = glm::vec4(0.0F, 0.5F, 0.0F, 1.0F);
 
         const ScenePushConstants debugConstants {
             .model = debugModel,
@@ -1026,7 +1036,9 @@ void SceneRenderer::upload_mesh(const SceneMesh& mesh) {
                 .position = vertex.position,
                 .normal = vertex.normal,
                 .color = vertex.color,
-                .uv = vertex.uv
+                .uv = vertex.uv,
+                .tangent = vertex.tangent,
+                .bitangentSign = vertex.bitangentSign
             });
         }
         return converted;
@@ -1073,16 +1085,21 @@ void SceneRenderer::create_light_debug_mesh() {
     const VkPhysicalDevice physicalDevice = m_context.physical_device();
 
     const std::array<Vertex, 5> vertices {
-        Vertex {.position = glm::vec3 {0.0F, 0.0F, 0.0F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
-            .color = glm::vec3 {1.0F, 1.0F, 0.0F}, .uv = glm::vec2 {0.0F, 0.0F}},
-        Vertex {.position = glm::vec3 {0.05F, 0.05F, -0.2F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
-            .color = glm::vec3 {1.0F, 1.0F, 0.0F}, .uv = glm::vec2 {0.0F, 0.0F}},
-        Vertex {.position = glm::vec3 {-0.05F, 0.05F, -0.2F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
-            .color = glm::vec3 {1.0F, 1.0F, 0.0F}, .uv = glm::vec2 {0.0F, 0.0F}},
-        Vertex {.position = glm::vec3 {-0.05F, -0.05F, -0.2F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
-            .color = glm::vec3 {1.0F, 1.0F, 0.0F}, .uv = glm::vec2 {0.0F, 0.0F}},
-        Vertex {.position = glm::vec3 {0.05F, -0.05F, -0.2F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
-            .color = glm::vec3 {1.0F, 1.0F, 0.0F}, .uv = glm::vec2 {0.0F, 0.0F}}
+        Vertex {.position = glm::vec3 {0.0F, 0.5F, 0.0F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+            .color = glm::vec3 {1.0F, 1.0F, 0.0F}, .uv = glm::vec2 {0.0F, 0.0F},
+            .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}, .bitangentSign = 1.0F},
+        Vertex {.position = glm::vec3 {0.15F, 0.35F, -0.6F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+            .color = glm::vec3 {1.0F, 1.0F, 0.0F}, .uv = glm::vec2 {0.0F, 0.0F},
+            .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}, .bitangentSign = 1.0F},
+        Vertex {.position = glm::vec3 {-0.15F, 0.35F, -0.6F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+            .color = glm::vec3 {1.0F, 1.0F, 0.0F}, .uv = glm::vec2 {0.0F, 0.0F},
+            .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}, .bitangentSign = 1.0F},
+        Vertex {.position = glm::vec3 {-0.15F, 0.15F, -0.6F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+            .color = glm::vec3 {1.0F, 1.0F, 0.0F}, .uv = glm::vec2 {0.0F, 0.0F},
+            .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}, .bitangentSign = 1.0F},
+        Vertex {.position = glm::vec3 {0.15F, 0.15F, -0.6F}, .normal = glm::vec3 {0.0F, 0.0F, 1.0F},
+            .color = glm::vec3 {1.0F, 1.0F, 0.0F}, .uv = glm::vec2 {0.0F, 0.0F},
+            .tangent = glm::vec3 {1.0F, 0.0F, 0.0F}, .bitangentSign = 1.0F}
     };
     const std::array<std::uint32_t, 12> indices {
         0U, 1U, 2U,

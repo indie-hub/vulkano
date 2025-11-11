@@ -7,6 +7,8 @@ layout(location = 3) in vec3 fragNormalView;
 layout(location = 4) in vec2 fragUV;
 layout(location = 5) in vec3 fragPosWorld;
 layout(location = 6) flat in uint fragMaterialIndex;
+layout(location = 7) in vec3 fragTangentWorld;
+layout(location = 8) flat in float fragBitangentSign;
 
 layout(set = 0, binding = 0) uniform SSAOConfig {
     float occlusionStrength;
@@ -57,13 +59,32 @@ void main() {
     const float PI = 3.14159265359;
 
     vec3 normalWorld = normalize(fragNormalWorld);
-    vec3 normalView = normalize(fragNormalView);
+    vec3 tangentWorld = normalize(fragTangentWorld);
+    if (length(tangentWorld) < 1e-6) {
+        tangentWorld = normalize(cross(normalWorld, vec3(0.0, 1.0, 0.0)));
+        if (length(tangentWorld) < 1e-6) {
+            tangentWorld = vec3(1.0, 0.0, 0.0);
+        }
+    }
+    vec3 bitangentWorld = normalize(cross(normalWorld, tangentWorld)) * (fragBitangentSign >= 0.0 ? 1.0 : -1.0);
+    if (length(bitangentWorld) < 1e-6) {
+        bitangentWorld = normalize(cross(normalWorld, tangentWorld));
+    }
 
     MaterialGpu material = materialBuffer.materials[fragMaterialIndex];
     vec3 albedo = material.baseColorMetallic.rgb;
     float metallic = material.baseColorMetallic.a;
     float roughness = material.roughnessAoFlags.x;
     float ambientOcclusion = material.roughnessAoFlags.y;
+
+    uint normalIndex = material.textureIndices.y;
+    if (material.textureUsage.y > 0.5 && normalIndex < MATERIAL_TEXTURE_COUNT) {
+        vec3 normalSample = texture(materialTextures[normalIndex], fragUV).rgb;
+        vec3 normalTangent = normalize(normalSample * 2.0 - 1.0);
+        mat3 tbn = mat3(tangentWorld, bitangentWorld, normalWorld);
+        normalWorld = normalize(tbn * normalTangent);
+    }
+    vec3 normalView = normalize(mat3(pushConstants.view) * normalWorld);
 
     uint baseIndex = material.textureIndices.x;
     if (material.textureUsage.x > 0.5 && baseIndex < MATERIAL_TEXTURE_COUNT) {
