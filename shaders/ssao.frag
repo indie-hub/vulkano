@@ -62,45 +62,53 @@ void main() {
 
     const int sampleCount = 64;
     for (int i = 0; i < sampleCount; ++i) {
-        vec3 sampleVec = tbn * uKernel.samples[i].xyz;
-        sampleVec = viewPosition + sampleVec * radius;
+    vec3 sampleVec = tbn * uKernel.samples[i].xyz;
+    sampleVec = viewPosition + sampleVec * radius;
 
-        vec3 sampleOffset = sampleVec - viewPosition;
-        float sampleDistance = length(sampleOffset);
-        if (sampleDistance <= 1e-4) {
-            continue;
-        }
+    vec4 sampleClip = uParams.projection * vec4(sampleVec, 1.0);
+    vec3 sampleNdc = sampleClip.xyz / sampleClip.w;
+    vec2 sampleUV = sampleNdc.xy * 0.5 + 0.5;
 
-        vec3 sampleDir = sampleOffset / sampleDistance;
-        if (dot(normal, sampleDir) < angleCosThreshold) {
-            continue;
-        }
+    if (sampleUV.x < 0.0 || sampleUV.x > 1.0 || sampleUV.y < 0.0 || sampleUV.y > 1.0) {
+        continue;
+    }
 
-        vec4 sampleClip = uParams.projection * vec4(sampleVec, 1.0);
-        vec3 sampleNdc = sampleClip.xyz / sampleClip.w;
-        vec2 sampleUV = sampleNdc.xy * 0.5 + 0.5;
+    float sampleDepth = texture(depthTex, sampleUV).r;
+    if (sampleDepth <= 0.0) {
+        continue;
+    }
 
-        if (sampleUV.x < 0.0 || sampleUV.x > 1.0 || sampleUV.y < 0.0 || sampleUV.y > 1.0) {
-            continue;
-        }
+    vec3 occluderPosition = reconstruct_view_position(sampleDepth, sampleUV);
+    vec3 occluderOffset = occluderPosition - viewPosition;
+    float occluderDistance = length(occluderOffset);
+    if (occluderDistance <= 1e-4) {
+        continue;
+    }
 
-        float sampleDepth = texture(depthTex, sampleUV).r;
-        if (sampleDepth <= 0.0) {
-            continue;
-        }
+    vec3 occluderDir = occluderOffset / occluderDistance;
+    float angleCos = dot(normal, occluderDir);
+    if (angleCos < angleCosThreshold) {
+        continue;
+    }
 
-        float currentSampleDepth = -sampleVec.z;
-        float depthDifference = currentSampleDepth - sampleDepth - bias;
-        if (depthDifference <= 0.0) {
-            continue;
-        }
+    vec3 occluderNormal = normalize(texture(normalTex, sampleUV).xyz * 2.0 - 1.0);
+    float normalEpsilon = clamp(uParams.attenuationParams.w, 0.0, 1.0);
+    if (normalEpsilon > 0.0 && dot(normal, occluderNormal) > 1.0 - normalEpsilon) {
+        continue;
+    }
 
-        float depthWeight = exp(-depthDifference * depthFalloff);
-        float distanceWeight = exp(-sampleDistance * distanceFalloff);
-        float weight = depthWeight * distanceWeight;
+    float fragmentDepth = linearDepth;
+    float depthDifference = fragmentDepth - sampleDepth - bias;
+    if (depthDifference <= 0.0) {
+        continue;
+    }
 
-        occlusionAccum += weight;
-        weightAccum += weight;
+    float depthWeight = exp(-depthDifference * depthFalloff);
+    float distanceWeight = exp(-occluderDistance * distanceFalloff);
+    float weight = depthWeight * distanceWeight;
+
+    occlusionAccum += weight;
+    weightAccum += weight;
     }
 
     float occlusion = weightAccum > 0.0 ? occlusionAccum / weightAccum : 0.0;

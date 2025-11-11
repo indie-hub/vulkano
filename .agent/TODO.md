@@ -57,7 +57,7 @@
 - [x] Expose SSAO radius and bias controls in ImGui and descriptor updates
 - [x] Rebuild, run tests, and validate SSAO parameter adjustments
 - [x] Implement SSAO angular sample rejection and depth falloff tuning
-- [ ] Reconstruct SSAO occluder positions using depth buffer
-- [ ] Apply angular/normal filtering and exponential falloff in shader
-- [ ] Add ImGui controls for SSAO sampling heuristics
+- [x] Reconstruct SSAO occluder positions using depth buffer
+- [x] Apply angular/normal filtering and exponential falloff in shader
+- [x] Add ImGui controls for SSAO sampling heuristics
 - [ ] Extend SSAO tests and revalidate runtime
