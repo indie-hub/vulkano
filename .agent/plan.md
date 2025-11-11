@@ -1,7 +1,7 @@
 # Vulkan Renderer Execution Plan
 
 ## Goal
-Deliver a right-handed Vulkan renderer that opens a GLFW window, renders a white triangle on a black background, and exposes an ImGui overlay. All math utilities must use glm.
+Deliver a right-handed Vulkan renderer that opens a GLFW window, renders a white triangle on a black background, and exposes an ImGui overlay. All math utilities must use glm. Runtime must be verified on macOS using Vulkan via MoltenVK.
 
 ## Phases
 1. **Platform bootstrap**
@@ -32,7 +32,8 @@ Deliver a right-handed Vulkan renderer that opens a GLFW window, renders a white
    - Produce packaged binaries under `/bin` with necessary shaders, config, and ImGui resources.
 
 ## Acceptance Criteria
-- Builds with CMake on macOS/Linux using C++20, links against Vulkan SDK, GLFW, and ImGui; glm used for all math structures (no custom math types).
+- Builds with CMake on macOS/Linux using C++20, links against Vulkan SDK (via MoltenVK on macOS), GLFW, and ImGui; glm used for all math structures (no custom math types).
+- Executable runs on macOS, opening the window and rendering correctly using the platform Vulkan stack (MoltenVK) without driver-specific workarounds.
 - Renderer uses right-handed coordinate system (verified via glm matrices and camera setup).
 - On launch, a window opens showing a white triangle centered on black background, sustaining at least 60 FPS on reference hardware.
 - ImGui overlay toggles successfully and can display a simple diagnostics panel (FPS, frame timings).
