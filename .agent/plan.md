@@ -349,28 +349,30 @@ Lift the placeholder SSAO implementation to a production-quality ambient occlusi
 Reduce artificial self-occlusion on convex surfaces (e.g., sphere) while preserving contact shadows at geometry intersections.
 
 ### Phase A – Sampling Heuristics
-1. **Angular Filtering**
-   - In the SSAO fragment shader, reject a sample whenever the angle between the surface normal and sample vector exceeds a threshold (e.g., 45°). This prevents backwards-facing samples from contributing to occlusion.
-   - Acceptance: Debug view shows lighter shading on convex surface tops; contact shadows remain at base intersections.
+1. **Accurate Occluder Reconstruction**
+   - Reconstruct occluder view positions using `reconstruct_view_position(sampleDepth, sampleUV)` instead of assuming kernel offsets.
+   - Use the delta between fragment and occluder positions for geometry-based checks (angle, distance).
+   - Acceptance: SSAO shader now differentiates between same-surface vs. true occluder samples.
 
-2. **Depth Falloff Recalibration**
-   - Replace current `radius / range` heuristic with a smoother falloff (e.g., linear or exponential) clamped to [0,1], and clamp negative depth differences more aggressively via a configurable bias.*
-   - Acceptance: Occlusion transitions appear gradual without banding; sphere retains highlight on top.
+2. **Angular & Normal Filtering**
+   - Reject samples whose direction relative to the surface normal is below an angular cosine threshold.
+   - Optionally reject samples whose reconstructed normal (from the normal buffer) is within an epsilon of the fragment normal.
+   - Acceptance: Sphere retains a bright cap, minimal halo.
 
-3. **Same-Surface Normal Check**
-   - Skip samples whose view-space normal differs from the current normal by less than a configurable epsilon—indicating same surface points.
-   - Acceptance: SSAO debug shows reduced uniform darkening on smooth surfaces, but maintains occlusion in creases.
+3. **Depth & Distance Falloff**
+   - Apply exponential weights for positive depth differences and distance, fully skipping samples that are closer than current depth minus bias.
+   - Acceptance: Contact shadows remain soft and localized; no self-darkening on flat areas.
 
 ### Phase B – Runtime Controls & Persistence
-1. Add ImGui sliders for angular cutoff, depth falloff strength, and normal epsilon; plumb them into the SSAO descriptor UBO.
-2. Ensure SSAO blur pass consumes the updated occlusion texture automatically without descriptor rewrites.
-   - Acceptance: Sliders adjust occlusion intensity in real time with no validation warnings.
+1. Add ImGui sliders for angle cutoff, distance falloff, depth falloff, and normal epsilon; update SSAO UBO to include these parameters.
+2. Ensure updates occur once per frame before command buffers record (no in-flight descriptor updates).
+   - Acceptance: Adjusting sliders affects SSAO output live with clean validation.
 
 ### Phase C – Testing & Validation
 1. Extend SSAO unit tests to cover new math helpers (e.g., angle rejection, falloff function).
 2. Capture debug renders for sphere/cube plane scenes before/after to confirm improvement.
 3. Run full validation (build, ctest, runtime with VULKANO_MAX_FRAMES=120) and ensure no Vulkan warnings.
-   - Acceptance: Tests pass; debug image shows realistic SSAO; validation layers remain clean.
+- Acceptance: Tests pass; debug image shows realistic SSAO; validation layers remain clean.
 
 ## SSAO Blur Resource Plan
 1. **Render Targets**
