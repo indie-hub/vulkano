@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <iomanip>
@@ -16,6 +17,8 @@ namespace {
 struct UvStats final {
     std::string meshLabel {};
     std::size_t vertexCount {0U};
+    bool hasMaterial {false};
+    std::uint32_t materialIndex {0U};
     bool hasUvs {false};
     float minU {std::numeric_limits<float>::infinity()};
     float maxU {-std::numeric_limits<float>::infinity()};
@@ -35,22 +38,26 @@ void accumulate_stats(const vulkano::scene::MeshData& mesh, UvStats& stats) noex
 }
 
 void traverse_node(const vulkano::app::ImportedScene::Node& node, std::string_view pathPrefix,
-    std::vector<UvStats>& stats) {
+    const std::vector<vulkano::app::ImportedMaterial>& materials, std::vector<UvStats>& stats) {
     const std::string currentPath = pathPrefix.empty() ? node.name : std::string {pathPrefix} + "/" + node.name;
     for (std::size_t index {0U}; index < node.meshes.size(); ++index) {
         UvStats entry {};
         entry.meshLabel = currentPath + "#mesh" + std::to_string(index);
+        entry.hasMaterial = node.meshes[index].materialIndex < materials.size();
+        if (entry.hasMaterial) {
+            entry.materialIndex = node.meshes[index].materialIndex;
+        }
         accumulate_stats(node.meshes[index].mesh, entry);
         stats.push_back(std::move(entry));
     }
     for (const auto& child : node.children) {
-        traverse_node(child, currentPath, stats);
+        traverse_node(child, currentPath, materials, stats);
     }
 }
 
 [[nodiscard]] std::vector<UvStats> collect_stats(const vulkano::app::ImportedScene& scene) {
     std::vector<UvStats> stats {};
-    traverse_node(scene.root, "", stats);
+    traverse_node(scene.root, "", scene.materials, stats);
     return stats;
 }
 
@@ -59,6 +66,11 @@ void print_stats(const std::vector<UvStats>& stats) {
     for (const UvStats& stat : stats) {
         std::cout << "- " << stat.meshLabel << '\n';
         std::cout << "  vertices: " << stat.vertexCount << '\n';
+        if (stat.hasMaterial) {
+            std::cout << "  material index: " << stat.materialIndex << '\n';
+        } else {
+            std::cout << "  material index: <invalid>\n";
+        }
         if (!stat.hasUvs) {
             std::cout << "  uvs: <missing>\n";
             continue;
