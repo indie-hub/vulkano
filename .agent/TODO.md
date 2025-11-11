@@ -207,3 +207,6 @@
 - [x] Draft plan for grouping imported meshes under a parent transform node
 - [x] Implement mesh grouping transform hierarchy and runtime controls
 - [x] Extend tests and documentation for grouped transform workflow
+
+- [ ] Draft plan for hierarchical scene graph with nested parent/group nodes
+- [ ] Implement enhanced hierarchy, UI, and renderer updates per plan
