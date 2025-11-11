@@ -7,6 +7,8 @@
 #include <glm/gtc/epsilon.hpp>
 #include <glm/geometric.hpp>
 
+#include <cmath>
+
 namespace {
 constexpr float EPS {1e-5F};
 }
@@ -25,6 +27,9 @@ TEST_CASE("plane mesh has four vertices and unit normals") {
         REQUIRE(vertex.uv.x <= 1.0F);
         REQUIRE(vertex.uv.y >= 0.0F);
         REQUIRE(vertex.uv.y <= 1.0F);
+        REQUIRE(glm::length(vertex.tangent) == Catch::Approx(1.0F).margin(EPS));
+        REQUIRE(std::abs(glm::dot(vertex.normal, vertex.tangent)) <= EPS);
+        REQUIRE(std::abs(std::abs(vertex.bitangentSign) - 1.0F) <= EPS);
     }
 }
 
@@ -43,6 +48,9 @@ TEST_CASE("cube mesh builds 6 faces with outward normals") {
             REQUIRE(mesh.vertices[base + i].uv.x <= 1.0F);
             REQUIRE(mesh.vertices[base + i].uv.y >= 0.0F);
             REQUIRE(mesh.vertices[base + i].uv.y <= 1.0F);
+            REQUIRE(glm::length(mesh.vertices[base + i].tangent) == Catch::Approx(1.0F).margin(EPS));
+            REQUIRE(std::abs(glm::dot(mesh.vertices[base + i].normal, mesh.vertices[base + i].tangent)) <= EPS);
+            REQUIRE(std::abs(std::abs(mesh.vertices[base + i].bitangentSign) - 1.0F) <= EPS);
         }
         const glm::vec2 uv0 = mesh.vertices[base].uv;
         const glm::vec2 uv1 = mesh.vertices[base + 1U].uv;
@@ -68,5 +76,8 @@ TEST_CASE("sphere mesh respects segment counts") {
         REQUIRE(vertex.uv.x <= 1.0F);
         REQUIRE(vertex.uv.y >= 0.0F);
         REQUIRE(vertex.uv.y <= 1.0F);
+        REQUIRE(glm::length(vertex.tangent) == Catch::Approx(1.0F).margin(EPS));
+        REQUIRE(std::abs(glm::dot(vertex.normal, vertex.tangent)) <= EPS);
+        REQUIRE(std::abs(std::abs(vertex.bitangentSign) - 1.0F) <= EPS);
     }
 }
