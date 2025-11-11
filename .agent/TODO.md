@@ -230,4 +230,6 @@
 - [x] Audit scene render pass and pipeline attachment configuration for viewport embedding
 - [x] Fix pipeline attachments and layout transitions for viewport rendering
 - [x] Rebuild, run tests, and validate viewport docking runtime
+- [ ] Capture validation messages and crash details for viewport runtime
+- [ ] Resolve viewport runtime validation errors and crash
 - [ ] Document and validate viewport docking workflow
