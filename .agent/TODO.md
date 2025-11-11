@@ -184,7 +184,7 @@
 - [x] Implement ImGui multi-caster controls
 - [x] Extend automated tests for shadow matrix buffer
 
-- [x] Draft metallic and occlusion map enhancement plan
+- [x] Draft metallic and occlusion map enhancement plan (see .agent/plan_metallic_occlusion.md)
 - [ ] Implement metallic and occlusion texture data pipeline
 - [ ] Extend shaders and material buffer for metallic/occlusion sampling
 - [ ] Update ImGui/material workflows and tests for metallic/occlusion maps
