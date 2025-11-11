@@ -660,8 +660,11 @@ int Application::run() noexcept {
             }
             ImGui::End();
 
-            auto editTransform = [](scene::Transform& transform) -> bool {
+            auto editTransform = [](scene::Transform& transform, bool showLabel) -> bool {
                 bool changed = false;
+                if (showLabel) {
+                    ImGui::TextUnformatted("Transform");
+                }
                 glm::vec3 position = transform.position;
                 if (ImGui::DragFloat3("Position", glm::value_ptr(position), 0.05F, -100.0F, 100.0F)) {
                     transform.position = position;
@@ -696,13 +699,14 @@ int Application::run() noexcept {
                     ImGui::PushID(&node);
                     const bool hasChildren = !node.children.empty();
                     const bool hasGeometry = node.has_geometry();
+                    const std::string label = std::string {node.label_icon()} + node.name;
                     ImGuiTreeNodeFlags flags = hasChildren ? ImGuiTreeNodeFlags_DefaultOpen
                         : ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
-                    const bool open = ImGui::TreeNodeEx(node.name.c_str(), flags);
+                    const bool open = ImGui::TreeNodeEx(label.c_str(), flags);
 
                     if (!isRoot && open) {
                         ImGui::PushID("Transform");
-                        if (editTransform(node.transform)) {
+                        if (editTransform(node.transform, hasChildren && hasGeometry)) {
                             sceneDirty = true;
                         }
                         ImGui::PopID();
@@ -710,6 +714,9 @@ int Application::run() noexcept {
 
                     if (hasGeometry && open) {
                         ImGui::Text("Material ID: %u", node.material.value);
+                        if (editTransform(node.transform, !hasChildren)) {
+                            sceneDirty = true;
+                        }
                     }
 
                     if (open && hasChildren) {
@@ -722,6 +729,8 @@ int Application::run() noexcept {
                     ImGui::PopID();
                 };
 
+                ImGui::TextUnformatted("Hierarchy");
+                ImGui::Separator();
                 for (SceneRenderer::SceneNode& child : sceneRoot.children) {
                     drawNode(drawNode, child, false);
                 }
