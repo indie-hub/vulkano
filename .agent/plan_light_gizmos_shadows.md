@@ -320,6 +320,12 @@
 1. **UI adjustments**
    - Outline updates to ImGui panels to display active casters, allow prioritisation (if manual), and show per-shadow-map stats.
    - *Acceptance:* UI requirements list describing new controls/labels.
+   - **ImGui plan:**
+     - Extend Lighting panel with a table listing directional lights, their shadow slot assignment (or “None”), and priority status.
+     - Add toggles to enable/disable shadow casting per light (existing checkbox) plus a read-only indicator when slot capacity is exceeded.
+     - Provide optional manual override buttons to reorder priorities (future enhancement) with safeguards to keep automatic mode default.
+     - Display per-slot resolution and update frequency to aid debugging.
+     - Expose active caster count and memory usage summary at top of panel.
 2. **Debug visualisation plan**
    - Decide how to preview multiple shadow maps (e.g., atlas grid, selectable dropdown).
    - *Acceptance:* Debug display approach written with expected behaviour when cycling through maps.
