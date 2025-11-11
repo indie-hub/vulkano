@@ -149,4 +149,5 @@
 - [x] Model per-light gizmo storage abstractions
 - [x] Outline gizmo creation helper interfaces for per-light allocation
 - [x] Design draw submission strategy for multiple directional gizmos
-- [ ] Define target behaviour for per-light shadow matrices
+- [x] Define target behaviour for per-light shadow matrices
+- [ ] Adjust scene state to track per-light shadow data
