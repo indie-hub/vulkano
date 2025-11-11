@@ -55,6 +55,11 @@ propagate to children when composing the final world transform. Imported Assimp
 nodes preserve their original local transforms and can be further adjusted
 through the UI.
 
+Group entries are prefixed with `[Group]` and can contain additional groups or
+leaf `[Mesh]` nodes. Collapsing/expanding these entries makes it easy to inspect
+deep hierarchies (for example, an imported glTF asset where sub-meshes inherit a
+shared transform from a top-level armature node).
+
 ## Descriptor Limits
 The renderer currently reserves 12 material texture slots per frame, leaving
 room for SSAO and shadow samplers on macOS (16 total sampler descriptors per

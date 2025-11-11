@@ -33,14 +33,22 @@ public:
     };
 
     struct SceneNode final {
+        struct Geometry final {
+            scene::MeshData mesh {};
+            scene::MaterialId material {scene::MaterialId::invalid()};
+        };
+
         std::string name {};
         scene::Transform transform {};
-        scene::MeshData mesh {};
-        scene::MaterialId material {scene::MaterialId::invalid()};
+        std::optional<Geometry> geometry {};
         std::vector<SceneNode> children;
 
-        [[nodiscard]] bool has_geometry() const noexcept {
-            return material != scene::MaterialId::invalid();
+        [[nodiscard]] bool is_mesh() const noexcept {
+            return geometry.has_value();
+        }
+
+        [[nodiscard]] bool is_group() const noexcept {
+            return !geometry.has_value();
         }
 
     };
