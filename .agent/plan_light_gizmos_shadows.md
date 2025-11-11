@@ -285,6 +285,23 @@
    - Define how each light record references its shadow map (index, flag) and how the shader loops over casters.
    - Include fallbacks when a light lacks a shadow slot.
    - *Acceptance:* High-level pseudocode demonstrating shader control flow and branch guards.
+   - **Sampling pseudocode:**
+     ```glsl
+     for (uint i = 0u; i < lightCount; ++i) {
+         LightGpu light = lightBuffer.lights[i];
+         uint shadowIndex = light.shadowIndex;
+         bool hasShadow = shadowIndex < shadowData.activeCount;
+         if (hasShadow && light.isDirectional()) {
+             vec4 lightSpace = shadowData.matrices[shadowIndex] * vec4(fragPosWorld, 1.0);
+             vec3 coord = lightSpace.xyz / lightSpace.w;
+             coord = coord * 0.5 + 0.5;
+             float occlusion = sampleShadow(shadowMaps[shadowIndex], coord, shadowParams);
+             // apply occlusion to lighting contribution
+         }
+     }
+     ```
+     - If `shadowIndex` is invalid (`UINT_MAX`), skip sampling. Non-directional lights skip shadow logic entirely.
+     - `sampleShadow` reuses PCF routine; extends to index into shadow map array.
 3. **Update command recording order**
    - Plan the sequence for rendering each shadow map (multiple passes) before main scene render.
    - Note synchronization requirements between passes (barriers, semaphores if any).
