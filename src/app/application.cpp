@@ -29,6 +29,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <filesystem>
 #include <functional>
 #include <cstdint>
@@ -155,8 +156,18 @@ int Application::run() noexcept {
                 materialBuffer.update(materialRegistry, materialTextures.handles());
 
                 SceneRenderer::SceneNode importGroup {};
-                importGroup.name = std::filesystem::path(modelPath).filename().string();
-                importGroup.transform = scene::Transform::identity();
+                importGroup.name = imported.name.empty()
+                    ? std::filesystem::path(modelPath).filename().string()
+                    : imported.name;
+                importGroup.transform = imported.rootTransform;
+
+                const glm::mat4 rootMatrix = imported.rootTransform.matrix();
+                glm::mat4 rootInverse {1.0F};
+                const float det = glm::determinant(rootMatrix);
+                const bool invertible = std::abs(det) > std::numeric_limits<float>::epsilon();
+                if (invertible) {
+                    rootInverse = glm::inverse(rootMatrix);
+                }
 
                 std::size_t meshIndex {0U};
                 for (ImportedMesh& importedMesh : imported.meshes) {
@@ -164,7 +175,9 @@ int Application::run() noexcept {
                     meshNode.name = importedMesh.name.empty()
                         ? "Mesh " + std::to_string(meshIndex)
                         : importedMesh.name;
-                    meshNode.transform = importedMesh.transform;
+                    glm::mat4 worldMatrix = importedMesh.transform.matrix();
+                    const glm::mat4 localMatrix = invertible ? rootInverse * worldMatrix : worldMatrix;
+                    meshNode.transform = scene::Transform::from_matrix(localMatrix);
                     meshNode.mesh = std::move(importedMesh.mesh);
                     const std::uint32_t importedMaterialIndex = importedMesh.materialIndex;
                     if (importedMaterialIndex < importedMaterialIds.size()) {

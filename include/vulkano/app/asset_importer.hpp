@@ -30,6 +30,8 @@ struct ImportedScene final {
     std::vector<ImportedMaterial> materials;
     std::vector<ImportedMesh> meshes;
     std::unordered_map<std::string, TextureData> embeddedTextures;
+    scene::Transform rootTransform {scene::Transform::identity()};
+    std::string name {};
 };
 
 class AssetImporter final {
