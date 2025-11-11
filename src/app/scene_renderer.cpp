@@ -8,6 +8,8 @@
 #include <vulkano/app/shadow_map.hpp>
 #include <vulkano/app/shadow_pass.hpp>
 
+#include <imgui_impl_vulkan.h>
+
 #include <vulkano/vk/depth_format.hpp>
 #include <vulkano/vk/depth_image.hpp>
 
@@ -464,7 +466,9 @@ SceneRenderer::SceneRenderer(const VulkanContext& context, const Window& window,
     , m_descriptorLayout {ssaoLayout} {
     static_cast<void>(window);
     m_depthFormat = vk::DepthFormatResolver::select_depth_format(m_context.physical_device());
-    create_render_pass();
+    m_viewportExtent = m_context.swapchain_extent();
+    create_scene_render_pass();
+    create_present_render_pass();
     create_material_descriptors();
     create_light_descriptors();
     create_shadow_resources();
@@ -472,14 +476,17 @@ SceneRenderer::SceneRenderer(const VulkanContext& context, const Window& window,
     create_graphics_pipeline();
     create_color_resources();
     create_depth_resources();
-    create_framebuffers();
+    create_scene_framebuffer();
+    create_present_framebuffers();
+    ensure_viewport_descriptor();
     create_light_debug_mesh();
 
 }
 
 SceneRenderer::~SceneRenderer() noexcept {
     destroy_meshes();
-    destroy_framebuffers();
+    destroy_present_framebuffers();
+    destroy_scene_framebuffer();
     destroy_color_resources();
     destroy_depth_resources();
 
@@ -496,10 +503,15 @@ SceneRenderer::~SceneRenderer() noexcept {
     m_gizmoCache.release();
     destroy_light_debug_mesh();
     destroy_shadow_resources();
-    if (m_renderPass != VK_NULL_HANDLE) {
-        vkDestroyRenderPass(m_context.device(), m_renderPass, nullptr);
-        m_renderPass = VK_NULL_HANDLE;
+    if (m_sceneRenderPass != VK_NULL_HANDLE) {
+        vkDestroyRenderPass(m_context.device(), m_sceneRenderPass, nullptr);
+        m_sceneRenderPass = VK_NULL_HANDLE;
     }
+    if (m_presentRenderPass != VK_NULL_HANDLE) {
+        vkDestroyRenderPass(m_context.device(), m_presentRenderPass, nullptr);
+        m_presentRenderPass = VK_NULL_HANDLE;
+    }
+    destroy_viewport_descriptor();
 }
 
 void SceneRenderer::set_scene(const std::vector<SceneMesh>& meshes) {
@@ -796,20 +808,12 @@ void SceneRenderer::set_show_light_debug(bool enabled) noexcept {
     m_showLightDebug = enabled;
 }
 
-VkRenderPass SceneRenderer::render_pass() const noexcept {
-    return m_renderPass;
-}
-
 VkPipeline SceneRenderer::pipeline() const noexcept {
     return m_pipeline;
 }
 
 VkPipelineLayout SceneRenderer::pipeline_layout() const noexcept {
     return m_pipelineLayout;
-}
-
-const std::vector<VkFramebuffer>& SceneRenderer::framebuffers() const noexcept {
-    return m_framebuffers;
 }
 
 VkImageView SceneRenderer::albedo_image_view() const noexcept {
@@ -889,6 +893,54 @@ std::optional<std::uint32_t> SceneRenderer::shadow_slot_for_light(scene::LightId
 
 void SceneRenderer::set_shadow_debug_enabled(bool enabled) noexcept {
     m_shadowDebug = enabled;
+}
+
+void SceneRenderer::set_viewport_extent(VkExtent2D extent) {
+    if (extent.width == 0U || extent.height == 0U) {
+        return;
+    }
+    if (extent.width == m_viewportExtent.width && extent.height == m_viewportExtent.height) {
+        return;
+    }
+
+    m_viewportExtent = extent;
+    recreate_viewport_resources();
+}
+
+VkExtent2D SceneRenderer::viewport_extent() const noexcept {
+    return m_viewportExtent;
+}
+
+VkImageView SceneRenderer::scene_color_image_view() const noexcept {
+    return m_sceneColorImage.view();
+}
+
+VkFormat SceneRenderer::scene_color_format() const noexcept {
+    return m_sceneColorImage.format();
+}
+
+VkRenderPass SceneRenderer::scene_render_pass() const noexcept {
+    return m_sceneRenderPass;
+}
+
+VkRenderPass SceneRenderer::present_render_pass() const noexcept {
+    return m_presentRenderPass;
+}
+
+VkFramebuffer SceneRenderer::scene_framebuffer() const noexcept {
+    return m_sceneFramebuffer;
+}
+
+const std::vector<VkFramebuffer>& SceneRenderer::present_framebuffers() const noexcept {
+    return m_presentFramebuffers;
+}
+
+VkDescriptorSet SceneRenderer::viewport_descriptor() const noexcept {
+    return m_viewportDescriptor;
+}
+
+ImTextureID SceneRenderer::viewport_texture_id() const noexcept {
+    return reinterpret_cast<ImTextureID>(m_viewportDescriptor);
 }
 
 void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::uint32_t imageIndex,
@@ -1032,8 +1084,6 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
     const float shadowEnabled = hasShadowPass ? 1.0F : 0.0F;
     const glm::vec4 shadowParams {m_shadowBias, m_shadowPcfRadius, shadowEnabled, m_shadowDebug ? 1.0F : 0.0F};
 
-    VkClearValue swapClear {};
-    swapClear.color = {{0.0F, 0.0F, 0.0F, 1.0F}};
     VkClearValue albedoClear {};
     albedoClear.color = {{0.0F, 0.0F, 0.0F, 1.0F}};
     VkClearValue normalClear {};
@@ -1042,18 +1092,19 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
     linearDepthClear.color = {{0.0F, 0.0F, 0.0F, 0.0F}};
     VkClearValue depthClear {};
     depthClear.depthStencil = {1.0F, 0U};
-    const std::array<VkClearValue, 5> clearValues {swapClear, albedoClear, normalClear, linearDepthClear, depthClear};
+    const std::array<VkClearValue, 5> sceneClearValues {VkClearValue {.color = {{0.0F, 0.0F, 0.0F, 1.0F}}}, albedoClear,
+        normalClear, linearDepthClear, depthClear};
 
-    VkRenderPassBeginInfo renderPassInfo {};
-    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassInfo.renderPass = m_renderPass;
-    renderPassInfo.framebuffer = m_framebuffers[imageIndex];
-    renderPassInfo.renderArea.offset = {0, 0};
-    renderPassInfo.renderArea.extent = m_context.swapchain_extent();
-    renderPassInfo.clearValueCount = static_cast<std::uint32_t>(clearValues.size());
-    renderPassInfo.pClearValues = clearValues.data();
+    VkRenderPassBeginInfo scenePassInfo {};
+    scenePassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    scenePassInfo.renderPass = m_sceneRenderPass;
+    scenePassInfo.framebuffer = m_sceneFramebuffer;
+    scenePassInfo.renderArea.offset = {0, 0};
+    scenePassInfo.renderArea.extent = m_viewportExtent;
+    scenePassInfo.clearValueCount = static_cast<std::uint32_t>(sceneClearValues.size());
+    scenePassInfo.pClearValues = sceneClearValues.data();
 
-    vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBeginRenderPass(commandBuffer, &scenePassInfo, VK_SUBPASS_CONTENTS_INLINE);
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
     if (m_descriptorLayout != VK_NULL_HANDLE && ssaoDescriptor != VK_NULL_HANDLE) {
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0U, 1U,
@@ -1079,15 +1130,15 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
     const VkViewport viewport {
         .x = 0.0F,
         .y = 0.0F,
-        .width = static_cast<float>(m_context.swapchain_extent().width),
-        .height = static_cast<float>(m_context.swapchain_extent().height),
+        .width = static_cast<float>(m_viewportExtent.width),
+        .height = static_cast<float>(m_viewportExtent.height),
         .minDepth = 0.0F,
         .maxDepth = 1.0F};
     vkCmdSetViewport(commandBuffer, 0U, 1U, &viewport);
 
     const VkRect2D scissor {
         .offset = {0, 0},
-        .extent = m_context.swapchain_extent()};
+        .extent = m_viewportExtent};
     vkCmdSetScissor(commandBuffer, 0U, 1U, &scissor);
 
     for (const GpuMesh& mesh : m_meshes) {
@@ -1180,24 +1231,46 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
         }
     }
 
+    vkCmdEndRenderPass(commandBuffer);
+
+    VkImageMemoryBarrier sceneReadBarrier {};
+    sceneReadBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    sceneReadBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    sceneReadBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    sceneReadBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    sceneReadBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    sceneReadBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    sceneReadBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    sceneReadBarrier.image = m_sceneColorImage.image();
+    sceneReadBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    sceneReadBarrier.subresourceRange.baseMipLevel = 0U;
+    sceneReadBarrier.subresourceRange.levelCount = 1U;
+    sceneReadBarrier.subresourceRange.baseArrayLayer = 0U;
+    sceneReadBarrier.subresourceRange.layerCount = 1U;
+
+    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0U, 0U, nullptr, 0U, nullptr, 1U, &sceneReadBarrier);
+
+    VkClearValue presentClear {};
+    presentClear.color = {{0.05F, 0.05F, 0.05F, 1.0F}};
+
+    VkRenderPassBeginInfo presentPassInfo {};
+    presentPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    presentPassInfo.renderPass = m_presentRenderPass;
+    presentPassInfo.framebuffer = m_presentFramebuffers[imageIndex];
+    presentPassInfo.renderArea.offset = {0, 0};
+    presentPassInfo.renderArea.extent = m_context.swapchain_extent();
+    presentPassInfo.clearValueCount = 1U;
+    presentPassInfo.pClearValues = &presentClear;
+
+    vkCmdBeginRenderPass(commandBuffer, &presentPassInfo, VK_SUBPASS_CONTENTS_INLINE);
     if (overlayRecorder) {
         overlayRecorder(commandBuffer);
     }
-
     vkCmdEndRenderPass(commandBuffer);
 }
 
-void SceneRenderer::create_render_pass() {
-    VkAttachmentDescription swapAttachment {};
-    swapAttachment.format = m_context.swapchain_image_format();
-    swapAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-    swapAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    swapAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    swapAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    swapAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    swapAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    swapAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
+void SceneRenderer::create_scene_render_pass() {
     VkAttachmentDescription albedoAttachment {};
     albedoAttachment.format = m_albedoFormat;
     albedoAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -1238,6 +1311,16 @@ void SceneRenderer::create_render_pass() {
     depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
+    VkAttachmentDescription sceneColorAttachment {};
+    sceneColorAttachment.format = m_context.swapchain_image_format();
+    sceneColorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    sceneColorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    sceneColorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    sceneColorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    sceneColorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    sceneColorAttachment.initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    sceneColorAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
     const std::array<VkAttachmentReference, 4> colorAttachmentRefs {
         VkAttachmentReference {0U, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL},
         VkAttachmentReference {1U, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL},
@@ -1275,7 +1358,7 @@ void SceneRenderer::create_render_pass() {
     VkRenderPassCreateInfo renderPassInfo {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     const std::array<VkAttachmentDescription, 5> attachments {
-        swapAttachment,
+        sceneColorAttachment,
         albedoAttachment,
         normalAttachment,
         linearDepthAttachment,
@@ -1288,8 +1371,50 @@ void SceneRenderer::create_render_pass() {
     renderPassInfo.dependencyCount = static_cast<std::uint32_t>(dependencies.size());
     renderPassInfo.pDependencies = dependencies.data();
 
-    if (vkCreateRenderPass(m_context.device(), &renderPassInfo, nullptr, &m_renderPass) != VK_SUCCESS) {
+    if (vkCreateRenderPass(m_context.device(), &renderPassInfo, nullptr, &m_sceneRenderPass) != VK_SUCCESS) {
         throw std::runtime_error {"Failed to create render pass"};
+    }
+}
+
+void SceneRenderer::create_present_render_pass() {
+    VkAttachmentDescription colorAttachment {};
+    colorAttachment.format = m_context.swapchain_image_format();
+    colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+    VkAttachmentReference colorRef {};
+    colorRef.attachment = 0U;
+    colorRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkSubpassDescription subpass {};
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount = 1U;
+    subpass.pColorAttachments = &colorRef;
+
+    VkSubpassDependency dependency {};
+    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass = 0U;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.srcAccessMask = 0U;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+    VkRenderPassCreateInfo info {};
+    info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    info.attachmentCount = 1U;
+    info.pAttachments = &colorAttachment;
+    info.subpassCount = 1U;
+    info.pSubpasses = &subpass;
+    info.dependencyCount = 1U;
+    info.pDependencies = &dependency;
+
+    if (vkCreateRenderPass(m_context.device(), &info, nullptr, &m_presentRenderPass) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create present render pass"};
     }
 }
 
@@ -1437,7 +1562,7 @@ void SceneRenderer::create_graphics_pipeline() {
     pipelineInfo.pColorBlendState = &colorBlending;
     pipelineInfo.pDynamicState = &dynamicState;
     pipelineInfo.layout = m_pipelineLayout;
-    pipelineInfo.renderPass = m_renderPass;
+    pipelineInfo.renderPass = m_sceneRenderPass;
     pipelineInfo.subpass = 0U;
 
     if (vkCreateGraphicsPipelines(m_context.device(), VK_NULL_HANDLE, 1U, &pipelineInfo, nullptr, &m_pipeline)
@@ -1451,35 +1576,62 @@ void SceneRenderer::create_graphics_pipeline() {
     vkDestroyShaderModule(device, vertexShader, nullptr);
 }
 
-void SceneRenderer::create_framebuffers() {
+void SceneRenderer::create_scene_framebuffer() {
+    destroy_scene_framebuffer();
+
+    const VkImageView attachments[] = {m_sceneColorImage.view(), m_albedoImage.view(), m_normalImage.view(),
+        m_linearDepthImage.view(), m_depthImage.view()};
+
+    VkFramebufferCreateInfo info {};
+    info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+    info.renderPass = m_sceneRenderPass;
+    info.attachmentCount = 5U;
+    info.pAttachments = attachments;
+    info.width = m_viewportExtent.width;
+    info.height = m_viewportExtent.height;
+    info.layers = 1U;
+
+    if (vkCreateFramebuffer(m_context.device(), &info, nullptr, &m_sceneFramebuffer) != VK_SUCCESS) {
+        throw std::runtime_error {"Failed to create scene framebuffer"};
+    }
+}
+
+void SceneRenderer::destroy_scene_framebuffer() noexcept {
+    if (m_sceneFramebuffer != VK_NULL_HANDLE) {
+        vkDestroyFramebuffer(m_context.device(), m_sceneFramebuffer, nullptr);
+        m_sceneFramebuffer = VK_NULL_HANDLE;
+    }
+}
+
+void SceneRenderer::create_present_framebuffers() {
+    destroy_present_framebuffers();
+
     const auto& imageViews = m_context.swapchain_image_views();
-    m_framebuffers.resize(imageViews.size());
+    m_presentFramebuffers.resize(imageViews.size());
 
     for (std::size_t i {0U}; i < imageViews.size(); ++i) {
-        const VkImageView attachments[] = {imageViews[i], m_albedoImage.view(), m_normalImage.view(), m_linearDepthImage.view(), m_depthImage.view()};
+        VkFramebufferCreateInfo info {};
+        info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        info.renderPass = m_presentRenderPass;
+        info.attachmentCount = 1U;
+        info.pAttachments = &imageViews[i];
+        info.width = m_context.swapchain_extent().width;
+        info.height = m_context.swapchain_extent().height;
+        info.layers = 1U;
 
-        VkFramebufferCreateInfo framebufferInfo {};
-        framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-        framebufferInfo.renderPass = m_renderPass;
-        framebufferInfo.attachmentCount = 5U;
-        framebufferInfo.pAttachments = attachments;
-        framebufferInfo.width = m_context.swapchain_extent().width;
-        framebufferInfo.height = m_context.swapchain_extent().height;
-        framebufferInfo.layers = 1U;
-
-        if (vkCreateFramebuffer(m_context.device(), &framebufferInfo, nullptr, &m_framebuffers[i]) != VK_SUCCESS) {
-            throw std::runtime_error {"Failed to create framebuffer"};
+        if (vkCreateFramebuffer(m_context.device(), &info, nullptr, &m_presentFramebuffers[i]) != VK_SUCCESS) {
+            throw std::runtime_error {"Failed to create present framebuffer"};
         }
     }
 }
 
-void SceneRenderer::destroy_framebuffers() noexcept {
-    for (VkFramebuffer framebuffer : m_framebuffers) {
+void SceneRenderer::destroy_present_framebuffers() noexcept {
+    for (VkFramebuffer framebuffer : m_presentFramebuffers) {
         if (framebuffer != VK_NULL_HANDLE) {
             vkDestroyFramebuffer(m_context.device(), framebuffer, nullptr);
         }
     }
-    m_framebuffers.clear();
+    m_presentFramebuffers.clear();
 }
 
 void SceneRenderer::destroy_meshes() noexcept {
@@ -1508,7 +1660,10 @@ void SceneRenderer::destroy_meshes() noexcept {
 void SceneRenderer::create_color_resources() {
     const VkPhysicalDevice physicalDevice = m_context.physical_device();
     const VkDevice device = m_context.device();
-    const VkExtent2D extent = m_context.swapchain_extent();
+    const VkExtent2D extent = m_viewportExtent;
+
+    m_sceneColorImage = vk::ColorImage::create(physicalDevice, device, extent, m_context.swapchain_image_format(),
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
 
     m_albedoImage = vk::ColorImage::create(physicalDevice, device, extent, m_albedoFormat,
         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
@@ -1547,21 +1702,25 @@ void SceneRenderer::create_color_resources() {
                 throw std::runtime_error {"Failed to begin linear depth transition commands"};
             }
 
-            VkImageMemoryBarrier barrier {};
-            barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-            barrier.srcAccessMask = 0U;
-            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-            barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-            barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            barrier.image = m_linearDepthImage.image();
-            barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            barrier.subresourceRange.baseMipLevel = 0U;
-            barrier.subresourceRange.levelCount = 1U;
-            barrier.subresourceRange.baseArrayLayer = 0U;
-            barrier.subresourceRange.layerCount = 1U;
+            std::array<VkImageMemoryBarrier, 2> barriers {};
+            barriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            barriers[0].srcAccessMask = 0U;
+            barriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            barriers[0].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            barriers[0].newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            barriers[0].image = m_sceneColorImage.image();
+            barriers[0].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            barriers[0].subresourceRange.baseMipLevel = 0U;
+            barriers[0].subresourceRange.levelCount = 1U;
+            barriers[0].subresourceRange.baseArrayLayer = 0U;
+            barriers[0].subresourceRange.layerCount = 1U;
+
+            barriers[1] = barriers[0];
+            barriers[1].image = m_linearDepthImage.image();
 
             vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0U, 0U, nullptr, 0U, nullptr, 1U, &barrier);
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0U, 0U, nullptr, 0U, nullptr,
+                static_cast<std::uint32_t>(barriers.size()), barriers.data());
 
             if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
                 throw std::runtime_error {"Failed to record linear depth transition commands"};
@@ -1590,6 +1749,7 @@ void SceneRenderer::create_color_resources() {
 }
 
 void SceneRenderer::destroy_color_resources() noexcept {
+    m_sceneColorImage = vk::ColorImage {};
     m_albedoImage = vk::ColorImage {};
     m_normalImage = vk::ColorImage {};
     m_linearDepthImage = vk::ColorImage {};
@@ -1724,7 +1884,7 @@ void SceneRenderer::destroy_light_descriptors() noexcept {
 
 void SceneRenderer::create_depth_resources() {
     m_depthImage = vk::DepthImage::create(
-        m_context.physical_device(), m_context.device(), m_context.swapchain_extent(), m_depthFormat);
+        m_context.physical_device(), m_context.device(), m_viewportExtent, m_depthFormat);
 }
 
 void SceneRenderer::destroy_depth_resources() noexcept {
@@ -1798,6 +1958,60 @@ void SceneRenderer::upload_mesh(const SceneMesh& mesh) {
     vkUnmapMemory(device, gpuMesh.indexMemory);
 
 m_meshes.push_back(gpuMesh);
+}
+
+void SceneRenderer::recreate_viewport_resources() {
+    m_context.wait_idle();
+    destroy_scene_framebuffer();
+    destroy_color_resources();
+    destroy_depth_resources();
+    destroy_viewport_descriptor();
+    create_color_resources();
+    create_depth_resources();
+    create_scene_framebuffer();
+    ensure_viewport_descriptor();
+}
+
+void SceneRenderer::destroy_viewport_descriptor() noexcept {
+    if (m_viewportDescriptor != VK_NULL_HANDLE) {
+        ImGui_ImplVulkan_RemoveTexture(m_viewportDescriptor);
+        m_viewportDescriptor = VK_NULL_HANDLE;
+    }
+    if (m_viewportSampler != VK_NULL_HANDLE) {
+        vkDestroySampler(m_context.device(), m_viewportSampler, nullptr);
+        m_viewportSampler = VK_NULL_HANDLE;
+    }
+}
+
+void SceneRenderer::ensure_viewport_descriptor() {
+    if (m_sceneColorImage.image() == VK_NULL_HANDLE) {
+        return;
+    }
+
+    if (m_viewportSampler == VK_NULL_HANDLE) {
+        VkSamplerCreateInfo info {};
+        info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        info.magFilter = VK_FILTER_LINEAR;
+        info.minFilter = VK_FILTER_LINEAR;
+        info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        info.minLod = 0.0F;
+        info.maxLod = 0.0F;
+        info.maxAnisotropy = 1.0F;
+        if (vkCreateSampler(m_context.device(), &info, nullptr, &m_viewportSampler) != VK_SUCCESS) {
+            throw std::runtime_error {"Failed to create viewport sampler"};
+        }
+    }
+
+    if (m_viewportDescriptor != VK_NULL_HANDLE) {
+        ImGui_ImplVulkan_RemoveTexture(m_viewportDescriptor);
+        m_viewportDescriptor = VK_NULL_HANDLE;
+    }
+
+    m_viewportDescriptor = ImGui_ImplVulkan_AddTexture(m_viewportSampler, m_sceneColorImage.view(),
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 
 void SceneRenderer::record_shadow_pass(VkCommandBuffer commandBuffer) const {

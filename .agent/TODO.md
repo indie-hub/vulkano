@@ -225,3 +225,6 @@
 - [x] Draft advanced UI layout enhancement plan (see .agent/plan_imgui_layout_enhancements.md)
 - [x] Implement UI layout enhancements and presets
 - [x] Document and validate enhanced UI layouts
+
+- [ ] Implement viewport embedding per .agent/plan_imgui_viewport_embed.md
+- [ ] Document and validate viewport docking workflow

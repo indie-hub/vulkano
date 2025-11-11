@@ -293,7 +293,7 @@ int Application::run() noexcept {
 
         DockPreset activePreset = loadPreset();
         DockPreset requestedPreset = activePreset;
-        auto imgui = std::make_unique<ImGuiRenderer>(context, window, renderer->render_pass(),
+        auto imgui = std::make_unique<ImGuiRenderer>(context, window, renderer->present_render_pass(),
             SceneRenderer::color_attachment_count());
         auto frameResources = std::make_unique<FrameResources>(context);
 
@@ -459,10 +459,17 @@ int Application::run() noexcept {
             ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2 {0.0F, 0.0F});
             const ImGuiWindowFlags viewportFlags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse;
             if (ImGui::Begin("Viewport", nullptr, viewportFlags)) {
-                result.viewportHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows);
-                result.viewportFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
-                result.viewportSize = ImGui::GetContentRegionAvail();
-                ImGui::InvisibleButton("ViewportCanvas", result.viewportSize, ImGuiButtonFlags_MouseButtonLeft);
+                const ImVec2 available = ImGui::GetContentRegionAvail();
+                result.viewportSize = available;
+                const VkDescriptorSet viewportSet = activeRenderer.viewport_descriptor();
+                if (viewportSet != VK_NULL_HANDLE && available.x > 0.0F && available.y > 0.0F) {
+                    ImGui::Image(activeRenderer.viewport_texture_id(), available, ImVec2 {0.0F, 0.0F},
+                        ImVec2 {1.0F, 1.0F});
+                } else {
+                    ImGui::Dummy(available);
+                }
+                result.viewportHovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+                result.viewportFocused = ImGui::IsItemFocused();
             }
             ImGui::End();
             ImGui::PopStyleVar();
@@ -507,7 +514,7 @@ int Application::run() noexcept {
                 ssaoDepthRange, ssaoDistanceRange, ssaoNormalEpsilon);
             ssaoBlurPass->set_parameters(ssaoBlurRadius, ssaoBlurDepthSigma);
 
-            imgui = std::make_unique<ImGuiRenderer>(context, window, renderer->render_pass(),
+            imgui = std::make_unique<ImGuiRenderer>(context, window, renderer->present_render_pass(),
                 SceneRenderer::color_attachment_count());
             frameResources = std::make_unique<FrameResources>(context);
 
@@ -552,6 +559,9 @@ int Application::run() noexcept {
             const float viewportHeight = dockResult.viewportSize.y;
             if (viewportWidth > 0.0F && viewportHeight > 0.0F) {
                 camera.set_aspect_ratio(viewportWidth / viewportHeight);
+                VkExtent2D viewportExtent {static_cast<std::uint32_t>(std::max(1.0F, viewportWidth)),
+                    static_cast<std::uint32_t>(std::max(1.0F, viewportHeight))};
+                renderer->set_viewport_extent(viewportExtent);
             }
             const bool viewportActive = dockResult.viewportHovered || dockResult.viewportFocused;
             cameraController.set_input_enabled(viewportActive);

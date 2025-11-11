@@ -24,6 +24,8 @@ class MaterialBuffer;
 class MaterialTextureCache;
 class LightBuffer;
 
+using ImTextureID = void*;
+
 class SceneRenderer final {
 public:
     struct SceneMesh final {
@@ -91,6 +93,16 @@ public:
     void set_shadow_pcf_radius(float radius) noexcept;
     void set_shadows_enabled(bool enabled) noexcept;
     void set_shadow_debug_enabled(bool enabled) noexcept;
+    void set_viewport_extent(VkExtent2D extent);
+    [[nodiscard]] VkExtent2D viewport_extent() const noexcept;
+    [[nodiscard]] VkImageView scene_color_image_view() const noexcept;
+    [[nodiscard]] VkFormat scene_color_format() const noexcept;
+    [[nodiscard]] VkRenderPass scene_render_pass() const noexcept;
+    [[nodiscard]] VkRenderPass present_render_pass() const noexcept;
+    [[nodiscard]] VkFramebuffer scene_framebuffer() const noexcept;
+    [[nodiscard]] const std::vector<VkFramebuffer>& present_framebuffers() const noexcept;
+    [[nodiscard]] VkDescriptorSet viewport_descriptor() const noexcept;
+    [[nodiscard]] ImTextureID viewport_texture_id() const noexcept;
 
     using CommandRecorder = std::function<void(VkCommandBuffer)>;
     void record_command_buffer(VkCommandBuffer commandBuffer, std::uint32_t imageIndex,
@@ -133,11 +145,14 @@ private:
         void release() noexcept;
     };
 
-    void create_render_pass();
+    void create_scene_render_pass();
+    void create_present_render_pass();
     void create_pipeline_layout();
     void create_graphics_pipeline();
-    void create_framebuffers();
-    void destroy_framebuffers() noexcept;
+    void create_scene_framebuffer();
+    void create_present_framebuffers();
+    void destroy_scene_framebuffer() noexcept;
+    void destroy_present_framebuffers() noexcept;
     void destroy_meshes() noexcept;
     void create_depth_resources();
     void destroy_depth_resources() noexcept;
@@ -155,12 +170,17 @@ private:
     [[nodiscard]] glm::mat4 compute_light_view_projection(const scene::Light& light) const;
 
     void upload_mesh(const SceneMesh& mesh);
+    void recreate_viewport_resources();
+    void destroy_viewport_descriptor() noexcept;
+    void ensure_viewport_descriptor();
 
     const VulkanContext& m_context;
-    VkRenderPass m_renderPass {VK_NULL_HANDLE};
+    VkRenderPass m_sceneRenderPass {VK_NULL_HANDLE};
+    VkRenderPass m_presentRenderPass {VK_NULL_HANDLE};
     VkPipelineLayout m_pipelineLayout {VK_NULL_HANDLE};
     VkPipeline m_pipeline {VK_NULL_HANDLE};
-    std::vector<VkFramebuffer> m_framebuffers;
+    VkFramebuffer m_sceneFramebuffer {VK_NULL_HANDLE};
+    std::vector<VkFramebuffer> m_presentFramebuffers;
     std::vector<GpuMesh> m_meshes;
     DebugMesh m_lightDebugMesh;
     std::vector<DebugMesh> m_pointLightDebugMeshes;
@@ -169,11 +189,15 @@ private:
     VkFormat m_albedoFormat {VK_FORMAT_R8G8B8A8_UNORM};
     VkFormat m_normalFormat {VK_FORMAT_R8G8B8A8_UNORM};
     VkFormat m_shadowFormat {VK_FORMAT_D32_SFLOAT};
+    vk::ColorImage m_sceneColorImage;
     vk::DepthImage m_depthImage;
     vk::ColorImage m_albedoImage;
     vk::ColorImage m_normalImage;
     vk::ColorImage m_linearDepthImage;
     VkFormat m_linearDepthFormat {VK_FORMAT_R32_SFLOAT};
+    VkExtent2D m_viewportExtent {0U, 0U};
+    VkSampler m_viewportSampler {VK_NULL_HANDLE};
+    VkDescriptorSet m_viewportDescriptor {VK_NULL_HANDLE};
     VkDescriptorSetLayout m_descriptorLayout {VK_NULL_HANDLE};
     VkDescriptorSetLayout m_materialDescriptorLayout {VK_NULL_HANDLE};
     VkDescriptorPool m_materialDescriptorPool {VK_NULL_HANDLE};
