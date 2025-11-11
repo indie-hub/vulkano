@@ -182,3 +182,14 @@
    - Enumerate unit/integration tests to add (e.g., registry → renderer mapping, shader branch coverage via spirv-cross validation, screenshot diff harness).
    - Define manual validation steps (run demo, toggle lights, inspect debug shadow view per light).
    - *Acceptance:* Test plan recorded with pass/fail criteria and tooling (Catch2, RenderDoc, etc.).
+   - **Automated tests:**
+     - Add Catch2 unit tests for new shadow state helpers (e.g., `promote_shadow_caster` function) verifying selection logic when lights change order or toggles.
+     - Extend existing `light_registry` tests to cover `castsShadow` sanitisation for point vs directional lights and ensure removal updates indices.
+     - Introduce integration-style test harness (headless) that builds a mock renderer instance, injects synthetic scene bounds, and asserts `compute_light_view_projection` returns the expected matrix for given light direction.
+     - Validate shader branching via SPIR-V reflection or offline shader test ensuring the new shadow flag toggles the sampling branch.
+   - **Manual/visual tests:**
+     - Reuse the QA matrix scenarios; capture screenshots for baseline and promotion cases.
+     - Use RenderDoc to inspect the shadow map after promoting different casters, verifying depth values reflect the correct light orientation.
+   - **Tooling:**
+     - Ensure headless integration test runs under `ctest` with deterministic seed.
+     - Document need for GPU validation layers (VK_LAYER_KHRONOS_validation) during manual runs to catch descriptor mismatches.
