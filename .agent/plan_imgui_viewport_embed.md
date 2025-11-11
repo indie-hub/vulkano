@@ -5,10 +5,15 @@ Render the swapchain image directly inside the ImGui `Viewport` window so the sc
 
 ## Baby-Step Plan
 
-- [ ] **Preparation**
+- [x] **Preparation**
   - Audit current presentation path: confirm scene is rendered via the main swapchain render pass and composited behind ImGui.
   - Identify how the existing `Viewport` window stores its available size (from `DockspaceResult`).
   - *Acceptance:* Notes in this plan summarising current rendering order and data flow.
+
+## Notes
+- `SceneRenderer::record_command_buffer` renders geometry directly into the swapchain framebuffer using a single render pass that writes swapchain, albedo, normal, linear-depth, and depth attachments, then calls `overlayRecorder` (ImGui draw) before ending the pass.
+- The main loop in `Application::run` gathers viewport dimensions via `DockspaceResult` (populated inside `drawDockspace`) but does not render into the `Viewport` window—ImGui overlays are drawn after the scene.
+- The viewport aspect ratio currently drives camera projection, yet the swapchain extent still matches the OS window, so the rendered image remains behind the dockspace background.
 
 - [ ] **Offscreen Render Target**
   - Create an offscreen color image + depth buffer matching the viewport size (likely using existing color attachments or a new RGBA image per frame).
@@ -41,4 +46,3 @@ Render the swapchain image directly inside the ImGui `Viewport` window so the sc
   - Extend tests (where possible) to assert that viewport dimensions feed into renderer (e.g., new unit for aspect ratio handling).
   - Update documentation (`docs/ui_docking.md`) explaining that the viewport now displays the rendering directly.
   - *Acceptance:* Tests pass; docs updated; QA run captured.
-
