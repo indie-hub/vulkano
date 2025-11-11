@@ -82,7 +82,7 @@ TEST_CASE("Material GPU surface texture toggles metallic and occlusion usage") {
 TEST_CASE("Material descriptor bindings expose layout constants") {
     REQUIRE(vulkano::app::MaterialDescriptorBindings::materialBufferBinding == 0U);
     REQUIRE(vulkano::app::MaterialDescriptorBindings::textureArrayBinding == 1U);
-    REQUIRE(vulkano::app::MaterialDescriptorBindings::maxTextureSamplers == 12U);
+    REQUIRE(vulkano::app::MaterialDescriptorBindings::maxTextureSamplers == 64U);
 }
 
 TEST_CASE("Material GPU buffer builder always returns at least one entry") {
