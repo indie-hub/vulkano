@@ -247,3 +247,5 @@
 - [x] Implement scene object visibility toggles
 - [x] Validate visibility controls (tests, docs)
 - [x] Draft texture path resolution plan
+- [x] Implement texture path resolution improvements
+- [x] Validate texture path resolution (tests, docs)

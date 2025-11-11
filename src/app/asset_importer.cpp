@@ -109,6 +109,36 @@ namespace {
 }
 } // namespace
 
+std::string AssetImporter::resolve_texture_path(std::string_view rawPath, const std::filesystem::path& baseDirectory) {
+    if (rawPath.empty()) {
+        return std::string {rawPath};
+    }
+    if (!rawPath.empty() && rawPath.front() == '*') {
+        return std::string {rawPath};
+    }
+
+    std::filesystem::path texturePath {std::string {rawPath}};
+    if (texturePath.is_absolute()) {
+        try {
+            return std::filesystem::weakly_canonical(texturePath).string();
+        } catch (...) {
+            return texturePath.lexically_normal().string();
+        }
+    }
+
+    if (!baseDirectory.empty()) {
+        std::filesystem::path combined = baseDirectory / texturePath;
+        try {
+            combined = std::filesystem::weakly_canonical(combined);
+        } catch (...) {
+            combined = combined.lexically_normal();
+        }
+        return combined.string();
+    }
+
+    return texturePath.lexically_normal().string();
+}
+
 ImportedScene AssetImporter::load_scene(std::string_view path) const {
     Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile(std::string {path},
@@ -120,6 +150,19 @@ ImportedScene AssetImporter::load_scene(std::string_view path) const {
     }
 
     ImportedScene result {};
+    std::filesystem::path sourceDirectory {};
+    try {
+        const std::filesystem::path sourcePath {std::string {path}};
+        if (sourcePath.has_parent_path()) {
+            sourceDirectory = std::filesystem::weakly_canonical(sourcePath.parent_path());
+        } else {
+            sourceDirectory = std::filesystem::weakly_canonical(std::filesystem::current_path());
+        }
+    } catch (...) {
+        sourceDirectory.clear();
+    }
+    result.sourceDirectory = sourceDirectory;
+
     result.root.name = scene->mRootNode->mName.length > 0 ? scene->mRootNode->mName.C_Str() : "Imported Scene";
     result.root.transform = scene::Transform::from_matrix(to_glm(scene->mRootNode->mTransformation));
 
@@ -147,7 +190,7 @@ ImportedScene AssetImporter::load_scene(std::string_view path) const {
 
     result.materials.reserve(scene->mNumMaterials);
     for (unsigned int index {0U}; index < scene->mNumMaterials; ++index) {
-        result.materials.push_back(import_material(*scene->mMaterials[index]));
+        result.materials.push_back(import_material(*scene->mMaterials[index], result.sourceDirectory));
     }
 
     const auto remap_material_paths = [&embeddedKeyRemap](scene::Material& material) {
@@ -186,7 +229,7 @@ ImportedScene AssetImporter::load_scene(std::string_view path) const {
     return result;
 }
 
-ImportedMaterial AssetImporter::import_material(const aiMaterial& material) {
+ImportedMaterial AssetImporter::import_material(const aiMaterial& material, const std::filesystem::path& baseDirectory) {
     ImportedMaterial result {};
     scene::Material& output = result.material;
 
@@ -220,14 +263,15 @@ ImportedMaterial AssetImporter::import_material(const aiMaterial& material) {
         output.properties.emissiveIntensity = emissiveIntensity;
     }
 
-    auto extract_path = [&material](aiTextureType type, std::string& destination, bool& usageFlag) {
+    auto extract_path = [&material, &baseDirectory](aiTextureType type, std::string& destination,
+                              bool& usageFlag) {
         aiString texturePath;
         if (material.GetTextureCount(type) > 0 && material.GetTexture(type, 0, &texturePath) == aiReturn_SUCCESS) {
             const std::string raw = texturePath.C_Str();
             if (!raw.empty() && raw.front() == '*') {
                 destination = raw;
             } else {
-                destination = raw;
+                destination = AssetImporter::resolve_texture_path(raw, baseDirectory);
             }
             usageFlag = true;
         }

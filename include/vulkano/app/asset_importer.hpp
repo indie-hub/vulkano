@@ -1,5 +1,6 @@
 #pragma once
 
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -36,14 +37,18 @@ struct ImportedScene final {
     std::vector<ImportedMaterial> materials;
     Node root {};
     std::unordered_map<std::string, TextureData> embeddedTextures;
+    std::filesystem::path sourceDirectory;
 };
 
 class AssetImporter final {
 public:
     [[nodiscard]] ImportedScene load_scene(std::string_view path) const;
+    [[nodiscard]] static std::string resolve_texture_path(std::string_view rawPath,
+        const std::filesystem::path& baseDirectory);
 
 private:
-    [[nodiscard]] static ImportedMaterial import_material(const aiMaterial& material);
+    [[nodiscard]] static ImportedMaterial import_material(const aiMaterial& material,
+        const std::filesystem::path& baseDirectory);
     [[nodiscard]] static ImportedMesh import_mesh(const aiMesh& mesh, std::uint32_t materialIndex);
     static void build_node(const aiScene& scene, const aiNode& node, const glm::mat4& parentTransform,
         ImportedScene::Node& output);

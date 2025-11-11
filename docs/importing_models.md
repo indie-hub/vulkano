@@ -15,6 +15,8 @@ data are ignored for now; only static meshes and materials are converted.
 
 ## Workflow
 1. Ensure textures referenced by the model are accessible via relative paths.
+   The importer resolves each URI relative to the model file’s directory, so
+   keeping textures alongside the asset is sufficient.
 2. Launch the renderer with `VULKANO_MODEL` pointing to the asset file.
 3. The importer registers new materials, uploads meshes, and appends them to the
    existing scene.

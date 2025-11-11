@@ -1,5 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <filesystem>
+
 #include <vulkano/app/asset_importer.hpp>
 
 TEST_CASE("ImportedScene defaults to empty collections") {
@@ -40,6 +42,7 @@ TEST_CASE("AssetImporter loads embedded texture") {
     REQUIRE(scene.materials.size() >= 1U);
     REQUIRE_FALSE(scene.embeddedTextures.empty());
     const auto& material = scene.materials.front().material;
+    INFO("baseColorPath=" << material.textures.baseColorPath);
     REQUIRE(material.useBaseColorTexture);
     REQUIRE_FALSE(material.textures.baseColorPath.empty());
     const std::string& baseColorKey = material.textures.baseColorPath;
@@ -56,4 +59,27 @@ TEST_CASE("AssetImporter loads embedded texture") {
     CHECK(static_cast<int>(texture.pixels[1]) == 255);
     CHECK(static_cast<int>(texture.pixels[2]) == 255);
     CHECK(static_cast<int>(texture.pixels[3]) == 255);
+}
+
+TEST_CASE("AssetImporter records scene source directory") {
+    const vulkano::app::AssetImporter importer {};
+    const auto scene = importer.load_scene(TEST_ASSET_DIR "/embedded_triangle.gltf");
+    const std::filesystem::path expected = std::filesystem::weakly_canonical(std::filesystem::path {TEST_ASSET_DIR});
+    REQUIRE(scene.sourceDirectory == expected);
+}
+
+TEST_CASE("AssetImporter resolves relative texture path against base directory") {
+    const std::filesystem::path base = std::filesystem::weakly_canonical(std::filesystem::path {TEST_ASSET_DIR});
+    const std::string resolved = vulkano::app::AssetImporter::resolve_texture_path("textures/albedo.png", base);
+    const std::filesystem::path expected = base / "textures/albedo.png";
+    REQUIRE(std::filesystem::path {resolved} == expected);
+}
+
+TEST_CASE("AssetImporter preserves embedded and absolute texture identifiers") {
+    const std::filesystem::path base = std::filesystem::weakly_canonical(std::filesystem::path {TEST_ASSET_DIR});
+    REQUIRE(vulkano::app::AssetImporter::resolve_texture_path("*0", base) == "*0");
+    const std::filesystem::path absolute = std::filesystem::weakly_canonical(std::filesystem::path {TEST_ASSET_DIR}
+        / "../../assets/textures/cube.png");
+    REQUIRE(std::filesystem::path {vulkano::app::AssetImporter::resolve_texture_path(absolute.string(), base)}
+        == absolute);
 }
