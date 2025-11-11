@@ -442,6 +442,13 @@ Introduce a material-driven forward renderer that supports multiple material typ
 - Material registry stores texture handles without leaks; plan describes how updates propagate to descriptor sets.
 - Resize/recreation lifecycle spelled out ensuring textures persist across swapchain rebuilds.
 
+## Phase 4 – Normal Mapping Support
+1. Extend mesh generation (and asset loader) to compute tangents/bitangents for meshes that need normal maps.
+2. Update vertex attributes/pipeline layouts to pass tangent frame (tangent + bitangent sign) to shaders.
+3. Calculate TBN matrix in fragment shader and apply sampled normal map, ensuring handedness is preserved.
+4. Add material toggle for normal map usage and integrate it into existing texture cache/buffer.
+5. Verify normal mapping on sphere/cube via runtime checks and adjust tests accordingly.
+
 ## Phase 4 – ImGui Material Editor
 1. Add ImGui panel to list materials, adjust parameters (color, roughness, metallic), and trigger texture reloads.
 2. Ensure edits trigger GPU buffer updates only when necessary (avoid mid-command-buffer updates).
