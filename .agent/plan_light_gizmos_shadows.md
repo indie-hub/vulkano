@@ -201,6 +201,12 @@
    - Choose an initial upper bound (e.g., 3 directional lights) along with memory estimates per shadow map (format, resolution).
    - Record trade-offs for higher counts vs. performance/memory hits.
    - *Acceptance:* Decision documented with numeric limits, memory calculations, and justification.
+   - **Decision & budget:**
+     - Support up to **3** simultaneous shadow-casting directional lights in the initial multi-caster release.
+     - Each shadow map remains at 2048×2048, VK_FORMAT_D32_SFLOAT (4 bytes per texel): `2048 * 2048 * 4 ≈ 16 MB` per map.
+     - Total shadow-map memory footprint at capacity: `3 * 16 MB = 48 MB`, plus negligible framebuffer/descriptor overhead.
+     - Trade-off rationale: 3 lights covers typical key/fill/rim setups without blowing GPU memory; higher counts would scale memory and command buffer time linearly.
+     - Document extension path to raise the limit when VRAM budgets allow, potentially via configuration setting.
 3. **Design `ShadowResources` pool structure**
    - Sketch a struct holding per-caster entries: light id, image, framebuffer, descriptor set, and dirty flags.
    - Specify allocation strategy (eager allocate up to max vs. lazy create on demand).
