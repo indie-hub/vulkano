@@ -154,6 +154,7 @@ SceneRenderer::SceneRenderer(const VulkanContext& context, const Window& window)
     create_render_pass();
     create_pipeline_layout();
     create_graphics_pipeline();
+    create_color_resources();
     create_depth_resources();
     create_framebuffers();
 
@@ -162,6 +163,7 @@ SceneRenderer::SceneRenderer(const VulkanContext& context, const Window& window)
 SceneRenderer::~SceneRenderer() noexcept {
     destroy_meshes();
     destroy_framebuffers();
+    destroy_color_resources();
     destroy_depth_resources();
 
     if (m_pipeline != VK_NULL_HANDLE) {
@@ -457,18 +459,18 @@ void SceneRenderer::create_graphics_pipeline() {
     depthStencil.minDepthBounds = 0.0F;
     depthStencil.maxDepthBounds = 1.0F;
 
-    VkPipelineColorBlendAttachmentState blendState {};
-    blendState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT
-        | VK_COLOR_COMPONENT_A_BIT;
-    blendState.blendEnable = VK_FALSE;
-
-    const std::array<VkPipelineColorBlendAttachmentState, 3> colorBlendAttachments {blendState, blendState, blendState};
+    VkPipelineColorBlendAttachmentState colorBlendAttachments[3] {};
+    for (auto& attachment : colorBlendAttachments) {
+        attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT
+            | VK_COLOR_COMPONENT_A_BIT;
+        attachment.blendEnable = VK_FALSE;
+    }
 
     VkPipelineColorBlendStateCreateInfo colorBlending {};
     colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
     colorBlending.logicOpEnable = VK_FALSE;
-    colorBlending.attachmentCount = static_cast<std::uint32_t>(colorBlendAttachments.size());
-    colorBlending.pAttachments = colorBlendAttachments.data();
+    colorBlending.attachmentCount = 3U;
+    colorBlending.pAttachments = colorBlendAttachments;
 
     const std::array<VkDynamicState, 2> dynamicStates {
         VK_DYNAMIC_STATE_VIEWPORT,

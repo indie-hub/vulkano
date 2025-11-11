@@ -35,4 +35,5 @@
 - [x] Draft SSAO implementation plan with acceptance criteria
 - [x] Persist SSAO implementation plan to .agent/plan.md
 - [x] Implement G-buffer attachments (albedo and normals) for geometry pass
+- [ ] Implement SSAO sample kernel and noise texture generation
 
