@@ -143,9 +143,16 @@ std::string AssetImporter::resolve_texture_path(std::string_view rawPath, const 
 
 ImportedScene AssetImporter::load_scene(std::string_view path) const {
     Assimp::Importer importer;
-    const aiScene* scene = importer.ReadFile(std::string {path},
-        aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_CalcTangentSpace
-            | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices | aiProcess_Debone);
+    unsigned int postProcess = aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_CalcTangentSpace
+        | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices | aiProcess_Debone;
+
+    if (const char* disableFlip = std::getenv("VULKANO_DISABLE_ASSIMP_FLIP_UV")) {
+        if (std::strcmp(disableFlip, "0") != 0) {
+            postProcess &= ~aiProcess_FlipUVs;
+        }
+    }
+
+    const aiScene* scene = importer.ReadFile(std::string {path}, postProcess);
 
     if (scene == nullptr || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) != 0 || scene->mRootNode == nullptr) {
         throw std::runtime_error {std::string {"Failed to load scene: "} + importer.GetErrorString()};

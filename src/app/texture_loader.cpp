@@ -22,12 +22,22 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <stdexcept>
 #include <string>
 
 namespace vulkano::app {
 namespace {
+[[nodiscard]] bool should_flip_vertically() noexcept {
+    if (const char* disableFlip = std::getenv("VULKANO_DISABLE_TEXTURE_FLIP")) {
+        if (std::strcmp(disableFlip, "0") != 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
 [[nodiscard]] std::uint32_t clamp_resolution(std::uint32_t value) noexcept {
     return std::max(1U, value);
 }
@@ -68,7 +78,8 @@ TextureData load_texture_from_file(const std::filesystem::path& path, TextureCol
     if (!std::filesystem::exists(path)) {
         throw std::runtime_error {"Texture file not found: " + path.string()};
     }
-    stbi_set_flip_vertically_on_load(flipVertical ? 1 : 0);
+    const bool flip = flipVertical && should_flip_vertically();
+    stbi_set_flip_vertically_on_load(flip ? 1 : 0);
     int width {0};
     int height {0};
     int components {0};
@@ -95,7 +106,8 @@ TextureData load_texture_from_memory(const std::uint8_t* data, std::size_t size,
     if (data == nullptr || size == 0U) {
         throw std::invalid_argument {"Embedded texture data is empty"};
     }
-    stbi_set_flip_vertically_on_load(flipVertical ? 1 : 0);
+    const bool flip = flipVertical && should_flip_vertically();
+    stbi_set_flip_vertically_on_load(flip ? 1 : 0);
     int width {0};
     int height {0};
     int components {0};

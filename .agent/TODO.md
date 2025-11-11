@@ -274,7 +274,7 @@
 - [ ] Select minimal sampler adjustment for leather bleed
 
 - [ ] Draft UV channel audit plan (.agent/plan_uv_channel_audit.md)
-- [ ] Implement UV channel audit plan (visualisations, logs)
+- [x] Implement UV channel audit plan (visualisations, logs)
 
 - [ ] Quantify UV bleed risk for leather atlas (.agent/plan_uv_padding.md)
 - [ ] Prototype texture padding helper for tight UV islands
