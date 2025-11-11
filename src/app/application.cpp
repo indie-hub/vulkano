@@ -271,6 +271,7 @@ int Application::run() noexcept {
             imgui->end_frame();
 
             if (materialsDirty) {
+                context.wait_idle();
                 materialTextures.rebuild(materialRegistry);
                 materialBuffer.update(materialRegistry, materialTextures.handles());
                 renderer->set_material_resources(materialBuffer, materialTextures);
