@@ -194,4 +194,4 @@
 - [x] Implement Assimp asset import pipeline (mesh/material conversion done)
 - [x] Validate runtime loading with tests and docs (tests complete; docs pending)
 
-- [ ] Document Assimp usage in README/CHANGELOG
+- [x] Document Assimp usage in README (docs/importing_models.md)
