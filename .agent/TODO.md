@@ -221,3 +221,7 @@
 - [x] Update Dear ImGui to v1.92.3 docking tag
 - [x] Enable docking UI layout (dockspace, panel windows, viewport routing)
 - [x] Validate docking workflow with tests and documentation
+
+- [x] Draft advanced UI layout enhancement plan (see .agent/plan_imgui_layout_enhancements.md)
+- [ ] Implement UI layout enhancements and presets
+- [ ] Document and validate enhanced UI layouts
