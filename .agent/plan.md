@@ -92,3 +92,44 @@ Deliver a right-handed Vulkan renderer that opens a GLFW window, renders a white
 - Each new component provides deterministic RAII destruction and has unit coverage for critical decision logic.
 - Application, renderer, and frame resources compile against the refactored API without behavioural regressions (triangle + ImGui render, validation passes).
 - Documentation in `/docs` (new section or README update) summarises module responsibilities and interactions.
+
+# Multi-Primitive Renderer Plan
+
+## Goals
+- Extend the renderer to draw a plane (ground), cube, and sphere with the sphere and cube resting on the plane.
+- Maintain SOLID structure by introducing reusable geometry/mesh abstractions and ensuring transformations remain right-handed.
+- Preserve existing ImGui overlay and validation-clean execution.
+
+## Proposed Architecture
+1. **Geometry Module**
+   - Add `Mesh`/`MeshBuilder` helpers to encapsulate vertex/index buffers and layout descriptions.
+   - Provide procedural generation utilities for plane, cube, and UV sphere vertices using glm for positioning.
+2. **Renderer Enhancements**
+   - Expand `TriangleRenderer` into a more general `SceneRenderer` capable of handling multiple meshes and model matrices.
+   - Introduce uniform/descriptor updates (e.g., per-object push constants or uniform buffers) for individual transforms and colours.
+3. **Scene Composition**
+   - Define a `Scene` description (plane + cube + sphere) with positioning: cube and sphere above plane with distinct heights.
+   - Compute appropriate model matrices and optional materials (colours) for each object.
+4. **Lighting Placeholder (optional)**
+   - (Optional enhancement) prepare structure for future lighting by keeping pipeline compatible with normal data, even if unlit for now.
+
+## Implementation Steps
+1. **Mesh Abstractions**
+   - Create `Mesh` class (vertex/index buffers, counts) and `GeometryFactory` generating plane/cube/sphere data.
+   - Unit-test procedural generators (dimensions, vertex counts, right-handed orientation).
+2. **Renderer Refactor**
+   - Rename/replace `TriangleRenderer` with `SceneRenderer` supporting multiple meshes and draw calls.
+   - Update shaders to accept vertex colours/normals as needed and push constant per-object transforms.
+3. **Scene Setup**
+   - Build a `Scene` object inside `Application::run` that creates meshes and defines transforms for plane (Y=0), cube (elevated), sphere (elevated).
+   - Integrate with render loop to draw all objects each frame.
+4. **Testing & Validation**
+   - Extend existing math/tests to cover new mesh factories.
+   - Run full build, unit tests, and validation.
+   - Manual run to confirm geometry arrangement.
+
+## Acceptance Criteria
+- Renderer displays plane, cube, and sphere simultaneously with cube/sphere positioned on top of plane.
+- Mesh abstraction and scene renderer follow SOLID (single responsibility, composable components).
+- Existing ImGui overlay and validation remain clean.
+- New procedural geometry has unit test coverage verifying vertex counts/orientation.
