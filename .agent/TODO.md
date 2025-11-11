@@ -159,3 +159,4 @@
 - [x] Integrate directional gizmos with cache model in SceneRenderer
 - [x] Sync point light gizmos with cache model
 - [x] Render point light gizmos from cache in command buffer
+- [x] Draft plan for multi-caster shadow map support
