@@ -282,5 +282,5 @@
 - [ ] Validate padded textures with diagnostics and runtime screenshots
 - [ ] Document padding mitigation and update changelog
 - [x] Draft plan for rewriting git authorship to a new user identity
-- [ ] Execute git history rewrite to update author and committer metadata
+- [x] Execute git history rewrite to update author and committer metadata
 - [ ] Validate rewritten history, update documentation, and run verification tests
