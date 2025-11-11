@@ -64,14 +64,11 @@ ImTextureID to_texture_id(Handle handle) noexcept {
     }
 }
 
-scene::Transform compose_local(const scene::Transform& parent, const scene::Transform& local) {
-    const glm::mat4 worldMatrix = parent.matrix() * local.matrix();
-    return scene::Transform::from_matrix(worldMatrix);
-}
-
-void flatten_nodes(const SceneRenderer::SceneNode& node, const scene::Transform& parentTransform,
+void flatten_nodes(const SceneRenderer::SceneNode& node, const glm::mat4& parentMatrix,
     bool parentVisible, std::vector<SceneRenderer::SceneMesh>& out) {
-    const scene::Transform worldTransform = compose_local(parentTransform, node.transform);
+    const glm::mat4 localMatrix = node.transform.matrix();
+    const glm::mat4 worldMatrix = parentMatrix * localMatrix;
+    const scene::Transform worldTransform = scene::Transform::from_matrix(worldMatrix);
     const bool nodeVisible = parentVisible && node.visible;
 
     if (nodeVisible && node.is_mesh() && node.geometry.has_value()) {
@@ -83,7 +80,7 @@ void flatten_nodes(const SceneRenderer::SceneNode& node, const scene::Transform&
     }
 
     for (const SceneRenderer::SceneNode& child : node.children) {
-        flatten_nodes(child, worldTransform, nodeVisible, out);
+        flatten_nodes(child, worldMatrix, nodeVisible, out);
     }
 }
 
@@ -566,7 +563,7 @@ void SceneRenderer::set_scene(const std::vector<SceneMesh>& meshes) {
 void SceneRenderer::set_scene_graph(const SceneNode& root) {
     std::vector<SceneMesh> flattened;
     flattened.reserve(64U);
-    flatten_nodes(root, scene::Transform::identity(), root.visible, flattened);
+    flatten_nodes(root, glm::mat4 {1.0F}, root.visible, flattened);
     set_scene(flattened);
 }
 
