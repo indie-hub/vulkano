@@ -236,4 +236,7 @@
     - [x] Inspect SSAO descriptor updates after viewport recreation
 - [x] Implement persistent viewport texture integration and descriptor updates
 - [x] Rebuild, run validation layers, and confirm viewport runtime stability
+- [x] Resolve viewport color attachment layout validation warnings
+    - [x] Track actual scene color image layouts and transition back to attachment use before the render pass
+    - [x] Verify barriers clear the warnings under VK_LAYER_KHRONOS_validation with resize smoke test
 - [ ] Document and validate viewport docking workflow

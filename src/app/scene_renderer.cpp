@@ -992,17 +992,14 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
         throw std::runtime_error {"Failed to begin recording command buffer"};
     }
 
-    m_sceneColorLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    m_albedoLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    m_normalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    m_linearDepthLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
     const auto source_stage_for_layout = [](VkImageLayout layout) noexcept -> VkPipelineStageFlags {
         switch (layout) {
         case VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL:
             return VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
         case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
             return VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+        case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+            return VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
         case VK_IMAGE_LAYOUT_UNDEFINED:
             return VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
         default:
@@ -1016,10 +1013,46 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
             return VK_ACCESS_SHADER_READ_BIT;
         case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
             return VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+            return VK_ACCESS_SHADER_READ_BIT;
         default:
             return VkAccessFlags {0U};
         }
     };
+
+    const auto transition_to_color_attachment = [&](const vk::ColorImage& image, VkImageLayout& layout) {
+        if (image.image() == VK_NULL_HANDLE) {
+            return;
+        }
+        if (layout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) {
+            return;
+        }
+
+        VkImageMemoryBarrier barrier {};
+        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.srcAccessMask = source_access_for_layout(layout);
+        barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        barrier.oldLayout = layout;
+        barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.image = image.image();
+        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        barrier.subresourceRange.baseMipLevel = 0U;
+        barrier.subresourceRange.levelCount = 1U;
+        barrier.subresourceRange.baseArrayLayer = 0U;
+        barrier.subresourceRange.layerCount = 1U;
+
+        vkCmdPipelineBarrier(commandBuffer, source_stage_for_layout(layout), VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            0U, 0U, nullptr, 0U, nullptr, 1U, &barrier);
+
+        layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    };
+
+    transition_to_color_attachment(m_sceneColorImage, m_sceneColorLayout);
+    transition_to_color_attachment(m_albedoImage, m_albedoLayout);
+    transition_to_color_attachment(m_normalImage, m_normalLayout);
+    transition_to_color_attachment(m_linearDepthImage, m_linearDepthLayout);
 
     for (std::uint32_t slotIndex {0U}; slotIndex < m_shadowResources.slot_count(); ++slotIndex) {
         ShadowSlot& slot = m_shadowResources.slot(slotIndex);
@@ -1281,15 +1314,13 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
         if (image == VK_NULL_HANDLE) {
             return;
         }
-        if (layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
-            return;
-        }
+        constexpr VkImageLayout targetLayout {VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
         VkImageMemoryBarrier barrier {};
         barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
         barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        barrier.oldLayout = layout;
-        barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        barrier.oldLayout = targetLayout;
+        barrier.newLayout = targetLayout;
         barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         barrier.image = image;
@@ -1299,7 +1330,7 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
         barrier.subresourceRange.baseArrayLayer = 0U;
         barrier.subresourceRange.layerCount = 1U;
         colorReadBarriers[colorBarrierCount++] = barrier;
-        layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        layout = targetLayout;
     };
 
     appendColorBarrier(m_sceneColorImage.image(), m_sceneColorLayout);
@@ -1734,10 +1765,10 @@ void SceneRenderer::create_color_resources() {
     m_linearDepthImage = vk::ColorImage::create(physicalDevice, device, extent, m_linearDepthFormat,
         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
 
-    m_sceneColorLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    m_albedoLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    m_normalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    m_linearDepthLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    m_sceneColorLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    m_albedoLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    m_normalLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    m_linearDepthLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
 }
 
