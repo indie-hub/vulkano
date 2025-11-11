@@ -25,7 +25,6 @@ public:
 
 private:
     void create_descriptor_pool();
-    void upload_fonts();
     void destroy_descriptor_pool() noexcept;
     void configure_style() noexcept;
 

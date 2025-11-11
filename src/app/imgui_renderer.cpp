@@ -48,8 +48,6 @@ ImGuiRenderer::ImGuiRenderer(const VulkanContext& context, const Window& window,
     if (!ImGui_ImplVulkan_Init(&initInfo)) {
         throw std::runtime_error {"Failed to initialise ImGui Vulkan backend"};
     }
-
-    upload_fonts();
 }
 
 ImGuiRenderer::~ImGuiRenderer() noexcept {
@@ -115,12 +113,6 @@ void ImGuiRenderer::create_descriptor_pool() {
 
     if (vkCreateDescriptorPool(m_context.device(), &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS) {
         throw std::runtime_error {"Failed to create ImGui descriptor pool"};
-    }
-}
-
-void ImGuiRenderer::upload_fonts() {
-    if (!ImGui_ImplVulkan_CreateFontsTexture()) {
-        throw std::runtime_error {"Failed to create ImGui font texture"};
     }
 }
 
