@@ -410,6 +410,13 @@ Introduce a material-driven forward renderer that supports multiple material typ
 - Each scene mesh references a valid material ID with placeholder parameters propagating through frame data without crashes.
 - Project builds with `cmake --build build`, `ctest` remains green, and runtime (`VULKANO_MAX_FRAMES=120 ./bin/vulkano_renderer`) renders existing scene unchanged visually.
 
+### Current Scene & Material Data Flow Snapshot
+- **Mesh authoring:** `vulkano::scene::MeshFactory` returns `MeshData` with per-vertex position, normal, and baked RGB colour; no material identifiers or texture references are present.
+- **Scene binding:** `Application::run` constructs `std::vector<SceneRenderer::SceneMesh>` (plane/cube/sphere) by embedding `MeshData` plus model matrices; colours are assigned at mesh-generation time and implicitly treated as albedo.
+- **GPU upload:** `SceneRenderer::set_scene` converts `scene::Vertex` into renderer-local `Vertex` structs and creates host-visible vertex/index buffers per mesh (`SceneRenderer::upload_mesh`); there is no shared material buffer—colour travels inside the vertex stream.
+- **Shader usage:** `scene.vert` forwards `inColor` to the fragment stage; `scene.frag` applies a fixed directional Lambert diffuse term and multiplies the result by the interpolated colour, treating it as albedo. SSAO strength/ambient parameters modulate the final colour via descriptor set 0 bindings.
+- **Frame orchestration:** `Application` records per-frame push constants (model/view/projection) and reuses the same mesh list during swapchain recreation; there is no runtime path to vary material parameters independently from geometry.
+
 ## Phase 2 – GPU Data & Shaders
 1. Create a GPU material buffer (structured UBO/SSBO) and descriptor set for material parameters plus combined texture array.
 2. Update scene shader(s) to index into the material buffer using per-draw material index and to sample bound textures.

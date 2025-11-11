@@ -67,7 +67,7 @@
 - [x] Plan physically-based lighting model upgrade
 
 - [x] Add Phase 1 acceptance criteria to .agent/plan.md and sync TODO steps
-- [ ] Catalogue existing scene/material data flows for Phase 1
+- [x] Catalogue existing scene/material data flows for Phase 1
 - [ ] Implement CPU-side material structs and registry backbone
 - [ ] Attach material identifiers to scene meshes with placeholder assignments
 - [ ] Rebuild, run tests, and validate runtime after Phase 1 changes
