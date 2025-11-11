@@ -148,4 +148,5 @@
 - [x] Catalogue light gizmo lifecycle code paths in renderer
 - [x] Model per-light gizmo storage abstractions
 - [x] Outline gizmo creation helper interfaces for per-light allocation
-- [ ] Design draw submission strategy for multiple directional gizmos
+- [x] Design draw submission strategy for multiple directional gizmos
+- [ ] Define target behaviour for per-light shadow matrices
