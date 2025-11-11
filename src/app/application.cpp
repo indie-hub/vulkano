@@ -56,6 +56,7 @@ int Application::run() noexcept {
         planeMaterial.properties.baseColor = glm::vec3 {0.7F, 0.7F, 0.7F};
         planeMaterial.properties.roughness = 0.9F;
         planeMaterial.textures.baseColorPath = "assets/textures/plane.png";
+        planeMaterial.useBaseColorTexture = true;
         const scene::MaterialId planeMaterialId = materialRegistry.add_material(planeMaterial);
 
         scene::Material cubeMaterial {};
@@ -63,6 +64,7 @@ int Application::run() noexcept {
         cubeMaterial.properties.roughness = 0.4F;
         cubeMaterial.properties.metallic = 0.05F;
         cubeMaterial.textures.baseColorPath = "assets/textures/cube.png";
+        cubeMaterial.useBaseColorTexture = true;
         const scene::MaterialId cubeMaterialId = materialRegistry.add_material(cubeMaterial);
 
         scene::Material sphereMaterial {};
@@ -70,6 +72,7 @@ int Application::run() noexcept {
         sphereMaterial.properties.roughness = 0.2F;
         sphereMaterial.properties.metallic = 0.6F;
         sphereMaterial.textures.baseColorPath = "assets/textures/sphere.png";
+        sphereMaterial.useBaseColorTexture = true;
         const scene::MaterialId sphereMaterialId = materialRegistry.add_material(sphereMaterial);
 
         std::vector<SceneRenderer::SceneMesh> sceneMeshes {
@@ -240,6 +243,11 @@ int Application::run() noexcept {
                             editable.properties.baseColor = baseColor;
                             materialsDirty = true;
                         }
+                        ImGui::ColorButton("##BasePreview", ImVec4(baseColor.x, baseColor.y, baseColor.z, 1.0F), 0,
+                            ImVec2(32.0F, 32.0F));
+
+                        ImGui::SameLine();
+                        ImGui::TextUnformatted("Base Color Preview");
 
                         float metallic = editable.properties.metallic;
                         if (ImGui::SliderFloat("Metallic", &metallic, 0.0F, 1.0F)) {
@@ -256,6 +264,34 @@ int Application::run() noexcept {
                         ImGui::TextUnformatted("Base texture path:");
                         ImGui::TextWrapped("%s", editable.textures.baseColorPath.empty() ? "<none>"
                             : editable.textures.baseColorPath.c_str());
+
+                        if (!editable.textures.metallicRoughnessPath.empty()) {
+                            bool useMr = editable.useMetallicRoughnessTexture;
+                            if (ImGui::Checkbox("Use Metallic/Roughness Map", &useMr)) {
+                                editable.useMetallicRoughnessTexture = useMr;
+                                materialsDirty = true;
+                            }
+                            ImGui::TextWrapped("MR texture: %s", editable.textures.metallicRoughnessPath.c_str());
+                            ImGui::ColorButton("##MRPreview",
+                                ImVec4(editable.properties.metallic, editable.properties.roughness, 0.0F, 1.0F), 0,
+                                ImVec2(24.0F, 24.0F));
+                            ImGui::SameLine();
+                            ImGui::TextUnformatted("Metallic/Roughness Preview");
+                        }
+
+                        if (!editable.textures.ambientOcclusionPath.empty()) {
+                            bool useAo = editable.useAmbientOcclusionTexture;
+                            if (ImGui::Checkbox("Use Ambient Occlusion Map", &useAo)) {
+                                editable.useAmbientOcclusionTexture = useAo;
+                                materialsDirty = true;
+                            }
+                            ImGui::TextWrapped("AO texture: %s", editable.textures.ambientOcclusionPath.c_str());
+                            ImGui::ColorButton("##AOPreview",
+                                ImVec4(editable.properties.ambientOcclusion, editable.properties.ambientOcclusion,
+                                    editable.properties.ambientOcclusion, 1.0F), 0, ImVec2(24.0F, 24.0F));
+                            ImGui::SameLine();
+                            ImGui::TextUnformatted("Ambient Occlusion Preview");
+                        }
                         ImGui::TreePop();
                     }
                 }

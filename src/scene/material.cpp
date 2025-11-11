@@ -10,6 +10,10 @@ namespace {
     defaultMaterial.properties.metallic = 0.0F;
     defaultMaterial.properties.roughness = 0.5F;
     defaultMaterial.properties.ambientOcclusion = 1.0F;
+    defaultMaterial.useBaseColorTexture = false;
+    defaultMaterial.useNormalTexture = false;
+    defaultMaterial.useMetallicRoughnessTexture = false;
+    defaultMaterial.useAmbientOcclusionTexture = false;
     return defaultMaterial;
 }
 } // namespace

@@ -50,7 +50,8 @@ void MaterialTextureCache::rebuild(const scene::MaterialRegistry& registry) {
         const scene::Material& material = registry.material(scene::MaterialId {static_cast<std::uint32_t>(index)});
         scene::MaterialTextureHandles handles {};
 
-        if (!material.textures.baseColorPath.empty()) {
+        const bool useBaseColorTexture = material.useBaseColorTexture && !material.textures.baseColorPath.empty();
+        if (useBaseColorTexture) {
             const std::string key = canonical_path_key(material.textures.baseColorPath);
             try {
                 const TextureData data = load_texture_from_file(key, TextureColorSpace::sRGB);
@@ -64,7 +65,7 @@ void MaterialTextureCache::rebuild(const scene::MaterialRegistry& registry) {
                 "base");
         }
 
-        if (!material.textures.normalPath.empty()) {
+        if (material.useNormalTexture && !material.textures.normalPath.empty()) {
             const std::string key = canonical_path_key(material.textures.normalPath);
             try {
                 const TextureData data = load_texture_from_file(key, TextureColorSpace::Linear);
@@ -78,7 +79,9 @@ void MaterialTextureCache::rebuild(const scene::MaterialRegistry& registry) {
                 "normal");
         }
 
-        if (!material.textures.metallicRoughnessPath.empty()) {
+        const bool useMetallicTexture = material.useMetallicRoughnessTexture
+            && !material.textures.metallicRoughnessPath.empty();
+        if (useMetallicTexture) {
             const std::string key = canonical_path_key(material.textures.metallicRoughnessPath);
             try {
                 const TextureData data = load_texture_from_file(key, TextureColorSpace::Linear);
@@ -96,7 +99,9 @@ void MaterialTextureCache::rebuild(const scene::MaterialRegistry& registry) {
                 TextureColorSpace::Linear, "metalrough");
         }
 
-        if (!material.textures.ambientOcclusionPath.empty()) {
+        const bool useAoTexture = material.useAmbientOcclusionTexture
+            && !material.textures.ambientOcclusionPath.empty();
+        if (useAoTexture) {
             const std::string key = canonical_path_key(material.textures.ambientOcclusionPath);
             try {
                 const TextureData data = load_texture_from_file(key, TextureColorSpace::Linear);

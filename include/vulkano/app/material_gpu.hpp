@@ -13,6 +13,7 @@ struct MaterialGpu final {
     glm::vec4 baseColorMetallic {1.0F, 1.0F, 1.0F, 0.0F};
     glm::vec4 roughnessAoFlags {0.5F, 1.0F, 0.0F, 0.0F};
     glm::uvec4 textureIndices {0U, 0U, 0U, 0U};
+    glm::vec4 textureUsage {0.0F, 0.0F, 0.0F, 0.0F};
 };
 
 struct MaterialDescriptorBindings final {
