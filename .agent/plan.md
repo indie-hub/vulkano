@@ -424,3 +424,33 @@ Introduce a material-driven forward renderer that supports multiple material typ
 1. Add unit tests for material registry (ID allocation, duplicate prevention) and texture loader error handling.
 2. Capture screenshot-based regression (manual) ensuring materials render as expected with SSAO enabled.
 3. Run `ctest`, rebuild, and execute runtime with validation layers clean.
+
+# Physically Based Lighting Plan
+
+## Goal
+Introduce a metallic-roughness physically based lighting model that works with the upcoming material system and existing SSAO pass, delivering believable diffuse/specular responses under one or more lights.
+
+## Phase 1 – Lighting Data & Infrastructure
+1. Define CPU light structs (directional, point) with color/intensity; add a light registry similar to materials.
+2. Upload light data to GPU via uniform/SSBO; update frame resources to refresh the buffer safely before command recording.
+3. Acceptance: Renderer compiles with a basic directional light; objects lit using current lambertian shading.
+
+## Phase 2 – PBR Shading Core
+1. Implement Cook–Torrance BRDF in shaders (GGX NDF, Smith G, Schlick Fresnel) plus Lambert diffuse.
+2. Extend material parameters to supply baseColor, metallic, roughness, ambient occlusion, emissive.
+3. Acceptance: Debug scene shows plausible metallic vs. dielectric highlights with tunable roughness; validation layers clean.
+
+## Phase 3 – Texture & SSAO Integration
+1. Sample material textures (albedo, metallic-roughness, normal) and feed SSAO output as ambient occlusion multiplier.
+2. Add optional normal mapping to enhance shading; ensure tangent basis is supplied in vertex data.
+3. Acceptance: Cube/sphere react to textures/roughness correctly; toggling SSAO affects indirect term but not direct lighting.
+
+## Phase 4 – Extended Lighting & Controls
+1. Support multiple lights (at least one directional + one point); add ImGui panel to adjust light properties live.
+2. Optionally prepare hooks for environment lighting (IBL) to be implemented later.
+3. Acceptance: UI can toggle/edit lights; shading responds instantly without validation warnings.
+
+## Phase 5 – Testing & Validation
+1. Add math unit tests for BRDF helper functions (Fresnel, distribution, geometry terms) and tangent-space utilities.
+2. Rebuild, run `ctest`, and exercise runtime with validation layers enabled.
+3. Acceptance: Tests pass; screenshots confirm metallic vs. dielectric behaviour across roughness values.

@@ -64,3 +64,4 @@
 - [x] Group SSAO controls in foldable UI with human-friendly labels
 - [ ] Extend SSAO tests and revalidate runtime
 - [x] Plan material-based renderer implementation
+- [x] Plan physically-based lighting model upgrade
