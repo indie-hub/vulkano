@@ -101,3 +101,7 @@
 - [x] Upload light data to GPU buffer and bind in SceneRenderer
 - [x] Integrate directional light shading in fragment shader (Lambert baseline)
 - [x] Add ImGui controls for light parameters and validate runtime
+
+- [x] Implement Cook-Torrance BRDF (GGX, Smith, Schlick) in fragment shader
+- [x] Update material buffer to expose emissive term and validate PBR math
+- [x] Validate PBR shading via build, tests, and runtime run

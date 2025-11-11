@@ -19,6 +19,8 @@ TEST_CASE("Material GPU conversion clamps values") {
     material.useNormalTexture = false;
     material.useMetallicRoughnessTexture = true;
     material.useAmbientOcclusionTexture = true;
+    material.properties.emissive = glm::vec3 {0.2F, 0.3F, 0.4F};
+    material.properties.emissiveIntensity = 1.5F;
 
     vulkano::scene::MaterialTextureHandles handles {};
     handles.baseColor = 5U;
@@ -44,6 +46,10 @@ TEST_CASE("Material GPU conversion clamps values") {
     REQUIRE_THAT(gpu.textureUsage.y, WithinAbs(0.0F, epsilon));
     REQUIRE_THAT(gpu.textureUsage.z, WithinAbs(1.0F, epsilon));
     REQUIRE_THAT(gpu.textureUsage.w, WithinAbs(1.0F, epsilon));
+    REQUIRE_THAT(gpu.emissive.x, WithinAbs(0.2F, epsilon));
+    REQUIRE_THAT(gpu.emissive.y, WithinAbs(0.3F, epsilon));
+    REQUIRE_THAT(gpu.emissive.z, WithinAbs(0.4F, epsilon));
+    REQUIRE_THAT(gpu.emissive.w, WithinAbs(1.5F, epsilon));
 }
 
 TEST_CASE("Material descriptor bindings expose layout constants") {

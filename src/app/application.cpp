@@ -300,6 +300,17 @@ int Application::run() noexcept {
                             materialsDirty = true;
                         }
 
+                        glm::vec3 emissiveColor = editable.properties.emissive;
+                        if (ImGui::ColorEdit3("Emissive Color", glm::value_ptr(emissiveColor))) {
+                            editable.properties.emissive = emissiveColor;
+                            materialsDirty = true;
+                        }
+                        float emissiveIntensity = editable.properties.emissiveIntensity;
+                        if (ImGui::SliderFloat("Emissive Intensity", &emissiveIntensity, 0.0F, 10.0F)) {
+                            editable.properties.emissiveIntensity = emissiveIntensity;
+                            materialsDirty = true;
+                        }
+
                         ImGui::TextUnformatted("Base texture path:");
                         ImGui::TextWrapped("%s", editable.textures.baseColorPath.empty() ? "<none>"
                             : editable.textures.baseColorPath.c_str());
@@ -395,7 +406,8 @@ int Application::run() noexcept {
             const SceneRenderer::CommandRecorder overlayRecorder {[&imgui](VkCommandBuffer buffer) {
                 imgui->render(buffer);
             }};
-            renderer->record_command_buffer(commandBuffer, imageIndex, camera.view_matrix(), camera.projection_matrix(), overlayRecorder, ssaoComposite->descriptor_set());
+            renderer->record_command_buffer(commandBuffer, imageIndex, camera.view_matrix(), camera.projection_matrix(),
+                camera.position(), overlayRecorder, ssaoComposite->descriptor_set());
             ssaoPass->record(commandBuffer, *ssaoDescriptors);
             ssaoBlurPass->record(commandBuffer, ssaoPass->occlusion_view());
 

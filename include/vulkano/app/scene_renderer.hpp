@@ -52,7 +52,8 @@ public:
 
     using CommandRecorder = std::function<void(VkCommandBuffer)>;
     void record_command_buffer(VkCommandBuffer commandBuffer, std::uint32_t imageIndex,
-        const glm::mat4& view, const glm::mat4& projection, const CommandRecorder& overlayRecorder,
+        const glm::mat4& view, const glm::mat4& projection, const glm::vec3& cameraPosition,
+        const CommandRecorder& overlayRecorder,
         VkDescriptorSet ssaoDescriptor = VK_NULL_HANDLE) const;
 
 private:

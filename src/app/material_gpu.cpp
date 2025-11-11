@@ -33,6 +33,7 @@ MaterialGpu make_material_gpu(const scene::Material& material, const scene::Mate
         material.useMetallicRoughnessTexture ? 1.0F : 0.0F,
         material.useAmbientOcclusionTexture ? 1.0F : 0.0F
     };
+    gpu.emissive = glm::vec4 {material.properties.emissive, material.properties.emissiveIntensity};
 
     return gpu;
 }

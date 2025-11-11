@@ -5,7 +5,8 @@ layout(location = 1) in vec3 fragNormalWorld;
 layout(location = 2) in vec3 fragViewPos;
 layout(location = 3) in vec3 fragNormalView;
 layout(location = 4) in vec2 fragUV;
-layout(location = 5) flat in uint fragMaterialIndex;
+layout(location = 5) in vec3 fragPosWorld;
+layout(location = 6) flat in uint fragMaterialIndex;
 
 layout(set = 0, binding = 0) uniform SSAOConfig {
     float occlusionStrength;
@@ -22,6 +23,7 @@ struct MaterialGpu {
     vec4 roughnessAoFlags;
     uvec4 textureIndices;
     vec4 textureUsage;
+    vec4 emissive;
 };
 
 layout(set = 1, binding = 0) readonly buffer MaterialBuffer {
@@ -38,12 +40,22 @@ layout(set = 2, binding = 0) readonly buffer LightBuffer {
     LightGpu lights[];
 } lightBuffer;
 
+layout(push_constant) uniform PushConstants {
+    mat4 model;
+    mat4 view;
+    mat4 projection;
+    uvec4 materialData;
+    vec4 cameraPosition;
+} pushConstants;
+
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out vec4 outAlbedo;
 layout(location = 2) out vec4 outNormal;
 layout(location = 3) out float outLinearDepth;
 
 void main() {
+    const float PI = 3.14159265359;
+
     vec3 normalWorld = normalize(fragNormalWorld);
     vec3 normalView = normalize(fragNormalView);
 
@@ -71,9 +83,48 @@ void main() {
         float aoSample = texture(materialTextures[aoIndex], fragUV).r;
         ambientOcclusion = clamp(aoSample, 0.0, 1.0);
     }
+
     LightGpu keyLight = lightBuffer.lights[0];
     vec3 lightDirection = normalize(-keyLight.directionIntensity.xyz);
-    float diffuse = max(dot(normalWorld, lightDirection), 0.0) * keyLight.directionIntensity.w;
+    vec3 lightColor = keyLight.colorType.rgb * keyLight.directionIntensity.w;
+
+    vec3 V = normalize(pushConstants.cameraPosition.xyz - fragPosWorld);
+    if (length(V) < 1e-6) {
+        V = normalize(-fragViewPos);
+    }
+    vec3 L = normalize(lightDirection);
+    float NdotL = max(dot(normalWorld, L), 0.0);
+    float NdotV = max(dot(normalWorld, V), 0.0);
+
+    vec3 radiance = vec3(0.0);
+    if (NdotL > 0.0 && NdotV > 0.0) {
+        vec3 H = normalize(L + V);
+        float NdotH = max(dot(normalWorld, H), 0.0);
+        float VdotH = max(dot(V, H), 0.0);
+
+        float alpha = max(roughness * roughness, 0.001);
+        float alpha2 = alpha * alpha;
+        float denom = NdotH * NdotH * (alpha2 - 1.0) + 1.0;
+        float D = alpha2 / (PI * denom * denom);
+
+        float k = (roughness + 1.0);
+        k = (k * k) * 0.125;
+        float Gv = NdotV / (NdotV * (1.0 - k) + k);
+        float Gl = NdotL / (NdotL * (1.0 - k) + k);
+        float G = Gv * Gl;
+
+        vec3 F0 = mix(vec3(0.04), albedo, metallic);
+        vec3 F = F0 + (1.0 - F0) * pow(max(1.0 - VdotH, 0.0), 5.0);
+
+        vec3 numerator = D * G * F;
+        float denomSpec = max(4.0 * NdotV * NdotL, 0.001);
+        vec3 specular = numerator / denomSpec;
+
+        vec3 kd = (1.0 - F) * (1.0 - metallic);
+        vec3 diffuse = kd * albedo / PI;
+
+        radiance = (diffuse + specular) * lightColor * NdotL;
+    }
 
     vec2 occlusionUV = gl_FragCoord.xy / vec2(textureSize(ssaoTex, 0));
     float occlusion = texture(ssaoTex, occlusionUV).r;
@@ -90,8 +141,8 @@ void main() {
     float occlusionFactor = mix(1.0, occlusion, clamp(uConfig.occlusionStrength, 0.0, 1.0));
     float ambient = uConfig.baseAmbient * occlusionFactor * ambientOcclusion;
 
-    vec3 direct = albedo * diffuse * keyLight.colorType.rgb;
-    vec3 lit = direct + albedo * ambient;
+    vec3 emissive = material.emissive.rgb * material.emissive.w;
+    vec3 lit = radiance + albedo * ambient + emissive;
 
     outColor = vec4(lit, 1.0);
     outAlbedo = vec4(albedo, 1.0);
