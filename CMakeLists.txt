@@ -30,6 +30,8 @@ set(VULKANO_SHADER_SOURCES
     ${CMAKE_SOURCE_DIR}/shaders/ssao.frag
     ${CMAKE_SOURCE_DIR}/shaders/ssao_blur.vert
     ${CMAKE_SOURCE_DIR}/shaders/ssao_blur.frag
+    ${CMAKE_SOURCE_DIR}/shaders/shadow.vert
+    ${CMAKE_SOURCE_DIR}/shaders/shadow.frag
 )
 
 set(VULKANO_SHADER_OUTPUT_DIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders)
@@ -164,6 +166,8 @@ add_library(vulkano_app STATIC
     src/app/material_buffer.cpp
     src/app/light_gpu.cpp
     src/app/light_buffer.cpp
+    src/app/shadow_map.cpp
+    src/app/shadow_pass.cpp
     src/app/vulkan_context.cpp
     src/app/window.cpp
     src/scene/mesh.cpp
@@ -200,6 +204,8 @@ target_sources(vulkano_app
             include/vulkano/app/material_buffer.hpp
             include/vulkano/app/light_gpu.hpp
             include/vulkano/app/light_buffer.hpp
+            include/vulkano/app/shadow_map.hpp
+            include/vulkano/app/shadow_pass.hpp
             include/vulkano/app/vulkan_context.hpp
             include/vulkano/app/window.hpp
             include/vulkano/vk/instance.hpp

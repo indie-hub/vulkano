@@ -103,14 +103,17 @@ ShadowMap::ShadowMap(const VulkanContext& context, VkExtent2D extent, VkFormat d
 }
 
 ShadowMap::~ShadowMap() noexcept {
+    destroy();
 }
 
 ShadowMap::ShadowMap(ShadowMap&& other) noexcept
-    : m_renderPass {other.m_renderPass}
+    : m_context {other.m_context}
+    , m_renderPass {other.m_renderPass}
     , m_framebuffer {other.m_framebuffer}
     , m_depthImage {std::move(other.m_depthImage)}
     , m_sampler {other.m_sampler}
     , m_extent {other.m_extent} {
+    other.m_context = nullptr;
     other.m_renderPass = VK_NULL_HANDLE;
     other.m_framebuffer = VK_NULL_HANDLE;
     other.m_sampler = VK_NULL_HANDLE;
@@ -119,13 +122,15 @@ ShadowMap::ShadowMap(ShadowMap&& other) noexcept
 
 ShadowMap& ShadowMap::operator=(ShadowMap&& other) noexcept {
     if (this != &other) {
-        // Deliberately no destroy here; caller must call destroy via context before move if needed.
+        destroy();
         m_renderPass = other.m_renderPass;
         m_framebuffer = other.m_framebuffer;
         m_depthImage = std::move(other.m_depthImage);
         m_sampler = other.m_sampler;
         m_extent = other.m_extent;
+        m_context = other.m_context;
 
+        other.m_context = nullptr;
         other.m_renderPass = VK_NULL_HANDLE;
         other.m_framebuffer = VK_NULL_HANDLE;
         other.m_sampler = VK_NULL_HANDLE;
@@ -135,7 +140,7 @@ ShadowMap& ShadowMap::operator=(ShadowMap&& other) noexcept {
 }
 
 void ShadowMap::recreate(const VulkanContext& context, VkExtent2D extent, VkFormat depthFormat) {
-    destroy(context);
+    destroy();
     create_shadow_resources(context, extent, depthFormat);
 }
 
@@ -159,8 +164,11 @@ VkDescriptorImageInfo ShadowMap::descriptor_info() const noexcept {
     return info;
 }
 
-void ShadowMap::destroy(const VulkanContext& context) noexcept {
-    VkDevice device = context.device();
+void ShadowMap::destroy() noexcept {
+    if (m_context == nullptr) {
+        return;
+    }
+    VkDevice device = m_context->device();
     if (m_framebuffer != VK_NULL_HANDLE) {
         vkDestroyFramebuffer(device, m_framebuffer, nullptr);
         m_framebuffer = VK_NULL_HANDLE;
@@ -174,19 +182,20 @@ void ShadowMap::destroy(const VulkanContext& context) noexcept {
         vkDestroyRenderPass(device, m_renderPass, nullptr);
         m_renderPass = VK_NULL_HANDLE;
     }
+    m_depthImage = vk::DepthImage {};
+    m_context = nullptr;
 }
 
 void ShadowMap::create_shadow_resources(const VulkanContext& context, VkExtent2D extent, VkFormat depthFormat) {
+    m_context = &context;
     m_extent = extent;
     const VkDevice device = context.device();
 
-    m_depthImage = vk::DepthImage::create_with_layout(context.physical_device(), device, extent, depthFormat,
-        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+    const VkImageUsageFlags usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    m_depthImage = vk::DepthImage::create(context.physical_device(), device, extent, depthFormat, usage);
 
     m_renderPass = create_render_pass(device, depthFormat);
     m_framebuffer = create_framebuffer(device, m_renderPass, m_depthImage.view(), extent);
     m_sampler = create_shadow_sampler(device);
 }
 } // namespace vulkano::app
-

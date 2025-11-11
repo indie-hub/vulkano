@@ -7,7 +7,9 @@ namespace vulkano::vk {
 class DepthImage final {
 public:
     DepthImage() noexcept = default;
-    static DepthImage create(VkPhysicalDevice physicalDevice, VkDevice device, VkExtent2D extent, VkFormat format);
+    static DepthImage create(
+        VkPhysicalDevice physicalDevice, VkDevice device, VkExtent2D extent, VkFormat format,
+        VkImageUsageFlags usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
 
     DepthImage(const DepthImage&) = delete;
     DepthImage& operator=(const DepthImage&) = delete;

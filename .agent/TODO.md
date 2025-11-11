@@ -136,3 +136,4 @@
 - [x] Rebuild, run tests, and validate multi-light runtime
 - [x] Draft plan for shadow mapping integration
 - [x] Implement shadow map resources (depth image, sampler, framebuffer)
+- [x] Build shadow map pass pipeline and command recording

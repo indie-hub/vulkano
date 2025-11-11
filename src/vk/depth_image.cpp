@@ -3,7 +3,7 @@
 #include <stdexcept>
 
 namespace {
-VkImage create_image(VkDevice device, VkExtent2D extent, VkFormat format) {
+VkImage create_image(VkDevice device, VkExtent2D extent, VkFormat format, VkImageUsageFlags usage) {
     VkImageCreateInfo imageInfo {};
     imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     imageInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -15,7 +15,7 @@ VkImage create_image(VkDevice device, VkExtent2D extent, VkFormat format) {
     imageInfo.arrayLayers = 1U;
     imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
     imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-    imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    imageInfo.usage = usage;
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
@@ -28,12 +28,13 @@ VkImage create_image(VkDevice device, VkExtent2D extent, VkFormat format) {
 }
 
 namespace vulkano::vk {
-DepthImage DepthImage::create(VkPhysicalDevice physicalDevice, VkDevice device, VkExtent2D extent, VkFormat format) {
+DepthImage DepthImage::create(
+    VkPhysicalDevice physicalDevice, VkDevice device, VkExtent2D extent, VkFormat format, VkImageUsageFlags usage) {
     VkImage image {VK_NULL_HANDLE};
     VkDeviceMemory memory {VK_NULL_HANDLE};
     VkImageView view {VK_NULL_HANDLE};
 
-    image = create_image(device, extent, format);
+    image = create_image(device, extent, format, usage);
 
     VkMemoryRequirements requirements {};
     vkGetImageMemoryRequirements(device, image, &requirements);
