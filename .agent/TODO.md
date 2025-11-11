@@ -199,3 +199,7 @@
 - [x] Draft embedded texture handling plan (see .agent/plan_assimp_embedded_textures.md)
 - [x] Implement embedded texture extraction in AssetImporter
 - [ ] Validate embedded texture rendering and document workflow
+
+- [x] Draft plan for object transform parameter support (position, rotation, scale)
+- [ ] Implement object transform parameter support across CPU/GPU paths
+- [ ] Extend tests and documentation for transform parameter workflow
