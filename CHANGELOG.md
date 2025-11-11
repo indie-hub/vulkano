@@ -11,3 +11,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 - Regenerate tangent frames for imported meshes so normal maps remain stable when source assets omit tangents.
+- Stop flipping textures vertically during load (glTF assets now match Blender by default). Legacy behaviour can be restored with `VULKANO_ENABLE_TEXTURE_FLIP=1`.

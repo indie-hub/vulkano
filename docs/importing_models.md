@@ -24,6 +24,10 @@ data are ignored for now; only static meshes and materials are converted.
 5. Tangent frames are regenerated for every imported mesh when the source asset
    omits them so that normal maps render correctly without requiring precomputed
    tangents.
+6. Textures are loaded without implicit vertical flipping to match glTF’s
+   conventions. If you ever need the legacy flipped orientation, set the
+   `VULKANO_ENABLE_TEXTURE_FLIP=1` environment variable before launching the
+   renderer.
 
 If loading fails, the application logs an error with the Assimp message.
 

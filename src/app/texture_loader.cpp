@@ -30,12 +30,12 @@
 namespace vulkano::app {
 namespace {
 [[nodiscard]] bool should_flip_vertically() noexcept {
-    if (const char* disableFlip = std::getenv("VULKANO_DISABLE_TEXTURE_FLIP")) {
-        if (std::strcmp(disableFlip, "0") != 0) {
-            return false;
+    if (const char* enableFlip = std::getenv("VULKANO_ENABLE_TEXTURE_FLIP")) {
+        if (std::strcmp(enableFlip, "0") != 0) {
+            return true;
         }
     }
-    return true;
+    return false;
 }
 
 [[nodiscard]] std::uint32_t clamp_resolution(std::uint32_t value) noexcept {

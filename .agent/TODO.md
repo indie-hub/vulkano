@@ -263,7 +263,7 @@
 - [x] Trace material assignments for chair mesh subsets
 - [x] Inspect UV indexing and flip configuration
 - [x] Isolate mesh subsets exhibiting incorrect sampling
-- [ ] Implement UV correction for leather panels
+- [x] Implement UV correction for leather panels
 - [ ] Extend tests/documentation and update changelog for UV seam fix
 - [ ] Build, test, and capture runtime verification for UV seam fix
 
@@ -271,7 +271,7 @@
 
 - [x] Draft UV sampling investigation plan (.agent/plan_uv_sampling.md)
 - [x] Evaluate sampler configuration impact on leather bleed (env toggles, diagnostics)
-- [ ] Select minimal sampler adjustment for leather bleed
+- [x] Select minimal sampler adjustment for leather bleed
 
 - [ ] Draft UV channel audit plan (.agent/plan_uv_channel_audit.md)
 - [x] Implement UV channel audit plan (visualisations, logs)
