@@ -257,3 +257,12 @@
 - [x] Extend automated coverage for UV/tangent paths
 - [x] Document UV/tangent workflow updates and update CHANGELOG
 - [x] Build, run tests, and verify runtime visuals for UV/tangent fix
+
+- [ ] Draft leather UV seam investigation plan (.agent/plan_uv_seam.md)
+- [ ] Capture baseline UV data for affected leather panels
+- [ ] Trace material assignments for chair mesh subsets
+- [ ] Inspect UV indexing and flip configuration
+- [ ] Isolate mesh subsets exhibiting incorrect sampling
+- [ ] Implement UV correction for leather panels
+- [ ] Extend tests/documentation and update changelog for UV seam fix
+- [ ] Build, test, and capture runtime verification for UV seam fix
