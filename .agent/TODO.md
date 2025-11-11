@@ -71,3 +71,9 @@
 - [x] Implement CPU-side material structs and registry backbone
 - [x] Attach material identifiers to scene meshes with placeholder assignments
 - [x] Rebuild, run tests, and validate runtime after Phase 1 changes
+
+- [x] Refine Phase 2 GPU material buffer plan in .agent/plan.md
+- [ ] Define CPU/GPU material buffer layout and descriptor set design
+- [ ] Implement CPU-side material buffer population and frame update path
+- [ ] Update shaders and pipeline layouts to consume material buffer
+- [ ] Validate materials applied per mesh (build, tests, runtime)
