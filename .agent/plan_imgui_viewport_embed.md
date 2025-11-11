@@ -46,3 +46,9 @@ Render the swapchain image directly inside the ImGui `Viewport` window so the sc
   - Extend tests (where possible) to assert that viewport dimensions feed into renderer (e.g., new unit for aspect ratio handling).
   - Update documentation (`docs/ui_docking.md`) explaining that the viewport now displays the rendering directly.
   - *Acceptance:* Tests pass; docs updated; QA run captured.
+
+## Audit Findings (2025-10-03)
+- ImGui backend initialisation passes `colorAttachmentCount = SceneRenderer::color_attachment_count()` (4) while the present render pass exposes a single color attachment, leading to pipeline state validation complaints.
+- `create_color_resources` pre-transitions the scene color and linear depth images to `VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL`; the scene render pass declares an `initialLayout` of `VK_IMAGE_LAYOUT_UNDEFINED`, so the layout tracker records a mismatch before the first subpass.
+- The linear depth attachment description sets `initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL` despite clearing and writing to it as a color attachment, which conflicts with the intended usage and complicates layout transitions.
+

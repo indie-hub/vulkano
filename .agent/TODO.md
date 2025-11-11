@@ -227,4 +227,7 @@
 - [x] Document and validate enhanced UI layouts
 
 - [x] Implement viewport embedding per .agent/plan_imgui_viewport_embed.md
+- [x] Audit scene render pass and pipeline attachment configuration for viewport embedding
+- [ ] Fix pipeline attachments and layout transitions for viewport rendering
+- [ ] Rebuild, run tests, and validate viewport docking runtime
 - [ ] Document and validate viewport docking workflow
