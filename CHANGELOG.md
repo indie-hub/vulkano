@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 - Mesh packing helper that preserves UV and tangent attributes during GPU upload.
 - Automated UV propagation test using a dedicated OBJ asset for regression coverage.
+- Git identity rewrite plan documenting the procedure to reset historical author/committer metadata (.agent/plan_git_identity_rewrite.md).
 
 ### Fixed
 - Regenerate tangent frames for imported meshes so normal maps remain stable when source assets omit tangents.
