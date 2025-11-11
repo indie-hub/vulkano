@@ -13,20 +13,31 @@ namespace {
     }
     return glm::vec3 {0.0F, -1.0F, 0.0F};
 }
+
+[[nodiscard]] float sanitize_range(float range) noexcept {
+    return range <= 0.0F ? 0.01F : range;
+}
+
+[[nodiscard]] Light sanitize_light(const Light& light) noexcept {
+    Light sanitized = light;
+    if (sanitized.type == LightType::Directional) {
+        sanitized.direction = normalize_or_default(light.direction);
+    }
+    sanitized.range = sanitize_range(light.range);
+    return sanitized;
+}
 } // namespace
 
 LightRegistry::LightRegistry() {
     Light defaultLight {};
-    defaultLight.direction = glm::vec3 {0.0F, -1.0F, 0.0F};
-    defaultLight.color = glm::vec3 {1.0F, 1.0F, 1.0F};
-    defaultLight.intensity = 1.0F;
+    defaultLight.direction = glm::normalize(glm::vec3 {-0.5F, -1.0F, -0.25F});
+    defaultLight.color = glm::vec3 {1.0F, 0.95F, 0.85F};
+    defaultLight.intensity = 2.5F;
     m_lights.push_back(defaultLight);
 }
 
 LightId LightRegistry::add_light(const Light& light) {
-    Light normalized = light;
-    normalized.direction = normalize_or_default(light.direction);
-    m_lights.push_back(normalized);
+    m_lights.push_back(sanitize_light(light));
     return LightId {static_cast<std::uint32_t>(m_lights.size() - 1U)};
 }
 
@@ -34,9 +45,7 @@ void LightRegistry::update_light(LightId id, const Light& light) {
     if (!is_valid(id)) {
         throw std::out_of_range {"LightRegistry::update_light received invalid light id"};
     }
-    Light normalized = light;
-    normalized.direction = normalize_or_default(light.direction);
-    m_lights[id.value] = normalized;
+    m_lights[id.value] = sanitize_light(light);
 }
 
 const Light& LightRegistry::light(LightId id) const {
@@ -65,4 +74,3 @@ bool LightRegistry::is_valid(LightId id) const noexcept {
     return id.value < m_lights.size();
 }
 } // namespace vulkano::scene
-

@@ -18,6 +18,7 @@ TEST_CASE("Light registry has default directional light") {
     const glm::vec3 expectedDirection = glm::normalize(glm::vec3 {-0.5F, -1.0F, -0.25F});
     REQUIRE(glm::all(glm::epsilonEqual(light.direction, expectedDirection, 1e-4F)));
     REQUIRE_THAT(light.intensity, WithinAbs(2.5F, 1e-4F));
+    REQUIRE(light.range > 0.0F);
 }
 
 TEST_CASE("Light registry normalizes direction") {
@@ -33,6 +34,7 @@ TEST_CASE("Light registry normalizes direction") {
     const vulkano::scene::Light& stored = registry.light(id);
     REQUIRE(stored.direction == glm::vec3 {1.0F, 0.0F, 0.0F});
     REQUIRE_THAT(stored.intensity, WithinAbs(2.5F, 1e-4F));
+    REQUIRE(stored.range > 0.0F);
 }
 
 TEST_CASE("Light registry updates existing entries") {
@@ -53,4 +55,25 @@ TEST_CASE("Light registry updates existing entries") {
     const vulkano::scene::Light& stored = registry.light(id);
     REQUIRE(stored.direction == glm::vec3 {0.0F, -1.0F, 0.0F});
     REQUIRE_THAT(stored.intensity, WithinAbs(3.0F, 1e-4F));
+}
+
+TEST_CASE("Point lights preserve position and range") {
+    using Catch::Matchers::WithinAbs;
+
+    vulkano::scene::LightRegistry registry {};
+
+    vulkano::scene::Light pointLight {};
+    pointLight.type = vulkano::scene::LightType::Point;
+    pointLight.position = glm::vec3 {1.0F, 2.0F, -3.0F};
+    pointLight.range = 0.0F; // should be sanitized to minimum value
+    pointLight.intensity = 4.0F;
+
+    const vulkano::scene::LightId id = registry.add_light(pointLight);
+    const vulkano::scene::Light& stored = registry.light(id);
+
+    REQUIRE(stored.type == vulkano::scene::LightType::Point);
+    REQUIRE(stored.position == glm::vec3 {1.0F, 2.0F, -3.0F});
+    REQUIRE(stored.range > 0.0F);
+    REQUIRE(stored.direction == pointLight.direction);
+    REQUIRE_THAT(stored.intensity, WithinAbs(4.0F, 1e-4F));
 }
