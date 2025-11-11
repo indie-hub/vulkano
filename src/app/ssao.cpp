@@ -419,7 +419,7 @@ SSAODescriptors::SSAODescriptors(const VulkanContext& context, const SSAOGpuReso
         const VkDevice device = m_device;
 
         VkDescriptorPoolSize poolSizes[2] = {
-            {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1U},
+            {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2U},
             {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 3U}
         };
 
@@ -433,7 +433,7 @@ SSAODescriptors::SSAODescriptors(const VulkanContext& context, const SSAOGpuReso
             throw std::runtime_error {"Failed to create SSAO descriptor pool"};
         }
 
-        VkDescriptorSetLayoutBinding bindings[4] = {};
+        VkDescriptorSetLayoutBinding bindings[5] = {};
         bindings[0].binding = 0U;
         bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         bindings[0].descriptorCount = 1U;
@@ -454,9 +454,14 @@ SSAODescriptors::SSAODescriptors(const VulkanContext& context, const SSAOGpuReso
         bindings[3].descriptorCount = 1U;
         bindings[3].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
+        bindings[4].binding = 4U;
+        bindings[4].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        bindings[4].descriptorCount = 1U;
+        bindings[4].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
         VkDescriptorSetLayoutCreateInfo layoutInfo {};
         layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        layoutInfo.bindingCount = 4U;
+        layoutInfo.bindingCount = 5U;
         layoutInfo.pBindings = bindings;
 
         if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &m_layout) != VK_SUCCESS) {
@@ -499,12 +504,23 @@ SSAODescriptors::SSAODescriptors(const VulkanContext& context, const SSAOGpuReso
         bufferInfo.offset = 0U;
         bufferInfo.range = VK_WHOLE_SIZE;
 
+        const VkDeviceSize paramsSize = sizeof(ShaderParams);
+        m_paramsBuffer = create_buffer(context.physical_device(), device, paramsSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, m_paramsMemory);
+        ShaderParams params {};
+        copy_to_memory(device, m_paramsMemory, &params, paramsSize);
+
+        VkDescriptorBufferInfo paramsInfo {};
+        paramsInfo.buffer = m_paramsBuffer;
+        paramsInfo.offset = 0U;
+        paramsInfo.range = paramsSize;
+
         VkDescriptorImageInfo noiseInfo {};
         noiseInfo.sampler = resources.noise_sampler();
         noiseInfo.imageView = resources.noise_image_view();
         noiseInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-        std::array<VkWriteDescriptorSet, 2> initialWrites {
+        std::array<VkWriteDescriptorSet, 3> initialWrites {
             VkWriteDescriptorSet {
                 .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                 .pNext = nullptr,
@@ -527,6 +543,18 @@ SSAODescriptors::SSAODescriptors(const VulkanContext& context, const SSAOGpuReso
                 .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                 .pImageInfo = &noiseInfo,
                 .pBufferInfo = nullptr,
+                .pTexelBufferView = nullptr
+            },
+            VkWriteDescriptorSet {
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .pNext = nullptr,
+                .dstSet = m_descriptorSet,
+                .dstBinding = 4U,
+                .dstArrayElement = 0U,
+                .descriptorCount = 1U,
+                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                .pImageInfo = nullptr,
+                .pBufferInfo = &paramsInfo,
                 .pTexelBufferView = nullptr
             }
         };
@@ -561,6 +589,8 @@ SSAODescriptors& SSAODescriptors::operator=(SSAODescriptors&& other) noexcept {
     m_descriptorSet = other.m_descriptorSet;
     m_normalSampler = other.m_normalSampler;
     m_depthSampler = other.m_depthSampler;
+    m_paramsBuffer = other.m_paramsBuffer;
+    m_paramsMemory = other.m_paramsMemory;
 
     other.m_device = VK_NULL_HANDLE;
     other.m_descriptorPool = VK_NULL_HANDLE;
@@ -568,6 +598,8 @@ SSAODescriptors& SSAODescriptors::operator=(SSAODescriptors&& other) noexcept {
     other.m_descriptorSet = VK_NULL_HANDLE;
     other.m_normalSampler = VK_NULL_HANDLE;
     other.m_depthSampler = VK_NULL_HANDLE;
+    other.m_paramsBuffer = VK_NULL_HANDLE;
+    other.m_paramsMemory = VK_NULL_HANDLE;
 
     return *this;
 }
@@ -625,6 +657,16 @@ void SSAODescriptors::update_gbuffer_views(VkImageView normalView, VkImageView d
     vkUpdateDescriptorSets(m_device, static_cast<std::uint32_t>(writes.size()), writes.data(), 0U, nullptr);
 }
 
+void SSAODescriptors::set_camera_inverse_projection(const glm::mat4& inverseProjection) noexcept {
+    if (m_device == VK_NULL_HANDLE || m_paramsMemory == VK_NULL_HANDLE) {
+        return;
+    }
+
+    ShaderParams params {};
+    params.inverseProjection = inverseProjection;
+    copy_to_memory(m_device, m_paramsMemory, &params, sizeof(ShaderParams));
+}
+
 void SSAODescriptors::destroy() noexcept {
     if (m_device == VK_NULL_HANDLE) {
         return;
@@ -645,6 +687,14 @@ void SSAODescriptors::destroy() noexcept {
     if (m_depthSampler != VK_NULL_HANDLE) {
         vkDestroySampler(m_device, m_depthSampler, nullptr);
         m_depthSampler = VK_NULL_HANDLE;
+    }
+    if (m_paramsBuffer != VK_NULL_HANDLE) {
+        vkDestroyBuffer(m_device, m_paramsBuffer, nullptr);
+        m_paramsBuffer = VK_NULL_HANDLE;
+    }
+    if (m_paramsMemory != VK_NULL_HANDLE) {
+        vkFreeMemory(m_device, m_paramsMemory, nullptr);
+        m_paramsMemory = VK_NULL_HANDLE;
     }
 
     m_descriptorSet = VK_NULL_HANDLE;

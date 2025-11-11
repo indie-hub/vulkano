@@ -6,6 +6,7 @@
 
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
+#include <glm/mat4x4.hpp>
 
 #include <vulkan/vulkan.h>
 
@@ -77,6 +78,7 @@ public:
     [[nodiscard]] VkDescriptorSetLayout layout() const noexcept;
     [[nodiscard]] VkDescriptorSet descriptor_set() const noexcept;
     void update_gbuffer_views(VkImageView normalView, VkImageView depthView);
+    void set_camera_inverse_projection(const glm::mat4& inverseProjection) noexcept;
 
 private:
     void destroy() noexcept;
@@ -87,6 +89,12 @@ private:
     VkDescriptorSet m_descriptorSet {VK_NULL_HANDLE};
     VkSampler m_normalSampler {VK_NULL_HANDLE};
     VkSampler m_depthSampler {VK_NULL_HANDLE};
+    VkBuffer m_paramsBuffer {VK_NULL_HANDLE};
+    VkDeviceMemory m_paramsMemory {VK_NULL_HANDLE};
+
+    struct ShaderParams final {
+        glm::mat4 inverseProjection {1.0F};
+    };
 };
 
 class SSAOPass final {

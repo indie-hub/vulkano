@@ -44,3 +44,5 @@
 - [x] Render raw SSAO occlusion texture when debug view is enabled
 - [x] Rebuild, run tests, and validate SSAO debug visualisation
 - [x] Draft SSAO quality improvement plan with acceptance criteria
+- [x] Wire inverse-projection uniform and view-space normals for SSAO data prep
+- [x] Rebuild, test, and verify SSAO debug view reflects new data
