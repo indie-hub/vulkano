@@ -11,6 +11,7 @@
 #include <vulkano/scene/material.hpp>
 #include <vulkano/scene/light.hpp>
 #include <vulkano/scene/mesh.hpp>
+#include <vulkano/scene/transform.hpp>
 #include <vulkano/vk/color_image.hpp>
 #include <vulkano/vk/depth_image.hpp>
 #include <vulkano/app/shadow_resources.hpp>
@@ -26,7 +27,7 @@ class SceneRenderer final {
 public:
     struct SceneMesh final {
         scene::MeshData mesh {};
-        glm::mat4 model {1.0F};
+        scene::Transform transform {};
         scene::MaterialId material {scene::MaterialId::invalid()};
     };
 

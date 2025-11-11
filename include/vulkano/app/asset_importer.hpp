@@ -10,6 +10,7 @@
 
 #include <vulkano/scene/material.hpp>
 #include <vulkano/scene/mesh.hpp>
+#include <vulkano/scene/transform.hpp>
 #include <vulkano/app/texture_loader.hpp>
 
 namespace vulkano::app {
@@ -20,7 +21,7 @@ struct ImportedMaterial final {
 struct ImportedMesh final {
     scene::MeshData mesh {};
     std::uint32_t materialIndex {0U};
-    glm::mat4 transform {1.0F};
+    scene::Transform transform {};
 };
 
 struct ImportedScene final {

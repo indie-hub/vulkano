@@ -17,6 +17,7 @@
 #include <vulkano/scene/material.hpp>
 #include <vulkano/scene/light.hpp>
 #include <vulkano/scene/mesh.hpp>
+#include <vulkano/scene/transform.hpp>
 
 #include <GLFW/glfw3.h>
 #include <imgui.h>
@@ -26,6 +27,7 @@
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
@@ -102,23 +104,26 @@ int Application::run() noexcept {
         sphereMaterial.useAmbientOcclusionTexture = false;
         const scene::MaterialId sphereMaterialId = materialRegistry.add_material(sphereMaterial);
 
-        std::vector<SceneRenderer::SceneMesh> sceneMeshes {
-            SceneRenderer::SceneMesh {
-                .mesh = vulkano::scene::MeshFactory::create_plane(10.0F, glm::vec3 {0.7F, 0.7F, 0.7F}),
-                .model = glm::mat4(1.0F),
-                .material = planeMaterialId
-            },
-            SceneRenderer::SceneMesh {
-                .mesh = vulkano::scene::MeshFactory::create_cube(1.0F, glm::vec3 {0.8F, 0.2F, 0.2F}),
-                .model = glm::translate(glm::mat4(1.0F), glm::vec3 {-1.5F, 0.5F, 0.0F}),
-                .material = cubeMaterialId
-            },
-            SceneRenderer::SceneMesh {
-                .mesh = vulkano::scene::MeshFactory::create_uv_sphere(0.5F, 32U, 16U, glm::vec3 {0.2F, 0.4F, 0.85F}),
-                .model = glm::translate(glm::mat4(1.0F), glm::vec3 {1.5F, 0.5F, 0.0F}),
-                .material = sphereMaterialId
-            }
-        };
+        std::vector<SceneRenderer::SceneMesh> sceneMeshes;
+        sceneMeshes.reserve(3U);
+
+        SceneRenderer::SceneMesh planeMesh {};
+        planeMesh.mesh = vulkano::scene::MeshFactory::create_plane(10.0F, glm::vec3 {0.7F, 0.7F, 0.7F});
+        planeMesh.transform = scene::Transform::identity();
+        planeMesh.material = planeMaterialId;
+        sceneMeshes.push_back(std::move(planeMesh));
+
+        SceneRenderer::SceneMesh cubeMesh {};
+        cubeMesh.mesh = vulkano::scene::MeshFactory::create_cube(1.0F, glm::vec3 {0.8F, 0.2F, 0.2F});
+        cubeMesh.transform.position = glm::vec3 {-1.5F, 0.5F, 0.0F};
+        cubeMesh.material = cubeMaterialId;
+        sceneMeshes.push_back(std::move(cubeMesh));
+
+        SceneRenderer::SceneMesh sphereMesh {};
+        sphereMesh.mesh = vulkano::scene::MeshFactory::create_uv_sphere(0.5F, 32U, 16U, glm::vec3 {0.2F, 0.4F, 0.85F});
+        sphereMesh.transform.position = glm::vec3 {1.5F, 0.5F, 0.0F};
+        sphereMesh.material = sphereMaterialId;
+        sceneMeshes.push_back(std::move(sphereMesh));
 
         const char* modelPath = std::getenv("VULKANO_MODEL");
         if (modelPath != nullptr && std::strlen(modelPath) > 0) {
@@ -138,7 +143,7 @@ int Application::run() noexcept {
                 for (ImportedMesh& importedMesh : imported.meshes) {
                     SceneRenderer::SceneMesh meshEntry {};
                     meshEntry.mesh = std::move(importedMesh.mesh);
-                    meshEntry.model = importedMesh.transform;
+                    meshEntry.transform = importedMesh.transform;
                     const std::uint32_t importedMaterialIndex = importedMesh.materialIndex;
                     if (importedMaterialIndex < importedMaterialIds.size()) {
                         meshEntry.material = importedMaterialIds[importedMaterialIndex];
@@ -158,6 +163,7 @@ int Application::run() noexcept {
         bool materialsDirty = false;
         bool lightsDirty = false;
         bool showLightDebug = true;
+        bool sceneDirty = false;
 
         SSAOSampleGenerator ssaoGenerator {};
         SSAOGpuResources ssaoResources {context, ssaoGenerator, 64U, 4U};
@@ -615,6 +621,46 @@ int Application::run() noexcept {
                 }
             }
             ImGui::End();
+
+            if (ImGui::Begin("Objects")) {
+                for (std::size_t index {0U}; index < sceneMeshes.size(); ++index) {
+                    SceneRenderer::SceneMesh& mesh = sceneMeshes[index];
+                    ImGui::PushID(static_cast<int>(index));
+                    const std::string label = "Mesh " + std::to_string(index);
+                    if (ImGui::TreeNode(label.c_str())) {
+                        glm::vec3 position = mesh.transform.position;
+                        if (ImGui::DragFloat3("Position", glm::value_ptr(position), 0.05F, -100.0F, 100.0F)) {
+                            mesh.transform.position = position;
+                            sceneDirty = true;
+                        }
+
+                        glm::vec3 rotationDegrees = mesh.transform.euler_degrees();
+                        if (ImGui::DragFloat3("Rotation (deg)", glm::value_ptr(rotationDegrees), 0.5F, -720.0F, 720.0F)) {
+                            mesh.transform.set_euler_degrees(rotationDegrees);
+                            sceneDirty = true;
+                        }
+
+                        glm::vec3 scale = mesh.transform.scale;
+                        if (ImGui::DragFloat3("Scale", glm::value_ptr(scale), 0.02F, -100.0F, 100.0F)) {
+                            constexpr float minScale {0.001F};
+                            scale.x = std::max(scale.x, minScale);
+                            scale.y = std::max(scale.y, minScale);
+                            scale.z = std::max(scale.z, minScale);
+                            mesh.transform.scale = scale;
+                            sceneDirty = true;
+                        }
+
+                        if (ImGui::Button("Reset Transform")) {
+                            mesh.transform = scene::Transform::identity();
+                            sceneDirty = true;
+                        }
+                        ImGui::TreePop();
+                    }
+                    ImGui::PopID();
+                }
+            }
+            ImGui::End();
+
             float effectiveStrength = ssaoEnabled ? ssaoStrength : 0.0F;
             ssaoComposite->set_config(effectiveStrength, ssaoBaseAmbient, ssaoDebugView);
             ssaoDescriptors->set_camera_parameters(camera.projection_matrix(), glm::inverse(camera.projection_matrix()),
@@ -623,6 +669,12 @@ int Application::run() noexcept {
             ssaoBlurPass->set_parameters(ssaoBlurRadius, ssaoBlurDepthSigma);
             // Descriptor already points at blurred occlusion; no per-frame update needed
             imgui->end_frame();
+
+            if (sceneDirty) {
+                context.wait_idle();
+                renderer->set_scene(sceneMeshes);
+                sceneDirty = false;
+            }
 
             if (materialsDirty) {
                 context.wait_idle();
