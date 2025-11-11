@@ -262,7 +262,7 @@
 - [x] Capture baseline UV data for affected leather panels
 - [x] Trace material assignments for chair mesh subsets
 - [x] Inspect UV indexing and flip configuration
-- [ ] Isolate mesh subsets exhibiting incorrect sampling
+- [x] Isolate mesh subsets exhibiting incorrect sampling
 - [ ] Implement UV correction for leather panels
 - [ ] Extend tests/documentation and update changelog for UV seam fix
 - [ ] Build, test, and capture runtime verification for UV seam fix
