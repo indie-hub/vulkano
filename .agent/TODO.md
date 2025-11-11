@@ -88,3 +88,7 @@
 - [x] Extend mesh data with UV coordinates and update shaders to pass them
 - [x] Load placeholder textures from disk and assign them to scene materials
 - [x] Sample base color textures via UVs in fragment shader and verify runtime
+
+- [x] Add ImGui material panel with per-material parameters (color, metallic, roughness)
+- [x] Update material buffer when ImGui edits occur, respecting in-flight frames
+- [ ] Validate ImGui-driven material edits via build, tests, and runtime run
