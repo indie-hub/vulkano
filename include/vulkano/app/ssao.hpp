@@ -133,7 +133,7 @@ public:
     SSAOCompositeDescriptors& operator=(SSAOCompositeDescriptors&& other) noexcept;
 
     void update_occlusion_view(VkImageView view);
-    void set_config(float strength, float baseAmbient);
+    void set_config(float strength, float baseAmbient, bool debugView = false);
 
     [[nodiscard]] VkDescriptorSetLayout layout() const noexcept;
     [[nodiscard]] VkDescriptorSet descriptor_set() const noexcept;
@@ -145,7 +145,8 @@ private:
     struct Config final {
         float occlusionStrength {1.0F};
         float baseAmbient {0.2F};
-        glm::vec2 padding {0.0F};
+        float debugView {0.0F};
+        float padding {0.0F};
     };
 
     VkDevice m_device {VK_NULL_HANDLE};

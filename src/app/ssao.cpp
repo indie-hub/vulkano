@@ -1233,9 +1233,10 @@ void SSAOCompositeDescriptors::update_occlusion_view(VkImageView view) {
     vkUpdateDescriptorSets(m_device, 1U, &write, 0U, nullptr);
 }
 
-void SSAOCompositeDescriptors::set_config(float strength, float baseAmbient) {
+void SSAOCompositeDescriptors::set_config(float strength, float baseAmbient, bool debugView) {
     m_config.occlusionStrength = strength;
     m_config.baseAmbient = baseAmbient;
+    m_config.debugView = debugView ? 1.0F : 0.0F;
     write_config();
 }
 
