@@ -128,7 +128,7 @@
 - [x] Rebuild, run tests, and validate runtime with normal strength controls
 - [x] Draft plan for multi-light support expansion
 - [x] Extend lighting data model for multiple lights
-- [ ] Expand GPU light buffer and descriptor handling
+- [x] Expand GPU light buffer and descriptor handling
 - [ ] Update shaders for multi-light accumulation
 - [ ] Integrate renderer bindings and buffer updates
 - [ ] Extend ImGui lighting panel for multi-light editing

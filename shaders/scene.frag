@@ -36,6 +36,7 @@ layout(set = 1, binding = 1) uniform sampler2D materialTextures[MATERIAL_TEXTURE
 struct LightGpu {
     vec4 directionIntensity;
     vec4 colorType;
+    vec4 positionRange;
 };
 
 layout(set = 2, binding = 0) readonly buffer LightBuffer {

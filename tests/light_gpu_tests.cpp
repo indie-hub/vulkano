@@ -12,6 +12,8 @@ TEST_CASE("Light GPU builder normalizes and packs data") {
     light.direction = glm::vec3 {0.0F, -2.0F, 0.0F};
     light.color = glm::vec3 {0.5F, 0.8F, 0.3F};
     light.intensity = 2.0F;
+    light.position = glm::vec3 {1.0F, 2.0F, 3.0F};
+    light.range = 12.5F;
     const auto id = registry.add_light(light);
     REQUIRE(id.value == 1U);
 
@@ -24,4 +26,8 @@ TEST_CASE("Light GPU builder normalizes and packs data") {
     REQUIRE_THAT(gpu.directionIntensity.w, WithinAbs(2.0F, 1e-4F));
     REQUIRE_THAT(gpu.colorType.x, WithinAbs(0.5F, 1e-4F));
     REQUIRE_THAT(gpu.colorType.w, WithinAbs(static_cast<float>(vulkano::scene::LightType::Directional), 1e-4F));
+    REQUIRE_THAT(gpu.positionRange.x, WithinAbs(1.0F, 1e-4F));
+    REQUIRE_THAT(gpu.positionRange.y, WithinAbs(2.0F, 1e-4F));
+    REQUIRE_THAT(gpu.positionRange.z, WithinAbs(3.0F, 1e-4F));
+    REQUIRE_THAT(gpu.positionRange.w, WithinAbs(light.range, 1e-4F));
 }

@@ -18,9 +18,13 @@ std::vector<LightGpu> build_light_gpu_buffer(const scene::LightRegistry& registr
     buffer.reserve(registry.size());
     for (const scene::Light& light : registry.lights()) {
         LightGpu gpu {};
-        const glm::vec3 direction = normalize_or_default(light.direction);
+        glm::vec3 direction = light.direction;
+        if (light.type == scene::LightType::Directional) {
+            direction = normalize_or_default(light.direction);
+        }
         gpu.directionIntensity = glm::vec4 {direction, light.intensity};
         gpu.colorType = glm::vec4 {light.color, static_cast<float>(light.type)};
+        gpu.positionRange = glm::vec4 {light.position, light.range};
         buffer.push_back(gpu);
     }
     if (buffer.empty()) {
@@ -29,4 +33,3 @@ std::vector<LightGpu> build_light_gpu_buffer(const scene::LightRegistry& registr
     return buffer;
 }
 } // namespace vulkano::app
-
