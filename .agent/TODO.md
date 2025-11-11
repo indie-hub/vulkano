@@ -241,5 +241,5 @@
     - [x] Verify barriers clear the warnings under VK_LAYER_KHRONOS_validation with resize smoke test
 - [x] Document and validate viewport docking workflow
 - [x] Draft SSAO alignment correction plan
-- [ ] Implement SSAO alignment corrections
+- [x] Implement SSAO alignment corrections
 - [ ] Validate SSAO alignment fix (tests, validation, docs)

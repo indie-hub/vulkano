@@ -224,8 +224,9 @@ int Application::run() noexcept {
 
         auto ssaoDescriptors = std::make_unique<SSAODescriptors>(context, ssaoResources,
             renderer->normal_image_view(), renderer->linear_depth_image_view());
-        auto ssaoPass = std::make_unique<SSAOPass>(context, ssaoDescriptors->layout(), context.swapchain_extent());
-        auto ssaoBlurPass = std::make_unique<SSAOBlurPass>(context, context.swapchain_extent());
+        const VkExtent2D initialViewportExtent = renderer->viewport_extent();
+        auto ssaoPass = std::make_unique<SSAOPass>(context, ssaoDescriptors->layout(), initialViewportExtent);
+        auto ssaoBlurPass = std::make_unique<SSAOBlurPass>(context, initialViewportExtent);
         ssaoBlurPass->set_depth_view(renderer->linear_depth_image_view());
         ssaoBlurPass->set_occlusion_view(ssaoPass->occlusion_view());
         float ssaoBlurRadius = 2.0F;
@@ -239,7 +240,7 @@ int Application::run() noexcept {
         float ssaoDistanceRange = 0.5F;
         float ssaoNormalEpsilon = 0.05F;
         ssaoDescriptors->set_camera_parameters(camera.projection_matrix(), glm::inverse(camera.projection_matrix()),
-            context.swapchain_extent(), ssaoRadius, ssaoBias, ssaoResources.noise_dimension(), ssaoAngleCos,
+            initialViewportExtent, ssaoRadius, ssaoBias, ssaoResources.noise_dimension(), ssaoAngleCos,
             ssaoDepthRange, ssaoDistanceRange, ssaoNormalEpsilon);
 
         bool ssaoEnabled = true;
@@ -503,14 +504,15 @@ int Application::run() noexcept {
             renderer->set_material_resources(materialBuffer, materialTextures);
             renderer->set_light_resources(lightBuffer, lightRegistry);
             renderer->set_show_light_debug(showLightDebug);
+            const VkExtent2D recreatedViewportExtent = renderer->viewport_extent();
             ssaoDescriptors->update_gbuffer_views(renderer->normal_image_view(), renderer->linear_depth_image_view());
-            ssaoPass->resize(context, context.swapchain_extent());
-            ssaoBlurPass->resize(context, context.swapchain_extent());
+            ssaoPass->resize(context, recreatedViewportExtent);
+            ssaoBlurPass->resize(context, recreatedViewportExtent);
             ssaoBlurPass->set_depth_view(renderer->linear_depth_image_view());
             ssaoBlurPass->set_occlusion_view(ssaoPass->occlusion_view());
             ssaoComposite->update_occlusion_view(ssaoBlurPass->blurred_view());
             ssaoDescriptors->set_camera_parameters(camera.projection_matrix(), glm::inverse(camera.projection_matrix()),
-                context.swapchain_extent(), ssaoRadius, ssaoBias, ssaoResources.noise_dimension(), ssaoAngleCos,
+                recreatedViewportExtent, ssaoRadius, ssaoBias, ssaoResources.noise_dimension(), ssaoAngleCos,
                 ssaoDepthRange, ssaoDistanceRange, ssaoNormalEpsilon);
             ssaoBlurPass->set_parameters(ssaoBlurRadius, ssaoBlurDepthSigma);
 
@@ -565,7 +567,14 @@ int Application::run() noexcept {
                 if (viewportChanged && renderer->normal_image_view() != VK_NULL_HANDLE
                     && renderer->linear_depth_image_view() != VK_NULL_HANDLE) {
                     ssaoDescriptors->update_gbuffer_views(renderer->normal_image_view(), renderer->linear_depth_image_view());
+                    ssaoPass->resize(context, viewportExtent);
+                    ssaoBlurPass->resize(context, viewportExtent);
                     ssaoBlurPass->set_depth_view(renderer->linear_depth_image_view());
+                    ssaoBlurPass->set_occlusion_view(ssaoPass->occlusion_view());
+                    ssaoComposite->update_occlusion_view(ssaoBlurPass->blurred_view());
+                    ssaoDescriptors->set_camera_parameters(camera.projection_matrix(), glm::inverse(camera.projection_matrix()),
+                        viewportExtent, ssaoRadius, ssaoBias, ssaoResources.noise_dimension(), ssaoAngleCos,
+                        ssaoDepthRange, ssaoDistanceRange, ssaoNormalEpsilon);
                 }
             }
             const bool viewportActive = dockResult.viewportHovered || dockResult.viewportFocused;

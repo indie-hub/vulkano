@@ -15,6 +15,12 @@ Ensure the SSAO pass samples g-buffer data in the same coordinate space and reso
    - Confirm whether any SSAO resource still uses the swapchain extent (current code paths: `context.swapchain_extent()` during init/resize) and whether noise scale / projection uniforms are updated when the viewport changes.
    - *Acceptance:* Written notes summarising each extent source, pinpointing mismatches.
 
+### Audit Notes (2025-10-06)
+- Initial setup (`Application::run`) constructs `SSAOPass`, `SSAOBlurPass`, and their descriptors with `context.swapchain_extent()`.
+- Viewport resize path (`renderer->set_viewport_extent`) only refreshes g-buffer image views and blur depth view; SSAO pass/blur extents remain at swapchain size.
+- `SSAODescriptors::set_camera_parameters` runs once at init (using swapchain extent) and during swapchain recreation, but **not** during regular viewport resize, so noise scale + projection matrices never match the viewport aspect.
+- Result: SSAO sampling still assumes swapchain resolution, causing occlusion to drift when the docked viewport width/height differ from the window.
+
 3. **Refactor SSAO Resource Resizing**
    - Update SSAO & blur passes to accept the viewport extent supplied by `SceneRenderer::set_viewport_extent`.
    - Ensure resizing waits for GPU idle, recreates images/framebuffers/descriptors, and keeps descriptor bindings in sync with new g-buffer views.
