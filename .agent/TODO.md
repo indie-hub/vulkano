@@ -96,3 +96,8 @@
 - [x] Sample metallic/roughness/AO textures in fragment shader and expose toggles
 - [x] Add ImGui controls for texture usage flags and preview thumbnails
 - [x] Validate textured shading changes via build, tests, and runtime run
+
+- [x] Define lighting component structs and registry (directional light support)
+- [ ] Upload light data to GPU buffer and bind in SceneRenderer
+- [ ] Integrate directional light shading in fragment shader (Lambert baseline)
+- [ ] Add ImGui controls for light parameters and validate runtime
