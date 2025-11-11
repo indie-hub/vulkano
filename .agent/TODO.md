@@ -245,4 +245,4 @@
 - [x] Validate SSAO alignment fix (tests, validation, docs)
 - [x] Draft object visibility toggle plan
 - [x] Implement scene object visibility toggles
-- [ ] Validate visibility controls (tests, docs)
+- [x] Validate visibility controls (tests, docs)

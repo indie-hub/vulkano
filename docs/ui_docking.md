@@ -11,6 +11,9 @@ floating windows. Key points:
   you move the scene to a second monitor.
 - **Inspector Pairing:** `Scene Graph` docks alongside an `Inspector` panel that
   exposes transform editing and geometry details for the selected node.
+- **Visibility Controls:** Eye checkboxes in the Scene Graph toggle node
+  visibility; the Inspector mirrors the toggle for the selected node. Hidden
+  nodes are greyed out and omitted from rendering until re-enabled.
 - **Control Tabs:** `Lighting`, `Materials`, and `SSAO` share the same dock node
   by default, appearing as a tab bar on the right/bottom depending on the preset.
 - **Toolbar Strip:** A floating toolbar at the top of the viewport provides

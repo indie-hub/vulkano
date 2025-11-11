@@ -21,13 +21,14 @@ vulkano::scene::Transform compose_transform(
 }
 
 void gather_mesh_world_transforms(const vulkano::app::SceneRenderer::SceneNode& node,
-    const vulkano::scene::Transform& parent, std::vector<glm::mat4>& out) {
+    const vulkano::scene::Transform& parent, bool parentVisible, std::vector<glm::mat4>& out) {
     const vulkano::scene::Transform world = compose_transform(parent, node.transform);
-    if (node.is_mesh()) {
+    const bool nodeVisible = parentVisible && node.visible;
+    if (nodeVisible && node.is_mesh()) {
         out.push_back(world.matrix());
     }
     for (const auto& child : node.children) {
-        gather_mesh_world_transforms(child, world, out);
+        gather_mesh_world_transforms(child, world, nodeVisible, out);
     }
 }
 }
@@ -66,7 +67,7 @@ TEST_CASE("SceneNode hierarchy composes transforms for mesh children") {
     root.children.push_back(group);
 
     std::vector<glm::mat4> worldTransforms;
-    gather_mesh_world_transforms(root, vulkano::scene::Transform::identity(), worldTransforms);
+    gather_mesh_world_transforms(root, vulkano::scene::Transform::identity(), root.visible, worldTransforms);
 
     REQUIRE(worldTransforms.size() == 1U);
     const glm::mat4 world = worldTransforms.front();
@@ -102,4 +103,38 @@ TEST_CASE("Parent rotation preserves child translation in world space") {
             REQUIRE(actualRotation[column][row] == Catch::Approx(expectedRotation[column][row]).margin(1e-4F));
         }
     }
+}
+
+TEST_CASE("Invisible nodes are excluded from flattened mesh list") {
+    using Node = vulkano::app::SceneRenderer::SceneNode;
+
+    Node root {};
+    root.name = "Root";
+
+    Node groupA {};
+    groupA.name = "GroupA";
+    groupA.visible = false;
+
+    Node meshA {};
+    meshA.name = "HiddenMesh";
+    meshA.geometry.emplace();
+    meshA.geometry->material = vulkano::scene::MaterialId {1U};
+    groupA.children.push_back(meshA);
+
+    Node groupB {};
+    groupB.name = "GroupB";
+
+    Node meshB {};
+    meshB.name = "VisibleMesh";
+    meshB.geometry.emplace();
+    meshB.geometry->material = vulkano::scene::MaterialId {2U};
+    groupB.children.push_back(meshB);
+
+    root.children.push_back(groupA);
+    root.children.push_back(groupB);
+
+    std::vector<glm::mat4> worldTransforms;
+    gather_mesh_world_transforms(root, vulkano::scene::Transform::identity(), root.visible, worldTransforms);
+
+    REQUIRE(worldTransforms.size() == 1U);
 }
