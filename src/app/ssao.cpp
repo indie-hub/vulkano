@@ -852,7 +852,6 @@ void SSAOPass::record(VkCommandBuffer commandBuffer, const SSAODescriptors& desc
     vkCmdDraw(commandBuffer, 3U, 1U, 0U, 0U);
 
     vkCmdEndRenderPass(commandBuffer);
-
 }
 
 VkImageView SSAOPass::occlusion_view() const noexcept {
@@ -1418,7 +1417,59 @@ void SSAOBlurPass::resize(const VulkanContext& context, VkExtent2D extent) {
 }
 
 void SSAOBlurPass::set_depth_view(VkImageView depthView) noexcept {
+    if (depthView == VK_NULL_HANDLE || m_device == VK_NULL_HANDLE || m_descriptorSet == VK_NULL_HANDLE) {
+        m_depthView = depthView;
+        return;
+    }
+
+    if (depthView == m_depthView) {
+        return;
+    }
+
     m_depthView = depthView;
+
+    VkDescriptorImageInfo depthInfo {};
+    depthInfo.sampler = m_depthSampler;
+    depthInfo.imageView = m_depthView;
+    depthInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkWriteDescriptorSet depthWrite {};
+    depthWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    depthWrite.dstSet = m_descriptorSet;
+    depthWrite.dstBinding = 1U;
+    depthWrite.descriptorCount = 1U;
+    depthWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    depthWrite.pImageInfo = &depthInfo;
+
+    vkUpdateDescriptorSets(m_device, 1U, &depthWrite, 0U, nullptr);
+}
+
+void SSAOBlurPass::set_occlusion_view(VkImageView occlusionView) noexcept {
+    if (occlusionView == VK_NULL_HANDLE || m_device == VK_NULL_HANDLE || m_descriptorSet == VK_NULL_HANDLE) {
+        m_occlusionView = occlusionView;
+        return;
+    }
+
+    if (occlusionView == m_occlusionView) {
+        return;
+    }
+
+    m_occlusionView = occlusionView;
+
+    VkDescriptorImageInfo occlusionInfo {};
+    occlusionInfo.sampler = m_occlusionSampler;
+    occlusionInfo.imageView = m_occlusionView;
+    occlusionInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkWriteDescriptorSet occlusionWrite {};
+    occlusionWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    occlusionWrite.dstSet = m_descriptorSet;
+    occlusionWrite.dstBinding = 0U;
+    occlusionWrite.descriptorCount = 1U;
+    occlusionWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    occlusionWrite.pImageInfo = &occlusionInfo;
+
+    vkUpdateDescriptorSets(m_device, 1U, &occlusionWrite, 0U, nullptr);
 }
 
 void SSAOBlurPass::set_parameters(float radius, float depthSigma) noexcept {
@@ -1431,63 +1482,15 @@ void SSAOBlurPass::set_parameters(float radius, float depthSigma) noexcept {
 }
 
 void SSAOBlurPass::record(VkCommandBuffer commandBuffer, VkImageView occlusionView) const {
-    if (m_device == VK_NULL_HANDLE || occlusionView == VK_NULL_HANDLE || m_depthView == VK_NULL_HANDLE) {
+    if (m_device == VK_NULL_HANDLE || occlusionView == VK_NULL_HANDLE || m_depthView == VK_NULL_HANDLE
+        || m_occlusionView == VK_NULL_HANDLE) {
         return;
     }
 
-    VkDescriptorImageInfo occlusionInfo {};
-    occlusionInfo.sampler = m_occlusionSampler;
-    occlusionInfo.imageView = occlusionView;
-    occlusionInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    static_cast<void>(occlusionView); // descriptor already points to m_occlusionView
 
-    VkDescriptorImageInfo depthInfo {};
-    depthInfo.sampler = m_depthSampler;
-    depthInfo.imageView = m_depthView;
-    depthInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-    std::array<VkWriteDescriptorSet, 2> descriptorWrites {
-        VkWriteDescriptorSet {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .pNext = nullptr,
-            .dstSet = m_descriptorSet,
-            .dstBinding = 0U,
-            .dstArrayElement = 0U,
-            .descriptorCount = 1U,
-            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .pImageInfo = &occlusionInfo,
-            .pBufferInfo = nullptr,
-            .pTexelBufferView = nullptr
-        },
-        VkWriteDescriptorSet {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .pNext = nullptr,
-            .dstSet = m_descriptorSet,
-            .dstBinding = 1U,
-            .dstArrayElement = 0U,
-            .descriptorCount = 1U,
-            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .pImageInfo = &depthInfo,
-            .pBufferInfo = nullptr,
-            .pTexelBufferView = nullptr
-        }
-    };
-    vkUpdateDescriptorSets(m_device, static_cast<std::uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0U, nullptr);
-
-    VkImageMemoryBarrier toColorAttachment {};
-    toColorAttachment.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    toColorAttachment.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-    toColorAttachment.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    toColorAttachment.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    toColorAttachment.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    toColorAttachment.image = m_blurImage.image();
-    toColorAttachment.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    toColorAttachment.subresourceRange.baseMipLevel = 0U;
-    toColorAttachment.subresourceRange.levelCount = 1U;
-    toColorAttachment.subresourceRange.baseArrayLayer = 0U;
-    toColorAttachment.subresourceRange.layerCount = 1U;
-
-    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        0U, 0U, nullptr, 0U, nullptr, 1U, &toColorAttachment);
+    transition_blur_image(commandBuffer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
 
     VkClearValue clear {};
     clear.color = {{1.0F, 1.0F, 1.0F, 1.0F}};
@@ -1523,21 +1526,7 @@ void SSAOBlurPass::record(VkCommandBuffer commandBuffer, VkImageView occlusionVi
 
     vkCmdEndRenderPass(commandBuffer);
 
-    VkImageMemoryBarrier toShaderRead {};
-    toShaderRead.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    toShaderRead.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    toShaderRead.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-    toShaderRead.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    toShaderRead.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    toShaderRead.image = m_blurImage.image();
-    toShaderRead.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    toShaderRead.subresourceRange.baseMipLevel = 0U;
-    toShaderRead.subresourceRange.levelCount = 1U;
-    toShaderRead.subresourceRange.baseArrayLayer = 0U;
-    toShaderRead.subresourceRange.layerCount = 1U;
-
-    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-        0U, 0U, nullptr, 0U, nullptr, 1U, &toShaderRead);
+    // render pass final layout transitions the blur image to shader read
 }
 
 VkImageView SSAOBlurPass::blurred_view() const noexcept {
@@ -1912,3 +1901,33 @@ void SSAOBlurPass::recreate_framebuffer(const VulkanContext& context, VkExtent2D
 }
 
 } // namespace vulkano::app
+void vulkano::app::SSAOBlurPass::transition_blur_image(VkCommandBuffer commandBuffer, VkImageLayout oldLayout,
+    VkImageLayout newLayout, VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage) const {
+    VkImageMemoryBarrier barrier {};
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.srcAccessMask = 0U;
+    barrier.dstAccessMask = 0U;
+
+    if (oldLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) {
+        barrier.srcAccessMask |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    } else if (oldLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+        barrier.srcAccessMask |= VK_ACCESS_SHADER_READ_BIT;
+    }
+
+    if (newLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) {
+        barrier.dstAccessMask |= VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    } else if (newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+        barrier.dstAccessMask |= VK_ACCESS_SHADER_READ_BIT;
+    }
+
+    barrier.oldLayout = oldLayout;
+    barrier.newLayout = newLayout;
+    barrier.image = m_blurImage.image();
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.baseMipLevel = 0U;
+    barrier.subresourceRange.levelCount = 1U;
+    barrier.subresourceRange.baseArrayLayer = 0U;
+    barrier.subresourceRange.layerCount = 1U;
+
+    vkCmdPipelineBarrier(commandBuffer, srcStage, dstStage, 0U, 0U, nullptr, 0U, nullptr, 1U, &barrier);
+}
