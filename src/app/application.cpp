@@ -21,6 +21,7 @@
 
 #include <GLFW/glfw3.h>
 #include <imgui.h>
+#include <imgui_internal.h>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -248,6 +249,58 @@ int Application::run() noexcept {
             SceneRenderer::color_attachment_count());
         auto frameResources = std::make_unique<FrameResources>(context);
 
+        bool dockspaceConfigured = false;
+        const auto drawDockspace = [&dockspaceConfigured]() {
+            ImGuiIO& io = ImGui::GetIO();
+            if ((io.ConfigFlags & ImGuiConfigFlags_DockingEnable) == 0U) {
+                return;
+            }
+
+            ImGuiViewport* viewport = ImGui::GetMainViewport();
+            ImGui::SetNextWindowPos(viewport->WorkPos);
+            ImGui::SetNextWindowSize(viewport->WorkSize);
+            ImGui::SetNextWindowViewport(viewport->ID);
+
+            const ImGuiWindowFlags hostFlags = ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoTitleBar
+                | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove
+                | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoBackground;
+
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0F);
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0F);
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2 {0.0F, 0.0F});
+
+            const bool open = ImGui::Begin("DockSpaceHost", nullptr, hostFlags);
+            if (open) {
+                const ImGuiDockNodeFlags dockFlags = ImGuiDockNodeFlags_PassthruCentralNode;
+                const ImGuiID dockspaceId = ImGui::GetID("MainDockSpace");
+
+                if (!dockspaceConfigured) {
+                    ImGuiDockNode* existingNode = ImGui::DockBuilderGetNode(dockspaceId);
+                    if (existingNode == nullptr) {
+                        ImGui::DockBuilderRemoveNode(dockspaceId);
+                        ImGui::DockBuilderAddNode(dockspaceId, ImGuiDockNodeFlags_DockSpace | dockFlags);
+                        ImGui::DockBuilderSetNodeSize(dockspaceId, viewport->WorkSize);
+
+                        ImGuiID dockMainId = dockspaceId;
+                        const ImGuiID leftId = ImGui::DockBuilderSplitNode(dockMainId, ImGuiDir_Left, 0.24F, nullptr, &dockMainId);
+                        const ImGuiID rightId = ImGui::DockBuilderSplitNode(dockMainId, ImGuiDir_Right, 0.26F, nullptr, &dockMainId);
+                        const ImGuiID bottomId = ImGui::DockBuilderSplitNode(dockMainId, ImGuiDir_Down, 0.32F, nullptr, &dockMainId);
+
+                        ImGui::DockBuilderDockWindow("Scene Graph", leftId);
+                        ImGui::DockBuilderDockWindow("Lighting", rightId);
+                        ImGui::DockBuilderDockWindow("SSAO", bottomId);
+                        ImGui::DockBuilderDockWindow("Materials", dockMainId);
+                        ImGui::DockBuilderFinish(dockspaceId);
+                    }
+                    dockspaceConfigured = true;
+                }
+
+                ImGui::DockSpace(dockspaceId, ImVec2 {0.0F, 0.0F}, dockFlags);
+            }
+            ImGui::End();
+            ImGui::PopStyleVar(3);
+        };
+
         auto recreateSwapchain = [&]() {
             context.wait_idle();
 
@@ -325,6 +378,7 @@ int Application::run() noexcept {
             // camera parameters will be updated after UI to capture new SSAO tuning values
 
             imgui->begin_frame();
+            drawDockspace();
             imgui->update_metrics(deltaSeconds);
             imgui->draw_overlay();
             if (ImGui::Begin("SSAO")) {

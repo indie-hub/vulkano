@@ -87,7 +87,7 @@ void ImGuiRenderer::draw_overlay() const noexcept {
     ImGui::SetNextWindowBgAlpha(0.35F);
     if (ImGui::Begin("Diagnostics", nullptr,
             ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings
-                | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav)) {
+                | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoDocking)) {
         ImGui::Text("Frame: %.2f ms", m_frameTimeMilliseconds);
         ImGui::Text("FPS: %.1f", m_framesPerSecond);
     }
@@ -128,5 +128,7 @@ void ImGuiRenderer::destroy_descriptor_pool() noexcept {
 
 void ImGuiRenderer::configure_style() noexcept {
     ImGui::StyleColorsDark();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 }
 } // namespace vulkano::app
