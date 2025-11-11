@@ -2,6 +2,6 @@
 - [x] Draft execution plan with acceptance criteria for Vulkan renderer (GLFW, ImGui, glm, right-handed)
 - [x] Update plan to state macOS runtime support requirement
 - [x] Implement Vulkan and GLFW initialization for rendering window
-- [ ] Add triangle rendering pipeline and validation logic
+- [x] Add triangle rendering pipeline and validation logic
 - [ ] Integrate ImGui overlay with renderer lifecycle
 - [ ] Add automated tests and package runnable binaries

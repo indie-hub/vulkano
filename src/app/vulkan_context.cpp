@@ -486,10 +486,12 @@ VulkanContext::VulkanContext(const Window& window) {
     m_physicalDevice = pick_physical_device(m_instance, m_surface);
 
     const QueueFamilyIndices indices = find_queue_families(m_physicalDevice, m_surface);
+    m_graphicsQueueFamilyIndex = indices.graphicsFamily.value();
+    m_presentQueueFamilyIndex = indices.presentFamily.value();
     m_device = create_logical_device(m_physicalDevice, indices);
 
-    vkGetDeviceQueue(m_device, indices.graphicsFamily.value(), 0U, &m_graphicsQueue);
-    vkGetDeviceQueue(m_device, indices.presentFamily.value(), 0U, &m_presentQueue);
+    vkGetDeviceQueue(m_device, m_graphicsQueueFamilyIndex, 0U, &m_graphicsQueue);
+    vkGetDeviceQueue(m_device, m_presentQueueFamilyIndex, 0U, &m_presentQueue);
 
     const SwapchainCreationOutput swapchainOutput = create_swapchain(m_physicalDevice, m_device, m_surface, window, indices);
     m_swapchain = swapchainOutput.swapchain;
@@ -546,6 +548,10 @@ VkInstance VulkanContext::instance() const noexcept {
     return m_instance;
 }
 
+VkPhysicalDevice VulkanContext::physical_device() const noexcept {
+    return m_physicalDevice;
+}
+
 VkDevice VulkanContext::device() const noexcept {
     return m_device;
 }
@@ -560,6 +566,14 @@ VkQueue VulkanContext::graphics_queue() const noexcept {
 
 VkQueue VulkanContext::present_queue() const noexcept {
     return m_presentQueue;
+}
+
+std::uint32_t VulkanContext::graphics_queue_family_index() const noexcept {
+    return m_graphicsQueueFamilyIndex;
+}
+
+std::uint32_t VulkanContext::present_queue_family_index() const noexcept {
+    return m_presentQueueFamilyIndex;
 }
 
 VkSwapchainKHR VulkanContext::swapchain() const noexcept {
