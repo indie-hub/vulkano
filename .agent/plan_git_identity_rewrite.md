@@ -20,12 +20,13 @@ Rebase and rewrite the entire repository history so every commit records the cor
 3. **Create a Safety Backup**
    - Make a fresh bare clone (`git clone --mirror . ../vulkano_codex_backup.git`) or tag the current HEAD.
    - Confirm the backup remote is accessible in case rollback is needed.
-4. **Author Mapping Definition**
-   - Create `.agent/git_identity_mailmap` listing every old identity that should map to the new one using the mailmap syntax (`New Name <new@email.com> Old Name <old@email>`).
-   - Version-control this mailmap snapshot so future rewrites are reproducible.
-5. **Run `git filter-repo`**
-   - Execute `git filter-repo --mailmap .agent/git_identity_mailmap --force` from the repo root.
-   - If `git filter-repo` is unavailable, fall back to `git rebase --root --exec 'git commit --amend --reset-author'` while exporting `GIT_AUTHOR_*`/`GIT_COMMITTER_*`.
+4. **Environment Setup**
+   - Create `.agent/git_identity.env` (not committed) exporting the canonical `GIT_AUTHOR_*` and `GIT_COMMITTER_*` values.
+   - Source the file before invoking history rewrite commands so every amended commit inherits the new identity automatically.
+5. **Run Interactive Root Rebase**
+   - Execute `git rebase -r --root --exec "git commit --amend --no-edit --reset-author"` from the repo root after sourcing `.agent/git_identity.env`.
+   - The `-r/--rebase-merges` flag preserves existing merge commits while `--root` walks the entire history.
+   - `--exec` ensures each commit is amended in place, rewriting both author and committer without altering tree contents.
 6. **Verify Rewritten History**
    - Inspect `git log --format='%h %an <%ae> %cn <%ce>' | head` and `tail` to ensure both author and committer fields use the new identity.
    - Run `git fsck --strict` plus the full build/test suite to confirm the tree state is unchanged and healthy.
