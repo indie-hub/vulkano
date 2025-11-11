@@ -113,3 +113,6 @@
 - [x] Extend mesh vertex data to include tangents for normal mapping
 - [x] Update vertex input/shaders to consume tangent frame and sample normal maps
 - [x] Validate normal mapping via build, tests, and runtime run
+- [x] Enable normal map usage for default scene materials and rebuild caches
+- [ ] Update ImGui material panel to control normal map toggles and previews
+- [ ] Rebuild, run tests, and validate runtime with normal mapping controls
