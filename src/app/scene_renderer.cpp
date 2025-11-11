@@ -285,7 +285,15 @@ void SceneRenderer::set_light_resources(const LightBuffer& buffer, const scene::
     vkUpdateDescriptorSets(m_context.device(), 1U, &write, 0U, nullptr);
 
     if (registry.size() > 0U) {
-        const scene::Light& primary = registry.light(scene::LightId {0U});
+        scene::Light primary = registry.light(scene::LightId {0U});
+        for (std::size_t index {0U}; index < registry.size(); ++index) {
+            const scene::Light& candidate = registry.light(scene::LightId {static_cast<std::uint32_t>(index)});
+            if (candidate.type == scene::LightType::Directional) {
+                primary = candidate;
+                break;
+            }
+        }
+
         const glm::vec3 dir = primary.direction;
         m_lightDirection = glm::length(dir) > 0.0F ? glm::normalize(dir) : glm::vec3 {0.0F, -1.0F, 0.0F};
         m_lightColor = primary.color;
