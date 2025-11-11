@@ -83,11 +83,10 @@ void ImGuiRenderer::update_metrics(float deltaTimeSeconds) noexcept {
 }
 
 void ImGuiRenderer::draw_overlay() const noexcept {
-    ImGui::SetNextWindowPos(ImVec2 {10.0F, 10.0F}, ImGuiCond_Always);
+    ImGui::SetNextWindowPos(ImVec2 {10.0F, 10.0F}, ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowBgAlpha(0.35F);
     if (ImGui::Begin("Diagnostics", nullptr,
-            ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings
-                | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoDocking)) {
+            ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings)) {
         ImGui::Text("Frame: %.2f ms", m_frameTimeMilliseconds);
         ImGui::Text("FPS: %.1f", m_framesPerSecond);
     }
