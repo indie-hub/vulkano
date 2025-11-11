@@ -8,11 +8,13 @@ layout(location = 0) out vec3 fragColor;
 layout(location = 1) out vec3 fragNormalWorld;
 layout(location = 2) out vec3 fragViewPos;
 layout(location = 3) out vec3 fragNormalView;
+layout(location = 4) flat out uint fragMaterialIndex;
 
 layout(push_constant) uniform PushConstants {
     mat4 model;
     mat4 view;
     mat4 projection;
+    uvec4 materialData;
 } pushConstants;
 
 void main() {
@@ -32,5 +34,6 @@ void main() {
     vec4 viewPosition = view * worldPosition;
     fragViewPos = viewPosition.xyz;
 
+    fragMaterialIndex = pushConstants.materialData.x;
     gl_Position = projection * viewPosition;
 }

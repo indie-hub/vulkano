@@ -15,6 +15,7 @@
 namespace vulkano::app {
 class VulkanContext;
 class Window;
+class MaterialBuffer;
 
 class SceneRenderer final {
 public:
@@ -33,6 +34,7 @@ public:
     SceneRenderer& operator=(SceneRenderer&&) noexcept = delete;
 
     void set_scene(const std::vector<SceneMesh>& meshes);
+    void set_material_buffer(const MaterialBuffer& buffer);
 
     [[nodiscard]] VkRenderPass render_pass() const noexcept;
     [[nodiscard]] VkPipeline pipeline() const noexcept;
@@ -71,6 +73,8 @@ private:
     void destroy_depth_resources() noexcept;
     void create_color_resources();
     void destroy_color_resources() noexcept;
+    void create_material_descriptors();
+    void destroy_material_descriptors() noexcept;
 
     void upload_mesh(const SceneMesh& mesh);
 
@@ -89,5 +93,9 @@ private:
     vk::ColorImage m_linearDepthImage;
     VkFormat m_linearDepthFormat {VK_FORMAT_R32_SFLOAT};
     VkDescriptorSetLayout m_descriptorLayout {VK_NULL_HANDLE};
+    VkDescriptorSetLayout m_materialDescriptorLayout {VK_NULL_HANDLE};
+    VkDescriptorPool m_materialDescriptorPool {VK_NULL_HANDLE};
+    VkDescriptorSet m_materialDescriptorSet {VK_NULL_HANDLE};
+    const MaterialBuffer* m_materialBuffer {nullptr};
 };
 } // namespace vulkano::app
