@@ -211,6 +211,14 @@
    - Sketch a struct holding per-caster entries: light id, image, framebuffer, descriptor set, and dirty flags.
    - Specify allocation strategy (eager allocate up to max vs. lazy create on demand).
    - *Acceptance:* Struct diagram recorded with fields, ownership semantics, and init/destroy routines.
+   - **Proposed structure:**
+     - `struct ShadowSlot { scene::LightId id; ShadowMap map; ShadowPass pass; VkDescriptorSet descriptor; bool active; bool dirtyMatrix; glm::mat4 viewProjection; };`
+     - `struct ShadowResources { std::vector<ShadowSlot> slots; VkDescriptorSetLayout layout; VkDescriptorPool pool; VkExtent2D extent; VkFormat format; };`
+     - Allocate `slots` upfront to the maximum caster count (3). Each slot owns its own `ShadowMap`/`ShadowPass` pair so maps can be rendered independently.
+     - `ShadowResources::initialise` creates descriptor layout/pool sized for max casters and initialises each `ShadowSlot` with inactive state and allocated resources (images/framebuffers) at shared resolution.
+     - `ShadowResources::release` walks slots, destroying shadow maps/passes and freeing descriptors/pool/layout.
+     - Each slot’s `active` flag indicates whether it currently serves a light; `dirtyMatrix` tracks when the view-projection needs recomputation.
+     - Descriptor strategy: allocate per-slot descriptor set binding the map’s image/sampler; main renderer will bind all active sets via array or dynamic binding.
 4. **Plan descriptor layout changes**
    - Determine whether to use array descriptors or bindless approach for multiple shadow maps.
    - Outline updates needed in pipeline layout, shader bindings, and descriptor writes.
