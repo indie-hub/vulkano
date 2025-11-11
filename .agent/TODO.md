@@ -120,3 +120,6 @@
 - [x] Generate and add metal normal map texture asset
 - [x] Wire metal material to use new normal map and document asset
 - [x] Rebuild, run tests, and validate runtime with updated material
+- [x] Enhance procedural metal normal generation for richer detail
+- [x] Regenerate metal normal asset and update documentation
+- [x] Rebuild, run tests, and visually validate improved metal material
