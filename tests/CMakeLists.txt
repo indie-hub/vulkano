@@ -1,5 +1,6 @@
 set(VULKANO_TEST_SOURCES
     triangle_transforms_tests.cpp
+    geometry_tests.cpp
 )
 
 add_executable(vulkano_tests
@@ -10,6 +11,7 @@ target_link_libraries(vulkano_tests
     PRIVATE
         Catch2::Catch2WithMain
         vulkano_math
+        vulkano_app
 )
 
 target_compile_definitions(vulkano_tests

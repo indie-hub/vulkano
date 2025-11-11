@@ -3,7 +3,10 @@
 #include <vulkano/app/frame_resources.hpp>
 #include <vulkano/app/imgui_renderer.hpp>
 #include <vulkano/app/glfw_library.hpp>
-#include <vulkano/app/triangle_renderer.hpp>
+#include <vulkano/app/scene_renderer.hpp>
+#include <vulkano/scene/mesh.hpp>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 #include <vulkano/app/vulkan_context.hpp>
 #include <vulkano/app/window.hpp>
 
@@ -29,7 +32,20 @@ int Application::run() noexcept {
 
         Window window {"Vulkano Renderer", 1280U, 720U};
         VulkanContext context {window};
-        TriangleRenderer renderer {context, window};
+        SceneRenderer renderer {context, window};
+        const SceneRenderer::SceneMesh planeMesh {
+            .mesh = vulkano::scene::MeshFactory::create_plane(10.0F, glm::vec3 {0.7F, 0.7F, 0.7F}),
+            .model = glm::mat4(1.0F)
+        };
+        const SceneRenderer::SceneMesh cubeMesh {
+            .mesh = vulkano::scene::MeshFactory::create_cube(1.0F, glm::vec3 {0.8F, 0.2F, 0.2F}),
+            .model = glm::translate(glm::mat4(1.0F), glm::vec3 {-1.5F, 0.5F, 0.0F})
+        };
+        const SceneRenderer::SceneMesh sphereMesh {
+            .mesh = vulkano::scene::MeshFactory::create_uv_sphere(0.5F, 32U, 16U, glm::vec3 {0.2F, 0.4F, 0.85F}),
+            .model = glm::translate(glm::mat4(1.0F), glm::vec3 {1.5F, 0.5F, 0.0F})
+        };
+        renderer.set_scene({planeMesh, cubeMesh, sphereMesh});
         ImGuiRenderer imgui {context, window, renderer.render_pass()};
         FrameResources frameResources {context};
 
@@ -89,7 +105,7 @@ int Application::run() noexcept {
             if (vkResetCommandBuffer(commandBuffer, 0U) != VK_SUCCESS) {
                 throw std::runtime_error {"Failed to reset command buffer"};
             }
-            const TriangleRenderer::CommandRecorder overlayRecorder {[&imgui](VkCommandBuffer buffer) {
+            const SceneRenderer::CommandRecorder overlayRecorder {[&imgui](VkCommandBuffer buffer) {
                 imgui.render(buffer);
             }};
             renderer.record_command_buffer(commandBuffer, imageIndex, overlayRecorder);

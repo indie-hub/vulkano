@@ -24,8 +24,8 @@ if(NOT Vulkan_GLSLC_EXECUTABLE)
 endif()
 
 set(VULKANO_SHADER_SOURCES
-    ${CMAKE_SOURCE_DIR}/shaders/triangle.vert
-    ${CMAKE_SOURCE_DIR}/shaders/triangle.frag
+    ${CMAKE_SOURCE_DIR}/shaders/scene.vert
+    ${CMAKE_SOURCE_DIR}/shaders/scene.frag
 )
 
 set(VULKANO_SHADER_OUTPUT_DIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders)
@@ -148,10 +148,11 @@ add_library(vulkano_app STATIC
     src/app/application.cpp
     src/app/frame_resources.cpp
     src/app/glfw_library.cpp
-    src/app/triangle_renderer.cpp
+    src/app/scene_renderer.cpp
     src/app/imgui_renderer.cpp
     src/app/vulkan_context.cpp
     src/app/window.cpp
+    src/scene/mesh.cpp
     src/vk/instance.cpp
     src/vk/physical_device.cpp
     src/vk/logical_device.cpp
@@ -168,12 +169,13 @@ target_sources(vulkano_app
             include/vulkano/app/application.hpp
             include/vulkano/app/frame_resources.hpp
             include/vulkano/app/glfw_library.hpp
-            include/vulkano/app/triangle_renderer.hpp
+            include/vulkano/app/scene_renderer.hpp
             include/vulkano/app/imgui_renderer.hpp
             include/vulkano/app/vulkan_context.hpp
             include/vulkano/app/window.hpp
             include/vulkano/vk/instance.hpp
             include/vulkano/vk/physical_device.hpp
+            include/vulkano/scene/mesh.hpp
             include/vulkano/vk/logical_device.hpp
             include/vulkano/vk/swapchain.hpp
 )
