@@ -507,8 +507,8 @@ SSAODescriptors::SSAODescriptors(const VulkanContext& context, const SSAOGpuReso
         const VkDeviceSize paramsSize = sizeof(ShaderParams);
         m_paramsBuffer = create_buffer(context.physical_device(), device, paramsSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, m_paramsMemory);
-        ShaderParams params {};
-        copy_to_memory(device, m_paramsMemory, &params, paramsSize);
+        m_params = ShaderParams {};
+        copy_to_memory(device, m_paramsMemory, &m_params, paramsSize);
 
         VkDescriptorBufferInfo paramsInfo {};
         paramsInfo.buffer = m_paramsBuffer;
@@ -591,6 +591,7 @@ SSAODescriptors& SSAODescriptors::operator=(SSAODescriptors&& other) noexcept {
     m_depthSampler = other.m_depthSampler;
     m_paramsBuffer = other.m_paramsBuffer;
     m_paramsMemory = other.m_paramsMemory;
+    m_params = other.m_params;
 
     other.m_device = VK_NULL_HANDLE;
     other.m_descriptorPool = VK_NULL_HANDLE;
@@ -600,6 +601,7 @@ SSAODescriptors& SSAODescriptors::operator=(SSAODescriptors&& other) noexcept {
     other.m_depthSampler = VK_NULL_HANDLE;
     other.m_paramsBuffer = VK_NULL_HANDLE;
     other.m_paramsMemory = VK_NULL_HANDLE;
+    other.m_params = ShaderParams {};
 
     return *this;
 }
@@ -657,14 +659,21 @@ void SSAODescriptors::update_gbuffer_views(VkImageView normalView, VkImageView d
     vkUpdateDescriptorSets(m_device, static_cast<std::uint32_t>(writes.size()), writes.data(), 0U, nullptr);
 }
 
-void SSAODescriptors::set_camera_inverse_projection(const glm::mat4& inverseProjection) noexcept {
+void SSAODescriptors::set_camera_parameters(const glm::mat4& projection, const glm::mat4& inverseProjection,
+    VkExtent2D extent, float radius, float bias, std::uint32_t noiseDimension) noexcept {
     if (m_device == VK_NULL_HANDLE || m_paramsMemory == VK_NULL_HANDLE) {
         return;
     }
 
-    ShaderParams params {};
-    params.inverseProjection = inverseProjection;
-    copy_to_memory(m_device, m_paramsMemory, &params, sizeof(ShaderParams));
+    const float width = static_cast<float>(std::max(1U, extent.width));
+    const float height = static_cast<float>(std::max(1U, extent.height));
+    const float noiseDim = static_cast<float>(std::max(1U, noiseDimension));
+
+    m_params.inverseProjection = inverseProjection;
+    m_params.projection = projection;
+    m_params.sampleParams = glm::vec4 {width / noiseDim, height / noiseDim, radius, bias};
+
+    copy_to_memory(m_device, m_paramsMemory, &m_params, sizeof(ShaderParams));
 }
 
 void SSAODescriptors::destroy() noexcept {
@@ -699,6 +708,7 @@ void SSAODescriptors::destroy() noexcept {
 
     m_descriptorSet = VK_NULL_HANDLE;
     m_device = VK_NULL_HANDLE;
+    m_params = ShaderParams {};
 }
 
 

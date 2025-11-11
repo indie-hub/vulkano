@@ -10,6 +10,8 @@ layout(set = 0, binding = 2) uniform sampler2D normalTex;
 layout(set = 0, binding = 3) uniform sampler2D depthTex;
 layout(set = 0, binding = 4) uniform SSAOParams {
     mat4 inverseProjection;
+    mat4 projection;
+    vec4 sampleParams; // xy: noise scale, z: radius, w: bias
 } uParams;
 
 layout(location = 0) out float outOcclusion;
@@ -36,9 +38,51 @@ void main() {
     float linearDepth = texture(depthTex, uv).r;
     vec3 viewPosition = reconstruct_view_position(linearDepth, uv);
 
-    float baseOcclusion = clamp(1.0 - normal.z, 0.0, 1.0);
-    float noiseContribution = texture(noiseTex, uv * 4.0).x * 0.1;
-    float distanceFactor = clamp(length(viewPosition) / (length(viewPosition) + 1.0), 0.0, 1.0);
+    if (linearDepth <= 0.0) {
+        outOcclusion = 1.0;
+        return;
+    }
 
-    outOcclusion = clamp(baseOcclusion + noiseContribution + distanceFactor * 0.05, 0.0, 1.0);
+    vec2 noiseScale = uParams.sampleParams.xy;
+    float radius = uParams.sampleParams.z;
+    float bias = uParams.sampleParams.w;
+
+    vec3 randomVec = normalize(texture(noiseTex, uv * noiseScale).xyz * 2.0 - 1.0);
+    vec3 tangent = normalize(randomVec - normal * dot(randomVec, normal));
+    vec3 bitangent = cross(normal, tangent);
+    mat3 tbn = mat3(tangent, bitangent, normal);
+
+    float occlusionAccum = 0.0;
+    float validSamples = 0.0;
+
+    const int sampleCount = 64;
+    for (int i = 0; i < sampleCount; ++i) {
+        vec3 sampleVec = tbn * uKernel.samples[i].xyz;
+        sampleVec = viewPosition + sampleVec * radius;
+
+        vec4 sampleClip = uParams.projection * vec4(sampleVec, 1.0);
+        vec3 sampleNdc = sampleClip.xyz / sampleClip.w;
+        vec2 sampleUV = sampleNdc.xy * 0.5 + 0.5;
+
+        if (sampleUV.x < 0.0 || sampleUV.x > 1.0 || sampleUV.y < 0.0 || sampleUV.y > 1.0) {
+            continue;
+        }
+
+        float sampleDepth = texture(depthTex, sampleUV).r;
+        if (sampleDepth <= 0.0) {
+            continue;
+        }
+
+        float currentSampleDepth = -sampleVec.z;
+        float depthDifference = sampleDepth - currentSampleDepth + bias;
+        if (depthDifference < 0.0) {
+            float range = abs(linearDepth - sampleDepth) + 1e-4;
+            float rangeWeight = clamp(radius / range, 0.0, 1.0);
+            occlusionAccum += rangeWeight;
+        }
+        validSamples += 1.0;
+    }
+
+    float occlusion = validSamples > 0.0 ? occlusionAccum / validSamples : 0.0;
+    outOcclusion = clamp(1.0 - occlusion, 0.0, 1.0);
 }

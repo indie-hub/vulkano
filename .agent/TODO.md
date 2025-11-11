@@ -46,3 +46,5 @@
 - [x] Draft SSAO quality improvement plan with acceptance criteria
 - [x] Wire inverse-projection uniform and view-space normals for SSAO data prep
 - [x] Rebuild, test, and verify SSAO debug view reflects new data
+- [x] Implement SSAO kernel sampling with depth-aware occlusion accumulation
+- [ ] Implement SSAO bilateral blur for occlusion smoothing
