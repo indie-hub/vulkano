@@ -159,7 +159,7 @@ private:
     glm::vec3 m_lightColor {1.0F, 1.0F, 1.0F};
     float m_lightIntensity {1.0F};
     VkExtent2D m_shadowExtent {2048U, 2048U};
-    ShadowResources m_shadowResources;
+    mutable ShadowResources m_shadowResources;
     glm::vec3 m_sceneMin {0.0F, 0.0F, 0.0F};
     glm::vec3 m_sceneMax {0.0F, 0.0F, 0.0F};
     bool m_sceneBoundsValid {false};
