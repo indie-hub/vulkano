@@ -427,35 +427,24 @@ int Application::run() noexcept {
                     }
                     ImGui::EndMenu();
                 }
-                ImGui::EndMainMenuBar();
-            }
 
-            const float toolbarHeight = 32.0F;
-            ImGui::SetNextWindowPos(ImVec2 {viewport->WorkPos.x, viewport->WorkPos.y});
-            ImGui::SetNextWindowSize(ImVec2 {viewport->WorkSize.x, toolbarHeight});
-            ImGui::SetNextWindowViewport(viewport->ID);
-            const ImGuiWindowFlags toolbarFlags = ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoTitleBar
-                | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings
-                | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoFocusOnAppearing;
-            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2 {6.0F, 6.0F});
-            if (ImGui::Begin("Toolbar", nullptr, toolbarFlags)) {
-                if (ImGui::Button("Reset Camera")) {
+                ImGui::Separator();
+                if (ImGui::MenuItem("Reset Camera")) {
                     controller.reset();
                     activeCamera = defaultCameraState;
                 }
-                ImGui::SameLine();
+
                 bool shadows = activeRenderer.shadows_enabled();
-                if (ImGui::Checkbox("Shadows", &shadows)) {
+                if (ImGui::MenuItem("Shadows", nullptr, &shadows)) {
                     activeRenderer.set_shadows_enabled(shadows);
                 }
-                ImGui::SameLine();
-                if (ImGui::Button("Save Layout")) {
+
+                if (ImGui::MenuItem("Save Layout")) {
                     savePreset(activePreset);
                     io.WantSaveIniSettings = true;
                 }
+                ImGui::EndMainMenuBar();
             }
-            ImGui::End();
-            ImGui::PopStyleVar();
 
             ImGui::End();
             ImGui::PopStyleVar(3);
