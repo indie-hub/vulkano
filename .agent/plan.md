@@ -366,7 +366,7 @@ Reduce artificial self-occlusion on convex surfaces (e.g., sphere) while preserv
 ### Phase B – Runtime Controls & Persistence
 1. Add ImGui sliders for angle cutoff, distance falloff, depth falloff, and normal epsilon; update SSAO UBO to include these parameters.
 2. Ensure updates occur once per frame before command buffers record (no in-flight descriptor updates).
-   - Acceptance: Adjusting sliders affects SSAO output live with clean validation.
+   - Acceptance: Adjusting sliders affects SSAO output live with clean validation and clearly perceptible falloff changes.
 
 ### Phase C – Testing & Validation
 1. Extend SSAO unit tests to cover new math helpers (e.g., angle rejection, falloff function).
