@@ -81,6 +81,15 @@ void main() {
         bitangentWorld = normalize(cross(normalWorld, tangentWorld));
     }
 
+    if (pushConstants.shadowParams.w > 1.5) {
+        vec3 uvColor = vec3(fragUV, 0.0);
+        outColor = vec4(uvColor, 1.0);
+        outAlbedo = vec4(uvColor, 1.0);
+        outNormal = vec4(normalWorld * 0.5 + 0.5, 1.0);
+        outLinearDepth = gl_FragCoord.z;
+        return;
+    }
+
     MaterialGpu material = materialBuffer.materials[fragMaterialIndex];
     vec3 albedo = material.baseColorMetallic.rgb;
     float metallic = material.baseColorMetallic.a;

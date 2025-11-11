@@ -12,5 +12,6 @@
 - With tightly packed UV islands, linear + trilinear filtering blends across adjacent texels, which matches the bleed observed on the leather strips.
 - Environment overrides (`VULKANO_TEX_FILTER=nearest`, `VULKANO_TEX_WRAP=clamp`) are now available to flip the sampler at runtime for quick experiments.
 - Forcing point sampling (nearest/nearest) removes the wood tone but produces severe aliasing; clamping has no visible effect, confirming filtering—not wrapping—is responsible.
+- Setting `VULKANO_DEBUG_UV=1` now forces the fragment shader to output `vec3(U,V,0)`, making it easy to inspect UV orientation in the renderer screenshots.
 
 Next: experiment with point filtering and clamp-to-edge sampling to measure the visual impact.

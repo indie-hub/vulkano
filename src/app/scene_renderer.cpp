@@ -18,6 +18,7 @@
 #include <vulkano/vk/depth_image.hpp>
 #include <array>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <type_traits>
 #include <filesystem>
@@ -483,6 +484,11 @@ SceneRenderer::SceneRenderer(const VulkanContext& context, const Window& window,
     : m_context {context}
     , m_descriptorLayout {ssaoLayout} {
     static_cast<void>(window);
+    if (const char* uvDebug = std::getenv("VULKANO_DEBUG_UV")) {
+        if (std::strcmp(uvDebug, "0") != 0) {
+            m_uvDebug = true;
+        }
+    }
     m_depthFormat = vk::DepthFormatResolver::select_depth_format(m_context.physical_device());
     m_viewportExtent = m_context.swapchain_extent();
     create_scene_render_pass();
@@ -1153,7 +1159,8 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
         ? m_shadowResources.slot(0).viewProjection
         : glm::mat4(1.0F);
     const float shadowEnabled = hasShadowPass ? 1.0F : 0.0F;
-    const glm::vec4 shadowParams {m_shadowBias, m_shadowPcfRadius, shadowEnabled, m_shadowDebug ? 1.0F : 0.0F};
+    const float debugFlag = m_uvDebug ? 2.0F : (m_shadowDebug ? 1.0F : 0.0F);
+    const glm::vec4 shadowParams {m_shadowBias, m_shadowPcfRadius, shadowEnabled ? 1.0F : 0.0F, debugFlag};
 
     VkClearValue albedoClear {};
     albedoClear.color = {{0.0F, 0.0F, 0.0F, 1.0F}};

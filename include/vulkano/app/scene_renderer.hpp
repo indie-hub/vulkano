@@ -231,6 +231,7 @@ private:
     float m_shadowPcfRadius {1.0F};
     bool m_shadowsEnabled {true};
     bool m_shadowDebug {false};
+    bool m_uvDebug {false};
     bool m_primaryLightCastsShadow {true};
 };
 } // namespace vulkano::app

@@ -3,10 +3,12 @@
 #include <assimp/Importer.hpp>
 #include <assimp/postprocess.h>
 
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <functional>
 #include <iomanip>
+#include <iostream>
 #include <sstream>
 #include <stdexcept>
 #include <string_view>
@@ -263,10 +265,11 @@ ImportedMaterial AssetImporter::import_material(const aiMaterial& material, cons
         output.properties.emissiveIntensity = emissiveIntensity;
     }
 
-    auto extract_path = [&material, &baseDirectory](aiTextureType type, std::string& destination,
+    auto extract_path = [&material, &baseDirectory](aiTextureType type, const char* label, std::string& destination,
                               bool& usageFlag) {
         aiString texturePath;
-        if (material.GetTextureCount(type) > 0 && material.GetTexture(type, 0, &texturePath) == aiReturn_SUCCESS) {
+        if (material.GetTextureCount(type) > 0
+            && material.GetTexture(type, 0, &texturePath) == aiReturn_SUCCESS) {
             const std::string raw = texturePath.C_Str();
             if (!raw.empty() && raw.front() == '*') {
                 destination = raw;
@@ -274,16 +277,30 @@ ImportedMaterial AssetImporter::import_material(const aiMaterial& material, cons
                 destination = AssetImporter::resolve_texture_path(raw, baseDirectory);
             }
             usageFlag = true;
+            int uvSource {0};
+            if (material.Get(AI_MATKEY_UVWSRC(type, 0), uvSource) != aiReturn_SUCCESS) {
+                uvSource = 0;
+            }
+            if (const char* logUv = std::getenv("VULKANO_LOG_UV_CHANNELS")) {
+                if (std::strcmp(logUv, "0") != 0) {
+                    aiString materialName;
+                    if (material.Get(AI_MATKEY_NAME, materialName) != aiReturn_SUCCESS) {
+                        materialName = aiString {"(unnamed)"};
+                    }
+                    std::cout << "[UV] " << materialName.C_Str() << " " << label << " -> TEXCOORD_" << uvSource
+                              << " (" << destination << ")" << std::endl;
+                }
+            }
         }
     };
 
-    extract_path(aiTextureType_BASE_COLOR, output.textures.baseColorPath, output.useBaseColorTexture);
-    extract_path(aiTextureType_DIFFUSE, output.textures.baseColorPath, output.useBaseColorTexture);
-    extract_path(aiTextureType_NORMALS, output.textures.normalPath, output.useNormalTexture);
-    extract_path(aiTextureType_HEIGHT, output.textures.normalPath, output.useNormalTexture);
-    extract_path(aiTextureType_METALNESS, output.textures.metallicRoughnessPath, output.useMetallicRoughnessTexture);
-    extract_path(aiTextureType_DIFFUSE_ROUGHNESS, output.textures.metallicRoughnessPath, output.useMetallicRoughnessTexture);
-    extract_path(aiTextureType_AMBIENT_OCCLUSION, output.textures.ambientOcclusionPath, output.useAmbientOcclusionTexture);
+    extract_path(aiTextureType_BASE_COLOR, "baseColor", output.textures.baseColorPath, output.useBaseColorTexture);
+    extract_path(aiTextureType_DIFFUSE, "diffuse", output.textures.baseColorPath, output.useBaseColorTexture);
+    extract_path(aiTextureType_NORMALS, "normal", output.textures.normalPath, output.useNormalTexture);
+    extract_path(aiTextureType_HEIGHT, "height", output.textures.normalPath, output.useNormalTexture);
+    extract_path(aiTextureType_METALNESS, "metalness", output.textures.metallicRoughnessPath, output.useMetallicRoughnessTexture);
+    extract_path(aiTextureType_DIFFUSE_ROUGHNESS, "roughness", output.textures.metallicRoughnessPath, output.useMetallicRoughnessTexture);
+    extract_path(aiTextureType_AMBIENT_OCCLUSION, "ambientOcclusion", output.textures.ambientOcclusionPath, output.useAmbientOcclusionTexture);
 
     return result;
 }
