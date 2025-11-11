@@ -1,4 +1,5 @@
 - [x] Set up CMake-based project skeleton for Vulkan renderer
+- [x] Draft execution plan with acceptance criteria for Vulkan renderer (GLFW, ImGui, glm, right-handed)
 - [ ] Implement Vulkan and GLFW initialization for rendering window
 - [ ] Add triangle rendering pipeline and validation logic
 - [ ] Integrate ImGui overlay with renderer lifecycle
