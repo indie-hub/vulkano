@@ -47,3 +47,61 @@
 - Build & run `ctest`.
 - Visual verification: add second light, see gizmo; toggle `castsShadow` to disable shadows.
 - Note: keep existing shadow debug view working for primary shadow-casting light.
+
+## Remediation Plan (Babe Steps)
+
+### Goal A — Render a Gizmo Per Light Instance
+1. **Catalogue gizmo lifecycle code paths**
+   - Review `SceneRenderer::set_light_resources`, `create_light_debug_mesh`, and points where point-light meshes are spawned.
+   - Capture current assumptions (single directional mesh, vector for points) in this document.
+   - *Acceptance:* Notes list every function touching `m_lightDebugMesh` and `m_pointLightDebugMeshes`, including creation, update, and destruction hooks.
+2. **Model per-light gizmo storage**
+   - Design a lightweight struct keyed by `LightId` that owns GPU buffers for each gizmo.
+   - Decide update strategy (rebuild whole list vs. incremental) based on registry churn.
+   - *Acceptance:* New struct sketch recorded here with fields, ownership semantics, and update triggers.
+3. **Update gizmo creation logic**
+   - Implement factory helpers that build directional and point gizmo vertex/index buffers on demand.
+   - Ensure buffers honour existing memory allocation patterns (host visible staging or device local).
+   - *Acceptance:* Pseudocode or interface definition captured, showing inputs/outputs and resource lifetime guarantees.
+4. **Wire gizmo updates into `set_light_resources`**
+   - Generate or refresh gizmo data for every light after descriptor updates.
+   - Remove the single `m_lightDebugMesh` dependency and replace draw state with per-light collection.
+   - *Acceptance:* Sequence diagram or bullet list describing update order (descriptor write → gizmo sync → draw list cache).
+5. **Draw all gizmos during command recording**
+   - Iterate over directional and point gizmo lists when `m_showLightDebug` is true.
+   - Apply per-light transforms (position, direction) when binding vertex buffers.
+   - *Acceptance:* Rendering pass plan notes which pipelines/descriptors are reused and how instance transforms are supplied.
+6. **Handle light removal and registry shrink**
+   - Define logic for releasing GPU resources when a light is removed or changes type.
+   - Add validation to keep gizmo list aligned with registry indices after deletions.
+   - *Acceptance:* Documented algorithm for shrinking the gizmo cache with complexity guarantees and edge-case coverage.
+
+### Goal B — Respect Per-Light Shadow Matrices
+1. **Document current shadow matrix flow**
+   - Trace from ImGui toggle → `LightRegistry` → `SceneRenderer::compute_light_view_projection` → push constants.
+   - Identify where single `m_lightDirection`/`m_primaryLightCastsShadow` collapses multiple lights.
+   - *Acceptance:* Flow description logged here, highlighting every mutation of the light direction and matrix.
+2. **Define target behaviour**
+   - Choose strategy: (a) single shadow map that tracks the highest-priority casting directional light, or (b) multiple shadow maps (one per caster) with indexed sampling.
+   - Record priority rules (e.g., nearest shadow-casting light, stable ordering).
+   - *Acceptance:* Decision written with justification (performance, memory) and acceptance criteria for when multiple casters are active.
+3. **Adjust scene state to track per-light shadow data**
+   - Extend renderer state to hold a struct per directional light with: light id, cached view-projection matrix, shadow map handle (if owned), and dirty flags.
+   - Outline how these structs sync with registry changes.
+   - *Acceptance:* Data model documented with field list and lifecycle notes.
+4. **Update shadow map resource management**
+   - If single shadow map selected, document algorithm to select the active caster and update matrix when toggles change.
+   - If multiple maps selected, plan allocation strategy (pooling, max count) and descriptor layout changes.
+   - *Acceptance:* Resource plan specifies Vulkan objects touched, creation/destruction triggers, and limits (e.g., max 4 directional lights).
+5. **Modify command recording/push constants**
+   - Describe how per-light matrices reach the shader (additional push constants, SSBO, or descriptor buffer).
+   - Plan shader changes to sample the correct matrix per fragment (e.g., index from light buffer).
+   - *Acceptance:* Step outlines data flow from CPU struct to GPU shader, including synchronization points.
+6. **Revise ImGui + validation paths**
+   - Ensure UI reflects active shadow casters and allows selecting which lights own shadow maps if capacity limited.
+   - Plan QA checklist covering scenarios: multiple directional lights toggled, toggles flipped mid-frame, light deletions.
+   - *Acceptance:* QA matrix documented, listing cases and expected visual outcomes.
+7. **Testing strategy**
+   - Enumerate unit/integration tests to add (e.g., registry → renderer mapping, shader branch coverage via spirv-cross validation, screenshot diff harness).
+   - Define manual validation steps (run demo, toggle lights, inspect debug shadow view per light).
+   - *Acceptance:* Test plan recorded with pass/fail criteria and tooling (Catch2, RenderDoc, etc.).
