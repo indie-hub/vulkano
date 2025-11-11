@@ -4,7 +4,8 @@ layout(location = 0) in vec3 fragColor;
 layout(location = 1) in vec3 fragNormalWorld;
 layout(location = 2) in vec3 fragViewPos;
 layout(location = 3) in vec3 fragNormalView;
-layout(location = 4) flat in uint fragMaterialIndex;
+layout(location = 4) in vec2 fragUV;
+layout(location = 5) flat in uint fragMaterialIndex;
 
 layout(set = 0, binding = 0) uniform SSAOConfig {
     float occlusionStrength;
@@ -44,7 +45,7 @@ void main() {
 
     uint baseIndex = material.textureIndices.x;
     if (baseIndex < MATERIAL_TEXTURE_COUNT) {
-        vec4 sampleBase = texture(materialTextures[baseIndex], vec2(0.5));
+        vec4 sampleBase = texture(materialTextures[baseIndex], fragUV);
         albedo *= sampleBase.rgb;
     }
     vec3 lightDir = normalize(vec3(0.5, 1.0, 0.3));

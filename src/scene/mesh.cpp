@@ -9,11 +9,13 @@
 
 namespace vulkano::scene {
 namespace {
-[[nodiscard]] Vertex make_vertex(const glm::vec3& position, const glm::vec3& normal, const glm::vec3& color) noexcept {
+[[nodiscard]] Vertex make_vertex(const glm::vec3& position, const glm::vec3& normal, const glm::vec3& color,
+    const glm::vec2& uv) noexcept {
     Vertex vertex {};
     vertex.position = position;
     vertex.normal = normal;
     vertex.color = color;
+    vertex.uv = uv;
     return vertex;
 }
 }
@@ -22,10 +24,10 @@ MeshData MeshFactory::create_plane(float size, const glm::vec3& color) noexcept 
     const float halfSize {size * 0.5F};
     MeshData data {};
     data.vertices = {
-        make_vertex(glm::vec3 {-halfSize, 0.0F, -halfSize}, glm::vec3 {0.0F, 1.0F, 0.0F}, color),
-        make_vertex(glm::vec3 {halfSize, 0.0F, -halfSize}, glm::vec3 {0.0F, 1.0F, 0.0F}, color),
-        make_vertex(glm::vec3 {halfSize, 0.0F, halfSize}, glm::vec3 {0.0F, 1.0F, 0.0F}, color),
-        make_vertex(glm::vec3 {-halfSize, 0.0F, halfSize}, glm::vec3 {0.0F, 1.0F, 0.0F}, color)
+        make_vertex(glm::vec3 {-halfSize, 0.0F, -halfSize}, glm::vec3 {0.0F, 1.0F, 0.0F}, color, glm::vec2 {0.0F, 0.0F}),
+        make_vertex(glm::vec3 {halfSize, 0.0F, -halfSize}, glm::vec3 {0.0F, 1.0F, 0.0F}, color, glm::vec2 {1.0F, 0.0F}),
+        make_vertex(glm::vec3 {halfSize, 0.0F, halfSize}, glm::vec3 {0.0F, 1.0F, 0.0F}, color, glm::vec2 {1.0F, 1.0F}),
+        make_vertex(glm::vec3 {-halfSize, 0.0F, halfSize}, glm::vec3 {0.0F, 1.0F, 0.0F}, color, glm::vec2 {0.0F, 1.0F})
     };
     data.indices = {0U, 2U, 1U, 0U, 3U, 2U};
     return data;
@@ -75,14 +77,23 @@ MeshData MeshFactory::create_cube(float size, const glm::vec3& color) noexcept {
             glm::vec3 {-half, half, -half}}
     };
 
+    const std::array<std::array<glm::vec2, 4>, 6> uvs {
+        std::array<glm::vec2, 4> {{glm::vec2 {0.0F, 0.0F}, glm::vec2 {1.0F, 0.0F}, glm::vec2 {1.0F, 1.0F}, glm::vec2 {0.0F, 1.0F}}},
+        std::array<glm::vec2, 4> {{glm::vec2 {1.0F, 0.0F}, glm::vec2 {0.0F, 0.0F}, glm::vec2 {0.0F, 1.0F}, glm::vec2 {1.0F, 1.0F}}},
+        std::array<glm::vec2, 4> {{glm::vec2 {0.0F, 1.0F}, glm::vec2 {1.0F, 1.0F}, glm::vec2 {1.0F, 0.0F}, glm::vec2 {0.0F, 0.0F}}},
+        std::array<glm::vec2, 4> {{glm::vec2 {0.0F, 0.0F}, glm::vec2 {1.0F, 0.0F}, glm::vec2 {1.0F, 1.0F}, glm::vec2 {0.0F, 1.0F}}},
+        std::array<glm::vec2, 4> {{glm::vec2 {0.0F, 0.0F}, glm::vec2 {1.0F, 0.0F}, glm::vec2 {1.0F, 1.0F}, glm::vec2 {0.0F, 1.0F}}},
+        std::array<glm::vec2, 4> {{glm::vec2 {1.0F, 0.0F}, glm::vec2 {0.0F, 0.0F}, glm::vec2 {0.0F, 1.0F}, glm::vec2 {1.0F, 1.0F}}}
+    };
+
     MeshData data {};
     data.vertices.reserve(24U);
     data.indices.reserve(36U);
 
     for (std::size_t face {0U}; face < positions.size(); ++face) {
         const std::uint32_t baseIndex {static_cast<std::uint32_t>(data.vertices.size())};
-        for (const glm::vec3& position : positions[face]) {
-            data.vertices.push_back(make_vertex(position, normals[face], color));
+        for (std::size_t corner {0U}; corner < 4U; ++corner) {
+            data.vertices.push_back(make_vertex(positions[face][corner], normals[face], color, uvs[face][corner]));
         }
         data.indices.insert(data.indices.end(), {baseIndex, baseIndex + 1U, baseIndex + 2U,
             baseIndex, baseIndex + 2U, baseIndex + 3U});
@@ -116,7 +127,8 @@ MeshData MeshFactory::create_uv_sphere(float radius, std::uint32_t longitudeSegm
 
             glm::vec3 normal {sinTheta * cosPhi, cosTheta, sinTheta * sinPhi};
             glm::vec3 position {radius * normal};
-            data.vertices.push_back(make_vertex(position, glm::normalize(normal), color));
+            glm::vec2 uv {u, 1.0F - v};
+            data.vertices.push_back(make_vertex(position, glm::normalize(normal), color, uv));
         }
     }
 

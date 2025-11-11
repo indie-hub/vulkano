@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <vector>
 
+#include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 
 namespace vulkano::scene {
@@ -10,6 +11,7 @@ struct Vertex final {
     glm::vec3 position {};
     glm::vec3 normal {};
     glm::vec3 color {};
+    glm::vec2 uv {};
 };
 
 struct MeshData final {
