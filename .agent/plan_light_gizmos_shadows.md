@@ -332,6 +332,12 @@
 3. **QA expansion**
    - Extend the existing QA matrix with cases covering more than one active caster, capacity overflows, and toggles during runtime.
    - *Acceptance:* Updated QA checklist appended with multi-caster scenarios.
+   - **Additional QA cases:**
+     8. *Three active casters* — enable shadows on three directional lights, verify all slots populate and each shadow map updates when moving individual lights.
+     9. *Over-capacity onboarding* — with three slots filled, enable shadows on a lower-index light; expect it to preempt the highest-index slot and shadow maps to update accordingly.
+    10. *Capacity churn* — rapidly toggle shadows on/off for multiple lights while exceeding capacity; ensure slot assignments stabilise without flicker or validation errors.
+    11. *Mixed deletions* — remove a light occupying slot 0 while others remain; verify slots shift predictably and debug UI reflects new assignments.
+    12. *Manual override (future)* — if overrides implemented, switch between auto/manual priority and confirm command buffer renders match expected ordering.
 
 ### Goal G — Testing Strategy Extension
 1. **Unit/integration coverage**
