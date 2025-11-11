@@ -288,7 +288,7 @@
 - [x] Produce reviewer-facing PR test checklist (docs/pr_test_personal_codex_second_try_13-ui-overhalt.md)
 - [x] Update changelog with PR test coverage entry
 - [x] Enhance README with comprehensive project overview and usage guidance
-- [ ] Force-push rewritten branches/tags and notify collaborators to resync
-- [ ] Resolve network connectivity (DNS) issue blocking pushes to github.com
+- [x] Force-push rewritten branches/tags and notify collaborators to resync
+- [x] Resolve network connectivity (DNS) issue blocking pushes to github.com
 - [ ] Remove the ../vulkano_codex_backup.git mirror once the team confirms the rewrite
 - [ ] Remove the ../vulkano_codex_backup.git mirror once the team confirms the rewrite
