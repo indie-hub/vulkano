@@ -51,4 +51,8 @@ Render the swapchain image directly inside the ImGui `Viewport` window so the sc
 - ImGui backend initialisation passes `colorAttachmentCount = SceneRenderer::color_attachment_count()` (4) while the present render pass exposes a single color attachment, leading to pipeline state validation complaints.
 - `create_color_resources` pre-transitions the scene color and linear depth images to `VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL`; the scene render pass declares an `initialLayout` of `VK_IMAGE_LAYOUT_UNDEFINED`, so the layout tracker records a mismatch before the first subpass.
 - The linear depth attachment description sets `initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL` despite clearing and writing to it as a color attachment, which conflicts with the intended usage and complicates layout transitions.
+## Runtime Issues (2025-10-03)
+- Validation reports `vkCmdPipelineBarrier` attempting to transition scene color/albedo/normal/linear-depth images from `COLOR_ATTACHMENT_OPTIMAL` while the tracker still records `SHADER_READ_ONLY_OPTIMAL`; this occurs immediately after the scene render pass.
+- SSAO descriptors reference invalid image views (`normalTex`, `depthTex`) after viewport resize; validation logs show `VkImageView 0x0` being bound and the runtime exits with a segmentation fault (signal 11).
+- Reproduced via `VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation ./bin/vulkano_renderer`, which terminates with exit code 139 and writes the captured log to `/tmp/vulkan_run.log`.
 
