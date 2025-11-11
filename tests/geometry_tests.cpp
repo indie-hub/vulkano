@@ -19,7 +19,7 @@ TEST_CASE("plane mesh has four vertices and unit normals") {
     REQUIRE(mesh.indices.size() == 6U);
 
     for (const auto& vertex : mesh.vertices) {
-        REQUIRE(vertex.normal == glm::vec3 {0.0F, 1.0F, 0.0F});
+        REQUIRE(glm::all(glm::epsilonEqual(vertex.normal, glm::vec3 {0.0F, 1.0F, 0.0F}, EPS)));
         REQUIRE(vertex.color == color);
     }
 }
