@@ -6,6 +6,7 @@
 #include <vulkano/app/glfw_library.hpp>
 #include <vulkano/app/imgui_renderer.hpp>
 #include <vulkano/app/material_buffer.hpp>
+#include <vulkano/app/material_texture_cache.hpp>
 #include <vulkano/app/ssao.hpp>
 #include <vulkano/app/scene_renderer.hpp>
 #include <vulkano/app/vulkan_context.hpp>
@@ -48,6 +49,7 @@ int Application::run() noexcept {
 
         scene::MaterialRegistry materialRegistry {};
         MaterialBuffer materialBuffer {context};
+        MaterialTextureCache materialTextures {context};
 
         scene::Material planeMaterial {};
         planeMaterial.properties.baseColor = glm::vec3 {0.7F, 0.7F, 0.7F};
@@ -85,6 +87,7 @@ int Application::run() noexcept {
         };
 
         materialBuffer.update(materialRegistry);
+        materialTextures.rebuild(materialRegistry);
 
         SSAOSampleGenerator ssaoGenerator {};
         SSAOGpuResources ssaoResources {context, ssaoGenerator, 64U, 4U};

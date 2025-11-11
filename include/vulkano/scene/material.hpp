@@ -36,6 +36,17 @@ struct Material final {
     MaterialTextures textures {};
 };
 
+struct MaterialTextureHandles final {
+    std::uint32_t baseColor {std::numeric_limits<std::uint32_t>::max()};
+    std::uint32_t normal {std::numeric_limits<std::uint32_t>::max()};
+    std::uint32_t metallicRoughness {std::numeric_limits<std::uint32_t>::max()};
+    std::uint32_t ambientOcclusion {std::numeric_limits<std::uint32_t>::max()};
+
+    [[nodiscard]] constexpr bool valid_base_color() const noexcept {
+        return baseColor != std::numeric_limits<std::uint32_t>::max();
+    }
+};
+
 class MaterialRegistry final {
 public:
     MaterialRegistry();
@@ -57,4 +68,3 @@ private:
     MaterialId m_defaultId {};
 };
 } // namespace vulkano::scene
-
