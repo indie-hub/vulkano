@@ -94,6 +94,13 @@ void main() {
     }
     vec3 normalView = normalize(mat3(pushConstants.view) * normalWorld);
 
+    vec4 lightSpacePos = pushConstants.lightViewProjection * vec4(fragPosWorld, 1.0);
+    float invW = lightSpacePos.w != 0.0 ? 1.0 / lightSpacePos.w : 0.0;
+    vec3 shadowCoordBase = lightSpacePos.xyz * invW;
+    shadowCoordBase = shadowCoordBase * 0.5 + 0.5;
+    bool shadowCoordValid = shadowCoordBase.x >= 0.0 && shadowCoordBase.x <= 1.0 && shadowCoordBase.y >= 0.0
+        && shadowCoordBase.y <= 1.0 && shadowCoordBase.z <= 1.0;
+
     uint baseIndex = material.textureIndices.x;
     if (material.textureUsage.x > 0.5 && baseIndex < MATERIAL_TEXTURE_COUNT) {
         vec4 sampleBase = texture(materialTextures[baseIndex], fragUV);
@@ -131,8 +138,8 @@ void main() {
             float attenuation = light.directionIntensity.w;
             vec3 L;
 
-            if (light.colorType.w < 0.5) {
-                // Directional
+            bool isDirectional = light.colorType.w < 0.5;
+            if (isDirectional) {
                 L = normalize(-light.directionIntensity.xyz);
             } else {
                 // Point
@@ -179,25 +186,25 @@ void main() {
             vec3 lightColor = light.colorType.rgb * attenuation;
 
             float shadowFactor = 1.0;
-            if (shadowEnabled && light.colorType.w < 0.5) {
-                vec4 lightSpace = pushConstants.lightViewProjection * vec4(fragPosWorld, 1.0);
-                vec3 shadowCoord = lightSpace.xyz / lightSpace.w;
-                shadowCoord = shadowCoord * 0.5 + 0.5;
-                if (shadowCoord.z <= 1.0 && shadowCoord.x >= 0.0 && shadowCoord.x <= 1.0
-                    && shadowCoord.y >= 0.0 && shadowCoord.y <= 1.0) {
-                    int samples = int(shadowRadius);
-                    float count = 0.0;
+            if (shadowEnabled && isDirectional && shadowCoordValid) {
+                ivec2 texSize = textureSize(shadowMap, 0);
+                if (texSize.x > 0 && texSize.y > 0) {
+                    vec2 texelSize = 1.0 / vec2(texSize);
+                    int samples = int(max(shadowRadius, 0.0));
                     float occluded = 0.0;
+                    float total = 0.0;
                     for (int x = -samples; x <= samples; ++x) {
                         for (int y = -samples; y <= samples; ++y) {
-                            vec2 offset = vec2(x, y);
-                            float closestDepth = texture(shadowMap, shadowCoord.xy + offset / textureSize(shadowMap, 0)).r;
-                            float currentDepth = shadowCoord.z - shadowBias;
+                            vec2 offset = vec2(x, y) * texelSize;
+                            float closestDepth = texture(shadowMap, shadowCoordBase.xy + offset).r;
+                            float currentDepth = shadowCoordBase.z - shadowBias;
                             occluded += currentDepth > closestDepth ? 1.0 : 0.0;
-                            count += 1.0;
+                            total += 1.0;
                         }
                     }
-                    shadowFactor = 1.0 - (occluded / max(count, 1.0));
+                    if (total > 0.0) {
+                        shadowFactor = 1.0 - occluded / total;
+                    }
                 }
             }
 
@@ -222,6 +229,18 @@ void main() {
 
     vec3 emissive = material.emissive.rgb * material.emissive.w;
     vec3 lit = radiance + albedo * ambient + emissive;
+
+    if (pushConstants.shadowParams.w > 0.5) {
+        float depthSample = 0.0;
+        if (shadowCoordValid) {
+            depthSample = texture(shadowMap, shadowCoordBase.xy).r;
+        }
+        outColor = vec4(vec3(depthSample), 1.0);
+        outAlbedo = vec4(albedo, 1.0);
+        outNormal = vec4(normalView * 0.5 + 0.5, 1.0);
+        outLinearDepth = -fragViewPos.z;
+        return;
+    }
 
     outColor = vec4(lit, 1.0);
     outAlbedo = vec4(albedo, 1.0);
