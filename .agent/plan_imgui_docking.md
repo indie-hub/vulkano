@@ -16,7 +16,7 @@ Introduce the official Dear ImGui docking branch so the renderer exposes a flexi
 
 2. **Confirm Dear ImGui version**
    - Verify commit hash/tag currently vendored so the docking branch version can be matched.
-   - *Acceptance:* Version string recorded in plan (e.g., `v1.90.x`), ensuring upgrade path compatibility.
+   - *Acceptance:* Version string recorded in plan (e.g., `v1.90.x`), ensuring upgrade path compatibility. (Current tag: `v1.90.8-docking`).
 
 ## Phase 2 — Upgrade Dear ImGui to Docking Branch
 3. **Fetch docking sources**
