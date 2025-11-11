@@ -294,7 +294,7 @@ int Application::run() noexcept {
         DockPreset activePreset = loadPreset();
         DockPreset requestedPreset = activePreset;
         auto imgui = std::make_unique<ImGuiRenderer>(context, window, renderer->present_render_pass(),
-            SceneRenderer::color_attachment_count());
+            SceneRenderer::present_color_attachment_count());
         auto frameResources = std::make_unique<FrameResources>(context);
 
         bool dockspaceConfigured = false;
@@ -515,7 +515,7 @@ int Application::run() noexcept {
             ssaoBlurPass->set_parameters(ssaoBlurRadius, ssaoBlurDepthSigma);
 
             imgui = std::make_unique<ImGuiRenderer>(context, window, renderer->present_render_pass(),
-                SceneRenderer::color_attachment_count());
+                SceneRenderer::present_color_attachment_count());
             frameResources = std::make_unique<FrameResources>(context);
 
             window.clear_framebuffer_resized();

@@ -85,6 +85,7 @@ public:
     [[nodiscard]] bool shadows_enabled() const noexcept;
     [[nodiscard]] bool shadow_debug_enabled() const noexcept;
     [[nodiscard]] static constexpr std::uint32_t color_attachment_count() noexcept { return 4U; }
+    [[nodiscard]] static constexpr std::uint32_t present_color_attachment_count() noexcept { return 1U; }
     [[nodiscard]] std::uint32_t shadow_slot_capacity() const noexcept;
     [[nodiscard]] std::uint32_t shadow_active_caster_count() const noexcept;
     [[nodiscard]] VkExtent2D shadow_map_extent() const noexcept;
@@ -101,8 +102,8 @@ public:
     [[nodiscard]] VkRenderPass present_render_pass() const noexcept;
     [[nodiscard]] VkFramebuffer scene_framebuffer() const noexcept;
     [[nodiscard]] const std::vector<VkFramebuffer>& present_framebuffers() const noexcept;
-    [[nodiscard]] VkDescriptorSet viewport_descriptor() const noexcept;
-    [[nodiscard]] ImTextureID viewport_texture_id() const noexcept;
+    VkDescriptorSet viewport_descriptor() noexcept;
+    ImTextureID viewport_texture_id() noexcept;
 
     using CommandRecorder = std::function<void(VkCommandBuffer)>;
     void record_command_buffer(VkCommandBuffer commandBuffer, std::uint32_t imageIndex,

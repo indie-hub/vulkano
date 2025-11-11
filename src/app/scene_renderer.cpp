@@ -8,6 +8,7 @@
 #include <vulkano/app/shadow_map.hpp>
 #include <vulkano/app/shadow_pass.hpp>
 
+#include <imgui.h>
 #include <imgui_impl_vulkan.h>
 
 #include <vulkano/vk/depth_format.hpp>
@@ -478,7 +479,6 @@ SceneRenderer::SceneRenderer(const VulkanContext& context, const Window& window,
     create_depth_resources();
     create_scene_framebuffer();
     create_present_framebuffers();
-    ensure_viewport_descriptor();
     create_light_debug_mesh();
 
 }
@@ -935,12 +935,15 @@ const std::vector<VkFramebuffer>& SceneRenderer::present_framebuffers() const no
     return m_presentFramebuffers;
 }
 
-VkDescriptorSet SceneRenderer::viewport_descriptor() const noexcept {
+VkDescriptorSet SceneRenderer::viewport_descriptor() noexcept {
+    if (m_viewportDescriptor == VK_NULL_HANDLE) {
+        ensure_viewport_descriptor();
+    }
     return m_viewportDescriptor;
 }
 
-ImTextureID SceneRenderer::viewport_texture_id() const noexcept {
-    return reinterpret_cast<ImTextureID>(m_viewportDescriptor);
+ImTextureID SceneRenderer::viewport_texture_id() noexcept {
+    return reinterpret_cast<ImTextureID>(viewport_descriptor());
 }
 
 void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::uint32_t imageIndex,
@@ -1233,23 +1236,39 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
 
     vkCmdEndRenderPass(commandBuffer);
 
-    VkImageMemoryBarrier sceneReadBarrier {};
-    sceneReadBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    sceneReadBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-    sceneReadBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-    sceneReadBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    sceneReadBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    sceneReadBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    sceneReadBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    sceneReadBarrier.image = m_sceneColorImage.image();
-    sceneReadBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    sceneReadBarrier.subresourceRange.baseMipLevel = 0U;
-    sceneReadBarrier.subresourceRange.levelCount = 1U;
-    sceneReadBarrier.subresourceRange.baseArrayLayer = 0U;
-    sceneReadBarrier.subresourceRange.layerCount = 1U;
+    std::array<VkImageMemoryBarrier, 4> colorReadBarriers {};
+    std::uint32_t colorBarrierCount {0U};
+    const auto appendColorBarrier = [&](VkImage image) noexcept {
+        if (image == VK_NULL_HANDLE) {
+            return;
+        }
+        VkImageMemoryBarrier barrier {};
+        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.image = image;
+        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        barrier.subresourceRange.baseMipLevel = 0U;
+        barrier.subresourceRange.levelCount = 1U;
+        barrier.subresourceRange.baseArrayLayer = 0U;
+        barrier.subresourceRange.layerCount = 1U;
+        colorReadBarriers[colorBarrierCount++] = barrier;
+    };
 
-    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0U, 0U, nullptr, 0U, nullptr, 1U, &sceneReadBarrier);
+    appendColorBarrier(m_sceneColorImage.image());
+    appendColorBarrier(m_albedoImage.image());
+    appendColorBarrier(m_normalImage.image());
+    appendColorBarrier(m_linearDepthImage.image());
+
+    if (colorBarrierCount > 0U) {
+        vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0U, 0U, nullptr, 0U, nullptr, colorBarrierCount,
+            colorReadBarriers.data());
+    }
 
     VkClearValue presentClear {};
     presentClear.color = {{0.05F, 0.05F, 0.05F, 1.0F}};
@@ -1298,7 +1317,7 @@ void SceneRenderer::create_scene_render_pass() {
     linearDepthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     linearDepthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     linearDepthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    linearDepthAttachment.initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    linearDepthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     linearDepthAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     VkAttachmentDescription depthAttachment {};
@@ -1318,7 +1337,7 @@ void SceneRenderer::create_scene_render_pass() {
     sceneColorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     sceneColorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     sceneColorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    sceneColorAttachment.initialLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    sceneColorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     sceneColorAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     const std::array<VkAttachmentReference, 4> colorAttachmentRefs {
@@ -1672,80 +1691,6 @@ void SceneRenderer::create_color_resources() {
     m_linearDepthImage = vk::ColorImage::create(physicalDevice, device, extent, m_linearDepthFormat,
         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
 
-    if (m_linearDepthImage.image() != VK_NULL_HANDLE) {
-        VkCommandPool commandPool {VK_NULL_HANDLE};
-        VkCommandBuffer commandBuffer {VK_NULL_HANDLE};
-        try {
-            VkCommandPoolCreateInfo poolInfo {};
-            poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-            poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
-            poolInfo.queueFamilyIndex = m_context.graphics_queue_family_index();
-
-            if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
-                throw std::runtime_error {"Failed to create linear depth transition command pool"};
-            }
-
-            VkCommandBufferAllocateInfo allocateInfo {};
-            allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-            allocateInfo.commandPool = commandPool;
-            allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-            allocateInfo.commandBufferCount = 1U;
-
-            if (vkAllocateCommandBuffers(device, &allocateInfo, &commandBuffer) != VK_SUCCESS) {
-                throw std::runtime_error {"Failed to allocate linear depth transition command buffer"};
-            }
-
-            VkCommandBufferBeginInfo beginInfo {};
-            beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-            beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-            if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
-                throw std::runtime_error {"Failed to begin linear depth transition commands"};
-            }
-
-            std::array<VkImageMemoryBarrier, 2> barriers {};
-            barriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-            barriers[0].srcAccessMask = 0U;
-            barriers[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-            barriers[0].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-            barriers[0].newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            barriers[0].image = m_sceneColorImage.image();
-            barriers[0].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            barriers[0].subresourceRange.baseMipLevel = 0U;
-            barriers[0].subresourceRange.levelCount = 1U;
-            barriers[0].subresourceRange.baseArrayLayer = 0U;
-            barriers[0].subresourceRange.layerCount = 1U;
-
-            barriers[1] = barriers[0];
-            barriers[1].image = m_linearDepthImage.image();
-
-            vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0U, 0U, nullptr, 0U, nullptr,
-                static_cast<std::uint32_t>(barriers.size()), barriers.data());
-
-            if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
-                throw std::runtime_error {"Failed to record linear depth transition commands"};
-            }
-
-            VkSubmitInfo submitInfo {};
-            submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-            submitInfo.commandBufferCount = 1U;
-            submitInfo.pCommandBuffers = &commandBuffer;
-            if (vkQueueSubmit(m_context.graphics_queue(), 1U, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
-                throw std::runtime_error {"Failed to submit linear depth transition commands"};
-            }
-            if (vkQueueWaitIdle(m_context.graphics_queue()) != VK_SUCCESS) {
-                throw std::runtime_error {"Failed to wait for linear depth transition queue"};
-            }
-        } catch (...) {
-            if (commandPool != VK_NULL_HANDLE) {
-                vkDestroyCommandPool(device, commandPool, nullptr);
-            }
-            throw;
-        }
-        if (commandPool != VK_NULL_HANDLE) {
-            vkDestroyCommandPool(device, commandPool, nullptr);
-        }
-    }
 }
 
 void SceneRenderer::destroy_color_resources() noexcept {
@@ -1984,10 +1929,15 @@ void SceneRenderer::destroy_viewport_descriptor() noexcept {
 }
 
 void SceneRenderer::ensure_viewport_descriptor() {
+    if (ImGui::GetCurrentContext() == nullptr) {
+        return;
+    }
+    if (ImGui::GetIO().BackendRendererUserData == nullptr) {
+        return;
+    }
     if (m_sceneColorImage.image() == VK_NULL_HANDLE) {
         return;
     }
-
     if (m_viewportSampler == VK_NULL_HANDLE) {
         VkSamplerCreateInfo info {};
         info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
