@@ -244,7 +244,8 @@ int Application::run() noexcept {
         bool ssaoDebugView = false;
         ssaoComposite->set_config(ssaoStrength, ssaoBaseAmbient, ssaoDebugView);
 
-        auto imgui = std::make_unique<ImGuiRenderer>(context, window, renderer->render_pass());
+        auto imgui = std::make_unique<ImGuiRenderer>(context, window, renderer->render_pass(),
+            SceneRenderer::color_attachment_count());
         auto frameResources = std::make_unique<FrameResources>(context);
 
         auto recreateSwapchain = [&]() {
@@ -286,7 +287,8 @@ int Application::run() noexcept {
                 ssaoDepthRange, ssaoDistanceRange, ssaoNormalEpsilon);
             ssaoBlurPass->set_parameters(ssaoBlurRadius, ssaoBlurDepthSigma);
 
-            imgui = std::make_unique<ImGuiRenderer>(context, window, renderer->render_pass());
+            imgui = std::make_unique<ImGuiRenderer>(context, window, renderer->render_pass(),
+                SceneRenderer::color_attachment_count());
             frameResources = std::make_unique<FrameResources>(context);
 
             window.clear_framebuffer_resized();

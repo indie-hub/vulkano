@@ -6,7 +6,7 @@
 #include <GLFW/glfw3.h>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
-#include <imgui_impl_vulkan.h>
+#include <imgui_backend/imgui_impl_vulkan.h>
 
 #include <array>
 #include <chrono>
@@ -18,7 +18,8 @@ constexpr std::uint32_t maxDescriptorSets {1024U};
 }
 
 namespace vulkano::app {
-ImGuiRenderer::ImGuiRenderer(const VulkanContext& context, const Window& window, VkRenderPass renderPass)
+ImGuiRenderer::ImGuiRenderer(const VulkanContext& context, const Window& window, VkRenderPass renderPass,
+    std::uint32_t colorAttachmentCount)
     : m_context {context}
     , m_renderPass {renderPass} {
     create_descriptor_pool();
@@ -29,6 +30,7 @@ ImGuiRenderer::ImGuiRenderer(const VulkanContext& context, const Window& window,
     ImGui_ImplGlfw_InitForVulkan(window.handle(), true);
 
     ImGui_ImplVulkan_InitInfo initInfo {};
+    initInfo.ApiVersion = VK_API_VERSION_1_3;
     initInfo.Instance = m_context.instance();
     initInfo.PhysicalDevice = m_context.physical_device();
     initInfo.Device = m_context.device();
@@ -41,6 +43,7 @@ ImGuiRenderer::ImGuiRenderer(const VulkanContext& context, const Window& window,
     initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
     initInfo.PipelineCache = VK_NULL_HANDLE;
     initInfo.Subpass = 0U;
+    initInfo.ColorAttachmentCount = colorAttachmentCount;
     initInfo.Allocator = nullptr;
     initInfo.CheckVkResultFn = nullptr;
     initInfo.UseDynamicRendering = false;

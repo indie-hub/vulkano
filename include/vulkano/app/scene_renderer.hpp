@@ -82,6 +82,7 @@ public:
     [[nodiscard]] float shadow_pcf_radius() const noexcept;
     [[nodiscard]] bool shadows_enabled() const noexcept;
     [[nodiscard]] bool shadow_debug_enabled() const noexcept;
+    [[nodiscard]] static constexpr std::uint32_t color_attachment_count() noexcept { return 4U; }
     [[nodiscard]] std::uint32_t shadow_slot_capacity() const noexcept;
     [[nodiscard]] std::uint32_t shadow_active_caster_count() const noexcept;
     [[nodiscard]] VkExtent2D shadow_map_extent() const noexcept;

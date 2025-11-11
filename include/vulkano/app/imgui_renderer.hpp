@@ -9,7 +9,8 @@ class Window;
 
 class ImGuiRenderer final {
 public:
-    ImGuiRenderer(const VulkanContext& context, const Window& window, VkRenderPass renderPass);
+    ImGuiRenderer(const VulkanContext& context, const Window& window, VkRenderPass renderPass,
+        std::uint32_t colorAttachmentCount);
     ~ImGuiRenderer() noexcept;
 
     ImGuiRenderer(const ImGuiRenderer&) = delete;

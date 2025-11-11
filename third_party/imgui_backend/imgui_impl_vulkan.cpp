@@ -281,6 +281,7 @@ struct ImGui_ImplVulkan_Data
     VkShaderModule              ShaderModuleFrag;
     VkDescriptorPool            DescriptorPool;
     ImVector<VkFormat>          PipelineRenderingCreateInfoColorAttachmentFormats; // Deep copy of format array
+    uint32_t                    PipelineColorAttachmentCount;
 
     // Texture management
     VkSampler                   TexSamplerLinear;
@@ -295,6 +296,7 @@ struct ImGui_ImplVulkan_Data
         memset((void*)this, 0, sizeof(*this));
         BufferMemoryAlignment = 256;
         NonCoherentAtomSize = 64;
+        PipelineColorAttachmentCount = 1;
     }
 };
 
@@ -1001,23 +1003,38 @@ static VkPipeline ImGui_ImplVulkan_CreatePipeline(VkDevice device, const VkAlloc
     ms_info.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     ms_info.rasterizationSamples = (MSAASamples != 0) ? MSAASamples : VK_SAMPLE_COUNT_1_BIT;
 
-    VkPipelineColorBlendAttachmentState color_attachment[1] = {};
-    color_attachment[0].blendEnable = VK_TRUE;
-    color_attachment[0].srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-    color_attachment[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-    color_attachment[0].colorBlendOp = VK_BLEND_OP_ADD;
-    color_attachment[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-    color_attachment[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-    color_attachment[0].alphaBlendOp = VK_BLEND_OP_ADD;
-    color_attachment[0].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    VkPipelineColorBlendAttachmentState color_attachment_template {};
+    color_attachment_template.blendEnable = VK_TRUE;
+    color_attachment_template.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    color_attachment_template.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    color_attachment_template.colorBlendOp = VK_BLEND_OP_ADD;
+    color_attachment_template.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    color_attachment_template.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    color_attachment_template.alphaBlendOp = VK_BLEND_OP_ADD;
+    color_attachment_template.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
     VkPipelineDepthStencilStateCreateInfo depth_info = {};
     depth_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
 
     VkPipelineColorBlendStateCreateInfo blend_info = {};
     blend_info.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-    blend_info.attachmentCount = 1;
-    blend_info.pAttachments = color_attachment;
+    uint32_t attachment_count = 1;
+    if (pipeline_rendering_create_info && pipeline_rendering_create_info->colorAttachmentCount > 0)
+    {
+        attachment_count = pipeline_rendering_create_info->colorAttachmentCount;
+    }
+    else if (renderPass == bd->VulkanInitInfo.RenderPass && bd->PipelineColorAttachmentCount > 0)
+    {
+        attachment_count = bd->PipelineColorAttachmentCount;
+    }
+
+    ImVector<VkPipelineColorBlendAttachmentState> color_attachments;
+    color_attachments.resize((int)attachment_count);
+    for (int i = 0; i < color_attachments.Size; ++i)
+        color_attachments[i] = color_attachment_template;
+
+    blend_info.attachmentCount = attachment_count;
+    blend_info.pAttachments = color_attachments.Data;
 
     VkDynamicState dynamic_states[2] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
     VkPipelineDynamicStateCreateInfo dynamic_state = {};
@@ -1330,6 +1347,7 @@ bool    ImGui_ImplVulkan_Init(ImGui_ImplVulkan_InitInfo* info)
     IM_ASSERT(info->ImageCount >= info->MinImageCount);
 
     bd->VulkanInitInfo = *info;
+    bd->PipelineColorAttachmentCount = info->ColorAttachmentCount != 0 ? info->ColorAttachmentCount : 1;
 
     VkPhysicalDeviceProperties properties;
     vkGetPhysicalDeviceProperties(info->PhysicalDevice, &properties);

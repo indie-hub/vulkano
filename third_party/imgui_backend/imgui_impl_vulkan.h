@@ -92,6 +92,7 @@ struct ImGui_ImplVulkan_InitInfo
     VkRenderPass                    RenderPass;                 // Ignored if using dynamic rendering
     uint32_t                        Subpass;
     VkSampleCountFlagBits           MSAASamples;                // 0 defaults to VK_SAMPLE_COUNT_1_BIT
+    uint32_t                        ColorAttachmentCount;       // Optional: defaults to 1, set to the number of color attachments used by the target subpass
 
     // (Optional) Dynamic Rendering
     // Need to explicitly enable VK_KHR_dynamic_rendering extension to use this, even for Vulkan 1.3 + setup PipelineRenderingCreateInfo.
