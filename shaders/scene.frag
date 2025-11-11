@@ -25,6 +25,7 @@ struct MaterialGpu {
     vec4 roughnessAoStrength;
     uvec4 textureIndices;
     vec4 textureUsage;
+    vec4 surfaceMask;
     vec4 emissive;
 };
 
@@ -105,17 +106,28 @@ void main() {
         albedo *= sampleBase.rgb;
     }
 
-    uint metallicIndex = material.textureIndices.z;
-    if (material.textureUsage.z > 0.5 && metallicIndex < MATERIAL_TEXTURE_COUNT) {
-        vec4 mrSample = texture(materialTextures[metallicIndex], fragUV);
-        metallic = clamp(mrSample.r, 0.0, 1.0);
-        roughness = clamp(mrSample.g, 0.0, 1.0);
-    }
+    bool hasSurfaceMap = material.surfaceMask.x > 0.5;
 
-    uint aoIndex = material.textureIndices.w;
-    if (material.textureUsage.w > 0.5 && aoIndex < MATERIAL_TEXTURE_COUNT) {
-        float aoSample = texture(materialTextures[aoIndex], fragUV).r;
-        ambientOcclusion = clamp(aoSample, 0.0, 1.0);
+    uint metallicIndex = material.textureIndices.z;
+    if (hasSurfaceMap) {
+        if (metallicIndex < MATERIAL_TEXTURE_COUNT) {
+            vec4 surfaceSample = texture(materialTextures[metallicIndex], fragUV);
+            metallic = clamp(surfaceSample.r, 0.0, 1.0);
+            roughness = clamp(surfaceSample.g, 0.0, 1.0);
+            ambientOcclusion = clamp(surfaceSample.b, 0.0, 1.0);
+        }
+    } else {
+        if (material.textureUsage.z > 0.5 && metallicIndex < MATERIAL_TEXTURE_COUNT) {
+            vec4 mrSample = texture(materialTextures[metallicIndex], fragUV);
+            metallic = clamp(mrSample.r, 0.0, 1.0);
+            roughness = clamp(mrSample.g, 0.0, 1.0);
+        }
+
+        uint aoIndex = material.textureIndices.w;
+        if (material.textureUsage.w > 0.5 && aoIndex < MATERIAL_TEXTURE_COUNT) {
+            float aoSample = texture(materialTextures[aoIndex], fragUV).r;
+            ambientOcclusion = clamp(aoSample, 0.0, 1.0);
+        }
     }
 
     vec3 V = normalize(pushConstants.cameraPosition.xyz - fragPosWorld);
