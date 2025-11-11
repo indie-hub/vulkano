@@ -4,6 +4,7 @@
 #include <vulkano/app/vulkan_context.hpp>
 
 #include <array>
+#include <cstdlib>
 #include <cstring>
 #include <stdexcept>
 
@@ -284,6 +285,7 @@ TextureImage TextureImage::create(const VulkanContext& context, const TextureDat
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     samplerInfo.magFilter = VK_FILTER_LINEAR;
     samplerInfo.minFilter = VK_FILTER_LINEAR;
+    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
     samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
@@ -293,7 +295,36 @@ TextureImage TextureImage::create(const VulkanContext& context, const TextureDat
     samplerInfo.unnormalizedCoordinates = VK_FALSE;
     samplerInfo.compareEnable = VK_FALSE;
     samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    samplerInfo.minLod = 0.0F;
+    samplerInfo.maxLod = 0.0F;
+
+    if (const char* filterOverride = std::getenv("VULKANO_TEX_FILTER")) {
+        if (std::strcmp(filterOverride, "nearest") == 0) {
+            samplerInfo.magFilter = VK_FILTER_NEAREST;
+            samplerInfo.minFilter = VK_FILTER_NEAREST;
+            samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+        } else if (std::strcmp(filterOverride, "linear") == 0) {
+            samplerInfo.magFilter = VK_FILTER_LINEAR;
+            samplerInfo.minFilter = VK_FILTER_LINEAR;
+            samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        }
+    }
+
+    if (const char* wrapOverride = std::getenv("VULKANO_TEX_WRAP")) {
+        if (std::strcmp(wrapOverride, "clamp") == 0) {
+            samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+            samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+            samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        } else if (std::strcmp(wrapOverride, "repeat") == 0) {
+            samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+            samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+            samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        }
+    }
+
+    if (samplerInfo.mipmapMode == VK_SAMPLER_MIPMAP_MODE_LINEAR) {
+        samplerInfo.maxLod = 0.0F;
+    }
 
     VkSampler sampler {VK_NULL_HANDLE};
     if (vkCreateSampler(device, &samplerInfo, nullptr, &sampler) != VK_SUCCESS) {
@@ -389,4 +420,3 @@ void TextureImage::destroy() noexcept {
     m_device = VK_NULL_HANDLE;
 }
 } // namespace vulkano::app
-

@@ -270,7 +270,8 @@
 - [x] Draft UV padding mitigation plan (.agent/plan_uv_padding.md)
 
 - [x] Draft UV sampling investigation plan (.agent/plan_uv_sampling.md)
-- [ ] Evaluate sampler configuration impact on leather bleed
+- [x] Evaluate sampler configuration impact on leather bleed (env toggles, diagnostics)
+- [ ] Select minimal sampler adjustment for leather bleed
 
 - [ ] Quantify UV bleed risk for leather atlas (.agent/plan_uv_padding.md)
 - [ ] Prototype texture padding helper for tight UV islands
