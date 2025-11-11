@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <functional>
 #include <vulkan/vulkan.h>
 
 #include <glm/mat4x4.hpp>
@@ -33,7 +34,8 @@ public:
     [[nodiscard]] VkBuffer vertex_buffer() const noexcept;
     [[nodiscard]] std::uint32_t vertex_count() const noexcept;
 
-    void record_command_buffer(VkCommandBuffer commandBuffer, std::uint32_t imageIndex) const;
+    using CommandRecorder = std::function<void(VkCommandBuffer)>;
+    void record_command_buffer(VkCommandBuffer commandBuffer, std::uint32_t imageIndex, const CommandRecorder& overlayRecorder) const;
 
 private:
     void create_render_pass();
