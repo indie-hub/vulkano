@@ -48,7 +48,7 @@
 - [x] Rebuild, test, and verify SSAO debug view reflects new data
 - [x] Implement SSAO kernel sampling with depth-aware occlusion accumulation
 - [x] Plan SSAO blur resources (images, descriptors, shaders)
-- [ ] Add SSAO blur shaders (fullscreen quad, depth-aware kernel)
+- [x] Add SSAO blur shaders (fullscreen quad, depth-aware kernel)
 - [ ] Implement SSAO blur pass creation and record logic
 - [ ] Integrate blur pass into application pipeline and ImGui controls
 - [ ] Rebuild, test, and validate blurred SSAO output
