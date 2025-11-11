@@ -223,5 +223,5 @@
 - [x] Validate docking workflow with tests and documentation
 
 - [x] Draft advanced UI layout enhancement plan (see .agent/plan_imgui_layout_enhancements.md)
-- [ ] Implement UI layout enhancements and presets
+- [x] Implement UI layout enhancements and presets
 - [ ] Document and validate enhanced UI layouts

@@ -32,6 +32,7 @@
 #include <chrono>
 #include <cmath>
 #include <filesystem>
+#include <fstream>
 #include <functional>
 #include <cstdint>
 #include <cstdlib>
@@ -56,6 +57,7 @@ int Application::run() noexcept {
         const VkExtent2D swapExtent = context.swapchain_extent();
         const float swapAspect = swapExtent.height == 0U ? 1.0F : static_cast<float>(swapExtent.width) / static_cast<float>(swapExtent.height);
         Camera camera {glm::vec3 {0.0F, 1.5F, 5.0F}, -90.0F, -15.0F, swapAspect};
+        const Camera defaultCameraState = camera;
         CameraController cameraController {camera, window};
         cameraController.set_move_speed(6.0F);
         cameraController.set_mouse_sensitivity(0.1F);
@@ -116,6 +118,7 @@ int Application::run() noexcept {
         SceneRenderer::SceneNode sceneRoot {};
         sceneRoot.name = "Root";
         sceneRoot.transform = scene::Transform::identity();
+        SceneRenderer::SceneNode* selectedSceneNode = &sceneRoot;
 
         SceneRenderer::SceneNode baseGroup {};
         baseGroup.name = "Scene";
@@ -245,12 +248,125 @@ int Application::run() noexcept {
         bool ssaoDebugView = false;
         ssaoComposite->set_config(ssaoStrength, ssaoBaseAmbient, ssaoDebugView);
 
+        enum class DockPreset {
+            Authoring,
+            Compact,
+            QA
+        };
+
+        const auto preset_name = [](DockPreset preset) noexcept -> const char* {
+            switch (preset) {
+            case DockPreset::Authoring:
+                return "Authoring";
+            case DockPreset::Compact:
+                return "Compact";
+            case DockPreset::QA:
+                return "QA";
+            }
+            return "Authoring";
+        };
+
+        const std::filesystem::path layoutProfilePath {"imgui_layout_profile.cfg"};
+        const auto loadPreset = [&]() -> DockPreset {
+            std::ifstream file {layoutProfilePath};
+            if (!file.is_open()) {
+                return DockPreset::Authoring;
+            }
+            std::string name;
+            file >> name;
+            if (name == preset_name(DockPreset::Compact)) {
+                return DockPreset::Compact;
+            }
+            if (name == preset_name(DockPreset::QA)) {
+                return DockPreset::QA;
+            }
+            return DockPreset::Authoring;
+        };
+
+        const auto savePreset = [&](DockPreset preset) {
+            std::ofstream file {layoutProfilePath, std::ios::trunc};
+            if (!file.is_open()) {
+                return;
+            }
+            file << preset_name(preset);
+        };
+
+        DockPreset activePreset = loadPreset();
+        DockPreset requestedPreset = activePreset;
         auto imgui = std::make_unique<ImGuiRenderer>(context, window, renderer->render_pass(),
             SceneRenderer::color_attachment_count());
         auto frameResources = std::make_unique<FrameResources>(context);
 
         bool dockspaceConfigured = false;
-        const auto drawDockspace = [&dockspaceConfigured]() {
+
+        const auto buildPreset = [&](ImGuiID dockspaceId, DockPreset preset, const ImGuiViewport* viewport) {
+            ImGui::DockBuilderRemoveNode(dockspaceId);
+            ImGui::DockBuilderAddNode(dockspaceId, ImGuiDockNodeFlags_DockSpace | ImGuiDockNodeFlags_PassthruCentralNode);
+            ImGui::DockBuilderSetNodeSize(dockspaceId, viewport->WorkSize);
+
+            ImGuiID mainId = dockspaceId;
+            ImGuiID leftId = 0;
+            ImGuiID rightId = 0;
+            ImGuiID bottomId = 0;
+            ImGuiID inspectorId = 0;
+
+            const auto dock_common_panels = [&](ImGuiID centralId) {
+                ImGui::DockBuilderDockWindow("Viewport", centralId);
+            };
+
+            switch (preset) {
+            case DockPreset::Authoring: {
+                leftId = ImGui::DockBuilderSplitNode(mainId, ImGuiDir_Left, 0.23F, nullptr, &mainId);
+                rightId = ImGui::DockBuilderSplitNode(mainId, ImGuiDir_Right, 0.26F, nullptr, &mainId);
+                bottomId = ImGui::DockBuilderSplitNode(mainId, ImGuiDir_Down, 0.32F, nullptr, &mainId);
+                inspectorId = ImGui::DockBuilderSplitNode(leftId, ImGuiDir_Down, 0.50F, nullptr, &leftId);
+
+                ImGui::DockBuilderDockWindow("Scene Graph", leftId);
+                ImGui::DockBuilderDockWindow("Inspector", inspectorId);
+                ImGui::DockBuilderDockWindow("Lighting", rightId);
+                ImGui::DockBuilderDockWindow("Materials", rightId);
+                ImGui::DockBuilderDockWindow("SSAO", bottomId);
+                dock_common_panels(mainId);
+                break;
+            }
+            case DockPreset::Compact: {
+                leftId = ImGui::DockBuilderSplitNode(mainId, ImGuiDir_Left, 0.30F, nullptr, &mainId);
+                bottomId = ImGui::DockBuilderSplitNode(mainId, ImGuiDir_Down, 0.28F, nullptr, &mainId);
+                inspectorId = ImGui::DockBuilderSplitNode(leftId, ImGuiDir_Down, 0.6F, nullptr, &leftId);
+
+                ImGui::DockBuilderDockWindow("Scene Graph", leftId);
+                ImGui::DockBuilderDockWindow("Inspector", inspectorId);
+                ImGui::DockBuilderDockWindow("Lighting", bottomId);
+                ImGui::DockBuilderDockWindow("SSAO", bottomId);
+                ImGui::DockBuilderDockWindow("Materials", bottomId);
+                dock_common_panels(mainId);
+                break;
+            }
+            case DockPreset::QA: {
+                bottomId = ImGui::DockBuilderSplitNode(mainId, ImGuiDir_Down, 0.36F, nullptr, &mainId);
+                rightId = ImGui::DockBuilderSplitNode(mainId, ImGuiDir_Right, 0.32F, nullptr, &mainId);
+
+                ImGui::DockBuilderDockWindow("Lighting", rightId);
+                ImGui::DockBuilderDockWindow("Materials", rightId);
+                ImGui::DockBuilderDockWindow("Scene Graph", bottomId);
+                ImGui::DockBuilderDockWindow("Inspector", bottomId);
+                ImGui::DockBuilderDockWindow("SSAO", bottomId);
+                dock_common_panels(mainId);
+                break;
+            }
+            }
+
+            ImGui::DockBuilderFinish(dockspaceId);
+        };
+
+        struct DockspaceResult final {
+            bool viewportHovered {false};
+            bool viewportFocused {false};
+            ImVec2 viewportSize {0.0F, 0.0F};
+        };
+
+        const auto drawDockspace = [&](DockspaceResult& result, Camera& activeCamera, CameraController& controller,
+                                        SceneRenderer& activeRenderer, DockPreset& currentPreset) {
             ImGuiIO& io = ImGui::GetIO();
             if ((io.ConfigFlags & ImGuiConfigFlags_DockingEnable) == 0U) {
                 return;
@@ -270,35 +386,97 @@ int Application::run() noexcept {
             ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2 {0.0F, 0.0F});
 
             const bool open = ImGui::Begin("DockSpaceHost", nullptr, hostFlags);
+            ImGuiID dockspaceId = 0;
             if (open) {
-                const ImGuiDockNodeFlags dockFlags = ImGuiDockNodeFlags_PassthruCentralNode;
-                const ImGuiID dockspaceId = ImGui::GetID("MainDockSpace");
-
+                dockspaceId = ImGui::GetID("MainDockSpace");
                 if (!dockspaceConfigured) {
-                    ImGuiDockNode* existingNode = ImGui::DockBuilderGetNode(dockspaceId);
-                    if (existingNode == nullptr) {
-                        ImGui::DockBuilderRemoveNode(dockspaceId);
-                        ImGui::DockBuilderAddNode(dockspaceId, ImGuiDockNodeFlags_DockSpace | dockFlags);
-                        ImGui::DockBuilderSetNodeSize(dockspaceId, viewport->WorkSize);
-
-                        ImGuiID dockMainId = dockspaceId;
-                        const ImGuiID leftId = ImGui::DockBuilderSplitNode(dockMainId, ImGuiDir_Left, 0.24F, nullptr, &dockMainId);
-                        const ImGuiID rightId = ImGui::DockBuilderSplitNode(dockMainId, ImGuiDir_Right, 0.26F, nullptr, &dockMainId);
-                        const ImGuiID bottomId = ImGui::DockBuilderSplitNode(dockMainId, ImGuiDir_Down, 0.32F, nullptr, &dockMainId);
-
-                        ImGui::DockBuilderDockWindow("Scene Graph", leftId);
-                        ImGui::DockBuilderDockWindow("Lighting", rightId);
-                        ImGui::DockBuilderDockWindow("SSAO", bottomId);
-                        ImGui::DockBuilderDockWindow("Materials", dockMainId);
-                        ImGui::DockBuilderFinish(dockspaceId);
-                    }
+                    buildPreset(dockspaceId, requestedPreset, viewport);
                     dockspaceConfigured = true;
+                    activePreset = requestedPreset;
+                    savePreset(activePreset);
                 }
 
+                const ImGuiDockNodeFlags dockFlags = ImGuiDockNodeFlags_PassthruCentralNode;
                 ImGui::DockSpace(dockspaceId, ImVec2 {0.0F, 0.0F}, dockFlags);
             }
+
+            if (ImGui::BeginMainMenuBar()) {
+                if (ImGui::BeginMenu("Layout")) {
+                    const auto drawPresetOption = [&](DockPreset preset) {
+                        const bool selected = (preset == activePreset);
+                        if (ImGui::MenuItem(preset_name(preset), nullptr, selected)) {
+                            requestedPreset = preset;
+                            dockspaceConfigured = false;
+                            if (dockspaceId != 0) {
+                                ImGui::DockBuilderRemoveNode(dockspaceId);
+                            }
+                        }
+                    };
+                    drawPresetOption(DockPreset::Authoring);
+                    drawPresetOption(DockPreset::Compact);
+                    drawPresetOption(DockPreset::QA);
+                    ImGui::Separator();
+                    if (ImGui::MenuItem("Reset Layout")) {
+                        io.WantSaveIniSettings = true;
+                        ImGui::LoadIniSettingsFromMemory("", 0);
+                        dockspaceConfigured = false;
+                        requestedPreset = activePreset;
+                        if (dockspaceId != 0) {
+                            ImGui::DockBuilderRemoveNode(dockspaceId);
+                        }
+                    }
+                    ImGui::EndMenu();
+                }
+                ImGui::EndMainMenuBar();
+            }
+
+            const float toolbarHeight = 32.0F;
+            ImGui::SetNextWindowPos(ImVec2 {viewport->WorkPos.x, viewport->WorkPos.y});
+            ImGui::SetNextWindowSize(ImVec2 {viewport->WorkSize.x, toolbarHeight});
+            ImGui::SetNextWindowViewport(viewport->ID);
+            const ImGuiWindowFlags toolbarFlags = ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoTitleBar
+                | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings
+                | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoFocusOnAppearing;
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2 {6.0F, 6.0F});
+            if (ImGui::Begin("Toolbar", nullptr, toolbarFlags)) {
+                if (ImGui::Button("Reset Camera")) {
+                    controller.reset();
+                    activeCamera = defaultCameraState;
+                }
+                ImGui::SameLine();
+                bool shadows = activeRenderer.shadows_enabled();
+                if (ImGui::Checkbox("Shadows", &shadows)) {
+                    activeRenderer.set_shadows_enabled(shadows);
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Save Layout")) {
+                    savePreset(activePreset);
+                    io.WantSaveIniSettings = true;
+                }
+            }
+            ImGui::End();
+            ImGui::PopStyleVar();
+
             ImGui::End();
             ImGui::PopStyleVar(3);
+
+            currentPreset = activePreset;
+
+            ImGui::SetNextWindowDockID(ImGui::DockBuilderGetNode(dockspaceId) != nullptr
+                    ? dockspaceId
+                    : 0,
+                ImGuiCond_Once);
+
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2 {0.0F, 0.0F});
+            const ImGuiWindowFlags viewportFlags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse;
+            if (ImGui::Begin("Viewport", nullptr, viewportFlags)) {
+                result.viewportHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows);
+                result.viewportFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
+                result.viewportSize = ImGui::GetContentRegionAvail();
+                ImGui::InvisibleButton("ViewportCanvas", result.viewportSize, ImGuiButtonFlags_MouseButtonLeft);
+            }
+            ImGui::End();
+            ImGui::PopStyleVar();
         };
 
         auto recreateSwapchain = [&]() {
@@ -373,14 +551,121 @@ int Application::run() noexcept {
                 continue;
             }
 
-            cameraController.update(deltaSeconds);
-
-            // camera parameters will be updated after UI to capture new SSAO tuning values
+            // camera parameters will be updated after UI to capture new viewport adjustments
 
             imgui->begin_frame();
-            drawDockspace();
+            DockspaceResult dockResult {};
+            drawDockspace(dockResult, camera, cameraController, *renderer, activePreset);
             imgui->update_metrics(deltaSeconds);
             imgui->draw_overlay();
+
+            const float viewportWidth = dockResult.viewportSize.x;
+            const float viewportHeight = dockResult.viewportSize.y;
+            if (viewportWidth > 0.0F && viewportHeight > 0.0F) {
+                camera.set_aspect_ratio(viewportWidth / viewportHeight);
+            }
+            const bool viewportActive = dockResult.viewportHovered || dockResult.viewportFocused;
+            cameraController.set_input_enabled(viewportActive);
+
+            auto editTransform = [](scene::Transform& transform) -> bool {
+                bool changed = false;
+                glm::vec3 position = transform.position;
+                if (ImGui::DragFloat3("Position", glm::value_ptr(position), 0.05F, -100.0F, 100.0F)) {
+                    transform.position = position;
+                    changed = true;
+                }
+
+                glm::vec3 rotationDegrees = transform.euler_degrees();
+                if (ImGui::DragFloat3("Rotation (deg)", glm::value_ptr(rotationDegrees), 0.5F, -720.0F, 720.0F)) {
+                    transform.set_euler_degrees(rotationDegrees);
+                    changed = true;
+                }
+
+                glm::vec3 scale = transform.scale;
+                if (ImGui::DragFloat3("Scale", glm::value_ptr(scale), 0.02F, -100.0F, 100.0F, "%.5f")) {
+                    constexpr float minScale {0.00001F};
+                    scale.x = std::max(scale.x, minScale);
+                    scale.y = std::max(scale.y, minScale);
+                    scale.z = std::max(scale.z, minScale);
+                    transform.scale = scale;
+                    changed = true;
+                }
+
+                if (ImGui::Button("Reset Transform")) {
+                    transform = scene::Transform::identity();
+                    changed = true;
+                }
+                return changed;
+            };
+
+            SceneRenderer::SceneNode* nextSelection = selectedSceneNode;
+            bool selectionAlive = false;
+
+            if (ImGui::Begin("Scene Graph")) {
+                const auto drawNode = [&](auto&& self, SceneRenderer::SceneNode& node, bool isRoot) -> void {
+                    IM_UNUSED(isRoot);
+                    const bool hasChildren = !node.children.empty();
+                    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth;
+                    if (!hasChildren) {
+                        flags |= ImGuiTreeNodeFlags_Leaf;
+                    }
+                    if (&node == nextSelection) {
+                        flags |= ImGuiTreeNodeFlags_Selected;
+                    }
+
+                    const std::string label = node.name.empty() ? "Unnamed" : node.name;
+                    const bool open = ImGui::TreeNodeEx(&node, flags, "%s", label.c_str());
+
+                    if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) {
+                        nextSelection = &node;
+                        selectionAlive = true;
+                    }
+
+                    if (&node == nextSelection) {
+                        selectionAlive = true;
+                    }
+
+                    if (open) {
+                        for (SceneRenderer::SceneNode& child : node.children) {
+                            self(self, child, false);
+                        }
+                        ImGui::TreePop();
+                    }
+                };
+
+                drawNode(drawNode, sceneRoot, true);
+            }
+            ImGui::End();
+
+            if (!selectionAlive || nextSelection == nullptr) {
+                nextSelection = &sceneRoot;
+            }
+            selectedSceneNode = nextSelection;
+
+            if (ImGui::Begin("Inspector")) {
+                if (selectedSceneNode != nullptr) {
+                    ImGui::TextUnformatted(selectedSceneNode->name.c_str());
+                    ImGui::Separator();
+                    if (editTransform(selectedSceneNode->transform)) {
+                        sceneDirty = true;
+                    }
+
+                    if (selectedSceneNode->is_mesh()) {
+                        const auto& geometry = selectedSceneNode->geometry.value();
+                        ImGui::Separator();
+                        ImGui::Text("Vertices: %zu", geometry.mesh.vertices.size());
+                        ImGui::Text("Indices: %zu", geometry.mesh.indices.size());
+                        ImGui::Text("Material ID: %u", geometry.material.value);
+                    } else {
+                        ImGui::Separator();
+                        ImGui::TextUnformatted("Group Node");
+                        ImGui::Text("Children: %zu", selectedSceneNode->children.size());
+                    }
+                } else {
+                    ImGui::TextUnformatted("No selection");
+                }
+            }
+            ImGui::End();
             if (ImGui::Begin("SSAO")) {
                 ImGui::Checkbox("Enable", &ssaoEnabled);
                 ImGui::SliderFloat("Occlusion Strength", &ssaoStrength, 0.0F, 2.0F);
@@ -721,83 +1006,7 @@ int Application::run() noexcept {
             }
             ImGui::End();
 
-            auto editTransform = [](scene::Transform& transform, const char* label) -> bool {
-                bool changed = false;
-                if (label != nullptr) {
-                    ImGui::TextUnformatted(label);
-                }
-                glm::vec3 position = transform.position;
-                if (ImGui::DragFloat3("Position", glm::value_ptr(position), 0.05F, -100.0F, 100.0F)) {
-                    transform.position = position;
-                    changed = true;
-                }
-
-                glm::vec3 rotationDegrees = transform.euler_degrees();
-                if (ImGui::DragFloat3("Rotation (deg)", glm::value_ptr(rotationDegrees), 0.5F, -720.0F, 720.0F)) {
-                    transform.set_euler_degrees(rotationDegrees);
-                    changed = true;
-                }
-
-                glm::vec3 scale = transform.scale;
-                if (ImGui::DragFloat3("Scale", glm::value_ptr(scale), 0.02F, -100.0F, 100.0F, "%.5f")) {
-                    constexpr float minScale {0.00001F};
-                    scale.x = std::max(scale.x, minScale);
-                    scale.y = std::max(scale.y, minScale);
-                    scale.z = std::max(scale.z, minScale);
-                    transform.scale = scale;
-                    changed = true;
-                }
-
-                if (ImGui::Button("Reset Transform")) {
-                    transform = scene::Transform::identity();
-                    changed = true;
-                }
-                return changed;
-            };
-
-            if (ImGui::Begin("Scene Graph")) {
-                auto drawNode = [&](auto&& self, SceneRenderer::SceneNode& node, bool isRoot) -> void {
-                    ImGui::PushID(&node);
-                    const bool hasChildren = !node.children.empty();
-                    const bool isMesh = node.is_mesh();
-                    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth;
-                    if (!hasChildren) {
-                        flags |= ImGuiTreeNodeFlags_Bullet;
-                    }
-                    const char* prefix = isMesh ? "[Mesh] " : "[Group] ";
-                    const std::string label = std::string {prefix} + node.name;
-                    const bool open = ImGui::TreeNodeEx(label.c_str(), flags);
-
-                    if (open) {
-                        ImGui::Indent();
-                        if (!isRoot && !isMesh) {
-                            if (editTransform(node.transform, "Local Transform")) {
-                                sceneDirty = true;
-                            }
-                        }
-
-                        if (isMesh && node.geometry.has_value()) {
-                            ImGui::Text("Material ID: %u", node.geometry->material.value);
-                            if (editTransform(node.transform, nullptr)) {
-                                sceneDirty = true;
-                            }
-                        }
-
-                        for (SceneRenderer::SceneNode& child : node.children) {
-                            self(self, child, false);
-                        }
-                        ImGui::Unindent();
-                        ImGui::TreePop();
-                    }
-
-                    ImGui::PopID();
-                };
-
-                ImGui::TextUnformatted("Hierarchy");
-                ImGui::Separator();
-                drawNode(drawNode, sceneRoot, true);
-            }
-            ImGui::End();
+            cameraController.update(deltaSeconds);
 
             float effectiveStrength = ssaoEnabled ? ssaoStrength : 0.0F;
             ssaoComposite->set_config(effectiveStrength, ssaoBaseAmbient, ssaoDebugView);

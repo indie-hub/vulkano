@@ -1,21 +1,26 @@
 # Docking Workflow
 
-The renderer ships with the Dear ImGui docking branch (v1.92.3). Docking is
-always enabled and a fullscreen dockspace is created on startup. Panels can be
-rearranged by dragging their tab headers, stacked to create tab bars, or undocked
-into floating windows. Key points:
+The renderer ships with Dear ImGui `v1.92.3-docking`. Docking is always enabled
+and a fullscreen dockspace is created on startup. Panels can be rearranged by
+dragging their tab headers, stacked to create tab bars, or undocked into
+floating windows. Key points:
 
-- **Default Layout:**
-  - `Scene Graph` on the left for hierarchy edits.
-  - `Materials` in the centre dock.
-  - `Lighting` on the right for inspector controls.
-  - `SSAO` at the bottom for post-processing tuning.
-  - The `Diagnostics` overlay floats independently of the dockspace.
-- **Persistence:** Layout customizations persist in `imgui.ini`. Delete that file
-  (or use ImGui's "Reset Layout" button when available) to restore defaults.
-- **Viewport:** The scene viewport currently remains embedded in the main window;
-  future work may promote it to its own dockable window.
-- **Multi-monitor:** Additional ImGui viewports are disabled for now. Docking is
+- **Viewport Window:** `Viewport` is now a dockable window with zero padding so
+  the render output remains visible beneath the dockspace. Hovering or focusing
+  this window enables camera input; undocking it lets you move the scene to a
+  second monitor.
+- **Inspector Pairing:** `Scene Graph` docks alongside an `Inspector` panel that
+  exposes transform editing and geometry details for the selected node.
+- **Control Tabs:** `Lighting`, `Materials`, and `SSAO` share the same dock node
+  by default, appearing as a tab bar on the right/bottom depending on the preset.
+- **Toolbar Strip:** A floating toolbar at the top of the viewport provides
+  quick actions (reset camera, toggle shadows, save layout).
+- **Layout Presets:** Use the **Layout** menu (top-left) to flip between
+  `Authoring`, `Compact`, and `QA` presets or reset the current layout. Preset
+  selections persist in `imgui_layout_profile.cfg`.
+- **Persistence:** Dock positions persist in `imgui.ini`. Choosing "Save Layout"
+  writes both the preset marker and ImGui configuration on demand.
+- **Multi-monitor:** Additional ImGui viewports remain disabled; docking is
   limited to the main window.
 
 ## Tips
@@ -24,26 +29,31 @@ into floating windows. Key points:
    targets.
 2. Float a panel to make it independent, then redock by dragging the title bar
    back to an edge highlight.
-3. Use the window context menu (right-click the tab) to split or close docks.
-4. Delete `imgui.ini` between runs to capture clean screenshots of the default
-   layout.
+3. Use the **Layout** menu to apply presets or reset the current configuration.
+4. Delete `imgui.ini` (and optionally `imgui_layout_profile.cfg`) between runs to
+   capture clean screenshots of the default layout.
+5. Hover the viewport to regain camera control; the toolbar buttons do not steal
+   focus from the dockspace.
 
 ## Known Limitations
 
-- The viewport is not yet separated from the central dock.
+- Rendering still targets the swapchain surface, so undocking the viewport does
+  not resize the underlying Vulkan target (aspect ratio adapts, but the swapchain
+  size remains tied to the OS window).
 - Multi-viewport support remains disabled to avoid platform complications on
   macOS.
-- Dock layout reset is manual (clear `imgui.ini`).
+- Toolbar actions are limited to camera reset, shadow toggle, and manual layout
+  save for now.
 
 ## QA Checklist
 
 Manual checks performed on macOS 14.6.1 (Apple M2 Pro):
 
-- [x] Panels dock according to default layout on first run.
-- [x] Scene Graph, Materials, Lighting, and SSAO windows can be rearranged and
-      persist across restarts.
-- [x] Undocking and redocking windows leaves rendering and camera controls
-      unaffected.
-- [x] Diagnostics overlay remains independent of the dockspace.
+- [x] Panels dock according to the `Authoring` preset on first run.
+- [x] Switching presets via the Layout menu rebuilds the dock tree instantly and
+      persists across restarts.
+- [x] Viewport can be undocked, moved to a second monitor, and redocked without
+      losing camera control.
+- [x] Toolbar buttons reset the camera and toggle shadows as expected.
+- [x] Scene Graph selection updates the Inspector content in real time.
 - [x] No Vulkan validation errors emitted while interacting with docked panels.
-

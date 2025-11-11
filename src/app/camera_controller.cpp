@@ -20,7 +20,21 @@ void CameraController::set_mouse_sensitivity(float sensitivity) noexcept {
     m_mouseSensitivity = sensitivity;
 }
 
+void CameraController::set_input_enabled(bool enabled) noexcept {
+    if (!enabled) {
+        disable_capture();
+        m_window.reset_cursor_delta();
+    }
+    m_inputEnabled = enabled;
+}
+
 void CameraController::update(float deltaSeconds) {
+    if (!m_inputEnabled) {
+        disable_capture();
+        m_window.reset_cursor_delta();
+        return;
+    }
+
     const bool rightButtonDown = m_window.is_mouse_button_pressed(GLFW_MOUSE_BUTTON_RIGHT);
     if (rightButtonDown && !m_capturing) {
         enable_capture();
