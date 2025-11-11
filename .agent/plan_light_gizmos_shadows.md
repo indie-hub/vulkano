@@ -306,6 +306,15 @@
    - Plan the sequence for rendering each shadow map (multiple passes) before main scene render.
    - Note synchronization requirements between passes (barriers, semaphores if any).
    - *Acceptance:* Command buffer timeline documented with stages and required barriers.
+   - **Command timeline:**
+     1. For each active shadow slot `i`:
+        - Transition slot depth image from shader-read to depth-write via `vkCmdPipelineBarrier`.
+        - Begin shadow render pass with slot-specific framebuffer.
+        - Record all mesh draw calls using slot’s view-projection matrix.
+        - End render pass and transition depth image back to shader-read.
+     2. After all shadow passes, bind main render pass and continue with existing geometry/lighting draws.
+     3. Ensure per-slot barriers use `VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT` → `VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT` masks to satisfy Vulkan validation.
+     4. No extra semaphores required within single command buffer; multi-buffer scenarios rely on existing frame fences.
 
 ### Goal F — Debugging, UI, and QA
 1. **UI adjustments**
