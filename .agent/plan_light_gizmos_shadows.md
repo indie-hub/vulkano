@@ -344,6 +344,10 @@
    - Specify new tests for slot assignment, matrix caching, and descriptor binding validation.
    - Identify areas where mocks or fixtures are needed to simulate multiple lights.
    - *Acceptance:* Test list recorded with expected assertions and tooling.
+   - **Proposed tests:**
+     - `test_shadow_slot_assignment_priority` — feed synthetic registry updates and assert slots align with prioritisation rules (capacity, preemption).
+     - `test_shadow_slot_dirty_matrix` — modify light direction/intensity and ensure `dirtyMatrix` flag triggers recompute path.
+     - `test_shadow_descriptor_array_contents` — verify descriptor writes populate expected indices after registry sync.
 2. **Performance validation**
    - Define profiling steps to measure the cost of additional shadow passes (CPU & GPU timing).
    - *Acceptance:* Performance plan captured with thresholds or regression triggers.
