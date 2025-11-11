@@ -2,6 +2,7 @@ set(VULKANO_TEST_SOURCES
     triangle_transforms_tests.cpp
     geometry_tests.cpp
     camera_tests.cpp
+    depth_format_tests.cpp
 )
 
 add_executable(vulkano_tests
