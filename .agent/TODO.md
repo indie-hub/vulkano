@@ -261,7 +261,7 @@
 - [x] Draft leather UV seam investigation plan (.agent/plan_uv_seam.md)
 - [x] Capture baseline UV data for affected leather panels
 - [x] Trace material assignments for chair mesh subsets
-- [ ] Inspect UV indexing and flip configuration
+- [x] Inspect UV indexing and flip configuration
 - [ ] Isolate mesh subsets exhibiting incorrect sampling
 - [ ] Implement UV correction for leather panels
 - [ ] Extend tests/documentation and update changelog for UV seam fix

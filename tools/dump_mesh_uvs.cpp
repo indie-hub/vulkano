@@ -5,6 +5,7 @@
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -12,6 +13,9 @@
 
 #include <vulkano/app/asset_importer.hpp>
 #include <vulkano/scene/mesh.hpp>
+
+#include <assimp/Importer.hpp>
+#include <assimp/postprocess.h>
 
 namespace {
 struct UvStats final {
@@ -80,18 +84,119 @@ void print_stats(const std::vector<UvStats>& stats) {
         std::cout << "  v range: [" << stat.minV << ", " << stat.maxV << "]\n";
     }
 }
+
+struct AssimpStats final {
+    std::string meshLabel {};
+    std::size_t vertexCount {0U};
+    std::uint32_t materialIndex {0U};
+    bool hasUvs {false};
+    float minU {std::numeric_limits<float>::infinity()};
+    float maxU {-std::numeric_limits<float>::infinity()};
+    float minV {std::numeric_limits<float>::infinity()};
+    float maxV {-std::numeric_limits<float>::infinity()};
+};
+
+[[nodiscard]] std::vector<AssimpStats> collect_assimp_stats(const aiScene& scene) {
+    std::vector<AssimpStats> stats {};
+    stats.reserve(scene.mNumMeshes);
+    for (unsigned int i {0U}; i < scene.mNumMeshes; ++i) {
+        const aiMesh* mesh = scene.mMeshes[i];
+        AssimpStats entry {};
+        entry.meshLabel = "mesh[" + std::to_string(i) + "]";
+        entry.vertexCount = mesh->mNumVertices;
+        entry.materialIndex = mesh->mMaterialIndex;
+        if (!mesh->HasTextureCoords(0)) {
+            stats.push_back(std::move(entry));
+            continue;
+        }
+        entry.hasUvs = true;
+        for (unsigned int v {0U}; v < mesh->mNumVertices; ++v) {
+            const aiVector3D& uv = mesh->mTextureCoords[0][v];
+            entry.minU = std::min(entry.minU, uv.x);
+            entry.maxU = std::max(entry.maxU, uv.x);
+            entry.minV = std::min(entry.minV, uv.y);
+            entry.maxV = std::max(entry.maxV, uv.y);
+        }
+        stats.push_back(std::move(entry));
+    }
+    return stats;
+}
+
+void print_assimp_stats(std::string_view label, const std::vector<AssimpStats>& stats) {
+    std::cout << label << '\n';
+    std::cout << "  Mesh Count: " << stats.size() << '\n';
+    for (const AssimpStats& stat : stats) {
+        std::cout << "  - " << stat.meshLabel << '\n';
+        std::cout << "    vertices: " << stat.vertexCount << '\n';
+        std::cout << "    material index: " << stat.materialIndex << '\n';
+        if (!stat.hasUvs) {
+            std::cout << "    uvs: <missing>\n";
+            continue;
+        }
+        std::cout << std::fixed << std::setprecision(6);
+        std::cout << "    u range: [" << stat.minU << ", " << stat.maxU << "]\n";
+        std::cout << "    v range: [" << stat.minV << ", " << stat.maxV << "]\n";
+    }
+}
+
+void compare_flip_settings(const std::filesystem::path& assetPath) {
+    Assimp::Importer importer {};
+    unsigned int baseFlags = aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_CalcTangentSpace
+        | aiProcess_JoinIdenticalVertices | aiProcess_Debone;
+
+    const aiScene* unflippedScene = importer.ReadFile(assetPath.string(), baseFlags);
+    if (unflippedScene == nullptr) {
+        throw std::runtime_error {std::string {"Assimp failed without UV flip: "} + importer.GetErrorString()};
+    }
+    std::vector<AssimpStats> unflipped = collect_assimp_stats(*unflippedScene);
+
+    importer.FreeScene();
+    const aiScene* flippedScene = importer.ReadFile(assetPath.string(), baseFlags | aiProcess_FlipUVs);
+    if (flippedScene == nullptr) {
+        throw std::runtime_error {std::string {"Assimp failed with UV flip: "} + importer.GetErrorString()};
+    }
+    std::vector<AssimpStats> flipped = collect_assimp_stats(*flippedScene);
+
+    print_assimp_stats("Assimp (no aiProcess_FlipUVs)", unflipped);
+    print_assimp_stats("Assimp (with aiProcess_FlipUVs)", flipped);
+}
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc < 2) {
-        std::cerr << "Usage: dump_mesh_uvs <path-to-asset>\n";
+    bool compareFlip {false};
+    std::filesystem::path assetPath {};
+    for (int argIndex {1}; argIndex < argc; ++argIndex) {
+        const std::string_view argument {argv[argIndex]};
+        if (argument == "--compare-uv-flip") {
+            compareFlip = true;
+            continue;
+        }
+        if (!assetPath.empty()) {
+            std::cerr << "Unexpected argument: " << argument << '\n';
+            std::cerr << "Usage: dump_mesh_uvs [--compare-uv-flip] <path-to-asset>\n";
+            return EXIT_FAILURE;
+        }
+        assetPath = argument;
+    }
+
+    if (assetPath.empty()) {
+        std::cerr << "Usage: dump_mesh_uvs [--compare-uv-flip] <path-to-asset>\n";
         return EXIT_FAILURE;
     }
 
-    const std::filesystem::path assetPath {argv[1]};
     if (!std::filesystem::exists(assetPath)) {
         std::cerr << "Asset file does not exist: " << assetPath << '\n';
         return EXIT_FAILURE;
+    }
+
+    if (compareFlip) {
+        try {
+            compare_flip_settings(assetPath);
+        } catch (const std::exception& ex) {
+            std::cerr << "Error: " << ex.what() << '\n';
+            return EXIT_FAILURE;
+        }
+        return EXIT_SUCCESS;
     }
 
     vulkano::app::AssetImporter importer {};

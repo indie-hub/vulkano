@@ -1,0 +1,14 @@
+Assimp (no aiProcess_FlipUVs)
+  Mesh Count: 1
+  - mesh[0]
+    vertices: 4203
+    material index: 0
+    u range: [0.003009, 0.996988]
+    v range: [0.003010, 0.996795]
+Assimp (with aiProcess_FlipUVs)
+  Mesh Count: 1
+  - mesh[0]
+    vertices: 4203
+    material index: 0
+    u range: [0.003009, 0.996988]
+    v range: [0.003205, 0.996990]
