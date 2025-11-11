@@ -13,6 +13,7 @@ set(VULKANO_TEST_SOURCES
     asset_importer_tests.cpp
     transform_tests.cpp
     scene_graph_tests.cpp
+    renderer_constants_tests.cpp
 )
 
 add_executable(vulkano_tests

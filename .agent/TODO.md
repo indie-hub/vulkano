@@ -220,4 +220,4 @@
 - [x] Upgrade Dear ImGui to the docking branch (source sync, CMake updates)
 - [x] Update Dear ImGui to v1.92.3 docking tag
 - [x] Enable docking UI layout (dockspace, panel windows, viewport routing)
-- [ ] Validate docking workflow with tests and documentation
+- [x] Validate docking workflow with tests and documentation
