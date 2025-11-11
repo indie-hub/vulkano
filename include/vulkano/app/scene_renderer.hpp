@@ -97,6 +97,7 @@ private:
         bool active {false};
         bool dirtyMatrix {true};
         glm::mat4 viewProjection {1.0F};
+        std::uint32_t priority {0U};
     };
 
     struct ShadowResources final {
@@ -117,6 +118,7 @@ private:
         VkDescriptorSet descriptorSet {VK_NULL_HANDLE};
         VkExtent2D extent {2048U, 2048U};
         VkFormat format {VK_FORMAT_D32_SFLOAT};
+        std::uint32_t activeCount {0U};
     };
 
     struct LightGizmoHandle final {

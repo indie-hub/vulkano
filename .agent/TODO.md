@@ -177,3 +177,4 @@
 - [x] Review multi-caster plan for completeness
 - [x] Implement ShadowResources pool scaffolding
 - [x] Integrate shadow slot sync with light registry
+- [x] Implement slot prioritisation and capacity handling
