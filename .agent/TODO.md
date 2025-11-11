@@ -224,4 +224,4 @@
 
 - [x] Draft advanced UI layout enhancement plan (see .agent/plan_imgui_layout_enhancements.md)
 - [x] Implement UI layout enhancements and presets
-- [ ] Document and validate enhanced UI layouts
+- [x] Document and validate enhanced UI layouts
