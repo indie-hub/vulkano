@@ -324,6 +324,18 @@ int Application::run() noexcept {
                         ImGui::TextWrapped("%s", editable.textures.baseColorPath.empty() ? "<none>"
                             : editable.textures.baseColorPath.c_str());
 
+                        bool useNormal = editable.useNormalTexture;
+                        if (ImGui::Checkbox("Use Normal Map", &useNormal)) {
+                            editable.useNormalTexture = useNormal;
+                            materialsDirty = true;
+                        }
+                        ImGui::TextWrapped("Normal texture: %s",
+                            editable.textures.normalPath.empty() ? "<none>"
+                                                                 : editable.textures.normalPath.c_str());
+                        ImGui::ColorButton("##NormalPreview", ImVec4(0.5F, 0.5F, 1.0F, 1.0F), 0, ImVec2(24.0F, 24.0F));
+                        ImGui::SameLine();
+                        ImGui::TextUnformatted("Normal Map Preview");
+
                         if (!editable.textures.metallicRoughnessPath.empty()) {
                             bool useMr = editable.useMetallicRoughnessTexture;
                             if (ImGui::Checkbox("Use Metallic/Roughness Map", &useMr)) {
