@@ -17,8 +17,8 @@ namespace {
     info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
     info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
     info.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-    info.compareEnable = VK_TRUE;
-    info.compareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+    info.compareEnable = VK_FALSE;
+    info.compareOp = VK_COMPARE_OP_ALWAYS;
     info.minLod = 0.0F;
     info.maxLod = 0.0F;
 

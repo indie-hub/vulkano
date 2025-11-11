@@ -42,13 +42,16 @@ struct LightGpu {
 layout(set = 2, binding = 0) readonly buffer LightBuffer {
     LightGpu lights[];
 } lightBuffer;
+layout(set = 3, binding = 0) uniform sampler2D shadowMap;
 
 layout(push_constant) uniform PushConstants {
     mat4 model;
     mat4 view;
     mat4 projection;
+    mat4 lightViewProjection;
     uvec4 materialData;
     vec4 cameraPosition;
+    vec4 shadowParams;
 } pushConstants;
 
 layout(location = 0) out vec4 outColor;
@@ -116,6 +119,8 @@ void main() {
     }
     float NdotV = max(dot(normalWorld, V), 0.0);
 
+    bool shadowEnabled = pushConstants.shadowParams.w > 0.5;
+    float shadowBias = pushConstants.shadowParams.x;
     vec3 radiance = vec3(0.0);
     if (NdotV > 0.0) {
         vec3 F0 = mix(vec3(0.04), albedo, metallic);
@@ -171,7 +176,21 @@ void main() {
             vec3 diffuse = kd * albedo / PI;
 
             vec3 lightColor = light.colorType.rgb * attenuation;
-            radiance += (diffuse + specular) * lightColor * NdotL;
+
+            float shadowFactor = 1.0;
+            if (shadowEnabled && light.colorType.w < 0.5) {
+                vec4 lightSpace = pushConstants.lightViewProjection * vec4(fragPosWorld, 1.0);
+                vec3 shadowCoord = lightSpace.xyz / lightSpace.w;
+                shadowCoord = shadowCoord * 0.5 + 0.5;
+                if (shadowCoord.z <= 1.0 && shadowCoord.x >= 0.0 && shadowCoord.x <= 1.0
+                    && shadowCoord.y >= 0.0 && shadowCoord.y <= 1.0) {
+                    float closestDepth = texture(shadowMap, shadowCoord.xy).r;
+                    float currentDepth = shadowCoord.z - shadowBias;
+                    shadowFactor = currentDepth <= closestDepth ? 1.0 : 0.0;
+                }
+            }
+
+            radiance += (diffuse + specular) * lightColor * NdotL * shadowFactor;
         }
     }
 
