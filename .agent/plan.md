@@ -254,3 +254,55 @@ Deliver a right-handed Vulkan renderer that opens a GLFW window, renders a white
 - Swapchain recreation (window resize) rebuilds depth resources without crashes or validation warnings.
 - Unit tests pass, including coverage for the new depth-format helper, and the application runs to completion on macOS.
 
+# SSAO Implementation Plan
+
+## Baseline
+- Renderer currently performs a single forward pass directly into the swapchain with depth testing only.
+- No G-buffer, descriptor sets for post-processing, or full-screen quad infrastructure exist yet.
+
+## Phase 1 – Geometry Pass Upgrade
+1. Extend `SceneRenderer` to render into an off-screen framebuffer with separate colour, normal, and depth attachments while keeping the swapchain pass for final composition.
+2. Allocate RAII-managed images/views for albedo, view-space normals, and linear depth; ensure they rebuild on swapchain resize.
+3. Update shaders to output required attributes (world/view-space normals, positions) and adjust push constants if additional data is needed.
+4. Define descriptor layouts exposing G-buffer attachments to later passes.
+5. Verify geometry pass teardown/recreation is clean during window resizing.
+
+## Phase 2 – SSAO Sample Data
+1. Implement deterministic SSAO kernel generation (32–64 hemisphere samples) stored in a GPU buffer.
+2. Create a small noise texture for tangent-space randomisation and upload it to the GPU.
+3. Add unit tests validating kernel distribution (length ≤ 1, hemisphere bias) and reproducibility via seeded RNG.
+
+## Phase 3 – SSAO Pass
+1. Introduce a full-screen SSAO pipeline (graphics or compute) sampling G-buffer depth/normals, the kernel buffer, and noise texture.
+2. Configure descriptor sets and samplers for these resources.
+3. Implement the SSAO shader to reconstruct view-space positions, accumulate occlusion, and output to an occlusion target.
+4. Integrate pass submission and handle necessary image layout transitions.
+
+## Phase 4 – Blur/Filter Pass
+1. Add separable or bilateral blur passes to smooth the raw SSAO output.
+2. Use the occlusion texture as input, writing to a blurred SSAO attachment suitable for composition.
+3. Make filter parameters (radius, sharpness) configurable.
+
+## Phase 5 – Composition
+1. Modify the final swapchain pass to blend the blurred SSAO term with the colour buffer (e.g., multiply diffuse lighting).
+2. Bind the SSAO texture via descriptor/push constant updates.
+3. Ensure ImGui overlay renders correctly after composition.
+
+## Phase 6 – Runtime Integration
+1. Add configuration structs and ImGui controls for SSAO parameters (enable flag, radius, bias, sample count).
+2. Rebuild SSAO resources on swapchain recreation and window resize.
+3. Provide debug visualisation (raw occlusion toggle) for validation.
+
+## Phase 7 – Testing & Validation
+1. Expand automated tests for kernel math and projection reconstruction helpers.
+2. Run Vulkan validation layers to confirm descriptor usage and layout transitions.
+3. Manually verify behaviour across camera movement and lighting variations.
+4. Benchmark performance impact and document findings.
+
+## Acceptance Criteria
+- Geometry pass outputs albedo, normals, and depth textures with resize-safe lifecycle management.
+- SSAO kernel/noise generation is deterministic and unit-tested.
+- SSAO + blur passes render without validation errors; scene shows correct ambient occlusion and can be toggled.
+- ImGui exposes SSAO controls; runtime remains stable through resizes and camera motion.
+- Build/tests succeed (`cmake --build`, `ctest`); validation layers report no new issues.
+
