@@ -86,7 +86,7 @@ int Application::run() noexcept {
             }
         };
 
-        materialBuffer.update(materialRegistry);
+        materialBuffer.update(materialRegistry, materialTextures.handles());
         materialTextures.rebuild(materialRegistry);
 
         SSAOSampleGenerator ssaoGenerator {};
@@ -95,7 +95,7 @@ int Application::run() noexcept {
 
         auto renderer = std::make_unique<SceneRenderer>(context, window, ssaoComposite->layout());
         renderer->set_scene(sceneMeshes);
-        renderer->set_material_buffer(materialBuffer);
+        renderer->set_material_resources(materialBuffer, materialTextures);
 
         auto ssaoDescriptors = std::make_unique<SSAODescriptors>(context, ssaoResources,
             renderer->normal_image_view(), renderer->linear_depth_image_view());
@@ -149,7 +149,7 @@ int Application::run() noexcept {
 
             renderer = std::make_unique<SceneRenderer>(context, window, ssaoComposite->layout());
             renderer->set_scene(sceneMeshes);
-            renderer->set_material_buffer(materialBuffer);
+            renderer->set_material_resources(materialBuffer, materialTextures);
             ssaoDescriptors->update_gbuffer_views(renderer->normal_image_view(), renderer->linear_depth_image_view());
             ssaoPass->resize(context, context.swapchain_extent());
             ssaoBlurPass->resize(context, context.swapchain_extent());

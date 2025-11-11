@@ -11,7 +11,7 @@ namespace {
 }
 }
 
-MaterialGpu make_material_gpu(const scene::Material& material) noexcept {
+MaterialGpu make_material_gpu(const scene::Material& material, const scene::MaterialTextureHandles& handles) noexcept {
     MaterialGpu gpu {};
     const scene::MaterialProperties& props = material.properties;
 
@@ -21,16 +21,25 @@ MaterialGpu make_material_gpu(const scene::Material& material) noexcept {
 
     gpu.baseColorMetallic = glm::vec4 {props.baseColor, metallic};
     gpu.roughnessAoFlags = glm::vec4 {roughness, ambient, 0.0F, 0.0F};
+    gpu.textureIndices = glm::uvec4 {
+        handles.baseColor,
+        handles.normal,
+        handles.metallicRoughness,
+        handles.ambientOcclusion
+    };
 
     return gpu;
 }
 
-std::vector<MaterialGpu> build_material_gpu_buffer(const scene::MaterialRegistry& registry) {
+std::vector<MaterialGpu> build_material_gpu_buffer(const scene::MaterialRegistry& registry,
+    const std::vector<scene::MaterialTextureHandles>& handles) {
     const std::vector<scene::Material>& materials = registry.materials();
     std::vector<MaterialGpu> buffer;
     buffer.reserve(materials.size());
-    for (const scene::Material& material : materials) {
-        buffer.push_back(make_material_gpu(material));
+    for (std::size_t i {0U}; i < materials.size(); ++i) {
+        const scene::Material& material = materials[i];
+        const scene::MaterialTextureHandles& handle = i < handles.size() ? handles[i] : scene::MaterialTextureHandles {};
+        buffer.push_back(make_material_gpu(material, handle));
     }
     if (buffer.empty()) {
         buffer.push_back(MaterialGpu {});

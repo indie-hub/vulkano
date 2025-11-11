@@ -82,5 +82,5 @@
 - [x] Implement texture loading utilities and placeholder textures
 - [x] Implement GPU texture image upload helper and sampler creation
 - [x] Create material texture cache linking registry entries to GPU resources
-- [ ] Update scene renderer descriptors and shaders to sample material textures
-- [ ] Validate textured materials via build, tests, and runtime run
+- [x] Update scene renderer descriptors and shaders to sample material textures
+- [x] Validate textured materials via build, tests, and runtime run

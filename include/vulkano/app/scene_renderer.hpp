@@ -16,6 +16,7 @@ namespace vulkano::app {
 class VulkanContext;
 class Window;
 class MaterialBuffer;
+class MaterialTextureCache;
 
 class SceneRenderer final {
 public:
@@ -34,7 +35,7 @@ public:
     SceneRenderer& operator=(SceneRenderer&&) noexcept = delete;
 
     void set_scene(const std::vector<SceneMesh>& meshes);
-    void set_material_buffer(const MaterialBuffer& buffer);
+    void set_material_resources(const MaterialBuffer& buffer, const MaterialTextureCache& textures);
 
     [[nodiscard]] VkRenderPass render_pass() const noexcept;
     [[nodiscard]] VkPipeline pipeline() const noexcept;
@@ -97,5 +98,6 @@ private:
     VkDescriptorPool m_materialDescriptorPool {VK_NULL_HANDLE};
     VkDescriptorSet m_materialDescriptorSet {VK_NULL_HANDLE};
     const MaterialBuffer* m_materialBuffer {nullptr};
+    std::vector<VkDescriptorImageInfo> m_materialTextureInfos;
 };
 } // namespace vulkano::app

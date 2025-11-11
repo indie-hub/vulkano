@@ -14,14 +14,18 @@ layout(set = 0, binding = 0) uniform SSAOConfig {
 } uConfig;
 layout(set = 0, binding = 1) uniform sampler2D ssaoTex;
 
+const uint MATERIAL_TEXTURE_COUNT = 12u;
+
 struct MaterialGpu {
     vec4 baseColorMetallic;
     vec4 roughnessAoFlags;
+    uvec4 textureIndices;
 };
 
 layout(set = 1, binding = 0) readonly buffer MaterialBuffer {
     MaterialGpu materials[];
 } materialBuffer;
+layout(set = 1, binding = 1) uniform sampler2D materialTextures[MATERIAL_TEXTURE_COUNT];
 
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out vec4 outAlbedo;
@@ -37,6 +41,12 @@ void main() {
     float metallic = material.baseColorMetallic.a;
     float roughness = material.roughnessAoFlags.x;
     float ambientOcclusion = material.roughnessAoFlags.y;
+
+    uint baseIndex = material.textureIndices.x;
+    if (baseIndex < MATERIAL_TEXTURE_COUNT) {
+        vec4 sampleBase = texture(materialTextures[baseIndex], vec2(0.5));
+        albedo *= sampleBase.rgb;
+    }
     vec3 lightDir = normalize(vec3(0.5, 1.0, 0.3));
     float diffuse = max(dot(normalWorld, lightDir), 0.0);
 

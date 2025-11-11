@@ -3,6 +3,8 @@
 
 #include <vulkano/app/material_gpu.hpp>
 
+#include <glm/vec3.hpp>
+
 namespace {
 constexpr float epsilon {1e-4F};
 }
@@ -14,7 +16,13 @@ TEST_CASE("Material GPU conversion clamps values") {
     material.properties.roughness = -1.0F;
     material.properties.ambientOcclusion = 4.0F;
 
-    const vulkano::app::MaterialGpu gpu = vulkano::app::make_material_gpu(material);
+    vulkano::scene::MaterialTextureHandles handles {};
+    handles.baseColor = 5U;
+    handles.normal = 6U;
+    handles.metallicRoughness = 7U;
+    handles.ambientOcclusion = 8U;
+
+    const vulkano::app::MaterialGpu gpu = vulkano::app::make_material_gpu(material, handles);
 
     using Catch::Matchers::WithinAbs;
     REQUIRE_THAT(gpu.baseColorMetallic.x, WithinAbs(1.5F, epsilon));
@@ -23,28 +31,33 @@ TEST_CASE("Material GPU conversion clamps values") {
     REQUIRE_THAT(gpu.baseColorMetallic.w, WithinAbs(1.0F, epsilon));
     REQUIRE_THAT(gpu.roughnessAoFlags.x, WithinAbs(0.0F, epsilon));
     REQUIRE_THAT(gpu.roughnessAoFlags.y, WithinAbs(1.0F, epsilon));
+    REQUIRE(gpu.textureIndices.x == 5U);
+    REQUIRE(gpu.textureIndices.y == 6U);
+    REQUIRE(gpu.textureIndices.z == 7U);
+    REQUIRE(gpu.textureIndices.w == 8U);
 }
 
 TEST_CASE("Material descriptor bindings expose layout constants") {
     REQUIRE(vulkano::app::MaterialDescriptorBindings::materialBufferBinding == 0U);
-    REQUIRE(vulkano::app::MaterialDescriptorBindings::baseColorTextureBinding == 1U);
-    REQUIRE(vulkano::app::MaterialDescriptorBindings::normalTextureBinding == 2U);
-    REQUIRE(vulkano::app::MaterialDescriptorBindings::metallicRoughnessTextureBinding == 3U);
-    REQUIRE(vulkano::app::MaterialDescriptorBindings::ambientOcclusionTextureBinding == 4U);
+    REQUIRE(vulkano::app::MaterialDescriptorBindings::textureArrayBinding == 1U);
+    REQUIRE(vulkano::app::MaterialDescriptorBindings::maxTextureSamplers == 12U);
 }
 
 TEST_CASE("Material GPU buffer builder always returns at least one entry") {
     vulkano::scene::MaterialRegistry registry {};
-    auto buffer = vulkano::app::build_material_gpu_buffer(registry);
+    std::vector<vulkano::scene::MaterialTextureHandles> handles {vulkano::scene::MaterialTextureHandles {}};
+    auto buffer = vulkano::app::build_material_gpu_buffer(registry, handles);
     REQUIRE(buffer.size() == 1U);
 
     vulkano::scene::Material extra {};
     extra.properties.baseColor = glm::vec3 {0.25F, 0.5F, 0.75F};
     const auto newId = registry.add_material(extra);
 
-    buffer = vulkano::app::build_material_gpu_buffer(registry);
+    handles.push_back(vulkano::scene::MaterialTextureHandles {.baseColor = 3U, .normal = 4U, .metallicRoughness = 5U, .ambientOcclusion = 6U});
+    buffer = vulkano::app::build_material_gpu_buffer(registry, handles);
     REQUIRE(buffer.size() == 2U);
     using Catch::Matchers::WithinAbs;
     REQUIRE_THAT(buffer[1].baseColorMetallic.x, WithinAbs(0.25F, epsilon));
+    REQUIRE(buffer[1].textureIndices.x == 3U);
     REQUIRE(newId.value == 1U);
 }
