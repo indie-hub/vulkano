@@ -239,4 +239,4 @@
 - [x] Resolve viewport color attachment layout validation warnings
     - [x] Track actual scene color image layouts and transition back to attachment use before the render pass
     - [x] Verify barriers clear the warnings under VK_LAYER_KHRONOS_validation with resize smoke test
-- [ ] Document and validate viewport docking workflow
+- [x] Document and validate viewport docking workflow

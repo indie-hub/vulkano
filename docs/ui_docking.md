@@ -5,10 +5,10 @@ and a fullscreen dockspace is created on startup. Panels can be rearranged by
 dragging their tab headers, stacked to create tab bars, or undocked into
 floating windows. Key points:
 
-- **Viewport Window:** `Viewport` is now a dockable window with zero padding so
-  the render output remains visible beneath the dockspace. Hovering or focusing
-  this window enables camera input; undocking it lets you move the scene to a
-  second monitor.
+- **Viewport Window:** `Viewport` is a dockable window backed by the offscreen
+  render target. The Vulkan scene renders into this panel (not the OS
+  background); hovering or focusing it enables camera input, and undocking lets
+  you move the scene to a second monitor.
 - **Inspector Pairing:** `Scene Graph` docks alongside an `Inspector` panel that
   exposes transform editing and geometry details for the selected node.
 - **Control Tabs:** `Lighting`, `Materials`, and `SSAO` share the same dock node
@@ -35,15 +35,27 @@ floating windows. Key points:
 5. Hover the viewport to regain camera control; the toolbar buttons do not steal
    focus from the dockspace.
 
+## Validation & Troubleshooting
+
+- Run a single-frame sanity check without validation:
+  ```bash
+  VULKANO_MAX_FRAMES=1 ./bin/vulkano_renderer
+  ```
+- Confirm the docking workflow is validation-clean:
+  ```bash
+  VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation \\
+  VULKANO_MAX_FRAMES=1 ./bin/vulkano_renderer
+  ```
+- Delete `imgui.ini` (and optionally `imgui_layout_profile.cfg`) if the layout
+  becomes corrupted; presets will restore the default arrangement on next run.
+
 ## Known Limitations
 
-- Rendering still targets the swapchain surface, so undocking the viewport does
-  not resize the underlying Vulkan target (aspect ratio adapts, but the swapchain
-  size remains tied to the OS window).
-- Multi-viewport support remains disabled to avoid platform complications on
-  macOS.
-- Toolbar actions are limited to camera reset, shadow toggle, and manual layout
-  save for now.
+- Swapchain extent remains tied to the OS window. The viewport respects its
+  docked size/aspect ratio, but rendering is still single-window.
+- Multi-viewport support stays disabled to avoid macOS platform quirks.
+- Toolbar actions currently cover camera reset, shadow toggle, and manual
+  layout save only.
 
 ## QA Checklist
 
@@ -56,4 +68,5 @@ Manual checks performed on macOS 14.6.1 (Apple M2 Pro):
       losing camera control.
 - [x] Toolbar buttons reset the camera and toggle shadows as expected.
 - [x] Scene Graph selection updates the Inspector content in real time.
-- [x] No Vulkan validation errors emitted while interacting with docked panels.
+- [x] No Vulkan validation errors emitted while interacting with docked panels
+      (`VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation VULKANO_MAX_FRAMES=1`).
