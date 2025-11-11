@@ -142,5 +142,5 @@
 - [x] Introduce PCF filtering and shadow controls in ImGui
 - [x] Draft plan for multi-light gizmo updates and per-light shadow toggles
 - [x] Add per-light shadow flag to scene/light pipeline
-- [ ] Document per-light shadow controls and workflow in project docs
+- [x] Document per-light shadow controls and workflow in project docs
 - [ ] Capture runtime validation of per-light shadow toggles for QA notes
