@@ -56,6 +56,14 @@ int Application::run() noexcept {
         scene::LightRegistry lightRegistry {};
         LightBuffer lightBuffer {context};
 
+        scene::Light fillLight {};
+        fillLight.type = scene::LightType::Point;
+        fillLight.position = glm::vec3 {2.0F, 1.5F, -1.0F};
+        fillLight.range = 9.0F;
+        fillLight.color = glm::vec3 {0.6F, 0.7F, 1.0F};
+        fillLight.intensity = 3.5F;
+        [[maybe_unused]] const scene::LightId fillId = lightRegistry.add_light(fillLight);
+
         scene::Material planeMaterial {};
         planeMaterial.properties.baseColor = glm::vec3 {0.7F, 0.7F, 0.7F};
         planeMaterial.properties.roughness = 0.9F;
@@ -252,16 +260,60 @@ int Application::run() noexcept {
                 if (ImGui::Checkbox("Show Light Gizmo", &showLightDebug)) {
                     renderer->set_show_light_debug(showLightDebug);
                 }
-                for (std::size_t index {0U}; index < lightRegistry.size(); ++index) {
-                    const scene::LightId id {static_cast<std::uint32_t>(index)};
+
+                if (ImGui::Button("Add Directional Light")) {
+                    scene::Light light {};
+                    light.type = scene::LightType::Directional;
+                    light.direction = glm::normalize(glm::vec3 {-0.2F, -1.0F, -0.1F});
+                    light.color = glm::vec3 {0.8F, 0.85F, 1.0F};
+                    light.intensity = 1.5F;
+                    [[maybe_unused]] const scene::LightId newDirectional = lightRegistry.add_light(light);
+                    lightsDirty = true;
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Add Point Light")) {
+                    scene::Light light {};
+                    light.type = scene::LightType::Point;
+                    light.position = glm::vec3 {1.0F, 1.5F, 0.5F};
+                    light.range = 8.0F;
+                    light.color = glm::vec3 {1.0F, 0.9F, 0.75F};
+                    light.intensity = 3.0F;
+                    [[maybe_unused]] const scene::LightId newPoint = lightRegistry.add_light(light);
+                    lightsDirty = true;
+                }
+
+                std::size_t lightIndex {0U};
+                while (lightIndex < lightRegistry.size()) {
+                    const scene::LightId id {static_cast<std::uint32_t>(lightIndex)};
                     scene::Light& editableLight = lightRegistry.light(id);
-                    const std::string label = "Light " + std::to_string(index);
+                    ImGui::PushID(static_cast<int>(lightIndex));
+                    const std::string label = "Light " + std::to_string(lightIndex);
 
                     if (ImGui::TreeNode(label.c_str())) {
-                        glm::vec3 direction = editableLight.direction;
-                        if (ImGui::SliderFloat3("Direction", glm::value_ptr(direction), -1.0F, 1.0F)) {
-                            editableLight.direction = direction;
+                        int typeIndex = static_cast<int>(editableLight.type);
+                        const char* typeItems[] = {"Directional", "Point"};
+                        if (ImGui::Combo("Type", &typeIndex, typeItems, IM_ARRAYSIZE(typeItems))) {
+                            editableLight.type = static_cast<scene::LightType>(typeIndex);
                             lightsDirty = true;
+                        }
+
+                        if (editableLight.type == scene::LightType::Directional) {
+                            glm::vec3 direction = editableLight.direction;
+                            if (ImGui::SliderFloat3("Direction", glm::value_ptr(direction), -1.0F, 1.0F)) {
+                                editableLight.direction = direction;
+                                lightsDirty = true;
+                            }
+                        } else {
+                            glm::vec3 position = editableLight.position;
+                            if (ImGui::DragFloat3("Position", glm::value_ptr(position), 0.1F, -20.0F, 20.0F)) {
+                                editableLight.position = position;
+                                lightsDirty = true;
+                            }
+                            float range = editableLight.range;
+                            if (ImGui::SliderFloat("Range", &range, 0.1F, 50.0F)) {
+                                editableLight.range = range;
+                                lightsDirty = true;
+                            }
                         }
 
                         glm::vec3 color = editableLight.color;
@@ -276,8 +328,20 @@ int Application::run() noexcept {
                             lightsDirty = true;
                         }
 
+                        if (lightIndex > 0U) {
+                            if (ImGui::Button("Remove")) {
+                                lightRegistry.remove_light(id);
+                                lightsDirty = true;
+                                ImGui::TreePop();
+                                ImGui::PopID();
+                                continue;
+                            }
+                        }
+
                         ImGui::TreePop();
                     }
+                    ImGui::PopID();
+                    ++lightIndex;
                 }
             }
             ImGui::End();

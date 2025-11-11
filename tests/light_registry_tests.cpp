@@ -77,3 +77,16 @@ TEST_CASE("Point lights preserve position and range") {
     REQUIRE(stored.direction == pointLight.direction);
     REQUIRE_THAT(stored.intensity, WithinAbs(4.0F, 1e-4F));
 }
+
+TEST_CASE("Light registry removes non-primary lights") {
+    vulkano::scene::LightRegistry registry {};
+
+    vulkano::scene::Light extra {};
+    extra.type = vulkano::scene::LightType::Point;
+    const auto id = registry.add_light(extra);
+    REQUIRE(registry.size() == 2U);
+
+    registry.remove_light(id);
+    REQUIRE(registry.size() == 1U);
+    REQUIRE_THROWS(registry.remove_light(vulkano::scene::LightId {0U}));
+}
