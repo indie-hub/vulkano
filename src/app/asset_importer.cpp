@@ -87,7 +87,7 @@ ImportedScene AssetImporter::load_scene(std::string_view path) const {
 
     ImportedScene result {};
     result.name = scene->mRootNode->mName.length > 0 ? scene->mRootNode->mName.C_Str() : "Imported Scene";
-    result.rootTransform = scene::Transform::identity();
+    result.rootTransform = scene::Transform::from_matrix(to_glm(scene->mRootNode->mTransformation));
 
     result.embeddedTextures.clear();
     result.embeddedTextures.reserve(scene->mNumTextures);
