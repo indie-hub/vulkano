@@ -6,6 +6,7 @@ set(VULKANO_TEST_SOURCES
     depth_format_tests.cpp
     material_registry_tests.cpp
     material_gpu_tests.cpp
+    texture_loader_tests.cpp
 )
 
 add_executable(vulkano_tests

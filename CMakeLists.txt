@@ -158,6 +158,7 @@ add_library(vulkano_app STATIC
     src/app/imgui_renderer.cpp
     src/app/ssao.cpp
     src/app/material_gpu.cpp
+    src/app/texture_loader.cpp
     src/app/material_buffer.cpp
     src/app/vulkan_context.cpp
     src/app/window.cpp
@@ -188,6 +189,7 @@ target_sources(vulkano_app
             include/vulkano/app/imgui_renderer.hpp
             include/vulkano/app/ssao.hpp
             include/vulkano/app/material_gpu.hpp
+            include/vulkano/app/texture_loader.hpp
             include/vulkano/app/material_buffer.hpp
             include/vulkano/app/vulkan_context.hpp
             include/vulkano/app/window.hpp
@@ -205,6 +207,8 @@ target_sources(vulkano_app
 target_include_directories(vulkano_app
     PUBLIC
         include
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}
 )
 
 target_link_libraries(vulkano_app
