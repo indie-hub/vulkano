@@ -181,6 +181,153 @@ void SceneRenderer::GizmoCache::release() noexcept {
     points.clear();
 }
 
+void SceneRenderer::ShadowResources::initialise(
+    const VulkanContext& context, VkExtent2D desiredExtent, VkFormat desiredFormat, std::size_t maxSlots) {
+    extent = desiredExtent;
+    format = desiredFormat;
+    if (maxSlots == 0U) {
+        maxSlots = 1U;
+    }
+
+    const VkDevice device = context.device();
+
+    if (descriptorLayout == VK_NULL_HANDLE) {
+        VkDescriptorSetLayoutBinding binding {};
+        binding.binding = 0U;
+        binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        binding.descriptorCount = static_cast<std::uint32_t>(maxSlots);
+        binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        VkDescriptorSetLayoutCreateInfo layoutInfo {};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        layoutInfo.bindingCount = 1U;
+        layoutInfo.pBindings = &binding;
+
+        if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorLayout) != VK_SUCCESS) {
+            throw std::runtime_error {"Failed to create shadow descriptor layout"};
+        }
+    }
+
+    if (descriptorPool == VK_NULL_HANDLE) {
+        VkDescriptorPoolSize poolSize {};
+        poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        poolSize.descriptorCount = static_cast<std::uint32_t>(maxSlots);
+
+        VkDescriptorPoolCreateInfo poolInfo {};
+        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        poolInfo.maxSets = 1U;
+        poolInfo.poolSizeCount = 1U;
+        poolInfo.pPoolSizes = &poolSize;
+
+        if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
+            throw std::runtime_error {"Failed to create shadow descriptor pool"};
+        }
+    }
+
+    if (descriptorSet == VK_NULL_HANDLE) {
+        VkDescriptorSetAllocateInfo allocInfo {};
+        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        allocInfo.descriptorPool = descriptorPool;
+        allocInfo.descriptorSetCount = 1U;
+        allocInfo.pSetLayouts = &descriptorLayout;
+
+        if (vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet) != VK_SUCCESS) {
+            throw std::runtime_error {"Failed to allocate shadow descriptor set"};
+        }
+    }
+
+    if (slots.size() != maxSlots) {
+        slots.resize(maxSlots);
+    }
+
+    for (ShadowSlot& slot : slots) {
+        slot.id = scene::LightId::invalid();
+        slot.active = false;
+        slot.dirtyMatrix = true;
+        slot.viewProjection = glm::mat4(1.0F);
+        if (slot.map.render_pass() == VK_NULL_HANDLE) {
+            slot.map = ShadowMap {context, extent, format};
+            slot.pass = ShadowPass {context, slot.map.render_pass()};
+        } else {
+            slot.map.recreate(context, extent, format);
+            slot.pass.recreate(context, slot.map.render_pass());
+        }
+    }
+
+    update_descriptors(context);
+}
+
+void SceneRenderer::ShadowResources::release(const VulkanContext& context) noexcept {
+    const VkDevice device = context.device();
+
+    if (descriptorSet != VK_NULL_HANDLE && descriptorPool != VK_NULL_HANDLE) {
+        vkFreeDescriptorSets(device, descriptorPool, 1U, &descriptorSet);
+        descriptorSet = VK_NULL_HANDLE;
+    }
+    if (descriptorPool != VK_NULL_HANDLE) {
+        vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+        descriptorPool = VK_NULL_HANDLE;
+    }
+    if (descriptorLayout != VK_NULL_HANDLE) {
+        vkDestroyDescriptorSetLayout(device, descriptorLayout, nullptr);
+        descriptorLayout = VK_NULL_HANDLE;
+    }
+
+    for (ShadowSlot& slot : slots) {
+        slot.map = ShadowMap {};
+        slot.pass = ShadowPass {};
+        slot.id = scene::LightId::invalid();
+        slot.active = false;
+        slot.dirtyMatrix = true;
+        slot.viewProjection = glm::mat4(1.0F);
+    }
+    slots.clear();
+}
+
+void SceneRenderer::ShadowResources::update_descriptors(const VulkanContext& context) {
+    if (descriptorSet == VK_NULL_HANDLE) {
+        return;
+    }
+    std::vector<VkDescriptorImageInfo> infos;
+    infos.reserve(slots.size());
+    for (const ShadowSlot& slot : slots) {
+        infos.push_back(slot.map.descriptor_info());
+    }
+
+    VkWriteDescriptorSet write {};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.dstSet = descriptorSet;
+    write.dstBinding = 0U;
+    write.descriptorCount = static_cast<std::uint32_t>(infos.size());
+    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    write.pImageInfo = infos.data();
+
+    vkUpdateDescriptorSets(context.device(), 1U, &write, 0U, nullptr);
+}
+
+bool SceneRenderer::ShadowResources::empty() const noexcept {
+    return slots.empty();
+}
+
+std::size_t SceneRenderer::ShadowResources::slot_count() const noexcept {
+    return slots.size();
+}
+
+SceneRenderer::ShadowSlot& SceneRenderer::ShadowResources::slot(std::size_t index) {
+    return slots.at(index);
+}
+
+const SceneRenderer::ShadowSlot& SceneRenderer::ShadowResources::slot(std::size_t index) const {
+    return slots.at(index);
+}
+
+VkDescriptorSetLayout SceneRenderer::ShadowResources::descriptor_layout() const noexcept {
+    return descriptorLayout;
+}
+
+VkDescriptorSet SceneRenderer::ShadowResources::descriptor_set() const noexcept {
+    return descriptorSet;
+}
 SceneRenderer::SceneRenderer(const VulkanContext& context, const Window& window, VkDescriptorSetLayout ssaoLayout)
     : m_context {context}
     , m_descriptorLayout {ssaoLayout} {
@@ -189,11 +336,11 @@ SceneRenderer::SceneRenderer(const VulkanContext& context, const Window& window,
     create_render_pass();
     create_material_descriptors();
     create_light_descriptors();
+    create_shadow_resources();
     create_pipeline_layout();
     create_graphics_pipeline();
     create_color_resources();
     create_depth_resources();
-    create_shadow_resources();
     create_framebuffers();
     create_light_debug_mesh();
 
@@ -214,7 +361,6 @@ SceneRenderer::~SceneRenderer() noexcept {
         vkDestroyPipelineLayout(m_context.device(), m_pipelineLayout, nullptr);
         m_pipelineLayout = VK_NULL_HANDLE;
     }
-    destroy_shadow_descriptors();
     destroy_light_descriptors();
     destroy_material_descriptors();
     m_gizmoCache.release();
@@ -545,15 +691,21 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
         barrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
         barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.image = m_shadowMap.image();
+        if (!m_shadowResources.empty()) {
+            barrier.image = m_shadowResources.slot(0).map.image();
+        } else {
+            barrier.image = VK_NULL_HANDLE;
+        }
         barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
         barrier.subresourceRange.baseMipLevel = 0U;
         barrier.subresourceRange.levelCount = 1U;
         barrier.subresourceRange.baseArrayLayer = 0U;
         barrier.subresourceRange.layerCount = 1U;
 
-        vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0U, 0U, nullptr, 0U, nullptr, 1U, &barrier);
+        if (barrier.image != VK_NULL_HANDLE) {
+            vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0U, 0U, nullptr, 0U, nullptr, 1U, &barrier);
+        }
     }
 
     const glm::mat4 lightMatrix = lightMatrixOpt.value_or(glm::mat4(1.0F));
@@ -596,10 +748,12 @@ void SceneRenderer::record_command_buffer(VkCommandBuffer commandBuffer, std::ui
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 2U, 1U, &lightSet, 0U,
             nullptr);
     }
-    if (m_shadowDescriptorSet != VK_NULL_HANDLE) {
-        const VkDescriptorSet shadowSet = m_shadowDescriptorSet;
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 3U, 1U, &shadowSet, 0U,
-            nullptr);
+    if (!m_shadowResources.empty()) {
+        const VkDescriptorSet shadowSet = m_shadowResources.descriptor_set();
+        if (shadowSet != VK_NULL_HANDLE) {
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 3U, 1U, &shadowSet,
+                0U, nullptr);
+        }
     }
 
     const VkViewport viewport {
@@ -838,26 +992,14 @@ void SceneRenderer::create_pipeline_layout() {
     if (m_lightDescriptorLayout == VK_NULL_HANDLE) {
         throw std::logic_error {"SceneRenderer light descriptor layout not initialised"};
     }
-    if (m_shadowDescriptorLayout == VK_NULL_HANDLE) {
-        VkDescriptorSetLayoutBinding binding {};
-        binding.binding = 0U;
-        binding.descriptorCount = 1U;
-        binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-        VkDescriptorSetLayoutCreateInfo layoutInfo {};
-        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        layoutInfo.bindingCount = 1U;
-        layoutInfo.pBindings = &binding;
-
-        if (vkCreateDescriptorSetLayout(m_context.device(), &layoutInfo, nullptr, &m_shadowDescriptorLayout) != VK_SUCCESS) {
-            throw std::runtime_error {"Failed to create shadow descriptor layout"};
-        }
+    const VkDescriptorSetLayout shadowLayout = m_shadowResources.descriptor_layout();
+    if (shadowLayout == VK_NULL_HANDLE) {
+        throw std::logic_error {"Shadow resources descriptor layout not initialised"};
     }
     layouts[layoutCount++] = m_descriptorLayout;
     layouts[layoutCount++] = m_materialDescriptorLayout;
     layouts[layoutCount++] = m_lightDescriptorLayout;
-    layouts[layoutCount++] = m_shadowDescriptorLayout;
+    layouts[layoutCount++] = shadowLayout;
     pipelineLayoutInfo.setLayoutCount = layoutCount;
     pipelineLayoutInfo.pSetLayouts = layouts.data();
     pipelineLayoutInfo.pushConstantRangeCount = 1U;
@@ -1261,106 +1403,18 @@ void SceneRenderer::destroy_light_descriptors() noexcept {
 void SceneRenderer::create_depth_resources() {
     m_depthImage = vk::DepthImage::create(
         m_context.physical_device(), m_context.device(), m_context.swapchain_extent(), m_depthFormat);
-    create_shadow_resources();
 }
 
 void SceneRenderer::destroy_depth_resources() noexcept {
     m_depthImage = vk::DepthImage {};
-    destroy_shadow_resources();
 }
 
 void SceneRenderer::create_shadow_resources() {
-    m_shadowFormat = VK_FORMAT_D32_SFLOAT;
-    if (m_shadowMap.render_pass() == VK_NULL_HANDLE) {
-        m_shadowMap = ShadowMap {m_context, m_shadowExtent, m_shadowFormat};
-        m_shadowPass = ShadowPass {m_context, m_shadowMap.render_pass()};
-    } else {
-        m_shadowMap.recreate(m_context, m_shadowExtent, m_shadowFormat);
-        m_shadowPass.recreate(m_context, m_shadowMap.render_pass());
-    }
-    create_shadow_descriptors();
+    m_shadowResources.initialise(m_context, m_shadowExtent, m_shadowFormat, 1U);
 }
 
 void SceneRenderer::destroy_shadow_resources() noexcept {
-    m_shadowPass = ShadowPass {};
-    m_shadowMap = ShadowMap {};
-}
-
-void SceneRenderer::create_shadow_descriptors() {
-    const VkDevice device = m_context.device();
-
-    if (m_shadowDescriptorLayout == VK_NULL_HANDLE) {
-        VkDescriptorSetLayoutBinding binding {};
-        binding.binding = 0U;
-        binding.descriptorCount = 1U;
-        binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-        VkDescriptorSetLayoutCreateInfo layoutInfo {};
-        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        layoutInfo.bindingCount = 1U;
-        layoutInfo.pBindings = &binding;
-
-        if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &m_shadowDescriptorLayout) != VK_SUCCESS) {
-            throw std::runtime_error {"Failed to create shadow descriptor set layout"};
-        }
-    }
-
-    if (m_shadowDescriptorPool == VK_NULL_HANDLE) {
-        VkDescriptorPoolSize poolSize {};
-        poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        poolSize.descriptorCount = 1U;
-
-        VkDescriptorPoolCreateInfo poolInfo {};
-        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        poolInfo.maxSets = 1U;
-        poolInfo.poolSizeCount = 1U;
-        poolInfo.pPoolSizes = &poolSize;
-
-        if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &m_shadowDescriptorPool) != VK_SUCCESS) {
-            throw std::runtime_error {"Failed to create shadow descriptor pool"};
-        }
-    }
-
-    if (m_shadowDescriptorSet == VK_NULL_HANDLE) {
-        VkDescriptorSetAllocateInfo allocInfo {};
-        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        allocInfo.descriptorPool = m_shadowDescriptorPool;
-        allocInfo.descriptorSetCount = 1U;
-        allocInfo.pSetLayouts = &m_shadowDescriptorLayout;
-
-        if (vkAllocateDescriptorSets(device, &allocInfo, &m_shadowDescriptorSet) != VK_SUCCESS) {
-            throw std::runtime_error {"Failed to allocate shadow descriptor set"};
-        }
-    }
-
-    if (m_shadowMap.render_pass() == VK_NULL_HANDLE) {
-        return;
-    }
-
-    const VkDescriptorImageInfo info = m_shadowMap.descriptor_info();
-    VkWriteDescriptorSet write {};
-    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write.dstSet = m_shadowDescriptorSet;
-    write.dstBinding = 0U;
-    write.descriptorCount = 1U;
-    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    write.pImageInfo = &info;
-
-    vkUpdateDescriptorSets(device, 1U, &write, 0U, nullptr);
-}
-
-void SceneRenderer::destroy_shadow_descriptors() noexcept {
-    const VkDevice device = m_context.device();
-    if (m_shadowDescriptorPool != VK_NULL_HANDLE) {
-        vkDestroyDescriptorPool(device, m_shadowDescriptorPool, nullptr);
-        m_shadowDescriptorPool = VK_NULL_HANDLE;
-    }
-    if (m_shadowDescriptorLayout != VK_NULL_HANDLE) {
-        vkDestroyDescriptorSetLayout(device, m_shadowDescriptorLayout, nullptr);
-        m_shadowDescriptorLayout = VK_NULL_HANDLE;
-    }
-    m_shadowDescriptorSet = VK_NULL_HANDLE;
+    m_shadowResources.release(m_context);
 }
 
 void SceneRenderer::upload_mesh(const SceneMesh& mesh) {
@@ -1438,8 +1492,11 @@ void SceneRenderer::record_shadow_pass(VkCommandBuffer commandBuffer, const glm:
         commands.push_back(command);
     }
 
-    if (!commands.empty() && m_shadowMap.render_pass() != VK_NULL_HANDLE) {
-        m_shadowPass.record(commandBuffer, m_shadowMap, lightViewProjection, commands);
+    if (!commands.empty() && !m_shadowResources.empty()) {
+        const ShadowSlot& slot = m_shadowResources.slot(0);
+        if (slot.map.render_pass() != VK_NULL_HANDLE) {
+            slot.pass.record(commandBuffer, slot.map, lightViewProjection, commands);
+        }
     }
 }
 
