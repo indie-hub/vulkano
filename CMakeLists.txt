@@ -152,6 +152,10 @@ add_library(vulkano_app STATIC
     src/app/imgui_renderer.cpp
     src/app/vulkan_context.cpp
     src/app/window.cpp
+    src/vk/instance.cpp
+    src/vk/physical_device.cpp
+    src/vk/logical_device.cpp
+    src/vk/swapchain.cpp
 )
 
 set_target_properties(vulkano_app PROPERTIES OUTPUT_NAME vulkano_app)
@@ -168,6 +172,10 @@ target_sources(vulkano_app
             include/vulkano/app/imgui_renderer.hpp
             include/vulkano/app/vulkan_context.hpp
             include/vulkano/app/window.hpp
+            include/vulkano/vk/instance.hpp
+            include/vulkano/vk/physical_device.hpp
+            include/vulkano/vk/logical_device.hpp
+            include/vulkano/vk/swapchain.hpp
 )
 
 target_include_directories(vulkano_app
