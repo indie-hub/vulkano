@@ -246,3 +246,4 @@
 - [x] Draft object visibility toggle plan
 - [x] Implement scene object visibility toggles
 - [x] Validate visibility controls (tests, docs)
+- [x] Draft texture path resolution plan
