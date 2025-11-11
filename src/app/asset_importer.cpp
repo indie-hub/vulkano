@@ -186,6 +186,9 @@ ImportedMesh AssetImporter::import_mesh(const aiMesh& mesh, std::uint32_t materi
     ImportedMesh result {};
     result.materialIndex = materialIndex;
     result.transform = scene::Transform::from_matrix(transform);
+    if (mesh.mName.length > 0U) {
+        result.name = mesh.mName.C_Str();
+    }
 
     scene::MeshData meshData {};
     meshData.vertices.resize(mesh.mNumVertices);
