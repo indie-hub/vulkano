@@ -7,6 +7,7 @@
 
 #include <glm/mat4x4.hpp>
 
+#include <vulkano/scene/material.hpp>
 #include <vulkano/scene/mesh.hpp>
 #include <vulkano/vk/color_image.hpp>
 #include <vulkano/vk/depth_image.hpp>
@@ -20,6 +21,7 @@ public:
     struct SceneMesh final {
         scene::MeshData mesh {};
         glm::mat4 model {1.0F};
+        scene::MaterialId material {scene::MaterialId::invalid()};
     };
 
     SceneRenderer(const VulkanContext& context, const Window& window, VkDescriptorSetLayout ssaoLayout = VK_NULL_HANDLE);
@@ -56,6 +58,7 @@ private:
         VkDeviceMemory indexMemory {VK_NULL_HANDLE};
         std::uint32_t indexCount {0U};
         glm::mat4 model {1.0F};
+        scene::MaterialId material {scene::MaterialId::invalid()};
     };
 
     void create_render_pass();

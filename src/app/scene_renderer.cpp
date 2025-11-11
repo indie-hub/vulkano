@@ -708,6 +708,10 @@ void SceneRenderer::upload_mesh(const SceneMesh& mesh) {
     const VkDevice device = m_context.device();
     const VkPhysicalDevice physicalDevice = m_context.physical_device();
 
+    if (mesh.material == scene::MaterialId::invalid()) {
+        throw std::invalid_argument {"Scene mesh requires a valid material identifier"};
+    }
+
     const std::vector<Vertex> vertices = [&mesh]() {
         std::vector<Vertex> converted;
         converted.reserve(mesh.mesh.vertices.size());
@@ -725,6 +729,7 @@ void SceneRenderer::upload_mesh(const SceneMesh& mesh) {
     GpuMesh gpuMesh {};
     gpuMesh.model = mesh.model;
     gpuMesh.indexCount = static_cast<std::uint32_t>(indices.size());
+    gpuMesh.material = mesh.material;
 
     const VkDeviceSize vertexBufferSize {static_cast<VkDeviceSize>(sizeof(Vertex) * vertices.size())};
     const VkDeviceSize indexBufferSize {static_cast<VkDeviceSize>(sizeof(std::uint32_t) * indices.size())};
