@@ -315,6 +315,7 @@ void SceneRenderer::set_light_resources(const LightBuffer& buffer, const scene::
 
     destroy_point_light_debug_meshes();
     std::vector<DebugMesh> pointMeshes;
+    std::vector<LightGizmoHandle> pointHandles;
 
     std::optional<scene::LightId> primaryDirId {};
     const scene::Light* primaryDirLight {nullptr};
@@ -422,10 +423,24 @@ void SceneRenderer::set_light_resources(const LightBuffer& buffer, const scene::
 
         mesh.indexCount = static_cast<std::uint32_t>(indices.size());
         mesh.model = glm::translate(glm::mat4(1.0F), light.position) * glm::scale(glm::mat4(1.0F), glm::vec3(0.25F));
+        LightGizmoHandle handle {};
+        handle.id = scene::LightId {static_cast<std::uint32_t>(index)};
+        handle.mesh = nullptr;
+        handle.type = scene::LightType::Point;
+        handle.transform = mesh.model;
+        handle.dirty = false;
+        pointHandles.push_back(handle);
         pointMeshes.push_back(std::move(mesh));
     }
 
     m_pointLightDebugMeshes = std::move(pointMeshes);
+    m_gizmoCache.points.clear();
+    m_gizmoCache.points.reserve(m_pointLightDebugMeshes.size());
+    for (std::size_t idx {0U}; idx < m_pointLightDebugMeshes.size(); ++idx) {
+        LightGizmoHandle handle = pointHandles[idx];
+        handle.mesh = &m_pointLightDebugMeshes[idx];
+        m_gizmoCache.points.push_back(handle);
+    }
 
     m_lightBuffer = &buffer;
 }
@@ -1580,5 +1595,6 @@ void SceneRenderer::destroy_point_light_debug_meshes() noexcept {
         mesh.indexCount = 0U;
     }
     m_pointLightDebugMeshes.clear();
+    m_gizmoCache.points.clear();
 }
 } // namespace vulkano::app
