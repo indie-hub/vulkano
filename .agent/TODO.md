@@ -240,3 +240,6 @@
     - [x] Track actual scene color image layouts and transition back to attachment use before the render pass
     - [x] Verify barriers clear the warnings under VK_LAYER_KHRONOS_validation with resize smoke test
 - [x] Document and validate viewport docking workflow
+- [x] Draft SSAO alignment correction plan
+- [ ] Implement SSAO alignment corrections
+- [ ] Validate SSAO alignment fix (tests, validation, docs)
