@@ -69,6 +69,7 @@ int Application::run() noexcept {
         cubeMaterial.properties.roughness = 0.4F;
         cubeMaterial.properties.metallic = 0.05F;
         cubeMaterial.textures.baseColorPath = "assets/textures/cube.png";
+        cubeMaterial.textures.normalPath = "assets/textures/metal_normal.png";
         cubeMaterial.useBaseColorTexture = true;
         cubeMaterial.useNormalTexture = true;
         const scene::MaterialId cubeMaterialId = materialRegistry.add_material(cubeMaterial);
