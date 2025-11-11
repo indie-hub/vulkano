@@ -157,6 +157,7 @@ add_library(vulkano_app STATIC
     src/app/scene_renderer.cpp
     src/app/imgui_renderer.cpp
     src/app/ssao.cpp
+    src/app/material_gpu.cpp
     src/app/vulkan_context.cpp
     src/app/window.cpp
     src/scene/mesh.cpp
@@ -185,6 +186,7 @@ target_sources(vulkano_app
             include/vulkano/app/scene_renderer.hpp
             include/vulkano/app/imgui_renderer.hpp
             include/vulkano/app/ssao.hpp
+            include/vulkano/app/material_gpu.hpp
             include/vulkano/app/vulkan_context.hpp
             include/vulkano/app/window.hpp
             include/vulkano/vk/instance.hpp
