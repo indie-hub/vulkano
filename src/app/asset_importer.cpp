@@ -1,3 +1,4 @@
+#define GLM_ENABLE_EXPERIMENTAL
 #include <vulkano/app/asset_importer.hpp>
 
 #include <assimp/Importer.hpp>
@@ -13,6 +14,9 @@
 #include <stdexcept>
 #include <string_view>
 #include <unordered_map>
+
+#include <glm/gtc/quaternion.hpp>
+#include <glm/gtx/quaternion.hpp>
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -227,7 +231,7 @@ ImportedScene AssetImporter::load_scene(std::string_view path) const {
         remap_material_paths(imported.material);
     }
 
-    build_node(*scene, *scene->mRootNode, glm::mat4(1.0F), result.root);
+    build_node(*scene, *scene->mRootNode, glm::mat4(1.0F), result.root, "");
 
     const bool hasMeshes = !result.root.meshes.empty();
     const bool hasChildren = !result.root.children.empty();
@@ -357,11 +361,35 @@ ImportedMesh AssetImporter::import_mesh(const aiMesh& mesh, std::uint32_t materi
     return result;
 }
 
+namespace {
+[[nodiscard]] bool log_node_transforms_enabled() noexcept {
+    if (const char* env = std::getenv("VULKANO_LOG_NODE_TRANSFORMS")) {
+        return std::strcmp(env, "0") != 0;
+    }
+    return false;
+}
+}
+
 void AssetImporter::build_node(const aiScene& scene, const aiNode& node, const glm::mat4& parentWorld,
-    ImportedScene::Node& output) {
+    ImportedScene::Node& output, const std::string& indent) {
     output.name = node.mName.length > 0 ? node.mName.C_Str() : "Node";
     const glm::mat4 local = to_glm(node.mTransformation);
     output.transform = scene::Transform::from_matrix(local);
+
+    if (log_node_transforms_enabled()) {
+        const glm::vec3 localTranslation = output.transform.position;
+        const glm::vec3 localRotationDeg = glm::degrees(glm::eulerAngles(output.transform.rotation));
+        const glm::mat4 worldMatrix = parentWorld * local;
+        const scene::Transform worldTransform = scene::Transform::from_matrix(worldMatrix);
+        const glm::vec3 worldTranslation = worldTransform.position;
+        const glm::vec3 worldRotationDeg = glm::degrees(glm::eulerAngles(worldTransform.rotation));
+        std::cout << indent << "[Node] " << output.name
+                  << " localT=" << localTranslation.x << ',' << localTranslation.y << ',' << localTranslation.z
+                  << " localR=" << localRotationDeg.x << ',' << localRotationDeg.y << ',' << localRotationDeg.z
+                  << " worldT=" << worldTranslation.x << ',' << worldTranslation.y << ',' << worldTranslation.z
+                  << " worldR=" << worldRotationDeg.x << ',' << worldRotationDeg.y << ',' << worldRotationDeg.z
+                  << std::endl;
+    }
 
     output.meshes.clear();
     output.meshes.reserve(node.mNumMeshes);
@@ -377,7 +405,7 @@ void AssetImporter::build_node(const aiScene& scene, const aiNode& node, const g
     const glm::mat4 world = parentWorld * local;
     for (unsigned int i {0U}; i < node.mNumChildren; ++i) {
         ImportedScene::Node child {};
-        build_node(scene, *node.mChildren[i], world, child);
+        build_node(scene, *node.mChildren[i], world, child, indent + "  ");
         output.children.push_back(std::move(child));
     }
 }

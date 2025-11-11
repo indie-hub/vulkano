@@ -65,11 +65,8 @@ ImTextureID to_texture_id(Handle handle) noexcept {
 }
 
 scene::Transform compose_local(const scene::Transform& parent, const scene::Transform& local) {
-    scene::Transform composed {};
-    composed.position = parent.position + local.position;
-    composed.rotation = glm::normalize(parent.rotation * local.rotation);
-    composed.scale = parent.scale * local.scale;
-    return composed;
+    const glm::mat4 worldMatrix = parent.matrix() * local.matrix();
+    return scene::Transform::from_matrix(worldMatrix);
 }
 
 void flatten_nodes(const SceneRenderer::SceneNode& node, const scene::Transform& parentTransform,

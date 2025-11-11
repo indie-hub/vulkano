@@ -51,6 +51,6 @@ private:
         const std::filesystem::path& baseDirectory);
     [[nodiscard]] static ImportedMesh import_mesh(const aiMesh& mesh, std::uint32_t materialIndex);
     static void build_node(const aiScene& scene, const aiNode& node, const glm::mat4& parentTransform,
-        ImportedScene::Node& output);
+        ImportedScene::Node& output, const std::string& indent);
 };
 } // namespace vulkano::app
